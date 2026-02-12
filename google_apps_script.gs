@@ -1,40 +1,40 @@
 /**
- * Denver Lead Generator — Google Apps Script (Yelp Fusion API)
+ * Denver Lead Generator - Google Apps Script (Yelp Fusion API)
  * Pulls 500+ business leads and writes them directly to this Google Sheet.
  *
  * SETUP:
  *   1. Open a new Google Sheet
- *   2. Go to Extensions → Apps Script
+ *   2. Go to Extensions > Apps Script
  *   3. Delete any existing code and paste this entire script
  *   4. Replace YOUR_YELP_API_KEY_HERE with your Yelp API key
  *      (Get one free at https://www.yelp.com/developers/v3/manage_app)
  *   5. Click Save, then run "main" from the function dropdown
  *   6. Approve the permissions when prompted
- *   7. Wait ~5-10 minutes — leads will populate in the sheet
+ *   7. Wait 5-10 minutes - leads will populate in the sheet
  */
 
-// ─── CONFIG ──────────────────────────────────────────────────────────
+// --- CONFIG ---
 var YELP_API_KEY = "YOUR_YELP_API_KEY_HERE";
 
 var DENVER_LAT = 39.7392;
 var DENVER_LNG = -104.9903;
-var RADIUS_METERS = 40000; // Yelp max is 40,000m (~25 miles)
+var RADIUS_METERS = 40000;
 var TARGET_LEADS = 500;
-var PAGE_SIZE = 50; // Yelp max per request
+var PAGE_SIZE = 50;
 
 // Industry search terms mapped to Yelp categories
 var INDUSTRY_MAP = [
   { industry: "apartments",           term: "apartments",           categories: "apartments" },
   { industry: "hotels",               term: "hotels",               categories: "hotels" },
   { industry: "hospitals",            term: "hospitals",             categories: "hospitals" },
-  { industry: "car dealerships",      term: "car dealerships",       categories: "car_dealers" },
-  { industry: "gyms",                 term: "gyms",                  categories: "gyms" },
+  { industry: "car dealerships",      term: "car dealerships",      categories: "car_dealers" },
+  { industry: "gyms",                 term: "gyms",                 categories: "gyms" },
   { industry: "office buildings",     term: "office buildings",      categories: "" },
-  { industry: "auto repair",          term: "auto repair",           categories: "autorepair" },
-  { industry: "car wash",             term: "car wash",              categories: "carwash" },
-  { industry: "warehouses",           term: "warehouses",            categories: "" },
-  { industry: "distribution centers", term: "distribution center",   categories: "" },
-  { industry: "manufacturing",        term: "manufacturing",         categories: "" },
+  { industry: "auto repair",          term: "auto repair",          categories: "autorepair" },
+  { industry: "car wash",             term: "car wash",             categories: "carwash" },
+  { industry: "warehouses",           term: "warehouses",           categories: "" },
+  { industry: "distribution centers", term: "distribution center",  categories: "" },
+  { industry: "manufacturing",        term: "manufacturing",        categories: "" }
 ];
 
 // Denver metro neighborhoods for expanded Phase 2 searches
@@ -56,10 +56,10 @@ var NEIGHBORHOODS = [
   "Federal Heights, CO",
   "Parker, CO",
   "Brighton, CO",
-  "Golden, CO",
+  "Golden, CO"
 ];
 
-// ─── MAIN ENTRY POINT ───────────────────────────────────────────────
+// --- MAIN ENTRY POINT ---
 
 function main() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -88,7 +88,7 @@ function main() {
 
   // Phase 1: Search each industry in Denver
   for (var i = 0; i < INDUSTRY_MAP.length; i++) {
-    if (allLeads.length >= TARGET_LEADS) break;
+    if (allLeads.length >= TARGET_LEADS) { break; }
 
     var ind = INDUSTRY_MAP[i];
     Logger.log("Searching: " + ind.industry);
@@ -107,11 +107,11 @@ function main() {
   // Phase 2: Expand to neighborhoods for industries that need more leads
   if (allLeads.length < TARGET_LEADS) {
     for (var n = 0; n < NEIGHBORHOODS.length; n++) {
-      if (allLeads.length >= TARGET_LEADS) break;
+      if (allLeads.length >= TARGET_LEADS) { break; }
 
       var neighborhood = NEIGHBORHOODS[n];
       for (var i = 0; i < INDUSTRY_MAP.length; i++) {
-        if (allLeads.length >= TARGET_LEADS) break;
+        if (allLeads.length >= TARGET_LEADS) { break; }
 
         var ind = INDUSTRY_MAP[i];
         var result = searchYelpByLocation_(ind.term, ind.categories, neighborhood, ind.industry, seenIds);
@@ -126,8 +126,10 @@ function main() {
 
   // Write all leads to the sheet
   if (allLeads.length > 0) {
-    var rows = allLeads.map(function(lead) {
-      return [
+    var rows = [];
+    for (var k = 0; k < allLeads.length; k++) {
+      var lead = allLeads[k];
+      rows.push([
         lead.name,
         lead.industry,
         lead.address,
@@ -142,8 +144,8 @@ function main() {
         lead.lat,
         lead.lng,
         lead.dateCollected
-      ];
-    });
+      ]);
+    }
 
     sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   }
@@ -166,13 +168,13 @@ function main() {
   );
 }
 
-// ─── YELP API SEARCH (by coordinates) ───────────────────────────────
+// --- YELP API SEARCH (by coordinates) ---
 
 function searchYelp_(term, categories, lat, lng, radius, industry, seenIds) {
   var leads = [];
   var calls = 0;
   var offset = 0;
-  var maxOffset = 1000; // Yelp caps at 1000
+  var maxOffset = 1000;
 
   while (offset < maxOffset) {
     var url = "https://api.yelp.com/v3/businesses/search"
@@ -191,7 +193,7 @@ function searchYelp_(term, categories, lat, lng, radius, industry, seenIds) {
     var data = yelpFetch_(url);
     calls++;
 
-    if (!data || !data.businesses || data.businesses.length === 0) break;
+    if (!data || !data.businesses || data.businesses.length === 0) { break; }
 
     for (var i = 0; i < data.businesses.length; i++) {
       var biz = data.businesses[i];
@@ -201,23 +203,22 @@ function searchYelp_(term, categories, lat, lng, radius, industry, seenIds) {
       }
     }
 
-    // If we got fewer than PAGE_SIZE, no more results
-    if (data.businesses.length < PAGE_SIZE) break;
+    if (data.businesses.length < PAGE_SIZE) { break; }
 
     offset += PAGE_SIZE;
-    Utilities.sleep(350); // Rate limiting
+    Utilities.sleep(350);
   }
 
   return { leads: leads, calls: calls };
 }
 
-// ─── YELP API SEARCH (by location string) ───────────────────────────
+// --- YELP API SEARCH (by location string) ---
 
 function searchYelpByLocation_(term, categories, location, industry, seenIds) {
   var leads = [];
   var calls = 0;
   var offset = 0;
-  var maxOffset = 200; // Smaller for neighborhood searches
+  var maxOffset = 200;
 
   while (offset < maxOffset) {
     var url = "https://api.yelp.com/v3/businesses/search"
@@ -234,7 +235,7 @@ function searchYelpByLocation_(term, categories, location, industry, seenIds) {
     var data = yelpFetch_(url);
     calls++;
 
-    if (!data || !data.businesses || data.businesses.length === 0) break;
+    if (!data || !data.businesses || data.businesses.length === 0) { break; }
 
     for (var i = 0; i < data.businesses.length; i++) {
       var biz = data.businesses[i];
@@ -244,7 +245,7 @@ function searchYelpByLocation_(term, categories, location, industry, seenIds) {
       }
     }
 
-    if (data.businesses.length < PAGE_SIZE) break;
+    if (data.businesses.length < PAGE_SIZE) { break; }
 
     offset += PAGE_SIZE;
     Utilities.sleep(350);
@@ -253,14 +254,24 @@ function searchYelpByLocation_(term, categories, location, industry, seenIds) {
   return { leads: leads, calls: calls };
 }
 
-// ─── PARSE A YELP BUSINESS INTO A LEAD ROW ──────────────────────────
+// --- PARSE A YELP BUSINESS INTO A LEAD ROW ---
 
 function parseBusiness_(biz, industry) {
   var loc = biz.location || {};
+  var addr = loc.address1 || "";
+  if (loc.address2) {
+    addr = addr + " " + loc.address2;
+  }
+  var lat = "";
+  var lng = "";
+  if (biz.coordinates) {
+    lat = biz.coordinates.latitude;
+    lng = biz.coordinates.longitude;
+  }
   return {
     name: biz.name || "",
     industry: industry,
-    address: (loc.address1 || "") + (loc.address2 ? " " + loc.address2 : ""),
+    address: addr,
     city: loc.city || "",
     state: loc.state || "",
     zip: loc.zip_code || "",
@@ -269,13 +280,13 @@ function parseBusiness_(biz, industry) {
     rating: biz.rating || "",
     reviewCount: biz.review_count || 0,
     yelpId: biz.id || "",
-    lat: biz.coordinates ? biz.coordinates.latitude : "",
-    lng: biz.coordinates ? biz.coordinates.longitude : "",
+    lat: lat,
+    lng: lng,
     dateCollected: new Date().toISOString().split("T")[0]
   };
 }
 
-// ─── YELP API FETCH WITH RETRY ──────────────────────────────────────
+// --- YELP API FETCH WITH RETRY ---
 
 function yelpFetch_(url) {
   var options = {
@@ -296,14 +307,12 @@ function yelpFetch_(url) {
       }
 
       if (code === 429) {
-        // Rate limited — wait and retry
         Logger.log("Rate limited, waiting 5s...");
         Utilities.sleep(5000);
         continue;
       }
 
       if (code === 400) {
-        // Bad request (e.g., offset too high)
         return null;
       }
 
@@ -319,7 +328,7 @@ function yelpFetch_(url) {
   return null;
 }
 
-// ─── MENU ITEM (optional convenience) ────────────────────────────────
+// --- MENU ITEM (optional convenience) ---
 
 function onOpen() {
   SpreadsheetApp.getUi()
