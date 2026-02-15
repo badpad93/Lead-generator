@@ -11,6 +11,8 @@ import {
   PlusCircle,
   Clock,
   MapPin,
+  Square,
+  Loader2,
 } from "lucide-react";
 
 interface Run {
@@ -46,8 +48,9 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> =
 export default function DashboardPage() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stoppingId, setStoppingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  function fetchRuns() {
     fetch("/api/runs")
       .then((r) => r.json())
       .then((data) => {
@@ -55,7 +58,20 @@ export default function DashboardPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    fetchRuns();
   }, []);
+
+  async function handleStop(e: React.MouseEvent, runId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setStoppingId(runId);
+    const res = await fetch(`/api/runs/${runId}/stop`, { method: "POST" });
+    if (res.ok) fetchRuns();
+    setStoppingId(null);
+  }
 
   const totalRuns = runs.length;
   const activeRuns = runs.filter((r) => r.status === "running").length;
@@ -249,6 +265,22 @@ export default function DashboardPage() {
                       />
                     </div>
                   </div>
+
+                  {/* Stop button for active runs */}
+                  {(run.status === "running" || run.status === "queued") && (
+                    <button
+                      onClick={(e) => handleStop(e, run.id)}
+                      disabled={stoppingId === run.id}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-50 transition-colors shrink-0"
+                    >
+                      {stoppingId === run.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Square className="w-3.5 h-3.5" />
+                      )}
+                      Stop
+                    </button>
+                  )}
 
                   {/* Time */}
                   <div className="flex items-center gap-1 text-xs text-slate-400 shrink-0">

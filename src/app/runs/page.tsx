@@ -10,6 +10,8 @@ import {
   PlusCircle,
   List,
   Filter,
+  Square,
+  Loader2,
 } from "lucide-react";
 
 interface Run {
@@ -49,8 +51,9 @@ export default function RunsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [stoppingId, setStoppingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  function fetchRuns() {
     fetch("/api/runs")
       .then((r) => r.json())
       .then((data) => {
@@ -58,7 +61,20 @@ export default function RunsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    fetchRuns();
   }, []);
+
+  async function handleStop(e: React.MouseEvent, runId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setStoppingId(runId);
+    const res = await fetch(`/api/runs/${runId}/stop`, { method: "POST" });
+    if (res.ok) fetchRuns();
+    setStoppingId(null);
+  }
 
   const filteredRuns = runs.filter((run) => {
     if (statusFilter !== "all" && run.status !== statusFilter) return false;
@@ -260,9 +276,25 @@ export default function RunsPage() {
                     <Clock className="w-3 h-3" />
                     {timeAgo(run.created_at)}
                   </div>
-                  <span className="text-xs text-blue-600 font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    View <ArrowRight className="w-3 h-3" />
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {(run.status === "running" || run.status === "queued") && (
+                      <button
+                        onClick={(e) => handleStop(e, run.id)}
+                        disabled={stoppingId === run.id}
+                        className="flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 text-red-600 rounded-md text-[11px] font-medium hover:bg-red-100 disabled:opacity-50 transition-colors"
+                      >
+                        {stoppingId === run.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Square className="w-3 h-3" />
+                        )}
+                        Stop
+                      </button>
+                    )}
+                    <span className="text-xs text-blue-600 font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      View <ArrowRight className="w-3 h-3" />
+                    </span>
+                  </div>
                 </div>
               </Link>
             );
