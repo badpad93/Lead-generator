@@ -43,6 +43,15 @@ export async function POST(
   // Trigger the Apify actor (fire-and-forget – actor runs independently)
   try {
     const actorRunId = await triggerApifyActor(id);
+
+    // Store the Apify run ID so we can abort it later
+    await supabaseAdmin
+      .from("runs")
+      .update({
+        progress: { total: 0, message: "Starting…", apify_run_id: actorRunId },
+      })
+      .eq("id", id);
+
     return NextResponse.json({ ok: true, actorRunId });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";

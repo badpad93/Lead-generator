@@ -21,6 +21,7 @@ import {
   Users,
   Clock,
   Loader2,
+  Square,
 } from "lucide-react";
 
 interface Run {
@@ -111,6 +112,7 @@ export default function RunDetailPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNotes, setEditNotes] = useState("");
   const [editDate, setEditDate] = useState("");
@@ -169,6 +171,16 @@ export default function RunDetailPage() {
     const res = await fetch(`/api/runs/${runId}/start`, { method: "POST" });
     if (res.ok) await fetchRun();
     setStarting(false);
+  }
+
+  async function handleStop() {
+    setStopping(true);
+    const res = await fetch(`/api/runs/${runId}/stop`, { method: "POST" });
+    if (res.ok) {
+      if (pollRef.current) clearInterval(pollRef.current);
+      await fetchRun();
+    }
+    setStopping(false);
   }
 
   async function handleSaveEdit(leadId: string) {
@@ -295,6 +307,20 @@ export default function RunDetailPage() {
                   <Play className="w-4 h-4" />
                 )}
                 {starting ? "Starting..." : "Start Run"}
+              </button>
+            )}
+            {(run.status === "running" || run.status === "queued") && (
+              <button
+                onClick={handleStop}
+                disabled={stopping}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {stopping ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+                {stopping ? "Stopping..." : "Stop Run"}
               </button>
             )}
             {(run.status === "done" || run.progress.total > 0) && (

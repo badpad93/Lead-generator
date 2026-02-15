@@ -48,6 +48,14 @@ export async function GET(req: NextRequest) {
 
       const actorRunId = await triggerApifyActor(run.id);
       actorRunIds.push(actorRunId);
+
+      // Store the Apify run ID so we can abort it later
+      await supabaseAdmin
+        .from("runs")
+        .update({
+          progress: { total: 0, message: "Starting…", apify_run_id: actorRunId },
+        })
+        .eq("id", run.id);
     }
 
     return NextResponse.json({
