@@ -2,6 +2,26 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  Play,
+  Download,
+  FileSpreadsheet,
+  Search,
+  ExternalLink,
+  Phone,
+  Pencil,
+  Check,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Crosshair,
+  Users,
+  Clock,
+  Loader2,
+} from "lucide-react";
 
 interface Run {
   id: string;
@@ -37,6 +57,49 @@ interface Lead {
 
 const PAGE_SIZE = 50;
 
+const STATUS_CONFIG: Record<
+  string,
+  { bg: string; text: string; dot: string; label: string }
+> = {
+  queued: {
+    bg: "bg-slate-100",
+    text: "text-slate-700",
+    dot: "bg-slate-400",
+    label: "Queued",
+  },
+  running: {
+    bg: "bg-blue-50",
+    text: "text-blue-700",
+    dot: "bg-blue-500 animate-pulse-dot",
+    label: "Running",
+  },
+  done: {
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    dot: "bg-emerald-500",
+    label: "Completed",
+  },
+  failed: {
+    bg: "bg-red-50",
+    text: "text-red-700",
+    dot: "bg-red-500",
+    label: "Failed",
+  },
+};
+
+function ConfidenceBadge({ value }: { value: number | null }) {
+  if (value == null) return <span className="text-slate-300">--</span>;
+  const pct = Math.round(value * 100);
+  let color = "bg-red-100 text-red-700";
+  if (value >= 0.7) color = "bg-emerald-100 text-emerald-700";
+  else if (value >= 0.4) color = "bg-amber-100 text-amber-700";
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${color}`}>
+      {pct}%
+    </span>
+  );
+}
+
 export default function RunDetailPage() {
   const params = useParams();
   const runId = params.id as string;
@@ -64,13 +127,13 @@ export default function RunDetailPage() {
   }, [runId]);
 
   const fetchLeads = useCallback(async () => {
-    const params = new URLSearchParams({
+    const p = new URLSearchParams({
       limit: String(PAGE_SIZE),
       offset: String(page * PAGE_SIZE),
     });
-    if (search) params.set("search", search);
+    if (search) p.set("search", search);
 
-    const res = await fetch(`/api/runs/${runId}/leads?${params}`);
+    const res = await fetch(`/api/runs/${runId}/leads?${p}`);
     if (res.ok) {
       const data = await res.json();
       setLeads(data.leads);
@@ -78,7 +141,6 @@ export default function RunDetailPage() {
     }
   }, [runId, page, search]);
 
-  // Initial load
   useEffect(() => {
     (async () => {
       await fetchRun();
@@ -87,7 +149,6 @@ export default function RunDetailPage() {
     })();
   }, [fetchRun, fetchLeads]);
 
-  // Poll while running
   useEffect(() => {
     if (run?.status === "running" || run?.status === "queued") {
       pollRef.current = setInterval(async () => {
@@ -106,9 +167,7 @@ export default function RunDetailPage() {
   async function handleStart() {
     setStarting(true);
     const res = await fetch(`/api/runs/${runId}/start`, { method: "POST" });
-    if (res.ok) {
-      await fetchRun();
-    }
+    if (res.ok) await fetchRun();
     setStarting(false);
   }
 
@@ -131,103 +190,155 @@ export default function RunDetailPage() {
     setEditDate(lead.contacted_date ?? "");
   }
 
-  const statusColor: Record<string, string> = {
-    queued: "bg-yellow-100 text-yellow-800",
-    running: "bg-blue-100 text-blue-800",
-    done: "bg-green-100 text-green-800",
-    failed: "bg-red-100 text-red-800",
-  };
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      <div className="space-y-6">
+        <div className="skeleton h-8 w-48" />
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <div className="skeleton h-6 w-64 mb-4" />
+          <div className="skeleton h-4 w-96 mb-3" />
+          <div className="skeleton h-3 w-full rounded-full" />
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <div className="skeleton h-5 w-32 mb-4" />
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="skeleton h-12 w-full" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!run) {
-    return <div className="text-center py-20 text-gray-500">Run not found</div>;
+    return (
+      <div className="text-center py-20">
+        <p className="text-slate-500">Run not found</p>
+        <Link
+          href="/runs"
+          className="text-sm text-blue-600 hover:underline mt-2 inline-block"
+        >
+          Back to Runs
+        </Link>
+      </div>
+    );
   }
 
+  const status = STATUS_CONFIG[run.status];
   const totalPages = Math.ceil(total / PAGE_SIZE);
+  const pct = run.max_leads
+    ? Math.min(100, Math.round((run.progress.total / run.max_leads) * 100))
+    : 0;
 
   return (
     <div className="space-y-6">
-      {/* Run Header */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">
-              {run.city}, {run.state}
-            </h1>
-            <p className="text-gray-500 text-sm mt-1">
-              {run.radius_miles} mile radius &middot; Max {run.max_leads} leads
-              &middot; {run.industries.length} industries
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Run ID: {run.id}
-            </p>
+      {/* Back link */}
+      <Link
+        href="/runs"
+        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to Runs
+      </Link>
+
+      {/* Run Header Card */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
+              <MapPin className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-xl font-bold text-slate-900">
+                  {run.city}, {run.state}
+                </h1>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${status.bg} ${status.text}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
+                  {status.label}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+                <span className="flex items-center gap-1">
+                  <Crosshair className="w-3.5 h-3.5" />
+                  {run.radius_miles} mi radius
+                </span>
+                <span className="flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5" />
+                  Max {run.max_leads} leads
+                </span>
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  {new Date(run.created_at).toLocaleDateString()}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1 font-mono">
+                {run.id.slice(0, 8)}...
+              </p>
+            </div>
           </div>
-          <span
-            className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColor[run.status]}`}
-          >
-            {run.status.toUpperCase()}
-          </span>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            {run.status === "queued" && (
+              <button
+                onClick={handleStart}
+                disabled={starting}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              >
+                {starting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Play className="w-4 h-4" />
+                )}
+                {starting ? "Starting..." : "Start Run"}
+              </button>
+            )}
+            {(run.status === "done" || run.progress.total > 0) && (
+              <>
+                <a
+                  href={`/api/runs/${run.id}/export.csv`}
+                  className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  CSV
+                </a>
+                <a
+                  href={`/api/runs/${run.id}/export.xlsx`}
+                  className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Excel
+                </a>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Progress */}
-        <div className="mt-4 flex items-center gap-4">
-          <div className="flex-1">
-            <div className="flex justify-between text-sm mb-1">
-              <span className="font-medium">
-                {run.progress.total} leads collected
-              </span>
-              <span className="text-gray-500">
-                {run.status === "running" ? "Processing..." : ""}
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-blue-600 h-2 rounded-full transition-all"
-                style={{
-                  width: `${Math.min(100, (run.progress.total / run.max_leads) * 100)}%`,
-                }}
-              />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {run.progress.message}
-            </p>
+        <div className="mt-5 pt-5 border-t border-slate-100">
+          <div className="flex items-center justify-between text-sm mb-2">
+            <span className="font-semibold text-slate-900">
+              {run.progress.total} leads collected
+            </span>
+            <span className="text-slate-500">{pct}%</span>
           </div>
-        </div>
-
-        {/* Actions */}
-        <div className="mt-4 flex gap-3 flex-wrap">
-          {run.status === "queued" && (
-            <button
-              onClick={handleStart}
-              disabled={starting}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 text-sm"
-            >
-              {starting ? "Starting..." : "Start Run"}
-            </button>
-          )}
-          {(run.status === "done" || run.progress.total > 0) && (
-            <>
-              <a
-                href={`/api/runs/${run.id}/export.csv`}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 text-sm border"
-              >
-                Export CSV
-              </a>
-              <a
-                href={`/api/runs/${run.id}/export.xlsx`}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 text-sm border"
-              >
-                Export Excel
-              </a>
-            </>
-          )}
+          <div className="w-full bg-slate-100 rounded-full h-2.5">
+            <div
+              className={`h-2.5 rounded-full transition-all duration-500 ${
+                run.status === "failed"
+                  ? "bg-red-400"
+                  : run.status === "done"
+                    ? "bg-emerald-500"
+                    : "bg-blue-500"
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <p className="text-xs text-slate-500 mt-1.5">{run.progress.message}</p>
         </div>
       </div>
 
@@ -236,7 +347,7 @@ export default function RunDetailPage() {
         {run.industries.map((ind) => (
           <span
             key={ind}
-            className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium"
+            className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium border border-blue-100"
           >
             {ind}
           </span>
@@ -244,21 +355,27 @@ export default function RunDetailPage() {
       </div>
 
       {/* Leads Table */}
-      <div className="bg-white rounded-xl shadow-sm border">
-        <div className="p-4 border-b flex items-center justify-between gap-4">
-          <h2 className="font-semibold">
-            Leads ({total})
+      <div className="bg-white rounded-xl border border-slate-200">
+        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-slate-900">
+            Leads
+            <span className="ml-2 px-2 py-0.5 bg-slate-100 rounded-full text-xs font-medium text-slate-600">
+              {total}
+            </span>
           </h2>
-          <input
-            type="text"
-            placeholder="Search leads..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
-            className="max-w-xs"
-          />
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search leads..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
+              className="pl-9 text-sm"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -267,86 +384,114 @@ export default function RunDetailPage() {
               <tr>
                 <th>Business</th>
                 <th>Industry</th>
-                <th>Address</th>
+                <th>Location</th>
                 <th>Phone</th>
                 <th>Website</th>
                 <th>Distance</th>
                 <th>Confidence</th>
-                <th>Notes</th>
-                <th>Actions</th>
+                <th>Notes / Contact</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {leads.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center text-gray-400 py-8">
-                    {run.status === "running"
-                      ? "Leads will appear here as they are collected..."
-                      : "No leads found"}
+                  <td
+                    colSpan={9}
+                    className="text-center py-12 text-slate-400"
+                  >
+                    <div className="flex flex-col items-center gap-2">
+                      <Users className="w-8 h-8 text-slate-300" />
+                      <p className="text-sm">
+                        {run.status === "running"
+                          ? "Leads will appear here as they are collected..."
+                          : search
+                            ? "No leads match your search"
+                            : "No leads found"}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 leads.map((lead) => (
                   <tr key={lead.id}>
-                    <td className="font-medium max-w-[200px] truncate">
-                      {lead.business_name}
-                    </td>
                     <td>
-                      <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">
-                        {lead.industry}
+                      <span className="font-medium text-slate-900 max-w-[200px] truncate block">
+                        {lead.business_name || "--"}
                       </span>
                     </td>
-                    <td className="text-xs max-w-[180px] truncate">
-                      {[lead.address, lead.city, lead.state, lead.zip]
-                        .filter(Boolean)
-                        .join(", ")}
+                    <td>
+                      {lead.industry ? (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[11px] font-medium">
+                          {lead.industry}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">--</span>
+                      )}
                     </td>
-                    <td className="text-xs whitespace-nowrap">{lead.phone}</td>
-                    <td className="text-xs max-w-[150px] truncate">
+                    <td>
+                      <div className="max-w-[200px]">
+                        <p className="text-xs text-slate-700 truncate">
+                          {lead.address || ""}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          {[lead.city, lead.state, lead.zip]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      </div>
+                    </td>
+                    <td>
+                      {lead.phone ? (
+                        <a
+                          href={`tel:${lead.phone}`}
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline whitespace-nowrap"
+                        >
+                          <Phone className="w-3 h-3" />
+                          {lead.phone}
+                        </a>
+                      ) : (
+                        <span className="text-slate-300">--</span>
+                      )}
+                    </td>
+                    <td>
                       {lead.website ? (
                         <a
                           href={lead.website}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline"
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline max-w-[140px] truncate"
                         >
-                          {lead.website.replace(/^https?:\/\/(www\.)?/, "").slice(0, 30)}
+                          {lead.website
+                            .replace(/^https?:\/\/(www\.)?/, "")
+                            .slice(0, 28)}
+                          <ExternalLink className="w-3 h-3 shrink-0" />
                         </a>
                       ) : (
-                        "—"
+                        <span className="text-slate-300">--</span>
                       )}
                     </td>
-                    <td className="text-xs">
-                      {lead.distance_miles != null
-                        ? `${lead.distance_miles} mi`
-                        : "—"}
-                    </td>
-                    <td className="text-xs">
-                      {lead.confidence != null ? (
-                        <span
-                          className={`font-semibold ${
-                            lead.confidence >= 0.6
-                              ? "text-green-600"
-                              : lead.confidence >= 0.3
-                                ? "text-yellow-600"
-                                : "text-red-600"
-                          }`}
-                        >
-                          {(lead.confidence * 100).toFixed(0)}%
+                    <td className="whitespace-nowrap">
+                      {lead.distance_miles != null ? (
+                        <span className="text-xs text-slate-600">
+                          {Number(lead.distance_miles).toFixed(1)} mi
                         </span>
                       ) : (
-                        "—"
+                        <span className="text-slate-300">--</span>
                       )}
                     </td>
-                    <td className="text-xs max-w-[150px]">
+                    <td>
+                      <ConfidenceBadge value={lead.confidence} />
+                    </td>
+                    <td className="max-w-[180px]">
                       {editingId === lead.id ? (
-                        <div className="space-y-1">
-                          <input
-                            type="text"
+                        <div className="space-y-1.5">
+                          <textarea
                             value={editNotes}
                             onChange={(e) => setEditNotes(e.target.value)}
-                            placeholder="Notes..."
-                            className="text-xs"
+                            placeholder="Add notes..."
+                            rows={2}
+                            className="text-xs resize-none"
                           />
                           <input
                             type="date"
@@ -354,39 +499,48 @@ export default function RunDetailPage() {
                             onChange={(e) => setEditDate(e.target.value)}
                             className="text-xs"
                           />
-                          <div className="flex gap-1">
+                          <div className="flex gap-1.5">
                             <button
                               onClick={() => handleSaveEdit(lead.id)}
-                              className="text-xs text-green-600 hover:underline"
+                              className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 rounded text-xs font-medium hover:bg-emerald-100"
                             >
+                              <Check className="w-3 h-3" />
                               Save
                             </button>
                             <button
                               onClick={() => setEditingId(null)}
-                              className="text-xs text-gray-400 hover:underline"
+                              className="flex items-center gap-1 px-2 py-1 bg-slate-50 text-slate-500 rounded text-xs font-medium hover:bg-slate-100"
                             >
+                              <X className="w-3 h-3" />
                               Cancel
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <span className="truncate block">
-                          {lead.notes || "—"}
+                        <div>
+                          <p className="text-xs text-slate-600 truncate">
+                            {lead.notes || (
+                              <span className="text-slate-300 italic">
+                                No notes
+                              </span>
+                            )}
+                          </p>
                           {lead.contacted_date && (
-                            <span className="block text-gray-400">
+                            <p className="text-[11px] text-slate-400 mt-0.5">
                               Contacted: {lead.contacted_date}
-                            </span>
+                            </p>
                           )}
-                        </span>
+                        </div>
                       )}
                     </td>
                     <td>
                       {editingId !== lead.id && (
                         <button
                           onClick={() => startEdit(lead)}
-                          className="text-xs text-blue-600 hover:underline"
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          title="Edit"
                         >
-                          Edit
+                          <Pencil className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </td>
@@ -399,24 +553,28 @@ export default function RunDetailPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="p-4 border-t flex items-center justify-between">
-            <span className="text-sm text-gray-500">
-              Page {page + 1} of {totalPages}
+          <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-xs text-slate-500">
+              Showing {page * PAGE_SIZE + 1}–
+              {Math.min((page + 1) * PAGE_SIZE, total)} of {total}
             </span>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => setPage(Math.max(0, page - 1))}
                 disabled={page === 0}
-                className="px-3 py-1 border rounded text-sm disabled:opacity-30"
+                className="p-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
-                Previous
+                <ChevronLeft className="w-4 h-4" />
               </button>
+              <span className="px-3 py-1.5 text-xs font-medium text-slate-700">
+                {page + 1} / {totalPages}
+              </span>
               <button
                 onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
                 disabled={page >= totalPages - 1}
-                className="px-3 py-1 border rounded text-sm disabled:opacity-30"
+                className="p-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
-                Next
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
