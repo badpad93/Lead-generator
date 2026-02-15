@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { triggerApifyActor } from "@/lib/apify";
 
-/** POST /api/runs/[id]/start – set status to running if queued */
+/** POST /api/runs/[id]/start – kick off processing via Apify actor */
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
 
-  // First check current status
+  // Check current status
   const { data: run, error: fetchErr } = await supabaseAdmin
     .from("runs")
     .select("status")
@@ -26,6 +27,7 @@ export async function POST(
     );
   }
 
+  // Set to running
   const { error: updateErr } = await supabaseAdmin
     .from("runs")
     .update({
@@ -38,5 +40,20 @@ export async function POST(
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  // Trigger the Apify actor (fire-and-forget – actor runs independently)
+  try {
+    const actorRunId = await triggerApifyActor(id);
+    return NextResponse.json({ ok: true, actorRunId });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    // Revert status so user can retry
+    await supabaseAdmin
+      .from("runs")
+      .update({
+        status: "queued",
+        progress: { total: 0, message: "Failed to start – queued for retry" },
+      })
+      .eq("id", id);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

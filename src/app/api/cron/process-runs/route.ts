@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { processNextRun } from "@/lib/worker";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { triggerApifyActor } from "@/lib/apify";
 
 /**
  * GET /api/cron/process-runs
  * Secured by CRON_SECRET header.
- * Called by Vercel Cron or externally to process the next queued/running run.
+ * Finds queued runs and triggers Apify actors for each.
  */
-export const maxDuration = 300; // 5 minutes (Vercel Pro limit)
-
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-cron-secret") ?? req.nextUrl.searchParams.get("secret");
   const expected = process.env.CRON_SECRET;
@@ -17,11 +16,45 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const processed = await processNextRun();
+    // Find all queued runs
+    const { data: runs, error } = await supabaseAdmin
+      .from("runs")
+      .select("id")
+      .eq("status", "queued")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!runs || runs.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        triggered: 0,
+        message: "No pending runs",
+      });
+    }
+
+    const actorRunIds: string[] = [];
+    for (const run of runs) {
+      // Set to running
+      await supabaseAdmin
+        .from("runs")
+        .update({
+          status: "running",
+          progress: { total: 0, message: "Starting…" },
+        })
+        .eq("id", run.id);
+
+      const actorRunId = await triggerApifyActor(run.id);
+      actorRunIds.push(actorRunId);
+    }
+
     return NextResponse.json({
       ok: true,
-      processed,
-      message: processed ? "Run processed" : "No pending runs",
+      triggered: actorRunIds.length,
+      actorRunIds,
+      message: `Triggered ${actorRunIds.length} actor run(s)`,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unknown error";

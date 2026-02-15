@@ -1,0 +1,9 @@
+{
+  "actorSpecification": 1,
+  "name": "lead-generator-worker",
+  "title": "Lead Generator Worker",
+  "description": "Scrapes leads via Firecrawl, geocodes, and stores results in Supabase.",
+  "version": "0.1.0",
+  "input": "./input_schema.json",
+  "dockerfile": "../Dockerfile"
+}
