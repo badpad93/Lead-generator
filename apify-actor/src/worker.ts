@@ -1,13 +1,22 @@
 /**
- * Lead scraping worker – adapted for Apify actor runtime.
- * Processes one run: searches via Firecrawl, extracts leads,
- * geocodes, computes distance & confidence, dedupes, stores in Supabase.
+ * Lead scraping worker – uses Google Maps Places via Apify.
+ *
+ * Processes one run: searches Google Maps for each industry,
+ * maps structured place data to leads, computes distance & confidence,
+ * dedupes, and stores results in Supabase.
+ *
+ * This replaces the old Firecrawl search → scrape → regex extraction pipeline.
+ * Google Maps returns structured fields (name, address, phone, website, coords)
+ * so there's no markdown parsing or geocoding per lead.
  */
 
 import { SupabaseClient } from "@supabase/supabase-js";
-import { getFirecrawl } from "./firecrawl.js";
-import { extractLeads, findFollowLinks } from "./extract.js";
-import { geocode, geocodeCity } from "./geocode.js";
+import {
+  searchGoogleMaps,
+  toStateAbbreviation,
+  PlaceResult,
+} from "./google-maps.js";
+import { geocodeCity } from "./geocode.js";
 import { haversineDistance } from "./distance.js";
 import { computeConfidence } from "./confidence.js";
 import { dedupeKey } from "./dedupe.js";
@@ -22,23 +31,9 @@ interface RunRow {
   status: string;
 }
 
-/** Industry -> Firecrawl search queries */
-function buildSearchQueries(
-  industry: string,
-  city: string,
-  state: string
-): string[] {
-  const loc = `${city}, ${state}`;
-  const base = industry.toLowerCase();
-  return [
-    `${base} in ${loc}`,
-    `${base} companies ${loc}`,
-    `${base} businesses near ${loc}`,
-    `best ${base} ${loc}`,
-    `${base} services ${loc} directory`,
-    `top ${base} ${loc} list`,
-  ];
-}
+/* ------------------------------------------------------------------ */
+/*  Supabase helpers                                                   */
+/* ------------------------------------------------------------------ */
 
 async function updateProgress(
   supabase: SupabaseClient,
@@ -76,20 +71,7 @@ async function setRunStatus(
 async function insertLeads(
   supabase: SupabaseClient,
   runId: string,
-  leads: Array<{
-    industry: string;
-    business_name: string;
-    address: string;
-    city: string;
-    state: string;
-    zip: string;
-    phone: string;
-    website: string;
-    source_url: string;
-    distance_miles: number | null;
-    confidence: number;
-    notes: string;
-  }>
+  leads: LeadRow[]
 ): Promise<number> {
   if (leads.length === 0) return 0;
 
@@ -107,212 +89,216 @@ async function insertLeads(
   return inserted;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Place → Lead mapping                                               */
+/* ------------------------------------------------------------------ */
+
+interface LeadRow {
+  industry: string;
+  business_name: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  phone: string;
+  website: string;
+  source_url: string;
+  distance_miles: number | null;
+  confidence: number;
+  notes: string;
+}
+
+/** Convert a Google Maps place result to our lead format. */
+function placeToLead(
+  place: PlaceResult,
+  industry: string,
+  cityCenter: { lat: number; lng: number },
+  radiusMiles: number,
+  targetCity: string,
+  targetState: string
+): LeadRow | null {
+  const name = (place.title ?? "").trim();
+  if (name.length < 3) return null;
+
+  // Address components
+  const street = place.street ?? place.address ?? "";
+  const city = place.city ?? targetCity;
+  const state = toStateAbbreviation(place.state ?? targetState);
+  const zip = place.postalCode ?? "";
+
+  // Distance from city center using Google Maps coordinates (no geocoding needed)
+  let distanceMiles: number | null = null;
+  let withinRadius = false;
+
+  if (place.location?.lat && place.location?.lng) {
+    distanceMiles =
+      Math.round(
+        haversineDistance(
+          cityCenter.lat,
+          cityCenter.lng,
+          place.location.lat,
+          place.location.lng
+        ) * 10
+      ) / 10;
+    withinRadius = distanceMiles <= radiusMiles;
+  }
+
+  // Skip if known to be outside the search radius
+  if (distanceMiles !== null && !withinRadius) return null;
+
+  const phone = place.phone ?? "";
+  const website = place.website ?? "";
+  const sourceUrl = place.url ?? "";
+
+  const confidence = computeConfidence({
+    addressParsed: !!street,
+    phonePresent: !!phone,
+    websitePresent: !!website,
+    withinRadius,
+    directoryOnly: false, // Google Maps data is always direct
+  });
+
+  return {
+    industry,
+    business_name: name.substring(0, 255),
+    address: street,
+    city,
+    state,
+    zip,
+    phone,
+    website,
+    source_url: sourceUrl,
+    distance_miles: distanceMiles,
+    confidence,
+    notes: "",
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main processing loop                                               */
+/* ------------------------------------------------------------------ */
+
 /** Process a single run end-to-end. */
 export async function processRun(
   supabase: SupabaseClient,
   run: RunRow
 ): Promise<void> {
-  const fc = getFirecrawl();
   const seenKeys = new Set<string>();
   let totalInserted = 0;
 
   console.log(
-    `[worker] Processing run ${run.id}: ${run.city}, ${run.state} – ${run.industries.length} industries, max ${run.max_leads}`
+    `[worker] Processing run ${run.id}: ${run.city}, ${run.state} – ` +
+      `${run.industries.length} industries, max ${run.max_leads}`
   );
 
-  // Geocode city center
+  // Geocode city center for distance calculation
   const cityCenter = await geocodeCity(run.city, run.state);
   if (!cityCenter) {
-    await setRunStatus(supabase, run.id, "failed", "Could not geocode city center");
+    await setRunStatus(
+      supabase,
+      run.id,
+      "failed",
+      "Could not geocode city center"
+    );
     return;
   }
 
-  await updateProgress(supabase, run.id, 0, "Geocoded city center, starting search…");
+  await updateProgress(
+    supabase,
+    run.id,
+    0,
+    "Geocoded city center, starting Google Maps search…"
+  );
 
   for (const industry of run.industries) {
     if (totalInserted >= run.max_leads) break;
 
-    const queries = buildSearchQueries(industry, run.city, run.state);
+    // Divide remaining quota roughly among remaining industries
+    const industryIdx = run.industries.indexOf(industry);
+    const remaining = run.max_leads - totalInserted;
+    const industriesLeft = run.industries.length - industryIdx;
+    const maxPerIndustry = Math.min(
+      Math.ceil(remaining / industriesLeft),
+      200
+    );
 
-    for (const query of queries) {
-      if (totalInserted >= run.max_leads) break;
+    const searchQuery = `${industry} in ${run.city}, ${run.state}`;
+
+    await updateProgress(
+      supabase,
+      run.id,
+      totalInserted,
+      `Searching Google Maps: "${searchQuery}"…`
+    );
+
+    try {
+      const places = await searchGoogleMaps([searchQuery], maxPerIndustry);
+
+      console.log(
+        `[worker] Google Maps returned ${places.length} results for "${searchQuery}"`
+      );
 
       await updateProgress(
         supabase,
         run.id,
         totalInserted,
-        `Searching: "${query}"…`
+        `Processing ${places.length} results for ${industry}…`
       );
 
-      try {
-        const searchResult = await fc.search(query, { limit: 10 });
-        const webResults = searchResult.web ?? [];
+      // Convert places to leads
+      const batch: LeadRow[] = [];
 
-        if (webResults.length === 0) {
-          console.log(`[worker] Search returned no results for: ${query}`);
-          continue;
-        }
+      for (const place of places) {
+        if (totalInserted + batch.length >= run.max_leads) break;
 
-        for (const result of webResults) {
-          if (totalInserted >= run.max_leads) break;
-
-          const r = result as unknown as Record<string, unknown>;
-          const resultUrl =
-            typeof r.url === "string"
-              ? r.url
-              : ((result as unknown as { metadata?: { sourceURL?: string } }).metadata?.sourceURL ?? "");
-          if (!resultUrl) continue;
-
-          try {
-            const scrapeResult = await fc.scrape(resultUrl, {
-              formats: ["markdown"],
-            });
-
-            if (!scrapeResult.markdown) continue;
-
-            const rawLeads = extractLeads(
-              scrapeResult.markdown,
-              resultUrl,
-              run.city,
-              run.state
-            );
-
-            // Optionally follow contact/about links
-            const followUrls = findFollowLinks(
-              scrapeResult.markdown,
-              resultUrl
-            );
-            let extraMarkdown = "";
-            for (const fUrl of followUrls.slice(0, 2)) {
-              try {
-                const followResult = await fc.scrape(fUrl, {
-                  formats: ["markdown"],
-                });
-                if (followResult.markdown) {
-                  extraMarkdown += "\n" + followResult.markdown;
-                }
-              } catch {
-                // skip follow errors
-              }
-            }
-
-            if (extraMarkdown) {
-              const extraLeads = extractLeads(
-                extraMarkdown,
-                resultUrl,
-                run.city,
-                run.state
-              );
-              rawLeads.push(...extraLeads);
-            }
-
-            // Process each extracted lead
-            const batch: Array<{
-              industry: string;
-              business_name: string;
-              address: string;
-              city: string;
-              state: string;
-              zip: string;
-              phone: string;
-              website: string;
-              source_url: string;
-              distance_miles: number | null;
-              confidence: number;
-              notes: string;
-            }> = [];
-
-            for (const raw of rawLeads) {
-              if (totalInserted + batch.length >= run.max_leads) break;
-
-              // In-memory dedupe
-              const dk = dedupeKey({
-                business_name: raw.business_name,
-                website: raw.website,
-                phone: raw.phone,
-                zip: raw.zip,
-              });
-              if (seenKeys.has(dk)) continue;
-              seenKeys.add(dk);
-
-              if (raw.business_name.length < 3) continue;
-
-              // Geocode
-              let distanceMiles: number | null = null;
-              let withinRadius = false;
-              let notes = "";
-
-              if (raw.address || raw.city) {
-                const geo = await geocode(raw.address, raw.city, raw.state);
-                if (geo) {
-                  distanceMiles = Math.round(
-                    haversineDistance(
-                      cityCenter.lat,
-                      cityCenter.lng,
-                      geo.lat,
-                      geo.lng
-                    ) * 10
-                  ) / 10;
-                  withinRadius = distanceMiles <= run.radius_miles;
-                } else {
-                  notes = "geocode_failed";
-                  if (
-                    raw.city.toLowerCase() !== run.city.toLowerCase() &&
-                    raw.state.toUpperCase() !== run.state.toUpperCase()
-                  ) {
-                    continue;
-                  }
-                }
-              }
-
-              if (distanceMiles !== null && !withinRadius) continue;
-
-              const confidence = computeConfidence({
-                addressParsed: !!raw.address,
-                phonePresent: !!raw.phone,
-                websitePresent: !!raw.website,
-                withinRadius,
-                directoryOnly: raw.is_directory,
-              });
-
-              batch.push({
-                industry,
-                business_name: raw.business_name,
-                address: raw.address,
-                city: raw.city,
-                state: raw.state,
-                zip: raw.zip,
-                phone: raw.phone,
-                website: raw.website,
-                source_url: raw.source_url,
-                distance_miles: distanceMiles,
-                confidence,
-                notes,
-              });
-            }
-
-            const inserted = await insertLeads(supabase, run.id, batch);
-            totalInserted += inserted;
-
-            if (inserted > 0) {
-              await updateProgress(
-                supabase,
-                run.id,
-                totalInserted,
-                `Inserted ${totalInserted} leads (processing ${industry})…`
-              );
-            }
-          } catch (e) {
-            console.log(
-              `[worker] Scrape error for ${resultUrl}: ${e instanceof Error ? e.message : e}`
-            );
-          }
-        }
-      } catch (e) {
-        console.log(
-          `[worker] Search error for "${query}": ${e instanceof Error ? e.message : e}`
+        const lead = placeToLead(
+          place,
+          industry,
+          cityCenter,
+          run.radius_miles,
+          run.city,
+          run.state
         );
+        if (!lead) continue;
+
+        // In-memory dedupe
+        const dk = dedupeKey({
+          business_name: lead.business_name,
+          website: lead.website,
+          phone: lead.phone,
+          zip: lead.zip,
+        });
+        if (seenKeys.has(dk)) continue;
+        seenKeys.add(dk);
+
+        batch.push(lead);
       }
+
+      const inserted = await insertLeads(supabase, run.id, batch);
+      totalInserted += inserted;
+
+      console.log(
+        `[worker] Inserted ${inserted} leads for ${industry} (${totalInserted} total)`
+      );
+
+      await updateProgress(
+        supabase,
+        run.id,
+        totalInserted,
+        `${industry}: ${inserted} leads added (${totalInserted} total)…`
+      );
+    } catch (e) {
+      console.log(
+        `[worker] Error searching ${industry}: ${
+          e instanceof Error ? e.message : e
+        }`
+      );
+      await updateProgress(
+        supabase,
+        run.id,
+        totalInserted,
+        `Error searching ${industry}, continuing…`
+      );
     }
   }
 

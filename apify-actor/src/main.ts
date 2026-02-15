@@ -3,7 +3,8 @@
  *
  * Input: { runId: string }
  * Environment variables (set in Apify actor settings):
- *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, FIRECRAWL_API_KEY
+ *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ *   APIFY_TOKEN is injected automatically by the Apify runtime.
  */
 
 import { Actor } from "apify";
