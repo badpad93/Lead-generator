@@ -13,3 +13,4 @@
   },
   "include": ["src"]
 }
+// Environment variables configured for Apify actor deployment
