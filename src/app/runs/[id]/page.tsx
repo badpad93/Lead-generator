@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -22,6 +22,7 @@ import {
   Clock,
   Loader2,
   Square,
+  Trash2,
 } from "lucide-react";
 
 interface Run {
@@ -102,6 +103,7 @@ function ConfidenceBadge({ value }: { value: number | null }) {
 }
 
 export default function RunDetailPage() {
+  const router = useRouter();
   const params = useParams();
   const runId = params.id as string;
 
@@ -113,6 +115,7 @@ export default function RunDetailPage() {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNotes, setEditNotes] = useState("");
   const [editDate, setEditDate] = useState("");
@@ -181,6 +184,16 @@ export default function RunDetailPage() {
       await fetchRun();
     }
     setStopping(false);
+  }
+
+  async function handleDelete() {
+    if (!confirm("Delete this run and all its leads? This cannot be undone.")) return;
+    setDeleting(true);
+    const res = await fetch(`/api/runs/${runId}`, { method: "DELETE" });
+    if (res.ok) {
+      router.push("/runs");
+    }
+    setDeleting(false);
   }
 
   async function handleSaveEdit(leadId: string) {
@@ -340,6 +353,20 @@ export default function RunDetailPage() {
                   Excel
                 </a>
               </>
+            )}
+            {(run.status === "done" || run.status === "failed") && (
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-2 px-3 py-2 bg-white border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                Delete
+              </button>
             )}
           </div>
         </div>

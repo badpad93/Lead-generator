@@ -41,10 +41,31 @@ async function updateProgress(
   total: number,
   message: string
 ): Promise<void> {
+  // Preserve existing fields in progress (like apify_run_id) so stop can abort
+  const { data } = await supabase
+    .from("runs")
+    .select("progress")
+    .eq("id", runId)
+    .single();
+
+  const existing = (data?.progress as Record<string, unknown>) ?? {};
   await supabase
     .from("runs")
-    .update({ progress: { total, message } })
+    .update({ progress: { ...existing, total, message } })
     .eq("id", runId);
+}
+
+/** Check if the run has been stopped by the user. */
+async function isRunStopped(
+  supabase: SupabaseClient,
+  runId: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("runs")
+    .select("status")
+    .eq("id", runId)
+    .single();
+  return data?.status === "failed" || data?.status === "done";
 }
 
 async function setRunStatus(
@@ -53,6 +74,12 @@ async function setRunStatus(
   status: "done" | "failed",
   message: string
 ): Promise<void> {
+  // Don't overwrite if user already stopped the run
+  if (await isRunStopped(supabase, runId)) {
+    console.log(`[worker] Run ${runId} already stopped, skipping status update`);
+    return;
+  }
+
   const { count } = await supabase
     .from("leads")
     .select("*", { count: "exact", head: true })
@@ -212,6 +239,12 @@ export async function processRun(
 
   for (const industry of run.industries) {
     if (totalInserted >= run.max_leads) break;
+
+    // Check if user stopped the run
+    if (await isRunStopped(supabase, run.id)) {
+      console.log(`[worker] Run ${run.id} was stopped by user, exiting`);
+      return;
+    }
 
     // Divide remaining quota roughly among remaining industries
     const industryIdx = run.industries.indexOf(industry);

@@ -20,3 +20,22 @@ export async function GET(
 
   return NextResponse.json(data);
 }
+
+/** DELETE /api/runs/[id] – delete a run and its leads */
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  // Delete leads first (foreign key)
+  await supabaseAdmin.from("leads").delete().eq("run_id", id);
+
+  const { error } = await supabaseAdmin.from("runs").delete().eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}

@@ -43,20 +43,25 @@ try {
     throw new Error(`Run ${input.runId} not found: ${error?.message ?? "no data"}`);
   }
 
-  // Set to running if queued
-  if (run.status === "queued") {
-    await supabase
-      .from("runs")
-      .update({
-        status: "running",
-        progress: { total: 0, message: "Starting…" },
-      })
-      .eq("id", run.id);
-  }
+  // Bail out if already stopped/done (user hit Stop before actor started)
+  if (run.status === "failed" || run.status === "done") {
+    console.log(`[actor] Run ${run.id} is already ${run.status}, skipping`);
+  } else {
+    // Set to running if queued
+    if (run.status === "queued") {
+      await supabase
+        .from("runs")
+        .update({
+          status: "running",
+          progress: { total: 0, message: "Starting…" },
+        })
+        .eq("id", run.id);
+    }
 
-  console.log(`[actor] Starting run ${run.id}: ${run.city}, ${run.state}`);
-  await processRun(supabase, run);
-  console.log(`[actor] Finished run ${run.id}`);
+    console.log(`[actor] Starting run ${run.id}: ${run.city}, ${run.state}`);
+    await processRun(supabase, run);
+    console.log(`[actor] Finished run ${run.id}`);
+  }
 } catch (e) {
   const msg = e instanceof Error ? e.message : String(e);
   console.error(`[actor] Fatal error: ${msg}`);
