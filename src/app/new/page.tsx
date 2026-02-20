@@ -56,8 +56,8 @@ export default function NewRunPage() {
   const router = useRouter();
   const [city, setCity] = useState("Denver");
   const [state, setState] = useState("CO");
-  const [radius, setRadius] = useState(50);
-  const [maxLeads, setMaxLeads] = useState(500);
+  const [radius, setRadius] = useState(25);
+  const [maxLeads, setMaxLeads] = useState(100);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -190,14 +190,14 @@ export default function NewRunPage() {
                   value={radius}
                   onChange={(e) => setRadius(Number(e.target.value))}
                   min={1}
-                  max={200}
+                  max={100}
                 />
                 <div className="flex justify-between text-xs text-slate-400">
                   <span>1 mi</span>
                   <span className="font-semibold text-sm text-slate-900">
                     {radius} miles
                   </span>
-                  <span>200 mi</span>
+                  <span>100 mi</span>
                 </div>
               </div>
             </div>
@@ -210,11 +210,11 @@ export default function NewRunPage() {
                 value={maxLeads}
                 onChange={(e) => setMaxLeads(Number(e.target.value))}
                 min={1}
-                max={5000}
+                max={500}
                 className="text-sm"
               />
               <p className="text-[11px] text-slate-400 mt-1">
-                Between 1 and 5,000 leads per run
+                Between 1 and 500 leads per run
               </p>
             </div>
           </div>

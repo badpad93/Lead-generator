@@ -2,9 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createRunSchema } from "@/lib/schemas";
 
+const MAX_ACTIVE_RUNS = 5;
+
 /** POST /api/runs – create a new run */
 export async function POST(req: NextRequest) {
   try {
+    // Guardrail: limit total active runs
+    const { count: activeCount } = await supabaseAdmin
+      .from("runs")
+      .select("*", { count: "exact", head: true })
+      .in("status", ["queued", "running"]);
+
+    if ((activeCount ?? 0) >= MAX_ACTIVE_RUNS) {
+      return NextResponse.json(
+        { error: `Too many active runs (${activeCount}). Stop or wait for existing runs to finish before creating new ones. Max: ${MAX_ACTIVE_RUNS}.` },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const parsed = createRunSchema.safeParse(body);
 

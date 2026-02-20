@@ -52,6 +52,7 @@ export default function RunsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [stoppingId, setStoppingId] = useState<string | null>(null);
+  const [stoppingAll, setStoppingAll] = useState(false);
 
   function fetchRuns() {
     fetch("/api/runs")
@@ -74,6 +75,14 @@ export default function RunsPage() {
     const res = await fetch(`/api/runs/${runId}/stop`, { method: "POST" });
     if (res.ok) fetchRuns();
     setStoppingId(null);
+  }
+
+  async function handleStopAll() {
+    if (!confirm("Stop ALL running and queued runs?")) return;
+    setStoppingAll(true);
+    const res = await fetch("/api/runs/stop-all", { method: "POST" });
+    if (res.ok) fetchRuns();
+    setStoppingAll(false);
   }
 
   const filteredRuns = runs.filter((run) => {
@@ -107,13 +116,29 @@ export default function RunsPage() {
             {runs.length} total runs
           </p>
         </div>
-        <Link
-          href="/new"
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          <PlusCircle className="w-4 h-4" />
-          New Run
-        </Link>
+        <div className="flex items-center gap-2">
+          {statusCounts.running + statusCounts.queued > 0 && (
+            <button
+              onClick={handleStopAll}
+              disabled={stoppingAll}
+              className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors shadow-sm"
+            >
+              {stoppingAll ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Square className="w-4 h-4" />
+              )}
+              {stoppingAll ? "Stopping..." : "Stop All Runs"}
+            </button>
+          )}
+          <Link
+            href="/new"
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <PlusCircle className="w-4 h-4" />
+            New Run
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}

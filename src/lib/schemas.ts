@@ -20,8 +20,8 @@ export const INDUSTRIES = [
 export const createRunSchema = z.object({
   city: z.string().min(1, "City is required").max(100),
   state: z.string().min(2).max(2, "Use 2-letter state code"),
-  radius: z.number().int().min(1).max(200).default(50),
-  maxLeads: z.number().int().min(1).max(5000).default(500),
+  radius: z.number().int().min(1).max(100).default(25),
+  maxLeads: z.number().int().min(1).max(500).default(100),
   industries: z
     .array(z.string())
     .min(1, "Select at least one industry"),
