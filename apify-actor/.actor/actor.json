@@ -1,9 +1,0 @@
-{
-  "actorSpecification": 1,
-  "name": "lead-generator-worker",
-  "title": "Lead Generator Worker",
-  "description": "Scrapes leads from Google Maps via Apify and stores results in Supabase.",
-  "version": "0.2.0",
-  "input": "./input_schema.json",
-  "dockerfile": "../Dockerfile"
-}

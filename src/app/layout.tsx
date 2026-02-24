@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Sidebar } from "./components/Sidebar";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
 
 export const metadata: Metadata = {
-  title: "Lead Generator",
-  description: "Scrape and manage business leads by city and industry",
+  title: "VendHub — Vending Machine Marketplace",
+  description:
+    "Connect locations that need vending machines with operators ready to serve. The smarter way to place vending machines.",
 };
 
 export default function RootLayout({
@@ -14,11 +16,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-[var(--background)] text-[var(--foreground)] antialiased min-h-screen flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 min-h-screen">
-          <div className="max-w-7xl mx-auto px-6 py-8">{children}</div>
-        </main>
+      <body className="bg-cream min-h-screen flex flex-col antialiased">
+        <Navbar />
+        <main className="flex-1">{children}</main>
+        <Footer />
       </body>
     </html>
   );
