@@ -3,7 +3,7 @@ import { createBrowserClient } from "./supabase";
 
 const SIGNUP_ROLE_KEY = "vendhub_signup_role";
 
-/** Store the role selected during signup (before GitHub redirect) */
+/** Store the role selected during signup (before Discord redirect) */
 export function storeSignupRole(role: string): void {
   localStorage.setItem(SIGNUP_ROLE_KEY, role);
 }
@@ -22,11 +22,11 @@ export async function getAccessToken(): Promise<string | null> {
   return session?.access_token || null;
 }
 
-/** Sign in with GitHub OAuth via Supabase */
-export async function signInWithGitHub(): Promise<void> {
+/** Sign in with Discord OAuth via Supabase */
+export async function signInWithDiscord(): Promise<void> {
   const supabase = createBrowserClient();
   await supabase.auth.signInWithOAuth({
-    provider: "github",
+    provider: "discord",
     options: {
       redirectTo: `${window.location.origin}/auth/callback`,
     },
