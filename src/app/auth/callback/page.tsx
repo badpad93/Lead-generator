@@ -14,13 +14,20 @@ export default function AuthCallbackPage() {
     async function handleCallback() {
       const supabase = createBrowserClient();
 
-      // Supabase client automatically picks up tokens from the URL hash
+      // Exchange the code/hash for a session — this also writes cookies
+      // via the SSR-compatible browser client.
+      const { error: exchangeError } =
+        await supabase.auth.exchangeCodeForSession(
+          window.location.href
+        );
+
+      // Fall back to getSession if code exchange wasn't applicable (hash-based flow)
       const {
         data: { session },
         error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (sessionError || !session) {
+      if ((exchangeError && sessionError) || !session) {
         setError("Authentication failed. Please try again.");
         setTimeout(() => router.push("/login"), 2000);
         return;
@@ -30,7 +37,6 @@ export default function AuthCallbackPage() {
       const signupRole = consumeSignupRole();
 
       if (signupRole) {
-        // Update the user's profile with their selected role
         try {
           await fetch("/api/auth/me", {
             method: "PATCH",
@@ -45,7 +51,10 @@ export default function AuthCallbackPage() {
         }
       }
 
-      router.push("/dashboard");
+      // Redirect to the page they were trying to reach, or dashboard
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get("redirect") || "/dashboard";
+      router.push(redirect);
     }
 
     handleCallback();
