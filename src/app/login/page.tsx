@@ -1,17 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { signInWithDiscord } from "@/lib/auth";
+import { signInWithDiscord, storeRedirectAfterLogin } from "@/lib/auth";
 
-export default function LoginPage() {
+function LoginContent() {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleDiscordLogin() {
     setLoading(true);
     setError(null);
+    // Store the intended destination so the callback can redirect there
+    const redirect = searchParams.get("redirect");
+    if (redirect) {
+      storeRedirectAfterLogin(redirect);
+    }
     try {
       await signInWithDiscord();
     } catch {
@@ -78,5 +85,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   );
 }

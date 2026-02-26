@@ -2,6 +2,19 @@ import type { Profile } from "./types";
 import { createBrowserClient } from "./supabase";
 
 const SIGNUP_ROLE_KEY = "vendhub_signup_role";
+const REDIRECT_KEY = "vendhub_redirect_after_login";
+
+/** Store where to redirect after login completes */
+export function storeRedirectAfterLogin(path: string): void {
+  localStorage.setItem(REDIRECT_KEY, path);
+}
+
+/** Retrieve and clear the stored redirect path */
+export function consumeRedirectAfterLogin(): string | null {
+  const path = localStorage.getItem(REDIRECT_KEY);
+  if (path) localStorage.removeItem(REDIRECT_KEY);
+  return path;
+}
 
 /** Store the role selected during signup (before Discord redirect) */
 export function storeSignupRole(role: string): void {

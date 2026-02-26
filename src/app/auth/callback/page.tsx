@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
-import { consumeSignupRole } from "@/lib/auth";
+import { consumeSignupRole, consumeRedirectAfterLogin } from "@/lib/auth";
 
 export default function AuthCallbackPage() {
   const [error, setError] = useState<string | null>(null);
@@ -41,9 +41,10 @@ export default function AuthCallbackPage() {
               }
             }
 
-            // Full-page navigation so the browser sends freshly-set
-            // auth cookies with the request (middleware can read them).
-            window.location.href = "/dashboard";
+            // Redirect to the stored path (e.g. user tried to visit
+            // /browse-requests before logging in) or fall back to /dashboard.
+            const redirectTo = consumeRedirectAfterLogin() || "/dashboard";
+            window.location.href = redirectTo;
           }
         }
       );
