@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { getAccessToken } from "@/lib/auth";
+import { createBrowserClient } from "@/lib/supabase";
 
 interface Conversation {
   partner: {
@@ -70,12 +71,17 @@ export default function MessagesPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Resolve auth token on mount
+  // Resolve auth token on mount — wait for session from cookies
   useEffect(() => {
-    getAccessToken().then((t) => {
-      setToken(t);
-      setAuthChecked(true);
-    });
+    const supabase = createBrowserClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setToken(session?.access_token || null);
+        setAuthChecked(true);
+        subscription.unsubscribe();
+      }
+    );
+    return () => { subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {

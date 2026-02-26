@@ -43,6 +43,7 @@ import type {
   RequestStatus,
 } from "@/lib/types";
 import { getAccessToken } from "@/lib/auth";
+import { createBrowserClient } from "@/lib/supabase";
 import LocationTypeIcon from "@/app/components/LocationTypeIcon";
 import StarRating from "@/app/components/StarRating";
 
@@ -643,35 +644,44 @@ export default function DashboardPage() {
   /* ================================================================ */
 
   useEffect(() => {
-    async function loadProfile() {
-      try {
-        const token = await getAccessToken();
-        if (!token) {
-          setNotLoggedIn(true);
-          setAuthLoading(false);
-          return;
+    const supabase = createBrowserClient();
+
+    // Listen for auth state — the SSR browser client reads cookies
+    // and fires INITIAL_SESSION or SIGNED_IN once the session is ready.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+          if (!session) {
+            setNotLoggedIn(true);
+            setAuthLoading(false);
+            return;
+          }
+
+          try {
+            const res = await fetch("/api/auth/me", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+
+            if (!res.ok) {
+              setNotLoggedIn(true);
+              setAuthLoading(false);
+              return;
+            }
+
+            const data = await res.json();
+            setProfile(data);
+          } catch {
+            setNotLoggedIn(true);
+          } finally {
+            setAuthLoading(false);
+          }
         }
-
-        const res = await fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) {
-          setNotLoggedIn(true);
-          setAuthLoading(false);
-          return;
-        }
-
-        const data = await res.json();
-        setProfile(data);
-      } catch {
-        setNotLoggedIn(true);
-      } finally {
-        setAuthLoading(false);
       }
-    }
+    );
 
-    loadProfile();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   /* ================================================================ */
