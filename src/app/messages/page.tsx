@@ -89,7 +89,7 @@ export default function MessagesPage() {
       });
     // Fetch conversations
     fetch("/api/messages", {
-      headers: { "x-user-id": "from-token", Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
       .then((data) => {
@@ -102,7 +102,7 @@ export default function MessagesPage() {
   async function openThread(partner: Conversation["partner"]) {
     setActivePartner(partner);
     const res = await fetch(`/api/messages?with=${partner.id}`, {
-      headers: { "x-user-id": userId || "", Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
       const data = await res.json();
@@ -119,7 +119,6 @@ export default function MessagesPage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-user-id": userId || "",
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({

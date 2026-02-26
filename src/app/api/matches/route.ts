@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 /** GET /api/matches — list matches for the current user */
 export async function GET(req: NextRequest) {
-  const userId = req.headers.get("x-user-id");
+  const userId = await getUserIdFromRequest(req);
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
 
 /** POST /api/matches — operator applies to a request */
 export async function POST(req: NextRequest) {
-  const userId = req.headers.get("x-user-id");
+  const userId = await getUserIdFromRequest(req);
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
 
 /** PATCH /api/matches — update match status */
 export async function PATCH(req: NextRequest) {
-  const userId = req.headers.get("x-user-id");
+  const userId = await getUserIdFromRequest(req);
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

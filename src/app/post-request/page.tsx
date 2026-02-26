@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { getAccessToken } from "@/lib/auth";
 import {
   MapPin,
   Package,
@@ -145,6 +146,11 @@ export default function PostRequestPage() {
   const [submitted, setSubmitted] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    getAccessToken().then(setToken);
+  }, []);
 
   /* ---- helpers ---- */
 
@@ -224,9 +230,18 @@ export default function PostRequestPage() {
     setSubmitError(null);
 
     try {
+      const currentToken = token || await getAccessToken();
+      if (!currentToken) {
+        setSubmitError("You must be logged in to post a request. Please sign in first.");
+        return;
+      }
+
       const res = await fetch("/api/requests", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${currentToken}`,
+        },
         body: JSON.stringify({
           location_name: formData.locationName,
           address: formData.address,

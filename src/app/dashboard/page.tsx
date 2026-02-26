@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
@@ -42,9 +41,8 @@ import type {
   Match,
   MatchStatus,
   RequestStatus,
-  UserRole,
 } from "@/lib/types";
-import { createBrowserClient } from "@/lib/supabase";
+import { getAccessToken } from "@/lib/auth";
 import LocationTypeIcon from "@/app/components/LocationTypeIcon";
 import StarRating from "@/app/components/StarRating";
 
@@ -66,26 +64,9 @@ type ManagerTab = "requests" | "matches" | "messages" | "profile";
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem("sb-session");
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed?.access_token || null;
-  } catch {
-    return null;
-  }
-}
-
-function authHeaders(): Record<string, string> {
-  const token = getToken();
+function authHeaders(token: string | null): Record<string, string> {
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
-}
-
-function userIdHeaders(userId: string): Record<string, string> {
-  return { "x-user-id": userId };
 }
 
 function formatDate(iso: string): string {
@@ -629,9 +610,6 @@ function ProfileForm({
 /* ================================================================== */
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const supabase = createBrowserClient();
-
   /* ---- Auth State ---- */
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -667,36 +645,15 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadProfile() {
       try {
-        // First try getting session from Supabase client
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session?.access_token) {
-          // Check localStorage fallback
-          const token = getToken();
-          if (!token) {
-            setNotLoggedIn(true);
-            setAuthLoading(false);
-            return;
-          }
-
-          const res = await fetch("/api/auth/me", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!res.ok) {
-            setNotLoggedIn(true);
-            setAuthLoading(false);
-            return;
-          }
-          const data = await res.json();
-          setProfile(data);
+        const token = await getAccessToken();
+        if (!token) {
+          setNotLoggedIn(true);
           setAuthLoading(false);
           return;
         }
 
         const res = await fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!res.ok) {
@@ -715,7 +672,7 @@ export default function DashboardPage() {
     }
 
     loadProfile();
-  }, [supabase.auth]);
+  }, []);
 
   /* ================================================================ */
   /*  Data Fetching                                                    */
@@ -726,8 +683,7 @@ export default function DashboardPage() {
     setLoadingRequests(true);
     try {
       const res = await fetch(
-        `/api/requests?mine=true&user_id=${profile.id}`,
-        { headers: userIdHeaders(profile.id) }
+        `/api/requests?mine=true&user_id=${profile.id}`
       );
       const data = await res.json();
       setRequests(data.requests || []);
@@ -742,18 +698,11 @@ export default function DashboardPage() {
     if (!profile) return;
     setLoadingMatches(true);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token || getToken();
-
+      const token = await getAccessToken();
       const roleParam =
         profile.role === "operator" ? "operator" : "location_manager";
       const res = await fetch(`/api/matches?role=${roleParam}`, {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          "x-user-id": profile.id,
-        },
+        headers: authHeaders(token),
       });
       const data = await res.json();
       setMatches(Array.isArray(data) ? data : []);
@@ -762,15 +711,14 @@ export default function DashboardPage() {
     } finally {
       setLoadingMatches(false);
     }
-  }, [profile, supabase.auth]);
+  }, [profile]);
 
   const fetchListings = useCallback(async () => {
     if (!profile) return;
     setLoadingListings(true);
     try {
       const res = await fetch(
-        `/api/operators?mine=true&user_id=${profile.id}`,
-        { headers: userIdHeaders(profile.id) }
+        `/api/operators?mine=true&user_id=${profile.id}`
       );
       const data = await res.json();
       setListings(data.listings || []);
@@ -786,8 +734,7 @@ export default function DashboardPage() {
     setLoadingSaved(true);
     try {
       const res = await fetch(
-        `/api/requests?saved=true&user_id=${profile.id}`,
-        { headers: userIdHeaders(profile.id) }
+        `/api/requests?saved=true&user_id=${profile.id}`
       );
       const data = await res.json();
       setSavedRequests(data.requests || []);
@@ -820,21 +767,15 @@ export default function DashboardPage() {
     if (!profile) return;
     setActionLoading(matchId);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token || getToken();
-
+      const token = await getAccessToken();
       await fetch("/api/matches", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          "x-user-id": profile.id,
+          ...authHeaders(token),
         },
         body: JSON.stringify({ match_id: matchId, status }),
       });
-      // Refresh matches
       await fetchMatches();
     } catch {
       /* noop */
@@ -847,16 +788,12 @@ export default function DashboardPage() {
     if (!profile) return;
     setSavingProfile(true);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token || getToken();
-
+      const token = await getAccessToken();
       const res = await fetch("/api/auth/me", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...authHeaders(token),
         },
         body: JSON.stringify(updates),
       });

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import "@/lib/env";
 
 /** Server-side admin client – uses service role key. Never expose to browser. */
 export const supabaseAdmin = createClient(

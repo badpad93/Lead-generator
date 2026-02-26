@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createRequestSchema } from "@/lib/schemas";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 const PAGE_SIZE = 12;
 
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
   const commission = params.get("commission");
   const status = params.get("status");
   const machineTypes = params.get("machine_types");
-  const page = parseInt(params.get("page") || "0");
+  const page = Math.max(0, parseInt(params.get("page") || "0"));
   const mine = params.get("mine");
   const saved = params.get("saved");
   const userId = params.get("user_id");
@@ -71,8 +72,8 @@ export async function GET(req: NextRequest) {
 
 /** POST /api/requests — create a new vending request */
 export async function POST(req: NextRequest) {
-  const authHeader = req.headers.get("x-user-id");
-  if (!authHeader) {
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from("vending_requests")
       .insert({
-        created_by: authHeader,
+        created_by: userId,
         ...parsed.data,
       })
       .select("id")

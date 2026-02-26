@@ -17,7 +17,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import type { Profile, MachineType, OperatorListing } from "@/lib/types";
-import { MACHINE_TYPES, US_STATES } from "@/lib/types";
+import { MACHINE_TYPES, US_STATES, US_STATE_NAMES } from "@/lib/types";
 import MachineTypeBadge from "../components/MachineTypeBadge";
 
 // ---------------------------------------------------------------------------
@@ -32,20 +32,6 @@ const RATING_OPTIONS = [
   { value: "3", label: "3+ Stars" },
   { value: "2", label: "2+ Stars" },
 ];
-
-const US_STATE_NAMES: Record<string, string> = {
-  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
-  CO: "Colorado", CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia",
-  HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa",
-  KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland",
-  MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi",
-  MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada", NH: "New Hampshire",
-  NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina",
-  ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania",
-  RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee",
-  TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington",
-  WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia",
-};
 
 // ---------------------------------------------------------------------------
 // Types

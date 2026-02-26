@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendMessageSchema } from "@/lib/schemas";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 /** GET /api/messages — list conversations for current user */
 export async function GET(req: NextRequest) {
-  const userId = req.headers.get("x-user-id");
+  const userId = await getUserIdFromRequest(req);
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
 
 /** POST /api/messages — send a message */
 export async function POST(req: NextRequest) {
-  const userId = req.headers.get("x-user-id");
+  const userId = await getUserIdFromRequest(req);
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

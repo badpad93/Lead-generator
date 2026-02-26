@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createListingSchema } from "@/lib/schemas";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 const PAGE_SIZE = 12;
 
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
   const machineTypes = params.get("machine_types");
   const state = params.get("state");
   const commission = params.get("commission");
-  const page = parseInt(params.get("page") || "0");
+  const page = Math.max(0, parseInt(params.get("page") || "0"));
   const mine = params.get("mine");
   const userId = params.get("user_id");
   const mode = params.get("mode") || "listings"; // "listings" or "profiles"
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
 
 /** POST /api/operators — create a new operator listing */
 export async function POST(req: NextRequest) {
-  const userId = req.headers.get("x-user-id");
+  const userId = await getUserIdFromRequest(req);
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

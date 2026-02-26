@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   MapPin,
@@ -55,12 +56,17 @@ const steps = [
   },
 ];
 
-const stats = [
-  { label: "Active Requests", value: "500+", icon: Zap },
-  { label: "Verified Operators", value: "200+", icon: Users },
-  { label: "Successful Placements", value: "1,000+", icon: TrendingUp },
-  { label: "States Covered", value: "48", icon: Globe },
-];
+interface PlatformStats {
+  activeRequests: number;
+  operators: number;
+  placements: number;
+}
+
+function formatStat(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k+`;
+  if (n > 0) return `${n}+`;
+  return "0";
+}
 
 const locationTypes = [
   {
@@ -137,6 +143,22 @@ const testimonials = [
 /* ------------------------------------------------------------------ */
 
 export default function HomePage() {
+  const [stats, setStats] = useState<PlatformStats | null>(null);
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then(setStats)
+      .catch(() => {});
+  }, []);
+
+  const statItems = [
+    { label: "Active Requests", value: stats ? formatStat(stats.activeRequests) : "...", icon: Zap },
+    { label: "Verified Operators", value: stats ? formatStat(stats.operators) : "...", icon: Users },
+    { label: "Successful Placements", value: stats ? formatStat(stats.placements) : "...", icon: TrendingUp },
+    { label: "States Covered", value: "48", icon: Globe },
+  ];
+
   return (
     <div className="overflow-hidden">
       {/* ============================================================ */}
@@ -297,7 +319,7 @@ export default function HomePage() {
       <section className="bg-green-primary">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-14 lg:px-8">
           <div className="grid grid-cols-2 gap-8 text-center sm:gap-4 lg:grid-cols-4">
-            {stats.map((stat) => {
+            {statItems.map((stat) => {
               const Icon = stat.icon;
               return (
                 <div key={stat.label} className="animate-fade-in">
