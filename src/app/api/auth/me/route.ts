@@ -59,7 +59,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const allowedFields = [
       "full_name", "company_name", "phone", "website", "bio",
-      "city", "state", "zip", "avatar_url",
+      "city", "state", "zip", "avatar_url", "role",
     ];
     const updates: Partial<Record<string, string | null>> = {};
     for (const field of allowedFields) {

@@ -1,55 +1,63 @@
 import type { Profile } from "./types";
+import { createBrowserClient } from "./supabase";
 
-const TOKEN_KEY = "vendhub_token";
-const REFRESH_KEY = "vendhub_refresh";
+const SIGNUP_ROLE_KEY = "vendhub_signup_role";
 
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+/** Store the role selected during signup (before GitHub redirect) */
+export function storeSignupRole(role: string): void {
+  localStorage.setItem(SIGNUP_ROLE_KEY, role);
 }
 
-export function getRefreshToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(REFRESH_KEY);
+/** Retrieve and clear the stored signup role */
+export function consumeSignupRole(): string | null {
+  const role = localStorage.getItem(SIGNUP_ROLE_KEY);
+  if (role) localStorage.removeItem(SIGNUP_ROLE_KEY);
+  return role;
 }
 
-export function setTokens(access: string, refresh: string): void {
-  localStorage.setItem(TOKEN_KEY, access);
-  localStorage.setItem(REFRESH_KEY, refresh);
+/** Get the current Supabase session access token */
+export async function getAccessToken(): Promise<string | null> {
+  const supabase = createBrowserClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
 }
 
-export function clearTokens(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_KEY);
+/** Sign in with GitHub OAuth via Supabase */
+export async function signInWithGitHub(): Promise<void> {
+  const supabase = createBrowserClient();
+  await supabase.auth.signInWithOAuth({
+    provider: "github",
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    },
+  });
 }
 
-export function authHeaders(): Record<string, string> {
-  const token = getToken();
-  if (!token) return {};
-  return { Authorization: `Bearer ${token}` };
+/** Sign out */
+export async function signOut(): Promise<void> {
+  const supabase = createBrowserClient();
+  await supabase.auth.signOut();
 }
 
+/** Fetch the current user's profile */
 export async function fetchProfile(): Promise<Profile | null> {
-  const token = getToken();
+  const token = await getAccessToken();
   if (!token) return null;
 
   const res = await fetch("/api/auth/me", {
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  if (!res.ok) {
-    if (res.status === 401) clearTokens();
-    return null;
-  }
-
+  if (!res.ok) return null;
   return res.json();
 }
 
+/** Make an authenticated API request */
 export async function apiRequest(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const token = getToken();
+  const token = await getAccessToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> || {}),
@@ -57,7 +65,6 @@ export async function apiRequest(
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
-    headers["x-user-id"] = ""; // Will be resolved by server from token
   }
 
   return fetch(url, { ...options, headers });

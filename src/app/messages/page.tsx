@@ -10,7 +10,7 @@ import {
   LogIn,
 } from "lucide-react";
 import Link from "next/link";
-import { getToken } from "@/lib/auth";
+import { getAccessToken } from "@/lib/auth";
 
 interface Conversation {
   partner: {
@@ -66,10 +66,20 @@ export default function MessagesPage() {
   const [newMessage, setNewMessage] = useState("");
   const [search, setSearch] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const token = getToken();
+
+  // Resolve auth token on mount
+  useEffect(() => {
+    getAccessToken().then((t) => {
+      setToken(t);
+      setAuthChecked(true);
+    });
+  }, []);
 
   useEffect(() => {
+    if (!authChecked) return;
     if (!token) { setLoading(false); return; }
     // Get current user
     fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
@@ -87,7 +97,7 @@ export default function MessagesPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [token]);
+  }, [token, authChecked]);
 
   async function openThread(partner: Conversation["partner"]) {
     setActivePartner(partner);
@@ -124,7 +134,7 @@ export default function MessagesPage() {
     setSending(false);
   }
 
-  if (!token) {
+  if (authChecked && !token) {
     return (
       <div className="max-w-lg mx-auto py-20 text-center px-4">
         <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
