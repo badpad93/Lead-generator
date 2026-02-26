@@ -22,13 +22,14 @@ export async function getAccessToken(): Promise<string | null> {
   return session?.access_token || null;
 }
 
-/** Sign in with Discord OAuth via Supabase */
+/** Sign in with Discord OAuth via Supabase (uses PKCE flow for SSR cookie compat) */
 export async function signInWithDiscord(): Promise<void> {
   const supabase = createBrowserClient();
   await supabase.auth.signInWithOAuth({
     provider: "discord",
     options: {
       redirectTo: `${window.location.origin}/auth/callback`,
+      skipBrowserRedirect: false,
     },
   });
 }

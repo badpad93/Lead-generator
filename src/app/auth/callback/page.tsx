@@ -1,64 +1,70 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import { consumeSignupRole } from "@/lib/auth";
 
 export default function AuthCallbackPage() {
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function handleCallback() {
       const supabase = createBrowserClient();
 
-      // Exchange the code/hash for a session — this also writes cookies
-      // via the SSR-compatible browser client.
-      const { error: exchangeError } =
-        await supabase.auth.exchangeCodeForSession(
-          window.location.href
-        );
+      // The @supabase/ssr browser client has detectSessionInUrl: true and
+      // flowType: "pkce" built in. It automatically exchanges the ?code=
+      // param and writes the session to document.cookie.
+      // We listen for the SIGNED_IN event to know when it's done.
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          if (cancelled) return;
+          if (event === "SIGNED_IN" && session) {
+            subscription.unsubscribe();
 
-      // Fall back to getSession if code exchange wasn't applicable (hash-based flow)
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+            // Check if a signup role was stored (new user from /signup)
+            const signupRole = consumeSignupRole();
+            if (signupRole) {
+              try {
+                await fetch("/api/auth/me", {
+                  method: "PATCH",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session.access_token}`,
+                  },
+                  body: JSON.stringify({ role: signupRole }),
+                });
+              } catch {
+                // Profile might not exist yet — ignore
+              }
+            }
 
-      if ((exchangeError && sessionError) || !session) {
-        setError("Authentication failed. Please try again.");
-        setTimeout(() => router.push("/login"), 2000);
-        return;
-      }
-
-      // Check if a signup role was stored (new user from /signup)
-      const signupRole = consumeSignupRole();
-
-      if (signupRole) {
-        try {
-          await fetch("/api/auth/me", {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({ role: signupRole }),
-          });
-        } catch {
-          // Profile might not exist yet if trigger hasn't fired — ignore
+            // Full-page navigation so the browser sends freshly-set
+            // auth cookies with the request (middleware can read them).
+            window.location.href = "/dashboard";
+          }
         }
-      }
+      );
 
-      // Redirect to the page they were trying to reach, or dashboard
-      const params = new URLSearchParams(window.location.search);
-      const redirect = params.get("redirect") || "/dashboard";
-      router.push(redirect);
+      // Safety timeout — if no SIGNED_IN event fires within 10s, fail
+      const timer = setTimeout(() => {
+        if (cancelled) return;
+        subscription.unsubscribe();
+        setError("Authentication timed out. Please try again.");
+        setTimeout(() => { window.location.href = "/login"; }, 2000);
+      }, 10000);
+
+      return () => {
+        cancelled = true;
+        subscription.unsubscribe();
+        clearTimeout(timer);
+      };
     }
 
     handleCallback();
-  }, [router]);
+  }, []);
 
   if (error) {
     return (
