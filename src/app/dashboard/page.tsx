@@ -33,6 +33,11 @@ import {
   TrendingUp,
   Handshake,
   Inbox,
+  LogOut,
+  X,
+  AlertTriangle,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import type {
   Profile,
@@ -41,7 +46,9 @@ import type {
   Match,
   MatchStatus,
   RequestStatus,
+  MachineType,
 } from "@/lib/types";
+import { MACHINE_TYPES, US_STATES } from "@/lib/types";
 import { getAccessToken } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
 import LocationTypeIcon from "@/app/components/LocationTypeIcon";
@@ -308,6 +315,312 @@ function EmptyState({
       )}
     </div>
   );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Confirm Dialog                                                     */
+/* ------------------------------------------------------------------ */
+
+function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = "Delete",
+  loading,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  loading: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50">
+            <AlertTriangle className="h-5 w-5 text-red-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-black-primary">{title}</h3>
+        </div>
+        <p className="mb-6 text-sm text-black-primary/60">{message}</p>
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-600 disabled:opacity-50 cursor-pointer"
+          >
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Edit Listing Modal                                                 */
+/* ------------------------------------------------------------------ */
+
+function EditListingModal({
+  listing,
+  open,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  listing: OperatorListing;
+  open: boolean;
+  saving: boolean;
+  onSave: (id: string, updates: Partial<OperatorListing>) => void;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState({
+    title: listing.title,
+    description: listing.description || "",
+    machine_types: listing.machine_types as string[],
+    states_served: listing.states_served,
+    machine_count_available: listing.machine_count_available,
+    service_radius_miles: listing.service_radius_miles,
+    accepts_commission: listing.accepts_commission,
+  });
+
+  useEffect(() => {
+    setForm({
+      title: listing.title,
+      description: listing.description || "",
+      machine_types: listing.machine_types as string[],
+      states_served: listing.states_served,
+      machine_count_available: listing.machine_count_available,
+      service_radius_miles: listing.service_radius_miles,
+      accepts_commission: listing.accepts_commission,
+    });
+  }, [listing]);
+
+  if (!open) return null;
+
+  function toggle(arr: string[], val: string) {
+    return arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val];
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 px-4 py-8">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-black-primary">Edit Listing</h3>
+          <button type="button" onClick={onCancel} className="rounded-lg p-1 hover:bg-gray-100 cursor-pointer">
+            <X className="h-5 w-5 text-black-primary/40" />
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSave(listing.id, {
+              ...form,
+              machine_types: form.machine_types as MachineType[],
+            });
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="mb-1 block text-sm font-medium text-black-primary">Title</label>
+            <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className="w-full" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-black-primary">Description</label>
+            <textarea rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className="w-full" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-black-primary">Machines Available</label>
+              <input type="number" min={1} max={1000} value={form.machine_count_available} onChange={(e) => setForm((f) => ({ ...f, machine_count_available: parseInt(e.target.value) || 1 }))} className="w-full" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-black-primary">Service Radius (mi)</label>
+              <input type="number" min={1} max={500} value={form.service_radius_miles} onChange={(e) => setForm((f) => ({ ...f, service_radius_miles: parseInt(e.target.value) || 50 }))} className="w-full" />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-black-primary">Machine Types</label>
+            <div className="flex flex-wrap gap-1.5">
+              {MACHINE_TYPES.map((mt) => (
+                <button
+                  key={mt.value}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, machine_types: toggle(f.machine_types, mt.value) }))}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                    form.machine_types.includes(mt.value)
+                      ? "bg-green-primary text-white"
+                      : "bg-gray-100 text-black-primary/60 hover:bg-gray-200"
+                  }`}
+                >
+                  {mt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-black-primary">States Served</label>
+            <div className="flex flex-wrap gap-1">
+              {US_STATES.map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, states_served: toggle(f.states_served, st) }))}
+                  className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors cursor-pointer ${
+                    form.states_served.includes(st)
+                      ? "bg-green-primary text-white"
+                      : "bg-gray-100 text-black-primary/60 hover:bg-gray-200"
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, accepts_commission: !f.accepts_commission }))}
+              className="cursor-pointer"
+            >
+              {form.accepts_commission ? (
+                <ToggleRight className="h-6 w-6 text-green-primary" />
+              ) : (
+                <ToggleLeft className="h-6 w-6 text-gray-300" />
+              )}
+            </button>
+            <span className="text-sm text-black-primary">Accepts commission-based arrangements</span>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onCancel} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary hover:bg-gray-50 cursor-pointer">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-5 py-2 text-sm font-semibold text-white hover:bg-green-hover disabled:opacity-50 cursor-pointer"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Review Modal                                                       */
+/* ------------------------------------------------------------------ */
+
+function ReviewModal({
+  open,
+  operatorName,
+  saving,
+  onSubmit,
+  onCancel,
+}: {
+  open: boolean;
+  operatorName: string;
+  saving: boolean;
+  onSubmit: (rating: number, comment: string) => void;
+  onCancel: () => void;
+}) {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-black-primary">Review {operatorName}</h3>
+          <button type="button" onClick={onCancel} className="rounded-lg p-1 hover:bg-gray-100 cursor-pointer">
+            <X className="h-5 w-5 text-black-primary/40" />
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit(rating, comment);
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="mb-2 block text-sm font-medium text-black-primary">Rating</label>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setRating(v)}
+                  className="cursor-pointer"
+                >
+                  <Star
+                    className={`h-7 w-7 transition-colors ${
+                      v <= rating ? "fill-amber-400 text-amber-400" : "text-gray-200"
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-black-primary">Comment (optional)</label>
+            <textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="How was your experience?" className="w-full" />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onCancel} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary hover:bg-gray-50 cursor-pointer">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-5 py-2 text-sm font-semibold text-white hover:bg-green-hover disabled:opacity-50 cursor-pointer"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />}
+              Submit Review
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Conversation Type                                                  */
+/* ------------------------------------------------------------------ */
+
+interface Conversation {
+  partner: { id: string; full_name: string; avatar_url: string | null; company_name: string | null };
+  lastMessage: string;
+  lastDate: string;
+  unread: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -639,6 +952,24 @@ export default function DashboardPage() {
   /* ---- Match action loading ---- */
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  /* ---- Conversations / unread ---- */
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(false);
+  const [totalUnread, setTotalUnread] = useState(0);
+
+  /* ---- Delete confirm dialog ---- */
+  const [confirmDelete, setConfirmDelete] = useState<{ type: "request" | "listing"; id: string; title: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  /* ---- Edit listing ---- */
+  const [editListing, setEditListing] = useState<OperatorListing | null>(null);
+  const [savingListing, setSavingListing] = useState(false);
+
+  /* ---- Review ---- */
+  const [reviewTarget, setReviewTarget] = useState<{ matchId: string; operatorId: string; operatorName: string } | null>(null);
+  const [savingReview, setSavingReview] = useState(false);
+  const [reviewToast, setReviewToast] = useState<string | null>(null);
+
   /* ================================================================ */
   /*  Fetch Profile on Mount                                          */
   /* ================================================================ */
@@ -755,6 +1086,25 @@ export default function DashboardPage() {
     }
   }, [profile]);
 
+  const fetchConversations = useCallback(async () => {
+    if (!profile) return;
+    setLoadingConversations(true);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/messages", {
+        headers: authHeaders(token),
+      });
+      const data = await res.json();
+      const convos: Conversation[] = Array.isArray(data) ? data : [];
+      setConversations(convos);
+      setTotalUnread(convos.reduce((sum, c) => sum + (c.unread || 0), 0));
+    } catch {
+      /* noop */
+    } finally {
+      setLoadingConversations(false);
+    }
+  }, [profile]);
+
   /* Fetch data when profile loads */
   useEffect(() => {
     if (!profile) return;
@@ -767,7 +1117,8 @@ export default function DashboardPage() {
       fetchRequests();
       fetchMatches();
     }
-  }, [profile, fetchMatches, fetchListings, fetchSaved, fetchRequests]);
+    fetchConversations();
+  }, [profile, fetchMatches, fetchListings, fetchSaved, fetchRequests, fetchConversations]);
 
   /* ================================================================ */
   /*  Actions                                                          */
@@ -818,6 +1169,129 @@ export default function DashboardPage() {
       /* noop */
     } finally {
       setSavingProfile(false);
+    }
+  }
+
+  /* ================================================================ */
+  /*  Sign Out                                                         */
+  /* ================================================================ */
+
+  async function handleSignOut() {
+    const supabase = createBrowserClient();
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
+
+  /* ================================================================ */
+  /*  Delete Request / Listing                                         */
+  /* ================================================================ */
+
+  async function handleDelete() {
+    if (!confirmDelete || !profile) return;
+    setDeleting(true);
+    try {
+      const token = await getAccessToken();
+      if (confirmDelete.type === "request") {
+        await fetch(`/api/requests/${confirmDelete.id}`, {
+          method: "DELETE",
+          headers: { "x-user-id": profile.id },
+        });
+        await fetchRequests();
+      } else {
+        await fetch(`/api/listings/${confirmDelete.id}`, {
+          method: "DELETE",
+          headers: { ...authHeaders(token) },
+        });
+        await fetchListings();
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(null);
+    }
+  }
+
+  /* ================================================================ */
+  /*  Toggle Request Status (open ↔ closed)                            */
+  /* ================================================================ */
+
+  async function handleToggleRequestStatus(req: VendingRequest) {
+    if (!profile) return;
+    const newStatus = req.status === "open" ? "closed" : "open";
+    try {
+      await fetch(`/api/requests/${req.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": profile.id,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      await fetchRequests();
+    } catch {
+      /* noop */
+    }
+  }
+
+  /* ================================================================ */
+  /*  Edit Listing                                                     */
+  /* ================================================================ */
+
+  async function handleSaveListing(id: string, updates: Partial<OperatorListing>) {
+    if (!profile) return;
+    setSavingListing(true);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/listings/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders(token),
+        },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        await fetchListings();
+        setEditListing(null);
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setSavingListing(false);
+    }
+  }
+
+  /* ================================================================ */
+  /*  Submit Review                                                    */
+  /* ================================================================ */
+
+  async function handleSubmitReview(rating: number, comment: string) {
+    if (!profile || !reviewTarget) return;
+    setSavingReview(true);
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": profile.id,
+        },
+        body: JSON.stringify({
+          reviewee_id: reviewTarget.operatorId,
+          match_id: reviewTarget.matchId,
+          rating,
+          comment: comment || undefined,
+        }),
+      });
+      if (res.ok) {
+        setReviewTarget(null);
+        setReviewToast("Review submitted! Thank you.");
+        setTimeout(() => setReviewToast(null), 3000);
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setSavingReview(false);
     }
   }
 
@@ -889,7 +1363,7 @@ export default function DashboardPage() {
     applications: matches.length,
     accepted: matches.filter((m) => m.status === "accepted").length,
     saved: savedRequests.length,
-    messages: 0, // Placeholder — messages fetched separately
+    messages: totalUnread,
   };
 
   // Manager stats
@@ -898,7 +1372,7 @@ export default function DashboardPage() {
     activeMatches: matches.filter(
       (m) => m.status === "pending" || m.status === "accepted"
     ).length,
-    messages: 0,
+    messages: totalUnread,
     totalViews: requests.reduce((sum, r) => sum + (r.views || 0), 0),
   };
 
@@ -942,6 +1416,14 @@ export default function DashboardPage() {
                   </>
                 )}
               </span>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-black-primary/60 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 cursor-pointer"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Sign Out
+              </button>
             </div>
           </div>
         </div>
@@ -971,7 +1453,7 @@ export default function DashboardPage() {
             />
             <StatCard
               icon={MessageSquare}
-              label="Messages"
+              label="Unread Messages"
               value={operatorStats.messages}
               color="blue"
             />
@@ -992,7 +1474,7 @@ export default function DashboardPage() {
             />
             <StatCard
               icon={MessageSquare}
-              label="Messages"
+              label="Unread Messages"
               value={managerStats.messages}
               color="blue"
             />
@@ -1225,10 +1707,19 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
+                            onClick={() => setEditListing(listing)}
                             className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-green-50 hover:text-green-primary cursor-pointer"
                             aria-label="Edit listing"
                           >
                             <Edit3 className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDelete({ type: "listing", id: listing.id, title: listing.title })}
+                            className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-red-50 hover:text-red-500 cursor-pointer"
+                            aria-label="Delete listing"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       </div>
@@ -1329,23 +1820,64 @@ export default function DashboardPage() {
           )}
 
           {isOperator && operatorTab === "messages" && (
-            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 px-6 py-16 text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                <MessageSquare className="h-7 w-7" />
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-black-primary">
+                  Messages
+                  {totalUnread > 0 && (
+                    <span className="ml-2 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-xs font-bold text-white">
+                      {totalUnread}
+                    </span>
+                  )}
+                </h2>
+                <Link
+                  href="/messages"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-green-primary hover:underline"
+                >
+                  Open full inbox
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
               </div>
-              <h3 className="mb-1.5 text-lg font-semibold text-black-primary">
-                Messages
-              </h3>
-              <p className="mb-6 max-w-sm text-sm leading-relaxed text-black-primary/50">
-                View and respond to messages from location managers about your applications.
-              </p>
-              <Link
-                href="/messages"
-                className="inline-flex items-center gap-2 rounded-xl bg-black-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-black-primary-light"
-              >
-                Go to Messages
-                <ExternalLink className="h-4 w-4" />
-              </Link>
+
+              {loadingConversations ? (
+                <div className="space-y-3"><SkeletonRow /><SkeletonRow /><SkeletonRow /></div>
+              ) : conversations.length === 0 ? (
+                <EmptyState
+                  icon={MessageSquare}
+                  title="No messages yet"
+                  description="When you connect with location managers, your conversations will appear here."
+                />
+              ) : (
+                <div className="space-y-2">
+                  {conversations.map((convo) => (
+                    <Link
+                      key={convo.partner.id}
+                      href={`/messages?with=${convo.partner.id}`}
+                      className="group flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-green-100 hover:shadow-md"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-primary text-sm font-bold text-white">
+                        {convo.partner.full_name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "??"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className={`truncate text-sm font-semibold ${convo.unread > 0 ? "text-black-primary" : "text-black-primary/70"}`}>
+                            {convo.partner.full_name}
+                          </p>
+                          <span className="ml-2 shrink-0 text-xs text-black-primary/40">{relativeDate(convo.lastDate)}</span>
+                        </div>
+                        <p className={`mt-0.5 truncate text-xs ${convo.unread > 0 ? "font-medium text-black-primary/70" : "text-black-primary/40"}`}>
+                          {convo.lastMessage}
+                        </p>
+                      </div>
+                      {convo.unread > 0 && (
+                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-xs font-bold text-white">
+                          {convo.unread}
+                        </span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1421,8 +1953,32 @@ export default function DashboardPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <RequestStatusBadge status={req.status} />
+                          <button
+                            type="button"
+                            onClick={() => handleToggleRequestStatus(req)}
+                            title={req.status === "open" ? "Close request" : "Reopen request"}
+                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                              req.status === "open"
+                                ? "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                                : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                            }`}
+                          >
+                            {req.status === "open" ? (
+                              <><XCircle className="h-3.5 w-3.5" /> Close</>
+                            ) : (
+                              <><CheckCircle2 className="h-3.5 w-3.5" /> Reopen</>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDelete({ type: "request", id: req.id, title: req.title })}
+                            className="rounded-lg p-1.5 text-black-primary/30 transition-colors hover:bg-red-50 hover:text-red-500 cursor-pointer"
+                            aria-label="Delete request"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                           <Link
                             href={`/requests/${req.id}`}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-black-primary transition-colors hover:border-green-200 hover:bg-green-50 hover:text-green-primary"
@@ -1547,6 +2103,41 @@ export default function DashboardPage() {
                                 </button>
                               </>
                             )}
+
+                            {match.status === "accepted" && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleMatchAction(match.id, "installed")
+                                }
+                                disabled={actionLoading === match.id}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50 cursor-pointer"
+                              >
+                                {actionLoading === match.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Wrench className="h-3.5 w-3.5" />
+                                )}
+                                Mark Installed
+                              </button>
+                            )}
+
+                            {match.status === "installed" && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setReviewTarget({
+                                    matchId: match.id,
+                                    operatorId: match.operator_id,
+                                    operatorName: operator?.full_name || "Operator",
+                                  })
+                                }
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 cursor-pointer"
+                              >
+                                <Star className="h-3.5 w-3.5" />
+                                Leave Review
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1558,23 +2149,64 @@ export default function DashboardPage() {
           )}
 
           {!isOperator && managerTab === "messages" && (
-            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 px-6 py-16 text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                <MessageSquare className="h-7 w-7" />
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-black-primary">
+                  Messages
+                  {totalUnread > 0 && (
+                    <span className="ml-2 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-xs font-bold text-white">
+                      {totalUnread}
+                    </span>
+                  )}
+                </h2>
+                <Link
+                  href="/messages"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-green-primary hover:underline"
+                >
+                  Open full inbox
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
               </div>
-              <h3 className="mb-1.5 text-lg font-semibold text-black-primary">
-                Messages
-              </h3>
-              <p className="mb-6 max-w-sm text-sm leading-relaxed text-black-primary/50">
-                Communicate with operators who have matched with your requests.
-              </p>
-              <Link
-                href="/messages"
-                className="inline-flex items-center gap-2 rounded-xl bg-black-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-black-primary-light"
-              >
-                Go to Messages
-                <ExternalLink className="h-4 w-4" />
-              </Link>
+
+              {loadingConversations ? (
+                <div className="space-y-3"><SkeletonRow /><SkeletonRow /><SkeletonRow /></div>
+              ) : conversations.length === 0 ? (
+                <EmptyState
+                  icon={MessageSquare}
+                  title="No messages yet"
+                  description="Once you connect with operators, your conversations will appear here."
+                />
+              ) : (
+                <div className="space-y-2">
+                  {conversations.map((convo) => (
+                    <Link
+                      key={convo.partner.id}
+                      href={`/messages?with=${convo.partner.id}`}
+                      className="group flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-green-100 hover:shadow-md"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-primary text-sm font-bold text-white">
+                        {convo.partner.full_name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "??"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className={`truncate text-sm font-semibold ${convo.unread > 0 ? "text-black-primary" : "text-black-primary/70"}`}>
+                            {convo.partner.full_name}
+                          </p>
+                          <span className="ml-2 shrink-0 text-xs text-black-primary/40">{relativeDate(convo.lastDate)}</span>
+                        </div>
+                        <p className={`mt-0.5 truncate text-xs ${convo.unread > 0 ? "font-medium text-black-primary/70" : "text-black-primary/40"}`}>
+                          {convo.lastMessage}
+                        </p>
+                      </div>
+                      {convo.unread > 0 && (
+                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-xs font-bold text-white">
+                          {convo.unread}
+                        </span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1588,9 +2220,42 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ------- TOAST ------- */}
+      {/* ------- TOASTS ------- */}
       {profileToast && (
         <div className="toast toast-success">{profileToast}</div>
+      )}
+      {reviewToast && (
+        <div className="toast toast-success">{reviewToast}</div>
+      )}
+
+      {/* ------- MODALS ------- */}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={`Delete ${confirmDelete?.type === "request" ? "Request" : "Listing"}`}
+        message={`Are you sure you want to delete "${confirmDelete?.title}"? This action cannot be undone.`}
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
+
+      {editListing && (
+        <EditListingModal
+          listing={editListing}
+          open={!!editListing}
+          saving={savingListing}
+          onSave={handleSaveListing}
+          onCancel={() => setEditListing(null)}
+        />
+      )}
+
+      {reviewTarget && (
+        <ReviewModal
+          open={!!reviewTarget}
+          operatorName={reviewTarget.operatorName}
+          saving={savingReview}
+          onSubmit={handleSubmitReview}
+          onCancel={() => setReviewTarget(null)}
+        />
       )}
     </div>
   );

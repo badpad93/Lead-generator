@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 /** GET /api/operators/[id] — get an operator's profile with listings */
 export async function GET(

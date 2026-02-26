@@ -27,6 +27,46 @@ export async function GET(
   return NextResponse.json(data);
 }
 
+/** PATCH /api/requests/[id] — update request status (owner only) */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const userId = req.headers.get("x-user-id");
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const { status } = body;
+
+  if (!status || !["open", "matched", "closed"].includes(status)) {
+    return NextResponse.json(
+      { error: "Invalid status. Must be open, matched, or closed." },
+      { status: 400 }
+    );
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("vending_requests")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("created_by", userId)
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (!data) {
+    return NextResponse.json({ error: "Not found or not owner" }, { status: 404 });
+  }
+
+  return NextResponse.json(data);
+}
+
 /** DELETE /api/requests/[id] — delete a request (owner only) */
 export async function DELETE(
   req: NextRequest,
