@@ -12,6 +12,8 @@ const PROTECTED_PATHS = [
   "/post-request",
   "/listings/new",
   "/messages",
+  "/requests",
+  "/operators",
 ];
 
 export async function middleware(req: NextRequest) {
@@ -73,5 +75,7 @@ export const config = {
     "/post-request/:path*",
     "/listings/new/:path*",
     "/messages/:path*",
+    "/requests/:path*",
+    "/operators/:path*",
   ],
 };
