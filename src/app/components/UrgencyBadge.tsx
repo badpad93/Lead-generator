@@ -20,9 +20,9 @@ const configMap: Record<
     label: "Within 1 Month",
   },
   within_2_weeks: {
-    bg: "bg-orange-50",
-    text: "text-orange-primary",
-    ring: "ring-orange-200",
+    bg: "bg-green-50",
+    text: "text-green-primary",
+    ring: "ring-green-200",
     icon: AlertTriangle,
     label: "Within 2 Weeks",
   },

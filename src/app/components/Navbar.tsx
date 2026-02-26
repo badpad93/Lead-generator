@@ -41,7 +41,7 @@ export default function Navbar() {
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-1">
-          <span className="text-2xl font-bold tracking-tight text-orange-primary">
+          <span className="text-2xl font-bold tracking-tight text-green-primary">
             VendHub
           </span>
         </Link>
@@ -52,7 +52,7 @@ export default function Navbar() {
             <li key={link.href}>
               <Link
                 href={link.href}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-navy transition-colors hover:bg-orange-50 hover:text-orange-primary"
+                className="rounded-lg px-3 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
               >
                 {link.label}
               </Link>
@@ -64,13 +64,13 @@ export default function Navbar() {
         <div className="hidden items-center gap-3 md:flex">
           <Link
             href="/login"
-            className="rounded-lg px-4 py-2 text-sm font-medium text-navy transition-colors hover:bg-gray-50"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
           >
             Login
           </Link>
           <Link
             href="/signup"
-            className="rounded-lg bg-orange-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+            className="rounded-lg bg-green-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
           >
             Get Started
           </Link>
@@ -80,7 +80,7 @@ export default function Navbar() {
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="inline-flex items-center justify-center rounded-lg p-2 text-navy transition-colors hover:bg-gray-100 md:hidden"
+          className="inline-flex items-center justify-center rounded-lg p-2 text-black-primary transition-colors hover:bg-gray-100 md:hidden"
           aria-label="Open menu"
         >
           <Menu className="h-6 w-6" />
@@ -104,13 +104,13 @@ export default function Navbar() {
       >
         {/* Drawer Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-4">
-          <span className="text-xl font-bold text-orange-primary">
+          <span className="text-xl font-bold text-green-primary">
             VendHub
           </span>
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="rounded-lg p-2 text-navy transition-colors hover:bg-gray-100"
+            className="rounded-lg p-2 text-black-primary transition-colors hover:bg-gray-100"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" />
@@ -125,7 +125,7 @@ export default function Navbar() {
                 <Link
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-navy transition-colors hover:bg-orange-50 hover:text-orange-primary"
+                  className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
                 >
                   {link.label}
                   <ChevronRight className="h-4 w-4 text-gray-400" />
@@ -140,14 +140,14 @@ export default function Navbar() {
           <Link
             href="/login"
             onClick={() => setMobileOpen(false)}
-            className="block w-full rounded-lg border border-gray-200 px-4 py-2.5 text-center text-sm font-medium text-navy transition-colors hover:bg-gray-50"
+            className="block w-full rounded-lg border border-gray-200 px-4 py-2.5 text-center text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
           >
             Login
           </Link>
           <Link
             href="/signup"
             onClick={() => setMobileOpen(false)}
-            className="block w-full rounded-lg bg-orange-primary px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+            className="block w-full rounded-lg bg-green-primary px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
           >
             Get Started
           </Link>

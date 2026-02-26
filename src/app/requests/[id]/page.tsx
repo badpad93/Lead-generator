@@ -137,14 +137,14 @@ function AvatarCircle({
       <img
         src={avatarUrl}
         alt={name}
-        className={`${sizeClasses[size]} rounded-full object-cover ring-2 ring-orange-100`}
+        className={`${sizeClasses[size]} rounded-full object-cover ring-2 ring-green-100`}
       />
     );
   }
 
   return (
     <div
-      className={`${sizeClasses[size]} flex items-center justify-center rounded-full bg-orange-primary font-bold text-white ring-2 ring-orange-100`}
+      className={`${sizeClasses[size]} flex items-center justify-center rounded-full bg-green-primary font-bold text-white ring-2 ring-green-100`}
     >
       {initials}
     </div>
@@ -154,7 +154,7 @@ function AvatarCircle({
 /** Loading skeleton for the request detail */
 function DetailSkeleton() {
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-light">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="skeleton h-4 w-32 mb-8" />
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -203,12 +203,12 @@ function SimilarRequestCard({ request }: { request: VendingRequest }) {
   return (
     <Link
       href={`/requests/${request.id}`}
-      className="block bg-white rounded-xl border border-gray-200 p-4 transition-shadow hover:shadow-lg hover:shadow-orange-primary/5 group"
+      className="block bg-white rounded-xl border border-gray-200 p-4 transition-shadow hover:shadow-lg hover:shadow-green-primary/5 group"
     >
       <div className="flex items-start gap-3">
         <LocationTypeIcon type={request.location_type} size="sm" />
         <div className="min-w-0 flex-1">
-          <h4 className="font-semibold text-navy text-sm leading-snug truncate group-hover:text-orange-primary transition-colors">
+          <h4 className="font-semibold text-black-primary text-sm leading-snug truncate group-hover:text-green-primary transition-colors">
             {request.title}
           </h4>
           <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-500">
@@ -226,7 +226,7 @@ function SimilarRequestCard({ request }: { request: VendingRequest }) {
       </div>
       <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
         <UrgencyBadge urgency={request.urgency} />
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-primary">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-green-primary">
           View
           <ArrowRight className="h-3 w-3" />
         </span>
@@ -318,13 +318,13 @@ export default function RequestDetailPage() {
   // ---------- Error state ----------
   if (error || !request) {
     return (
-      <div className="min-h-screen bg-cream">
+      <div className="min-h-screen bg-light">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50">
               <AlertCircle className="h-7 w-7 text-red-500" />
             </div>
-            <h2 className="text-xl font-bold text-navy">
+            <h2 className="text-xl font-bold text-black-primary">
               {error || "Request not found"}
             </h2>
             <p className="mt-2 text-sm text-gray-500">
@@ -333,7 +333,7 @@ export default function RequestDetailPage() {
             </p>
             <Link
               href="/browse-requests"
-              className="mt-6 inline-flex items-center gap-2 rounded-lg bg-orange-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-hover"
+              className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-hover"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Browse Requests
@@ -353,12 +353,12 @@ export default function RequestDetailPage() {
   const ContactIcon = contactPref.icon;
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-light">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Back link */}
         <Link
           href="/browse-requests"
-          className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-orange-primary"
+          className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-green-primary"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Browse Requests
@@ -375,7 +375,7 @@ export default function RequestDetailPage() {
               <div className="flex items-start gap-4">
                 <LocationTypeIcon type={request.location_type} size="lg" />
                 <div className="min-w-0 flex-1">
-                  <h1 className="text-xl font-bold text-navy sm:text-2xl leading-tight">
+                  <h1 className="text-xl font-bold text-black-primary sm:text-2xl leading-tight">
                     {request.title}
                   </h1>
                   <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -399,9 +399,9 @@ export default function RequestDetailPage() {
               )}
 
               {/* Location Info */}
-              <div className="mt-6 rounded-lg bg-cream border border-orange-100 p-4">
-                <h3 className="text-sm font-semibold text-navy mb-3 flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-orange-primary" />
+              <div className="mt-6 rounded-lg bg-light border border-green-100 p-4">
+                <h3 className="text-sm font-semibold text-black-primary mb-3 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-green-primary" />
                   Location Details
                 </h3>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -409,7 +409,7 @@ export default function RequestDetailPage() {
                     <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
                       Location Name
                     </p>
-                    <p className="text-sm font-medium text-navy mt-0.5">
+                    <p className="text-sm font-medium text-black-primary mt-0.5">
                       {request.location_name}
                     </p>
                   </div>
@@ -418,7 +418,7 @@ export default function RequestDetailPage() {
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
                         Address
                       </p>
-                      <p className="text-sm font-medium text-navy mt-0.5">
+                      <p className="text-sm font-medium text-black-primary mt-0.5">
                         {request.address}
                       </p>
                     </div>
@@ -427,7 +427,7 @@ export default function RequestDetailPage() {
                     <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
                       City / State
                     </p>
-                    <p className="text-sm font-medium text-navy mt-0.5">
+                    <p className="text-sm font-medium text-black-primary mt-0.5">
                       {request.city}, {request.state}
                       {request.zip ? ` ${request.zip}` : ""}
                     </p>
@@ -436,7 +436,7 @@ export default function RequestDetailPage() {
                     <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
                       Location Type
                     </p>
-                    <p className="text-sm font-medium text-navy mt-0.5 flex items-center gap-1.5">
+                    <p className="text-sm font-medium text-black-primary mt-0.5 flex items-center gap-1.5">
                       <LocationTypeIcon
                         type={request.location_type}
                         size="sm"
@@ -449,7 +449,7 @@ export default function RequestDetailPage() {
 
               {/* Machine Types */}
               <div className="mt-6">
-                <h3 className="text-sm font-semibold text-navy mb-2">
+                <h3 className="text-sm font-semibold text-black-primary mb-2">
                   Machine Types Wanted
                 </h3>
                 <div className="flex flex-wrap gap-2">
@@ -468,7 +468,7 @@ export default function RequestDetailPage() {
                       <Users className="h-3.5 w-3.5" />
                       Estimated Daily Traffic
                     </div>
-                    <p className="mt-1 text-lg font-bold text-navy">
+                    <p className="mt-1 text-lg font-bold text-black-primary">
                       {request.estimated_daily_traffic.toLocaleString()}
                       <span className="text-sm font-normal text-gray-500 ml-1">
                         people / day
@@ -509,7 +509,7 @@ export default function RequestDetailPage() {
                     <ContactIcon className="h-3.5 w-3.5" />
                     Preferred Contact
                   </div>
-                  <p className="mt-1 text-sm font-semibold text-navy">
+                  <p className="mt-1 text-sm font-semibold text-black-primary">
                     {contactPref.label}
                   </p>
                 </div>
@@ -520,7 +520,7 @@ export default function RequestDetailPage() {
                     <Eye className="h-3.5 w-3.5" />
                     Views
                   </div>
-                  <p className="mt-1 text-lg font-bold text-navy">
+                  <p className="mt-1 text-lg font-bold text-black-primary">
                     {request.views.toLocaleString()}
                   </p>
                 </div>
@@ -529,7 +529,7 @@ export default function RequestDetailPage() {
               {/* Posted By */}
               {profile && (
                 <div className="mt-6 pt-6 border-t border-gray-100">
-                  <h3 className="text-sm font-semibold text-navy mb-3">
+                  <h3 className="text-sm font-semibold text-black-primary mb-3">
                     Posted By
                   </h3>
                   <div className="flex items-center gap-3">
@@ -539,11 +539,11 @@ export default function RequestDetailPage() {
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <p className="font-medium text-navy text-sm truncate">
+                        <p className="font-medium text-black-primary text-sm truncate">
                           {profile.full_name}
                         </p>
                         {profile.verified && (
-                          <BadgeCheck className="h-4 w-4 shrink-0 text-orange-primary" />
+                          <BadgeCheck className="h-4 w-4 shrink-0 text-green-primary" />
                         )}
                       </div>
                       {profile.company_name && (
@@ -553,8 +553,8 @@ export default function RequestDetailPage() {
                       )}
                     </div>
                     <div className="ml-auto flex items-center gap-1 text-xs text-gray-400">
-                      <Star className="h-3.5 w-3.5 fill-orange-primary text-orange-primary" />
-                      <span className="font-medium text-navy">
+                      <Star className="h-3.5 w-3.5 fill-green-primary text-green-primary" />
+                      <span className="font-medium text-black-primary">
                         {profile.rating.toFixed(1)}
                       </span>
                       <span>({profile.review_count})</span>
@@ -583,7 +583,7 @@ export default function RequestDetailPage() {
           <div className="space-y-6">
             {/* CTA Card */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-24 animate-fade-in">
-              <h3 className="text-lg font-bold text-navy">
+              <h3 className="text-lg font-bold text-black-primary">
                 Interested in this location?
               </h3>
               <p className="mt-1 text-sm text-gray-500">
@@ -597,7 +597,7 @@ export default function RequestDetailPage() {
                     "Sign up as an operator to apply for vending placement requests!"
                   )
                 }
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-orange-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
               >
                 <Send className="h-4 w-4" />
                 Apply as Operator
@@ -608,7 +608,7 @@ export default function RequestDetailPage() {
                 onClick={() =>
                   alert("Sign up to send messages to requestors!")
                 }
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-navy transition-colors hover:bg-orange-50 hover:border-orange-primary/40"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:bg-green-50 hover:border-green-primary/40"
               >
                 <MessageSquare className="h-4 w-4" />
                 Send Message
@@ -629,7 +629,7 @@ export default function RequestDetailPage() {
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span>Commission</span>
-                  <span className="font-medium text-navy">
+                  <span className="font-medium text-black-primary">
                     {request.commission_offered ? "Yes" : "No"}
                   </span>
                 </div>
@@ -637,8 +637,8 @@ export default function RequestDetailPage() {
             </div>
 
             {/* Quick info card */}
-            <div className="bg-gradient-to-br from-orange-50 to-peach rounded-xl border border-orange-100 p-5">
-              <h4 className="text-sm font-semibold text-navy mb-2">
+            <div className="bg-gradient-to-br from-green-50 to-light-warm rounded-xl border border-green-100 p-5">
+              <h4 className="text-sm font-semibold text-black-primary mb-2">
                 New to VendHub?
               </h4>
               <p className="text-xs text-gray-600 leading-relaxed">
@@ -648,7 +648,7 @@ export default function RequestDetailPage() {
               </p>
               <Link
                 href="/signup"
-                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-orange-primary hover:text-orange-hover transition-colors"
+                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-green-primary hover:text-green-hover transition-colors"
               >
                 Get Started
                 <ArrowRight className="h-3 w-3" />
@@ -662,7 +662,7 @@ export default function RequestDetailPage() {
         {/* ------------------------------------------------------------------ */}
         {(loadingSimilar || similarRequests.length > 0) && (
           <section className="mt-12">
-            <h2 className="text-lg font-bold text-navy mb-5">
+            <h2 className="text-lg font-bold text-black-primary mb-5">
               Similar Requests Nearby
             </h2>
 

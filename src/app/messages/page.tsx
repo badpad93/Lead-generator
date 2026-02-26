@@ -51,7 +51,7 @@ function Avatar({ name, url, size = "md" }: { name: string; url?: string | null;
     return <img src={url} alt={name} className={`${s} rounded-full object-cover`} />;
   }
   return (
-    <div className={`${s} rounded-full bg-orange-primary text-white font-semibold flex items-center justify-center shrink-0`}>
+    <div className={`${s} rounded-full bg-green-primary text-white font-semibold flex items-center justify-center shrink-0`}>
       {initials}
     </div>
   );
@@ -127,12 +127,12 @@ export default function MessagesPage() {
   if (!token) {
     return (
       <div className="max-w-lg mx-auto py-20 text-center px-4">
-        <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <LogIn className="w-7 h-7 text-orange-primary" />
+        <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <LogIn className="w-7 h-7 text-green-primary" />
         </div>
-        <h1 className="text-2xl font-bold text-navy mb-3">Sign In to View Messages</h1>
+        <h1 className="text-2xl font-bold text-black-primary mb-3">Sign In to View Messages</h1>
         <p className="text-slate-500 mb-6">You need to be logged in to access your messages.</p>
-        <Link href="/login" className="inline-flex items-center gap-2 px-6 py-3 bg-orange-primary text-white rounded-xl font-semibold hover:bg-orange-hover transition-colors">
+        <Link href="/login" className="inline-flex items-center gap-2 px-6 py-3 bg-green-primary text-white rounded-xl font-semibold hover:bg-green-hover transition-colors">
           Sign In
         </Link>
       </div>
@@ -145,7 +145,7 @@ export default function MessagesPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-navy mb-6">Messages</h1>
+      <h1 className="text-2xl font-bold text-black-primary mb-6">Messages</h1>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden flex" style={{ height: "600px" }}>
         {/* Conversation List */}
@@ -177,14 +177,14 @@ export default function MessagesPage() {
                 <button
                   key={conv.partner.id}
                   onClick={() => openThread(conv.partner)}
-                  className={`w-full flex items-center gap-3 p-4 hover:bg-orange-50 transition-colors text-left border-b border-slate-50 ${
-                    activePartner?.id === conv.partner.id ? "bg-orange-50" : ""
+                  className={`w-full flex items-center gap-3 p-4 hover:bg-green-50 transition-colors text-left border-b border-slate-50 ${
+                    activePartner?.id === conv.partner.id ? "bg-green-50" : ""
                   }`}
                 >
                   <Avatar name={conv.partner.full_name} url={conv.partner.avatar_url} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm text-navy truncate">
+                      <span className="font-medium text-sm text-black-primary truncate">
                         {conv.partner.full_name}
                       </span>
                       <span className="text-[11px] text-slate-400 shrink-0">
@@ -194,7 +194,7 @@ export default function MessagesPage() {
                     <p className="text-xs text-slate-500 truncate">{conv.lastMessage}</p>
                   </div>
                   {conv.unread > 0 && (
-                    <span className="w-5 h-5 rounded-full bg-orange-primary text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                    <span className="w-5 h-5 rounded-full bg-green-primary text-white text-[10px] font-bold flex items-center justify-center shrink-0">
                       {conv.unread}
                     </span>
                   )}
@@ -211,13 +211,13 @@ export default function MessagesPage() {
               <div className="flex items-center gap-3 p-4 border-b border-slate-100">
                 <button
                   onClick={() => setActivePartner(null)}
-                  className="md:hidden p-1 text-slate-400 hover:text-navy"
+                  className="md:hidden p-1 text-slate-400 hover:text-black-primary"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <Avatar name={activePartner.full_name} url={activePartner.avatar_url} size="sm" />
                 <div>
-                  <p className="font-medium text-sm text-navy">{activePartner.full_name}</p>
+                  <p className="font-medium text-sm text-black-primary">{activePartner.full_name}</p>
                   {activePartner.company_name && (
                     <p className="text-[11px] text-slate-400">{activePartner.company_name}</p>
                   )}
@@ -231,12 +231,12 @@ export default function MessagesPage() {
                       <div
                         className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${
                           isMine
-                            ? "bg-orange-primary text-white rounded-br-md"
-                            : "bg-white text-navy border border-slate-200 rounded-bl-md"
+                            ? "bg-green-primary text-white rounded-br-md"
+                            : "bg-white text-black-primary border border-slate-200 rounded-bl-md"
                         }`}
                       >
                         <p>{msg.body}</p>
-                        <p className={`text-[10px] mt-1 ${isMine ? "text-orange-200" : "text-slate-400"}`}>
+                        <p className={`text-[10px] mt-1 ${isMine ? "text-green-200" : "text-slate-400"}`}>
                           {timeAgo(msg.created_at)}
                         </p>
                       </div>
@@ -256,7 +256,7 @@ export default function MessagesPage() {
                 <button
                   type="submit"
                   disabled={sending || !newMessage.trim()}
-                  className="px-4 py-2 bg-orange-primary text-white rounded-lg font-medium text-sm hover:bg-orange-hover disabled:opacity-50 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 bg-green-primary text-white rounded-lg font-medium text-sm hover:bg-green-hover disabled:opacity-50 transition-colors flex items-center gap-2"
                 >
                   {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </button>

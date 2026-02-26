@@ -90,12 +90,12 @@ function MachineTypeMultiSelect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-navy transition-colors hover:border-orange-primary/40 focus:outline-none focus:ring-2 focus:ring-orange-primary/20"
+        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-black-primary transition-colors hover:border-green-primary/40 focus:outline-none focus:ring-2 focus:ring-green-primary/20"
       >
         <span className="whitespace-nowrap">
           Machine Type
           {selected.length > 0 && (
-            <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-primary px-1.5 text-[11px] font-bold text-white">
+            <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-[11px] font-bold text-white">
               {selected.length}
             </span>
           )}
@@ -114,12 +114,12 @@ function MachineTypeMultiSelect({
                 key={mt.value}
                 type="button"
                 onClick={() => toggle(mt.value)}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-navy transition-colors hover:bg-orange-50"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-black-primary transition-colors hover:bg-green-50"
               >
                 <span
                   className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
                     isChecked
-                      ? "border-orange-primary bg-orange-primary"
+                      ? "border-green-primary bg-green-primary"
                       : "border-gray-300 bg-white"
                   }`}
                 >
@@ -134,7 +134,7 @@ function MachineTypeMultiSelect({
               <button
                 type="button"
                 onClick={() => onChange([])}
-                className="w-full rounded-md py-1.5 text-xs font-medium text-gray-500 hover:text-orange-primary transition-colors"
+                className="w-full rounded-md py-1.5 text-xs font-medium text-gray-500 hover:text-green-primary transition-colors"
               >
                 Clear all
               </button>
@@ -178,13 +178,13 @@ function FilterDropdown({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-navy transition-colors hover:border-orange-primary/40 focus:outline-none focus:ring-2 focus:ring-orange-primary/20"
+        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-black-primary transition-colors hover:border-green-primary/40 focus:outline-none focus:ring-2 focus:ring-green-primary/20"
       >
         <span className="whitespace-nowrap">
           {value ? (
             <span>
               {label}:{" "}
-              <span className="font-medium text-orange-primary">
+              <span className="font-medium text-green-primary">
                 {selectedLabel}
               </span>
             </span>
@@ -205,8 +205,8 @@ function FilterDropdown({
               onChange("");
               setOpen(false);
             }}
-            className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-orange-50 ${
-              !value ? "text-orange-primary font-medium" : "text-gray-500"
+            className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-green-50 ${
+              !value ? "text-green-primary font-medium" : "text-gray-500"
             }`}
           >
             All
@@ -219,10 +219,10 @@ function FilterDropdown({
                 onChange(opt.value);
                 setOpen(false);
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-orange-50 ${
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-green-50 ${
                 value === opt.value
-                  ? "text-orange-primary font-medium bg-orange-50"
-                  : "text-navy"
+                  ? "text-green-primary font-medium bg-green-50"
+                  : "text-black-primary"
               }`}
             >
               {opt.label}
@@ -418,14 +418,14 @@ export default function BrowseRequestsPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-light">
       {/* ------------------------------------------------------------------ */}
       {/* Hero header */}
       {/* ------------------------------------------------------------------ */}
-      <section className="border-b border-orange-100 bg-gradient-to-b from-peach to-cream">
+      <section className="border-b border-green-100 bg-gradient-to-b from-light-warm to-light">
         <div className="mx-auto max-w-7xl px-4 pb-8 pt-12 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-3xl font-bold tracking-tight text-navy sm:text-4xl">
+            <h1 className="text-3xl font-bold tracking-tight text-black-primary sm:text-4xl">
               Browse Vending Requests
             </h1>
             <p className="mx-auto mt-3 max-w-2xl text-base text-gray-600 sm:text-lg">
@@ -442,7 +442,7 @@ export default function BrowseRequestsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by city, state, or location type..."
-                className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-10 text-sm shadow-sm placeholder:text-gray-400 focus:border-orange-primary focus:ring-2 focus:ring-orange-primary/20"
+                className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-10 text-sm shadow-sm placeholder:text-gray-400 focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
               />
               {search && (
                 <button
@@ -473,13 +473,13 @@ export default function BrowseRequestsPage() {
                   onClick={() => setStatusFilter(tab.value)}
                   className={`relative px-4 py-3 text-sm font-medium transition-colors ${
                     statusFilter === tab.value
-                      ? "text-orange-primary"
-                      : "text-gray-500 hover:text-navy"
+                      ? "text-green-primary"
+                      : "text-gray-500 hover:text-black-primary"
                   }`}
                 >
                   {tab.label}
                   {statusFilter === tab.value && (
-                    <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-orange-primary" />
+                    <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-green-primary" />
                   )}
                 </button>
               ))}
@@ -489,12 +489,12 @@ export default function BrowseRequestsPage() {
             <button
               type="button"
               onClick={() => setFiltersVisible(!filtersVisible)}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-navy transition-colors hover:bg-orange-50 lg:hidden"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 lg:hidden"
             >
               <SlidersHorizontal className="h-4 w-4" />
               Filters
               {activeFilterCount > 0 && (
-                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-primary px-1.5 text-[11px] font-bold text-white">
+                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-[11px] font-bold text-white">
                   {activeFilterCount}
                 </span>
               )}
@@ -546,15 +546,15 @@ export default function BrowseRequestsPage() {
               <button
                 type="button"
                 onClick={() => setCommissionFilter(!commissionFilter)}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-orange-primary/20 ${
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-primary/20 ${
                   commissionFilter
-                    ? "border-orange-primary bg-orange-50 text-orange-primary font-medium"
-                    : "border-gray-200 bg-white text-navy hover:border-orange-primary/40"
+                    ? "border-green-primary bg-green-50 text-green-primary font-medium"
+                    : "border-gray-200 bg-white text-black-primary hover:border-green-primary/40"
                 }`}
               >
                 <span
                   className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                    commissionFilter ? "bg-orange-primary" : "bg-gray-200"
+                    commissionFilter ? "bg-green-primary" : "bg-gray-200"
                   }`}
                 >
                   <span
@@ -601,7 +601,7 @@ export default function BrowseRequestsPage() {
               <span>
                 {" "}
                 for &ldquo;
-                <span className="font-medium text-navy">{debouncedSearch}</span>
+                <span className="font-medium text-black-primary">{debouncedSearch}</span>
                 &rdquo;
               </span>
             )}
@@ -620,10 +620,10 @@ export default function BrowseRequestsPage() {
         {/* Empty state */}
         {!loading && requests.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white px-6 py-16 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-50">
-              <SearchX className="h-7 w-7 text-orange-primary" />
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
+              <SearchX className="h-7 w-7 text-green-primary" />
             </div>
-            <h3 className="text-lg font-semibold text-navy">
+            <h3 className="text-lg font-semibold text-black-primary">
               No requests match your filters
             </h3>
             <p className="mx-auto mt-2 max-w-sm text-sm text-gray-500">
@@ -635,14 +635,14 @@ export default function BrowseRequestsPage() {
                 <button
                   type="button"
                   onClick={clearAllFilters}
-                  className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-navy transition-colors hover:bg-gray-50"
+                  className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
                 >
                   Clear All Filters
                 </button>
               )}
               <Link
                 href="/post-request"
-                className="inline-flex items-center gap-2 rounded-lg bg-orange-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+                className="inline-flex items-center gap-2 rounded-lg bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
               >
                 <PlusCircle className="h-4 w-4" />
                 Post a Request
@@ -672,7 +672,7 @@ export default function BrowseRequestsPage() {
                   type="button"
                   onClick={handleLoadMore}
                   disabled={loadingMore}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-8 py-3 text-sm font-semibold text-navy shadow-sm transition-all hover:border-orange-primary/40 hover:shadow-md disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-8 py-3 text-sm font-semibold text-black-primary shadow-sm transition-all hover:border-green-primary/40 hover:shadow-md disabled:opacity-60"
                 >
                   {loadingMore ? (
                     <>
@@ -701,9 +701,9 @@ export default function BrowseRequestsPage() {
       {/* Bottom CTA */}
       {/* ------------------------------------------------------------------ */}
       {!loading && requests.length > 0 && (
-        <section className="border-t border-orange-100 bg-peach">
+        <section className="border-t border-green-100 bg-light-warm">
           <div className="mx-auto max-w-7xl px-4 py-12 text-center sm:px-6 lg:px-8">
-            <h2 className="text-xl font-bold text-navy sm:text-2xl">
+            <h2 className="text-xl font-bold text-black-primary sm:text-2xl">
               Have a location that needs a vending machine?
             </h2>
             <p className="mx-auto mt-2 max-w-lg text-sm text-gray-600">
@@ -711,7 +711,7 @@ export default function BrowseRequestsPage() {
             </p>
             <Link
               href="/post-request"
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-orange-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
             >
               <PlusCircle className="h-4 w-4" />
               Post a Request

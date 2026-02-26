@@ -37,14 +37,14 @@ const footerColumns = [
 
 export default function Footer() {
   return (
-    <footer className="bg-navy text-gray-300">
+    <footer className="bg-black-primary text-gray-300">
       {/* Main Footer Content */}
       <div className="mx-auto max-w-7xl px-4 pb-10 pt-14 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
           {/* Brand Column */}
           <div className="lg:col-span-1">
             <Link href="/" className="inline-block">
-              <span className="text-2xl font-bold tracking-tight text-orange-primary">
+              <span className="text-2xl font-bold tracking-tight text-green-primary">
                 VendHub
               </span>
             </Link>
@@ -65,7 +65,7 @@ export default function Footer() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="text-sm text-gray-400 transition-colors hover:text-orange-primary"
+                      className="text-sm text-gray-400 transition-colors hover:text-green-primary"
                     >
                       {link.label}
                     </Link>
@@ -85,7 +85,7 @@ export default function Footer() {
           </p>
           <p className="text-xs text-gray-500">
             Made with{" "}
-            <span className="text-orange-primary" aria-label="love">
+            <span className="text-green-primary" aria-label="love">
               &#9829;
             </span>{" "}
             for the vending industry

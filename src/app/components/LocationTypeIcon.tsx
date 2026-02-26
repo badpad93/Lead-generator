@@ -47,7 +47,7 @@ export default function LocationTypeIcon({
 
   return (
     <div
-      className={`${dimensions.box} flex items-center justify-center rounded-lg bg-orange-50 text-orange-primary shrink-0`}
+      className={`${dimensions.box} flex items-center justify-center rounded-lg bg-green-50 text-green-primary shrink-0`}
     >
       <Icon className={dimensions.icon} />
     </div>

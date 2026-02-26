@@ -86,14 +86,14 @@ function AvatarCircle({
       <img
         src={avatarUrl}
         alt={name}
-        className={`${sizeClasses[size]} rounded-full object-cover ring-4 ring-orange-100`}
+        className={`${sizeClasses[size]} rounded-full object-cover ring-4 ring-green-100`}
       />
     );
   }
 
   return (
     <div
-      className={`${sizeClasses[size]} flex items-center justify-center rounded-full bg-orange-primary font-bold text-white ring-4 ring-orange-100`}
+      className={`${sizeClasses[size]} flex items-center justify-center rounded-full bg-green-primary font-bold text-white ring-4 ring-green-100`}
     >
       {initials}
     </div>
@@ -147,14 +147,14 @@ function StatCard({
 }) {
   return (
     <div className="flex items-center gap-3 rounded-lg bg-gray-50 border border-gray-100 p-4">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-orange-primary shrink-0">
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-primary shrink-0">
         <Icon className="h-5 w-5" />
       </div>
       <div>
         <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
           {label}
         </p>
-        <p className="text-lg font-bold text-navy">{value}</p>
+        <p className="text-lg font-bold text-black-primary">{value}</p>
       </div>
     </div>
   );
@@ -163,11 +163,11 @@ function StatCard({
 /** Active listing card */
 function ListingCard({ listing }: { listing: OperatorListing }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-orange-primary/5">
+    <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-green-primary/5">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="font-semibold text-navy text-sm leading-snug truncate">
+          <h4 className="font-semibold text-black-primary text-sm leading-snug truncate">
             {listing.title}
           </h4>
           {listing.description && (
@@ -190,7 +190,7 @@ function ListingCard({ listing }: { listing: OperatorListing }) {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-xs text-gray-500">
         <span className="flex items-center gap-1">
           <Monitor className="h-3 w-3" />
-          <span className="font-medium text-navy">
+          <span className="font-medium text-black-primary">
             {listing.machine_count_available}
           </span>{" "}
           machines
@@ -256,7 +256,7 @@ function ReviewCard({ review }: { review: Review }) {
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <p className="font-medium text-navy text-sm truncate">
+            <p className="font-medium text-black-primary text-sm truncate">
               {reviewer?.full_name ?? "Anonymous"}
             </p>
             <span className="text-xs text-gray-400 shrink-0">
@@ -280,7 +280,7 @@ function ReviewCard({ review }: { review: Review }) {
 /** Loading skeleton for profile page */
 function ProfileSkeleton() {
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-light">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="skeleton h-4 w-36 mb-8" />
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -432,13 +432,13 @@ export default function OperatorProfilePage() {
   // ---------- Error state ----------
   if (error || !profile) {
     return (
-      <div className="min-h-screen bg-cream">
+      <div className="min-h-screen bg-light">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50">
               <AlertCircle className="h-7 w-7 text-red-500" />
             </div>
-            <h2 className="text-xl font-bold text-navy">
+            <h2 className="text-xl font-bold text-black-primary">
               {error || "Operator not found"}
             </h2>
             <p className="mt-2 text-sm text-gray-500">
@@ -447,7 +447,7 @@ export default function OperatorProfilePage() {
             </p>
             <Link
               href="/browse-operators"
-              className="mt-6 inline-flex items-center gap-2 rounded-lg bg-orange-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-hover"
+              className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-hover"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Browse Operators
@@ -481,12 +481,12 @@ export default function OperatorProfilePage() {
   const memberSince = formatDate(profile.created_at);
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-light">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Back link */}
         <Link
           href="/browse-operators"
-          className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-orange-primary"
+          className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-green-primary"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Browse Operators
@@ -507,11 +507,11 @@ export default function OperatorProfilePage() {
                 />
                 <div className="text-center sm:text-left min-w-0 flex-1">
                   <div className="flex items-center justify-center gap-2 sm:justify-start">
-                    <h1 className="text-xl font-bold text-navy sm:text-2xl">
+                    <h1 className="text-xl font-bold text-black-primary sm:text-2xl">
                       {profile.full_name}
                     </h1>
                     {profile.verified && (
-                      <BadgeCheck className="h-5 w-5 shrink-0 text-orange-primary" />
+                      <BadgeCheck className="h-5 w-5 shrink-0 text-green-primary" />
                     )}
                   </div>
                   {profile.company_name && (
@@ -535,7 +535,7 @@ export default function OperatorProfilePage() {
                         href={profile.website}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-orange-primary transition-colors"
+                        className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-green-primary transition-colors"
                       >
                         <Globe className="h-3 w-3" />
                         Website
@@ -562,7 +562,7 @@ export default function OperatorProfilePage() {
               {/* Bio */}
               {profile.bio && (
                 <div className="mt-6 pt-5 border-t border-gray-100">
-                  <h3 className="text-sm font-semibold text-navy mb-2">
+                  <h3 className="text-sm font-semibold text-black-primary mb-2">
                     About
                   </h3>
                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
@@ -601,8 +601,8 @@ export default function OperatorProfilePage() {
               allStates.size > 0 ||
               maxRadius > 0) && (
               <div className="bg-white rounded-xl border border-gray-200 p-6 animate-fade-in">
-                <h3 className="text-base font-bold text-navy mb-4 flex items-center gap-2">
-                  <Compass className="h-5 w-5 text-orange-primary" />
+                <h3 className="text-base font-bold text-black-primary mb-4 flex items-center gap-2">
+                  <Compass className="h-5 w-5 text-green-primary" />
                   Service Area
                 </h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -615,7 +615,7 @@ export default function OperatorProfilePage() {
                         {Array.from(allStates).map((s) => (
                           <span
                             key={s}
-                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-primary ring-1 ring-inset ring-orange-200"
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-primary ring-1 ring-inset ring-green-200"
                           >
                             {s}
                           </span>
@@ -628,7 +628,7 @@ export default function OperatorProfilePage() {
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">
                         Cities Served
                       </p>
-                      <p className="text-sm text-navy">
+                      <p className="text-sm text-black-primary">
                         {Array.from(allCities).slice(0, 8).join(", ")}
                         {allCities.size > 8 && (
                           <span className="text-gray-400">
@@ -644,7 +644,7 @@ export default function OperatorProfilePage() {
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">
                         Service Radius
                       </p>
-                      <p className="text-sm font-medium text-navy">
+                      <p className="text-sm font-medium text-black-primary">
                         Up to {maxRadius} miles
                       </p>
                     </div>
@@ -656,8 +656,8 @@ export default function OperatorProfilePage() {
             {/* Machine Types */}
             {allMachineTypes.size > 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-6 animate-fade-in">
-                <h3 className="text-base font-bold text-navy mb-4 flex items-center gap-2">
-                  <Monitor className="h-5 w-5 text-orange-primary" />
+                <h3 className="text-base font-bold text-black-primary mb-4 flex items-center gap-2">
+                  <Monitor className="h-5 w-5 text-green-primary" />
                   Machine Types Offered
                 </h3>
                 <div className="flex flex-wrap gap-2">
@@ -670,11 +670,11 @@ export default function OperatorProfilePage() {
 
             {/* Active Listings */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 animate-fade-in">
-              <h3 className="text-base font-bold text-navy mb-4 flex items-center gap-2">
-                <Monitor className="h-5 w-5 text-orange-primary" />
+              <h3 className="text-base font-bold text-black-primary mb-4 flex items-center gap-2">
+                <Monitor className="h-5 w-5 text-green-primary" />
                 Active Listings
                 {listings.length > 0 && (
-                  <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-primary px-1.5 text-[11px] font-bold text-white">
+                  <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-[11px] font-bold text-white">
                     {listings.length}
                   </span>
                 )}
@@ -707,11 +707,11 @@ export default function OperatorProfilePage() {
 
             {/* Reviews */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 animate-fade-in">
-              <h3 className="text-base font-bold text-navy mb-4 flex items-center gap-2">
-                <Star className="h-5 w-5 text-orange-primary" />
+              <h3 className="text-base font-bold text-black-primary mb-4 flex items-center gap-2">
+                <Star className="h-5 w-5 text-green-primary" />
                 Reviews
                 {reviews.length > 0 && (
-                  <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-primary px-1.5 text-[11px] font-bold text-white">
+                  <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-[11px] font-bold text-white">
                     {reviews.length}
                   </span>
                 )}
@@ -749,7 +749,7 @@ export default function OperatorProfilePage() {
           <div className="space-y-6">
             {/* Contact Card */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-24 animate-fade-in">
-              <h3 className="text-lg font-bold text-navy">
+              <h3 className="text-lg font-bold text-black-primary">
                 Contact This Operator
               </h3>
               <p className="mt-1 text-sm text-gray-500">
@@ -761,7 +761,7 @@ export default function OperatorProfilePage() {
                 onClick={() =>
                   alert("Sign up to send messages to operators!")
                 }
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-orange-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
               >
                 <MessageSquare className="h-4 w-4" />
                 Send Message
@@ -771,8 +771,8 @@ export default function OperatorProfilePage() {
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500">Rating</span>
                   <div className="flex items-center gap-1">
-                    <Star className="h-3.5 w-3.5 fill-orange-primary text-orange-primary" />
-                    <span className="font-semibold text-navy">
+                    <Star className="h-3.5 w-3.5 fill-green-primary text-green-primary" />
+                    <span className="font-semibold text-black-primary">
                       {profile.rating.toFixed(1)}
                     </span>
                     <span className="text-gray-400">
@@ -782,13 +782,13 @@ export default function OperatorProfilePage() {
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500">Active Listings</span>
-                  <span className="font-semibold text-navy">
+                  <span className="font-semibold text-black-primary">
                     {listings.length}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500">Machines Available</span>
-                  <span className="font-semibold text-navy">
+                  <span className="font-semibold text-black-primary">
                     {totalMachines}
                   </span>
                 </div>
@@ -805,14 +805,14 @@ export default function OperatorProfilePage() {
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500">Member Since</span>
-                  <span className="font-medium text-navy">{memberSince}</span>
+                  <span className="font-medium text-black-primary">{memberSince}</span>
                 </div>
               </div>
             </div>
 
             {/* Browse CTA */}
-            <div className="bg-gradient-to-br from-orange-50 to-peach rounded-xl border border-orange-100 p-5">
-              <h4 className="text-sm font-semibold text-navy mb-2">
+            <div className="bg-gradient-to-br from-green-50 to-light-warm rounded-xl border border-green-100 p-5">
+              <h4 className="text-sm font-semibold text-black-primary mb-2">
                 Looking for a location?
               </h4>
               <p className="text-xs text-gray-600 leading-relaxed">
@@ -821,7 +821,7 @@ export default function OperatorProfilePage() {
               </p>
               <Link
                 href="/browse-requests"
-                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-orange-primary hover:text-orange-hover transition-colors"
+                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-green-primary hover:text-green-hover transition-colors"
               >
                 Browse Requests
                 <ArrowRight className="h-3 w-3" />

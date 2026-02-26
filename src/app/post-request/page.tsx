@@ -279,7 +279,7 @@ export default function PostRequestPage() {
 
           {/* Decorative dots (confetti feel) */}
           <div className="flex justify-center gap-1.5 mb-6">
-            {["bg-orange-primary", "bg-emerald-400", "bg-amber-400", "bg-blue-400", "bg-pink-400", "bg-orange-primary"].map(
+            {["bg-green-primary", "bg-emerald-400", "bg-amber-400", "bg-blue-400", "bg-pink-400", "bg-green-primary"].map(
               (color, i) => (
                 <span
                   key={i}
@@ -290,13 +290,13 @@ export default function PostRequestPage() {
             )}
           </div>
 
-          <h1 className="text-2xl font-bold text-navy mb-2">Your request has been posted!</h1>
-          <p className="text-navy/60 mb-2">
+          <h1 className="text-2xl font-bold text-black-primary mb-2">Your request has been posted!</h1>
+          <p className="text-black-primary/60 mb-2">
             Operators in your area will be notified and can respond to your request.
           </p>
           {requestId && (
-            <p className="text-sm text-navy/40 mb-8">
-              Request ID: <span className="font-mono font-medium text-navy/60">{requestId}</span>
+            <p className="text-sm text-black-primary/40 mb-8">
+              Request ID: <span className="font-mono font-medium text-black-primary/60">{requestId}</span>
             </p>
           )}
 
@@ -304,7 +304,7 @@ export default function PostRequestPage() {
             {requestId && requestId !== "NEW" && (
               <Link
                 href={`/requests/${requestId}`}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-orange-primary hover:bg-orange-hover text-white font-semibold rounded-xl transition-colors shadow-sm"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-green-primary hover:bg-green-hover text-white font-semibold rounded-xl transition-colors shadow-sm"
               >
                 View Request
                 <ChevronRight className="w-4 h-4" />
@@ -312,7 +312,7 @@ export default function PostRequestPage() {
             )}
             <Link
               href="/dashboard"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white border border-gray-200 text-navy font-semibold rounded-xl hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white border border-gray-200 text-black-primary font-semibold rounded-xl hover:bg-gray-50 transition-colors"
             >
               Back to Dashboard
             </Link>
@@ -331,8 +331,8 @@ export default function PostRequestPage() {
       <div className="mx-auto max-w-2xl">
         {/* ---- Page title ---- */}
         <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-navy">Post a Vending Request</h1>
-          <p className="text-navy/60 mt-2">
+          <h1 className="text-3xl font-bold text-black-primary">Post a Vending Request</h1>
+          <p className="text-black-primary/60 mt-2">
             Tell operators about your location and what you need.
           </p>
         </div>
@@ -360,7 +360,7 @@ export default function PostRequestPage() {
                         w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold
                         transition-all duration-300 cursor-default
                         ${isCompleted ? "bg-emerald-500 text-white cursor-pointer hover:bg-emerald-600 shadow-sm" : ""}
-                        ${isActive ? "bg-orange-primary text-white shadow-md shadow-orange-primary/30" : ""}
+                        ${isActive ? "bg-green-primary text-white shadow-md shadow-green-primary/30" : ""}
                         ${isFuture ? "border-2 border-gray-300 text-gray-400 bg-white" : ""}
                       `}
                     >
@@ -369,7 +369,7 @@ export default function PostRequestPage() {
                     <span
                       className={`
                         mt-2 text-xs font-medium hidden sm:block
-                        ${isActive ? "text-orange-primary" : ""}
+                        ${isActive ? "text-green-primary" : ""}
                         ${isCompleted ? "text-emerald-600" : ""}
                         ${isFuture ? "text-gray-400" : ""}
                       `}
@@ -410,18 +410,18 @@ export default function PostRequestPage() {
           {currentStep === 1 && (
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-peach flex items-center justify-center">
-                  <MapPin className="w-5 h-5 text-orange-primary" />
+                <div className="w-10 h-10 rounded-xl bg-light-warm flex items-center justify-center">
+                  <MapPin className="w-5 h-5 text-green-primary" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-navy">Location Details</h2>
-                  <p className="text-sm text-navy/50">Where do you need the vending machine?</p>
+                  <h2 className="text-lg font-bold text-black-primary">Location Details</h2>
+                  <p className="text-sm text-black-primary/50">Where do you need the vending machine?</p>
                 </div>
               </div>
 
               {/* Location Name */}
               <div>
-                <label htmlFor="locationName" className="block text-sm font-medium text-navy mb-1.5">
+                <label htmlFor="locationName" className="block text-sm font-medium text-black-primary mb-1.5">
                   Location Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -441,8 +441,8 @@ export default function PostRequestPage() {
 
               {/* Address */}
               <div>
-                <label htmlFor="address" className="block text-sm font-medium text-navy mb-1.5">
-                  Address <span className="text-navy/30 font-normal">(optional)</span>
+                <label htmlFor="address" className="block text-sm font-medium text-black-primary mb-1.5">
+                  Address <span className="text-black-primary/30 font-normal">(optional)</span>
                 </label>
                 <input
                   id="address"
@@ -456,7 +456,7 @@ export default function PostRequestPage() {
               {/* City + State row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="city" className="block text-sm font-medium text-navy mb-1.5">
+                  <label htmlFor="city" className="block text-sm font-medium text-black-primary mb-1.5">
                     City <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -475,7 +475,7 @@ export default function PostRequestPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="state" className="block text-sm font-medium text-navy mb-1.5">
+                  <label htmlFor="state" className="block text-sm font-medium text-black-primary mb-1.5">
                     State <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -502,8 +502,8 @@ export default function PostRequestPage() {
               {/* ZIP + Location Type row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="zip" className="block text-sm font-medium text-navy mb-1.5">
-                    ZIP Code <span className="text-navy/30 font-normal">(optional)</span>
+                  <label htmlFor="zip" className="block text-sm font-medium text-black-primary mb-1.5">
+                    ZIP Code <span className="text-black-primary/30 font-normal">(optional)</span>
                   </label>
                   <input
                     id="zip"
@@ -516,7 +516,7 @@ export default function PostRequestPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="locationType" className="block text-sm font-medium text-navy mb-1.5">
+                  <label htmlFor="locationType" className="block text-sm font-medium text-black-primary mb-1.5">
                     Location Type <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -548,18 +548,18 @@ export default function PostRequestPage() {
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-peach flex items-center justify-center">
-                  <Package className="w-5 h-5 text-orange-primary" />
+                <div className="w-10 h-10 rounded-xl bg-light-warm flex items-center justify-center">
+                  <Package className="w-5 h-5 text-green-primary" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-navy">Machine Preferences</h2>
-                  <p className="text-sm text-navy/50">What kind of machines are you looking for?</p>
+                  <h2 className="text-lg font-bold text-black-primary">Machine Preferences</h2>
+                  <p className="text-sm text-black-primary/50">What kind of machines are you looking for?</p>
                 </div>
               </div>
 
               {/* Machine types multi-select */}
               <div>
-                <label className="block text-sm font-medium text-navy mb-3">
+                <label className="block text-sm font-medium text-black-primary mb-3">
                   Machine Types Wanted <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -574,31 +574,31 @@ export default function PostRequestPage() {
                           flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer
                           ${
                             selected
-                              ? "border-orange-primary bg-peach shadow-sm"
+                              ? "border-green-primary bg-light-warm shadow-sm"
                               : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
                           }
                         `}
                       >
                         <div
                           className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
-                            selected ? "bg-orange-primary/10" : "bg-gray-100"
+                            selected ? "bg-green-primary/10" : "bg-gray-100"
                           }`}
                         >
                           <Icon
                             className={`w-5 h-5 transition-colors ${
-                              selected ? "text-orange-primary" : "text-gray-500"
+                              selected ? "text-green-primary" : "text-gray-500"
                             }`}
                           />
                         </div>
                         <span
                           className={`text-xs font-medium text-center leading-tight ${
-                            selected ? "text-orange-primary" : "text-navy/70"
+                            selected ? "text-green-primary" : "text-black-primary/70"
                           }`}
                         >
                           {label}
                         </span>
                         {selected && (
-                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-orange-primary rounded-full flex items-center justify-center">
+                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-primary rounded-full flex items-center justify-center">
                             <Check className="w-3 h-3 text-white" strokeWidth={3} />
                           </div>
                         )}
@@ -615,7 +615,7 @@ export default function PostRequestPage() {
 
               {/* Foot traffic */}
               <div>
-                <label htmlFor="footTraffic" className="block text-sm font-medium text-navy mb-1.5">
+                <label htmlFor="footTraffic" className="block text-sm font-medium text-black-primary mb-1.5">
                   Estimated Daily Foot Traffic
                 </label>
                 <input
@@ -626,15 +626,15 @@ export default function PostRequestPage() {
                   onChange={(e) => updateField("dailyFootTraffic", e.target.value)}
                   placeholder="e.g. 500"
                 />
-                <p className="text-xs text-navy/40 mt-1">
+                <p className="text-xs text-black-primary/40 mt-1">
                   Approximate number of people passing through daily
                 </p>
               </div>
 
               {/* Additional notes */}
               <div>
-                <label htmlFor="additionalNotes" className="block text-sm font-medium text-navy mb-1.5">
-                  Additional Notes <span className="text-navy/30 font-normal">(optional)</span>
+                <label htmlFor="additionalNotes" className="block text-sm font-medium text-black-primary mb-1.5">
+                  Additional Notes <span className="text-black-primary/30 font-normal">(optional)</span>
                 </label>
                 <textarea
                   id="additionalNotes"
@@ -653,21 +653,21 @@ export default function PostRequestPage() {
           {currentStep === 3 && (
             <div className="space-y-8">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-peach flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-orange-primary" />
+                <div className="w-10 h-10 rounded-xl bg-light-warm flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-green-primary" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-navy">Terms & Preferences</h2>
-                  <p className="text-sm text-navy/50">Set your preferences for this request.</p>
+                  <h2 className="text-lg font-bold text-black-primary">Terms & Preferences</h2>
+                  <p className="text-sm text-black-primary/50">Set your preferences for this request.</p>
                 </div>
               </div>
 
               {/* Commission toggle */}
-              <div className="bg-orange-50 rounded-xl p-5">
+              <div className="bg-green-50 rounded-xl p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex-1 mr-4">
-                    <p className="text-sm font-semibold text-navy">Commission Offered?</p>
-                    <p className="text-xs text-navy/50 mt-1">
+                    <p className="text-sm font-semibold text-black-primary">Commission Offered?</p>
+                    <p className="text-xs text-black-primary/50 mt-1">
                       Let operators know if you are offering a commission or revenue share for placing
                       their machine at your location.
                     </p>
@@ -680,8 +680,8 @@ export default function PostRequestPage() {
                     className={`
                       relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full
                       transition-colors duration-200 ease-in-out focus:outline-none
-                      focus-visible:ring-2 focus-visible:ring-orange-primary/50
-                      ${formData.commissionOffered ? "bg-orange-primary" : "bg-gray-300"}
+                      focus-visible:ring-2 focus-visible:ring-green-primary/50
+                      ${formData.commissionOffered ? "bg-green-primary" : "bg-gray-300"}
                     `}
                   >
                     <span
@@ -696,7 +696,7 @@ export default function PostRequestPage() {
 
                 {formData.commissionOffered && (
                   <div className="mt-4">
-                    <label htmlFor="commissionNotes" className="block text-sm font-medium text-navy mb-1.5">
+                    <label htmlFor="commissionNotes" className="block text-sm font-medium text-black-primary mb-1.5">
                       Commission Notes
                     </label>
                     <textarea
@@ -713,7 +713,7 @@ export default function PostRequestPage() {
 
               {/* Contact Preference */}
               <div>
-                <label className="block text-sm font-medium text-navy mb-3">
+                <label className="block text-sm font-medium text-black-primary mb-3">
                   Contact Preference <span className="text-red-500">*</span>
                 </label>
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -726,7 +726,7 @@ export default function PostRequestPage() {
                           flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all
                           ${
                             selected
-                              ? "border-orange-primary bg-peach"
+                              ? "border-green-primary bg-light-warm"
                               : "border-gray-100 hover:border-gray-200"
                           }
                         `}
@@ -741,15 +741,15 @@ export default function PostRequestPage() {
                         />
                         <div
                           className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                            selected ? "bg-orange-primary/10" : "bg-gray-100"
+                            selected ? "bg-green-primary/10" : "bg-gray-100"
                           }`}
                         >
                           <Icon
-                            className={`w-5 h-5 ${selected ? "text-orange-primary" : "text-gray-500"}`}
+                            className={`w-5 h-5 ${selected ? "text-green-primary" : "text-gray-500"}`}
                           />
                         </div>
                         <span
-                          className={`text-sm font-medium ${selected ? "text-orange-primary" : "text-navy/70"}`}
+                          className={`text-sm font-medium ${selected ? "text-green-primary" : "text-black-primary/70"}`}
                         >
                           {label}
                         </span>
@@ -766,7 +766,7 @@ export default function PostRequestPage() {
 
               {/* Urgency */}
               <div>
-                <label className="block text-sm font-medium text-navy mb-3">
+                <label className="block text-sm font-medium text-black-primary mb-3">
                   Urgency <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -779,7 +779,7 @@ export default function PostRequestPage() {
                           flex flex-col items-center gap-1.5 p-4 rounded-xl border-2 cursor-pointer transition-all text-center
                           ${
                             selected
-                              ? "border-orange-primary bg-peach shadow-sm"
+                              ? "border-green-primary bg-light-warm shadow-sm"
                               : "border-gray-100 hover:border-gray-200"
                           }
                         `}
@@ -793,14 +793,14 @@ export default function PostRequestPage() {
                           className="sr-only"
                         />
                         <Icon
-                          className={`w-5 h-5 ${selected ? "text-orange-primary" : "text-gray-400"}`}
+                          className={`w-5 h-5 ${selected ? "text-green-primary" : "text-gray-400"}`}
                         />
                         <span
-                          className={`text-sm font-semibold ${selected ? "text-orange-primary" : "text-navy"}`}
+                          className={`text-sm font-semibold ${selected ? "text-green-primary" : "text-black-primary"}`}
                         >
                           {label}
                         </span>
-                        <span className="text-[11px] text-navy/40">{description}</span>
+                        <span className="text-[11px] text-black-primary/40">{description}</span>
                       </label>
                     );
                   })}
@@ -822,11 +822,11 @@ export default function PostRequestPage() {
                       ) : (
                         <Lock className="w-4 h-4 text-gray-500" />
                       )}
-                      <p className="text-sm font-semibold text-navy">
+                      <p className="text-sm font-semibold text-black-primary">
                         {formData.makePublic ? "Public Request" : "Private Request"}
                       </p>
                     </div>
-                    <p className="text-xs text-navy/50 mt-1">
+                    <p className="text-xs text-black-primary/50 mt-1">
                       {formData.makePublic
                         ? "Your request will be visible in the public marketplace for any operator to respond."
                         : "Only operators you invite directly will be able to see this request."}
@@ -840,7 +840,7 @@ export default function PostRequestPage() {
                     className={`
                       relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full
                       transition-colors duration-200 ease-in-out focus:outline-none
-                      focus-visible:ring-2 focus-visible:ring-orange-primary/50
+                      focus-visible:ring-2 focus-visible:ring-green-primary/50
                       ${formData.makePublic ? "bg-emerald-500" : "bg-gray-300"}
                     `}
                   >
@@ -863,19 +863,19 @@ export default function PostRequestPage() {
           {currentStep === 4 && (
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-peach flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-orange-primary" />
+                <div className="w-10 h-10 rounded-xl bg-light-warm flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-green-primary" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-navy">Review Your Request</h2>
-                  <p className="text-sm text-navy/50">Double-check everything before submitting.</p>
+                  <h2 className="text-lg font-bold text-black-primary">Review Your Request</h2>
+                  <p className="text-sm text-black-primary/50">Double-check everything before submitting.</p>
                 </div>
               </div>
 
               {/* Location info */}
               <ReviewSection
                 title="Location Information"
-                icon={<MapPin className="w-4 h-4 text-orange-primary" />}
+                icon={<MapPin className="w-4 h-4 text-green-primary" />}
                 onEdit={() => goToStep(1)}
               >
                 <ReviewRow label="Location Name" value={formData.locationName} />
@@ -889,16 +889,16 @@ export default function PostRequestPage() {
               {/* Machine preferences */}
               <ReviewSection
                 title="Machine Preferences"
-                icon={<Package className="w-4 h-4 text-orange-primary" />}
+                icon={<Package className="w-4 h-4 text-green-primary" />}
                 onEdit={() => goToStep(2)}
               >
                 <div>
-                  <p className="text-xs text-navy/50 mb-2">Machine Types</p>
+                  <p className="text-xs text-black-primary/50 mb-2">Machine Types</p>
                   <div className="flex flex-wrap gap-2">
                     {formData.machineTypes.map((type) => (
                       <span
                         key={type}
-                        className="inline-flex items-center px-3 py-1 bg-peach text-orange-primary text-xs font-medium rounded-full"
+                        className="inline-flex items-center px-3 py-1 bg-light-warm text-green-primary text-xs font-medium rounded-full"
                       >
                         {type}
                       </span>
@@ -919,7 +919,7 @@ export default function PostRequestPage() {
               {/* Terms */}
               <ReviewSection
                 title="Terms & Preferences"
-                icon={<FileText className="w-4 h-4 text-orange-primary" />}
+                icon={<FileText className="w-4 h-4 text-green-primary" />}
                 onEdit={() => goToStep(3)}
               >
                 <ReviewRow
@@ -968,7 +968,7 @@ export default function PostRequestPage() {
               <button
                 type="button"
                 onClick={handleBack}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-navy/70 hover:bg-gray-50 transition-colors cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-black-primary/70 hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Back
@@ -981,7 +981,7 @@ export default function PostRequestPage() {
               <button
                 type="button"
                 onClick={handleNext}
-                className="flex items-center gap-2 px-6 py-2.5 bg-orange-primary hover:bg-orange-hover text-white rounded-xl text-sm font-semibold transition-colors shadow-sm cursor-pointer"
+                className="flex items-center gap-2 px-6 py-2.5 bg-green-primary hover:bg-green-hover text-white rounded-xl text-sm font-semibold transition-colors shadow-sm cursor-pointer"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
@@ -991,7 +991,7 @@ export default function PostRequestPage() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="flex items-center gap-2 px-8 py-3 bg-orange-primary hover:bg-orange-hover text-white rounded-xl text-sm font-semibold transition-colors shadow-md shadow-orange-primary/20 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                className="flex items-center gap-2 px-8 py-3 bg-green-primary hover:bg-green-hover text-white rounded-xl text-sm font-semibold transition-colors shadow-md shadow-green-primary/20 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               >
                 {submitting ? (
                   <>
@@ -1033,12 +1033,12 @@ function ReviewSection({
       <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
         <div className="flex items-center gap-2">
           {icon}
-          <span className="text-sm font-semibold text-navy">{title}</span>
+          <span className="text-sm font-semibold text-black-primary">{title}</span>
         </div>
         <button
           type="button"
           onClick={onEdit}
-          className="flex items-center gap-1.5 text-xs font-medium text-orange-primary hover:text-orange-hover transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 text-xs font-medium text-green-primary hover:text-green-hover transition-colors cursor-pointer"
         >
           <Edit3 className="w-3.5 h-3.5" />
           Edit
@@ -1052,8 +1052,8 @@ function ReviewSection({
 function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-navy/50">{label}</p>
-      <p className="text-sm text-navy font-medium mt-0.5">{value}</p>
+      <p className="text-xs text-black-primary/50">{label}</p>
+      <p className="text-sm text-black-primary font-medium mt-0.5">{value}</p>
     </div>
   );
 }

@@ -42,7 +42,7 @@ const ROLES = [
   {
     icon: Truck,
     title: "Vending Operators",
-    color: "bg-orange-50 text-orange-primary",
+    color: "bg-green-50 text-green-primary",
     items: [
       "Browse hundreds of open location requests",
       "Filter by city, state, location type, and traffic",
@@ -113,9 +113,9 @@ export default function HowItWorksPage() {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-gradient-to-b from-peach to-cream py-16 px-4">
+      <section className="bg-gradient-to-b from-light-warm to-light py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl font-bold text-navy mb-4">
+          <h1 className="text-4xl font-bold text-black-primary mb-4">
             How VendHub Works
           </h1>
           <p className="text-lg text-slate-600 max-w-2xl mx-auto">
@@ -132,13 +132,13 @@ export default function HowItWorksPage() {
             const Icon = step.icon;
             return (
               <div key={i} className="text-center">
-                <div className="w-16 h-16 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-4 relative">
-                  <Icon className="w-7 h-7 text-orange-primary" />
-                  <span className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-orange-primary text-white text-sm font-bold flex items-center justify-center">
+                <div className="w-16 h-16 rounded-2xl bg-green-50 flex items-center justify-center mx-auto mb-4 relative">
+                  <Icon className="w-7 h-7 text-green-primary" />
+                  <span className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-green-primary text-white text-sm font-bold flex items-center justify-center">
                     {i + 1}
                   </span>
                 </div>
-                <h3 className="font-semibold text-navy mb-2">{step.title}</h3>
+                <h3 className="font-semibold text-black-primary mb-2">{step.title}</h3>
                 <p className="text-sm text-slate-500">{step.desc}</p>
               </div>
             );
@@ -149,7 +149,7 @@ export default function HowItWorksPage() {
       {/* For Each Role */}
       <section className="bg-white py-16 px-4">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl font-bold text-navy text-center mb-12">
+          <h2 className="text-2xl font-bold text-black-primary text-center mb-12">
             Built for Every Role
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -158,14 +158,14 @@ export default function HowItWorksPage() {
               return (
                 <div
                   key={role.title}
-                  className="bg-cream rounded-xl p-6 border border-slate-100"
+                  className="bg-light rounded-xl p-6 border border-slate-100"
                 >
                   <div
                     className={`w-12 h-12 rounded-xl ${role.color} flex items-center justify-center mb-4`}
                   >
                     <Icon className="w-6 h-6" />
                   </div>
-                  <h3 className="font-semibold text-navy text-lg mb-4">
+                  <h3 className="font-semibold text-black-primary text-lg mb-4">
                     {role.title}
                   </h3>
                   <ul className="space-y-2.5">
@@ -188,7 +188,7 @@ export default function HowItWorksPage() {
 
       {/* FAQ */}
       <section className="max-w-3xl mx-auto px-4 py-16">
-        <h2 className="text-2xl font-bold text-navy text-center mb-8">
+        <h2 className="text-2xl font-bold text-black-primary text-center mb-8">
           Frequently Asked Questions
         </h2>
         <div className="space-y-3">
@@ -201,7 +201,7 @@ export default function HowItWorksPage() {
                 onClick={() => setOpenFaq(openFaq === i ? null : i)}
                 className="w-full flex items-center justify-between p-5 text-left"
               >
-                <span className="font-medium text-navy">{item.q}</span>
+                <span className="font-medium text-black-primary">{item.q}</span>
                 {openFaq === i ? (
                   <ChevronUp className="w-5 h-5 text-slate-400 shrink-0" />
                 ) : (
@@ -219,7 +219,7 @@ export default function HowItWorksPage() {
       </section>
 
       {/* CTA */}
-      <section className="bg-navy py-16 px-4">
+      <section className="bg-black-primary py-16 px-4">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-white mb-4">
             Ready to Get Started?
@@ -230,14 +230,14 @@ export default function HowItWorksPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/post-request"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-orange-primary text-white rounded-xl font-semibold hover:bg-orange-hover transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-green-primary text-white rounded-xl font-semibold hover:bg-green-hover transition-colors"
             >
               Post a Request
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               href="/browse-operators"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 border-2 border-white text-white rounded-xl font-semibold hover:bg-white hover:text-navy transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 border-2 border-white text-white rounded-xl font-semibold hover:bg-white hover:text-black-primary transition-colors"
             >
               Browse Operators
             </Link>

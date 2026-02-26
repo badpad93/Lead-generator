@@ -44,8 +44,8 @@ export default function LoginPage() {
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-navy">Welcome Back</h1>
-          <p className="text-navy/60 mt-2">Sign in to your VendHub account</p>
+          <h1 className="text-3xl font-bold text-black-primary">Welcome Back</h1>
+          <p className="text-black-primary/60 mt-2">Sign in to your VendHub account</p>
         </div>
 
         {/* Card */}
@@ -60,7 +60,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-navy mb-1.5">
+              <label htmlFor="email" className="block text-sm font-medium text-black-primary mb-1.5">
                 Email
               </label>
               <input
@@ -76,7 +76,7 @@ export default function LoginPage() {
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-navy mb-1.5">
+              <label htmlFor="password" className="block text-sm font-medium text-black-primary mb-1.5">
                 Password
               </label>
               <input
@@ -94,7 +94,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-orange-primary hover:bg-orange-hover text-white
+              className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white
                 font-semibold rounded-xl transition-colors disabled:opacity-50
                 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
             >
@@ -111,9 +111,9 @@ export default function LoginPage() {
         </div>
 
         {/* Footer link */}
-        <p className="text-center mt-6 text-sm text-navy/60">
+        <p className="text-center mt-6 text-sm text-black-primary/60">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="text-orange-primary hover:underline font-medium">
+          <Link href="/signup" className="text-green-primary hover:underline font-medium">
             Create one
           </Link>
         </p>

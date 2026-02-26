@@ -53,7 +53,7 @@ export default function StarRating({
               disabled={!interactive}
               className={`${
                 interactive
-                  ? "cursor-pointer hover:scale-110 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-primary/50 rounded-sm"
+                  ? "cursor-pointer hover:scale-110 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-green-primary/50 rounded-sm"
                   : "cursor-default"
               } disabled:opacity-100`}
               onClick={() => interactive && onChange(starIndex)}
@@ -63,7 +63,7 @@ export default function StarRating({
               <Star
                 className={`${iconSize} transition-colors ${
                   filled
-                    ? "fill-orange-primary text-orange-primary"
+                    ? "fill-green-primary text-green-primary"
                     : "fill-none text-gray-300"
                 }`}
               />
@@ -73,7 +73,7 @@ export default function StarRating({
       </div>
 
       {!interactive && (
-        <span className={`${textSize} font-medium text-navy ml-1`}>
+        <span className={`${textSize} font-medium text-black-primary ml-1`}>
           {value.toFixed(1)}
         </span>
       )}

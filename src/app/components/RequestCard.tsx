@@ -37,13 +37,13 @@ export default function RequestCard({
   onSave,
 }: RequestCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-orange-primary/5 group">
+    <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-green-primary/5 group">
       {/* Header Row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
           <LocationTypeIcon type={request.location_type} size="md" />
           <div className="min-w-0">
-            <h3 className="font-semibold text-navy text-base leading-snug truncate">
+            <h3 className="font-semibold text-black-primary text-base leading-snug truncate">
               {request.title}
             </h3>
             <div className="flex items-center gap-1 mt-0.5 text-sm text-gray-500">
@@ -59,14 +59,14 @@ export default function RequestCard({
           <button
             type="button"
             onClick={onSave}
-            className="shrink-0 p-1.5 rounded-lg hover:bg-peach transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-primary/50"
+            className="shrink-0 p-1.5 rounded-lg hover:bg-light-warm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-primary/50"
             aria-label={saved ? "Unsave request" : "Save request"}
           >
             <Heart
               className={`w-5 h-5 transition-colors ${
                 saved
-                  ? "fill-orange-primary text-orange-primary"
-                  : "fill-none text-gray-400 hover:text-orange-primary"
+                  ? "fill-green-primary text-green-primary"
+                  : "fill-none text-gray-400 hover:text-green-primary"
               }`}
             />
           </button>
@@ -86,7 +86,7 @@ export default function RequestCard({
           <div className="flex items-center gap-1.5">
             <Users className="w-4 h-4 text-gray-400" />
             <span>
-              <span className="font-medium text-navy">
+              <span className="font-medium text-black-primary">
                 {request.estimated_daily_traffic.toLocaleString()}
               </span>{" "}
               daily traffic
@@ -120,7 +120,7 @@ export default function RequestCard({
 
         <Link
           href={`/requests/${request.id}`}
-          className="inline-flex items-center gap-1 text-sm font-medium text-orange-primary hover:text-orange-hover transition-colors group/link"
+          className="inline-flex items-center gap-1 text-sm font-medium text-green-primary hover:text-green-hover transition-colors group/link"
         >
           View Details
           <ArrowRight className="w-4 h-4 transition-transform group-hover/link:translate-x-0.5" />

@@ -83,8 +83,8 @@ export default function SignupPage() {
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-navy">Join VendHub</h1>
-          <p className="text-navy/60 mt-2">
+          <h1 className="text-3xl font-bold text-black-primary">Join VendHub</h1>
+          <p className="text-black-primary/60 mt-2">
             {step === 1
               ? "Select your role to get started"
               : "Fill in your details to create an account"}
@@ -109,16 +109,16 @@ export default function SignupPage() {
                   type="button"
                   onClick={() => handleRoleSelect(value)}
                   className="w-full flex items-start gap-4 p-5 rounded-xl border-2 border-gray-100
-                    hover:border-orange-primary hover:bg-peach/50 transition-all duration-200
+                    hover:border-green-primary hover:bg-light-warm/50 transition-all duration-200
                     text-left cursor-pointer group"
                 >
-                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-peach flex items-center justify-center
-                    group-hover:bg-orange-primary/10 transition-colors">
-                    <Icon className="w-6 h-6 text-orange-primary" />
+                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-light-warm flex items-center justify-center
+                    group-hover:bg-green-primary/10 transition-colors">
+                    <Icon className="w-6 h-6 text-green-primary" />
                   </div>
                   <div>
-                    <p className="font-semibold text-navy">{label}</p>
-                    <p className="text-sm text-navy/60 mt-0.5">{description}</p>
+                    <p className="font-semibold text-black-primary">{label}</p>
+                    <p className="text-sm text-black-primary/60 mt-0.5">{description}</p>
                   </div>
                 </button>
               ))}
@@ -132,7 +132,7 @@ export default function SignupPage() {
               <button
                 type="button"
                 onClick={handleBack}
-                className="flex items-center gap-1.5 text-sm text-navy/60 hover:text-orange-primary
+                className="flex items-center gap-1.5 text-sm text-black-primary/60 hover:text-green-primary
                   transition-colors mb-6 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -140,15 +140,15 @@ export default function SignupPage() {
               </button>
 
               {/* Selected role badge */}
-              <div className="flex items-center gap-2 mb-6 px-3 py-2 bg-peach rounded-lg w-fit">
+              <div className="flex items-center gap-2 mb-6 px-3 py-2 bg-light-warm rounded-lg w-fit">
                 {(() => {
                   const selected = roles.find((r) => r.value === role);
                   if (!selected) return null;
                   const Icon = selected.icon;
                   return (
                     <>
-                      <Icon className="w-4 h-4 text-orange-primary" />
-                      <span className="text-sm font-medium text-navy">{selected.label}</span>
+                      <Icon className="w-4 h-4 text-green-primary" />
+                      <span className="text-sm font-medium text-black-primary">{selected.label}</span>
                     </>
                   );
                 })()}
@@ -157,7 +157,7 @@ export default function SignupPage() {
               <form onSubmit={handleSubmit} className="space-y-5">
                 {/* Full Name */}
                 <div>
-                  <label htmlFor="full_name" className="block text-sm font-medium text-navy mb-1.5">
+                  <label htmlFor="full_name" className="block text-sm font-medium text-black-primary mb-1.5">
                     Full Name
                   </label>
                   <input
@@ -173,7 +173,7 @@ export default function SignupPage() {
 
                 {/* Email */}
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-navy mb-1.5">
+                  <label htmlFor="email" className="block text-sm font-medium text-black-primary mb-1.5">
                     Email
                   </label>
                   <input
@@ -189,7 +189,7 @@ export default function SignupPage() {
 
                 {/* Password */}
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-navy mb-1.5">
+                  <label htmlFor="password" className="block text-sm font-medium text-black-primary mb-1.5">
                     Password
                   </label>
                   <input
@@ -208,7 +208,7 @@ export default function SignupPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 px-4 bg-orange-primary hover:bg-orange-hover text-white
+                  className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white
                     font-semibold rounded-xl transition-colors disabled:opacity-50
                     disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                 >
@@ -227,9 +227,9 @@ export default function SignupPage() {
         </div>
 
         {/* Footer link */}
-        <p className="text-center mt-6 text-sm text-navy/60">
+        <p className="text-center mt-6 text-sm text-black-primary/60">
           Already have an account?{" "}
-          <Link href="/login" className="text-orange-primary hover:underline font-medium">
+          <Link href="/login" className="text-green-primary hover:underline font-medium">
             Sign in
           </Link>
         </p>

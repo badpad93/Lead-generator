@@ -142,34 +142,34 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/*  HERO                                                        */}
       {/* ============================================================ */}
-      <section className="relative bg-gradient-to-b from-cream to-peach">
+      <section className="relative bg-gradient-to-b from-light to-light-warm">
         {/* Decorative blurred circles */}
-        <div className="pointer-events-none absolute -top-32 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-orange-100/60 blur-[120px]" />
-        <div className="pointer-events-none absolute -right-40 top-20 h-[350px] w-[350px] rounded-full bg-orange-200/40 blur-[100px]" />
+        <div className="pointer-events-none absolute -top-32 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-green-100/60 blur-[120px]" />
+        <div className="pointer-events-none absolute -right-40 top-20 h-[350px] w-[350px] rounded-full bg-green-200/40 blur-[100px]" />
 
         <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 sm:pb-28 sm:pt-24 lg:px-8 lg:pb-32 lg:pt-28">
           {/* Badge */}
           <div className="animate-fade-in mb-6 flex justify-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-orange-primary shadow-sm backdrop-blur-sm">
-              <Star className="h-4 w-4 fill-orange-primary text-orange-primary" />
+            <span className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-green-primary shadow-sm backdrop-blur-sm">
+              <Star className="h-4 w-4 fill-green-primary text-green-primary" />
               The #1 Vending Machine Marketplace
             </span>
           </div>
 
           {/* Headline */}
           <h1
-            className="animate-fade-in mx-auto max-w-4xl text-center text-4xl font-extrabold leading-tight tracking-tight text-navy sm:text-5xl lg:text-6xl"
+            className="animate-fade-in mx-auto max-w-4xl text-center text-4xl font-extrabold leading-tight tracking-tight text-black-primary sm:text-5xl lg:text-6xl"
             style={{ animationDelay: "0.1s" }}
           >
             The Smarter Way to Place{" "}
-            <span className="bg-gradient-to-r from-orange-primary to-orange-dark bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-green-primary to-green-dark bg-clip-text text-transparent">
               Vending Machines
             </span>
           </h1>
 
           {/* Sub-headline */}
           <p
-            className="animate-fade-in mx-auto mt-5 max-w-2xl text-center text-lg leading-relaxed text-navy/70 sm:text-xl"
+            className="animate-fade-in mx-auto mt-5 max-w-2xl text-center text-lg leading-relaxed text-black-primary/70 sm:text-xl"
             style={{ animationDelay: "0.2s" }}
           >
             Connect locations that need machines with operators ready to serve
@@ -184,18 +184,18 @@ export default function HomePage() {
             {/* Card — Location Owner */}
             <Link
               href="/post-request"
-              className="group relative rounded-2xl border border-orange-200/60 bg-white p-7 shadow-lg shadow-orange-primary/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-primary/10"
+              className="group relative rounded-2xl border border-green-200/60 bg-white p-7 shadow-lg shadow-green-primary/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-green-primary/10"
             >
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-orange-50 text-orange-primary transition-colors group-hover:bg-orange-100">
+              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-100">
                 <MapPin className="h-6 w-6" />
               </div>
-              <h3 className="mb-1.5 text-lg font-bold text-navy">
+              <h3 className="mb-1.5 text-lg font-bold text-black-primary">
                 I Need a Vending Machine
               </h3>
-              <p className="mb-5 text-sm leading-relaxed text-navy/60">
+              <p className="mb-5 text-sm leading-relaxed text-black-primary/60">
                 Post your location and get matched with verified operators
               </p>
-              <span className="inline-flex items-center gap-2 rounded-xl bg-orange-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors group-hover:bg-orange-hover">
+              <span className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors group-hover:bg-green-hover">
                 Post a Request
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </span>
@@ -206,16 +206,16 @@ export default function HomePage() {
               href="/browse-requests"
               className="group relative rounded-2xl border border-navy/10 bg-white p-7 shadow-lg shadow-navy/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-navy/10"
             >
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-navy/5 text-navy transition-colors group-hover:bg-navy/10">
+              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-black-primary/5 text-black-primary transition-colors group-hover:bg-black-primary/10">
                 <Truck className="h-6 w-6" />
               </div>
-              <h3 className="mb-1.5 text-lg font-bold text-navy">
+              <h3 className="mb-1.5 text-lg font-bold text-black-primary">
                 I&apos;m a Vending Operator
               </h3>
-              <p className="mb-5 text-sm leading-relaxed text-navy/60">
+              <p className="mb-5 text-sm leading-relaxed text-black-primary/60">
                 Browse open locations and grow your vending business
               </p>
-              <span className="inline-flex items-center gap-2 rounded-xl bg-navy px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors group-hover:bg-navy-light">
+              <span className="inline-flex items-center gap-2 rounded-xl bg-black-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors group-hover:bg-black-primary-light">
                 Browse Locations
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </span>
@@ -242,14 +242,14 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/*  HOW IT WORKS                                                 */}
       {/* ============================================================ */}
-      <section className="bg-cream py-20 sm:py-28">
+      <section className="bg-light py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="animate-fade-in text-center">
-            <h2 className="text-3xl font-extrabold tracking-tight text-navy sm:text-4xl">
+            <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
               How VendHub Works
             </h2>
-            <p className="mx-auto mt-3 max-w-xl text-base text-navy/60 sm:text-lg">
+            <p className="mx-auto mt-3 max-w-xl text-base text-black-primary/60 sm:text-lg">
               Four simple steps from listing to a fully installed machine.
             </p>
           </div>
@@ -266,22 +266,22 @@ export default function HomePage() {
                 >
                   {/* Connector line (desktop only) */}
                   {idx < steps.length - 1 && (
-                    <div className="pointer-events-none absolute left-[calc(50%+40px)] top-10 hidden h-0.5 w-[calc(100%-80px)] bg-gradient-to-r from-orange-200 to-orange-100 lg:block" />
+                    <div className="pointer-events-none absolute left-[calc(50%+40px)] top-10 hidden h-0.5 w-[calc(100%-80px)] bg-gradient-to-r from-green-200 to-green-100 lg:block" />
                   )}
 
                   {/* Numbered circle */}
                   <div className="relative mx-auto mb-5 flex h-20 w-20 items-center justify-center">
-                    <div className="absolute inset-0 rounded-2xl bg-orange-50 transition-colors group-hover:bg-orange-100" />
-                    <Icon className="relative h-8 w-8 text-orange-primary" />
-                    <span className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-orange-primary text-xs font-bold text-white shadow-sm">
+                    <div className="absolute inset-0 rounded-2xl bg-green-50 transition-colors group-hover:bg-green-100" />
+                    <Icon className="relative h-8 w-8 text-green-primary" />
+                    <span className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-green-primary text-xs font-bold text-white shadow-sm">
                       {idx + 1}
                     </span>
                   </div>
 
-                  <h3 className="mb-2 text-lg font-bold text-navy">
+                  <h3 className="mb-2 text-lg font-bold text-black-primary">
                     {step.title}
                   </h3>
-                  <p className="mx-auto max-w-[240px] text-sm leading-relaxed text-navy/60">
+                  <p className="mx-auto max-w-[240px] text-sm leading-relaxed text-black-primary/60">
                     {step.description}
                   </p>
                 </div>
@@ -294,7 +294,7 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/*  STATS BAR                                                    */}
       {/* ============================================================ */}
-      <section className="bg-orange-primary">
+      <section className="bg-green-primary">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-14 lg:px-8">
           <div className="grid grid-cols-2 gap-8 text-center sm:gap-4 lg:grid-cols-4">
             {stats.map((stat) => {
@@ -318,14 +318,14 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/*  LOCATION TYPES                                               */}
       {/* ============================================================ */}
-      <section className="bg-cream py-20 sm:py-28">
+      <section className="bg-light py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="animate-fade-in text-center">
-            <h2 className="text-3xl font-extrabold tracking-tight text-navy sm:text-4xl">
+            <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
               Every Location Type, Covered
             </h2>
-            <p className="mx-auto mt-3 max-w-xl text-base text-navy/60 sm:text-lg">
+            <p className="mx-auto mt-3 max-w-xl text-base text-black-primary/60 sm:text-lg">
               Whether you manage an office building or run a gym, VendHub
               connects you with the right operator.
             </p>
@@ -338,16 +338,16 @@ export default function HomePage() {
               return (
                 <div
                   key={loc.name}
-                  className="animate-slide-up group rounded-2xl border border-orange-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-orange-200 hover:shadow-md"
+                  className="animate-slide-up group rounded-2xl border border-green-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-green-200 hover:shadow-md"
                   style={{ animationDelay: `${idx * 0.05}s` }}
                 >
-                  <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-primary transition-colors group-hover:bg-orange-100">
+                  <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-100">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="mb-1 text-base font-bold text-navy">
+                  <h3 className="mb-1 text-base font-bold text-black-primary">
                     {loc.name}
                   </h3>
-                  <p className="text-sm leading-relaxed text-navy/55">
+                  <p className="text-sm leading-relaxed text-black-primary/55">
                     {loc.description}
                   </p>
                 </div>
@@ -360,14 +360,14 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/*  TESTIMONIALS                                                 */}
       {/* ============================================================ */}
-      <section className="bg-peach/50 py-20 sm:py-28">
+      <section className="bg-light-warm/50 py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="animate-fade-in text-center">
-            <h2 className="text-3xl font-extrabold tracking-tight text-navy sm:text-4xl">
+            <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
               What Our Users Say
             </h2>
-            <p className="mx-auto mt-3 max-w-xl text-base text-navy/60 sm:text-lg">
+            <p className="mx-auto mt-3 max-w-xl text-base text-black-primary/60 sm:text-lg">
               Trusted by operators and location owners across the country.
             </p>
           </div>
@@ -377,7 +377,7 @@ export default function HomePage() {
             {testimonials.map((t, idx) => (
               <div
                 key={t.name}
-                className="animate-slide-up flex flex-col rounded-2xl border border-orange-100 bg-white p-7 shadow-sm transition-shadow duration-300 hover:shadow-md"
+                className="animate-slide-up flex flex-col rounded-2xl border border-green-100 bg-white p-7 shadow-sm transition-shadow duration-300 hover:shadow-md"
                 style={{ animationDelay: `${idx * 0.1}s` }}
               >
                 {/* Stars */}
@@ -385,26 +385,26 @@ export default function HomePage() {
                   {[...Array(5)].map((_, i) => (
                     <Star
                       key={i}
-                      className="h-4 w-4 fill-orange-primary text-orange-primary"
+                      className="h-4 w-4 fill-green-primary text-green-primary"
                     />
                   ))}
                 </div>
 
                 {/* Quote */}
-                <blockquote className="mb-6 flex-1 text-sm leading-relaxed text-navy/70">
+                <blockquote className="mb-6 flex-1 text-sm leading-relaxed text-black-primary/70">
                   &ldquo;{t.quote}&rdquo;
                 </blockquote>
 
                 {/* Author */}
-                <div className="flex items-center gap-3 border-t border-orange-50 pt-5">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-primary text-sm font-bold text-white">
+                <div className="flex items-center gap-3 border-t border-green-50 pt-5">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-primary text-sm font-bold text-white">
                     {t.initials}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-navy">
+                    <p className="text-sm font-semibold text-black-primary">
                       {t.name}
                     </p>
-                    <p className="text-xs text-navy/50">
+                    <p className="text-xs text-black-primary/50">
                       {t.role} &middot; {t.location}
                     </p>
                   </div>
@@ -418,10 +418,10 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/*  FINAL CTA                                                    */}
       {/* ============================================================ */}
-      <section className="relative overflow-hidden bg-navy">
+      <section className="relative overflow-hidden bg-black-primary">
         {/* Decorative elements */}
-        <div className="pointer-events-none absolute -left-40 -top-40 h-80 w-80 rounded-full bg-orange-primary/10 blur-[100px]" />
-        <div className="pointer-events-none absolute -bottom-40 -right-40 h-80 w-80 rounded-full bg-orange-primary/10 blur-[100px]" />
+        <div className="pointer-events-none absolute -left-40 -top-40 h-80 w-80 rounded-full bg-green-primary/10 blur-[100px]" />
+        <div className="pointer-events-none absolute -bottom-40 -right-40 h-80 w-80 rounded-full bg-green-primary/10 blur-[100px]" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
           <div className="animate-fade-in mx-auto max-w-2xl text-center">
@@ -436,7 +436,7 @@ export default function HomePage() {
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
                 href="/post-request"
-                className="inline-flex items-center gap-2 rounded-xl bg-orange-primary px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-orange-primary/25 transition-all hover:-translate-y-0.5 hover:bg-orange-hover hover:shadow-xl hover:shadow-orange-primary/30"
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover hover:shadow-xl hover:shadow-green-primary/30"
               >
                 Post a Request
                 <ArrowRight className="h-4 w-4" />

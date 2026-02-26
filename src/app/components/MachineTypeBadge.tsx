@@ -25,9 +25,9 @@ const colorMap: Record<
     ring: "ring-green-200",
   },
   coffee: {
-    bg: "bg-orange-50",
+    bg: "bg-green-50",
     text: "text-orange-800",
-    ring: "ring-orange-200",
+    ring: "ring-green-200",
   },
   frozen: {
     bg: "bg-cyan-50",

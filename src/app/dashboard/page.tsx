@@ -222,16 +222,16 @@ function StatusPipeline({ current }: { current: MatchStatus }) {
             {idx > 0 && (
               <div
                 className={`h-0.5 w-6 rounded-full transition-colors ${
-                  isComplete ? "bg-orange-primary" : "bg-gray-200"
+                  isComplete ? "bg-green-primary" : "bg-gray-200"
                 }`}
               />
             )}
             <div
               className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
                 isCurrent
-                  ? "bg-orange-primary text-white"
+                  ? "bg-green-primary text-white"
                   : isComplete
-                    ? "bg-orange-100 text-orange-primary"
+                    ? "bg-green-100 text-green-primary"
                     : "bg-gray-100 text-gray-400"
               }`}
             >
@@ -308,17 +308,17 @@ function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 px-6 py-16 text-center">
-      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-primary">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-50 text-green-primary">
         <Icon className="h-7 w-7" />
       </div>
-      <h3 className="mb-1.5 text-lg font-semibold text-navy">{title}</h3>
-      <p className="mb-6 max-w-sm text-sm leading-relaxed text-navy/50">
+      <h3 className="mb-1.5 text-lg font-semibold text-black-primary">{title}</h3>
+      <p className="mb-6 max-w-sm text-sm leading-relaxed text-black-primary/50">
         {description}
       </p>
       {cta && href && (
         <Link
           href={href}
-          className="inline-flex items-center gap-2 rounded-xl bg-orange-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+          className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
         >
           {cta}
           <ArrowRight className="h-4 w-4" />
@@ -344,7 +344,7 @@ function StatCard({
   color?: "orange" | "green" | "blue" | "purple";
 }) {
   const colorMap = {
-    orange: { bg: "bg-orange-50", text: "text-orange-primary" },
+    orange: { bg: "bg-green-50", text: "text-green-primary" },
     green: { bg: "bg-emerald-50", text: "text-emerald-600" },
     blue: { bg: "bg-blue-50", text: "text-blue-600" },
     purple: { bg: "bg-purple-50", text: "text-purple-600" },
@@ -358,8 +358,8 @@ function StatCard({
       >
         <Icon className="h-5 w-5" />
       </div>
-      <p className="text-2xl font-bold text-navy">{value}</p>
-      <p className="mt-0.5 text-sm text-navy/50">{label}</p>
+      <p className="text-2xl font-bold text-black-primary">{value}</p>
+      <p className="mt-0.5 text-sm text-black-primary/50">{label}</p>
     </div>
   );
 }
@@ -385,8 +385,8 @@ function TabButton({
       onClick={onClick}
       className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors cursor-pointer ${
         active
-          ? "border-orange-primary text-orange-primary"
-          : "border-transparent text-navy/50 hover:border-gray-200 hover:text-navy/80"
+          ? "border-green-primary text-green-primary"
+          : "border-transparent text-black-primary/50 hover:border-gray-200 hover:text-black-primary/80"
       }`}
     >
       <Icon className="h-4 w-4" />
@@ -436,7 +436,7 @@ function ProfileForm({
       className="mx-auto max-w-2xl rounded-2xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8"
     >
       <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-primary text-lg font-bold text-white">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-primary text-lg font-bold text-white">
           {profile.full_name
             ?.split(" ")
             .map((w) => w[0])
@@ -445,8 +445,8 @@ function ProfileForm({
             .toUpperCase() || "?"}
         </div>
         <div>
-          <p className="font-semibold text-navy">{profile.full_name}</p>
-          <p className="text-sm text-navy/50">{profile.email}</p>
+          <p className="font-semibold text-black-primary">{profile.full_name}</p>
+          <p className="text-sm text-black-primary/50">{profile.email}</p>
         </div>
       </div>
 
@@ -455,7 +455,7 @@ function ProfileForm({
         <div>
           <label
             htmlFor="full_name"
-            className="mb-1.5 block text-sm font-medium text-navy"
+            className="mb-1.5 block text-sm font-medium text-black-primary"
           >
             Full Name
           </label>
@@ -473,7 +473,7 @@ function ProfileForm({
         <div>
           <label
             htmlFor="company_name"
-            className="mb-1.5 block text-sm font-medium text-navy"
+            className="mb-1.5 block text-sm font-medium text-black-primary"
           >
             Company
           </label>
@@ -491,7 +491,7 @@ function ProfileForm({
         <div>
           <label
             htmlFor="phone"
-            className="mb-1.5 block text-sm font-medium text-navy"
+            className="mb-1.5 block text-sm font-medium text-black-primary"
           >
             Phone
           </label>
@@ -509,7 +509,7 @@ function ProfileForm({
         <div>
           <label
             htmlFor="website"
-            className="mb-1.5 block text-sm font-medium text-navy"
+            className="mb-1.5 block text-sm font-medium text-black-primary"
           >
             Website
           </label>
@@ -528,7 +528,7 @@ function ProfileForm({
         <div>
           <label
             htmlFor="city"
-            className="mb-1.5 block text-sm font-medium text-navy"
+            className="mb-1.5 block text-sm font-medium text-black-primary"
           >
             City
           </label>
@@ -547,7 +547,7 @@ function ProfileForm({
           <div>
             <label
               htmlFor="state"
-              className="mb-1.5 block text-sm font-medium text-navy"
+              className="mb-1.5 block text-sm font-medium text-black-primary"
             >
               State
             </label>
@@ -565,7 +565,7 @@ function ProfileForm({
           <div>
             <label
               htmlFor="zip"
-              className="mb-1.5 block text-sm font-medium text-navy"
+              className="mb-1.5 block text-sm font-medium text-black-primary"
             >
               ZIP
             </label>
@@ -586,7 +586,7 @@ function ProfileForm({
       <div className="mt-5">
         <label
           htmlFor="bio"
-          className="mb-1.5 block text-sm font-medium text-navy"
+          className="mb-1.5 block text-sm font-medium text-black-primary"
         >
           Bio
         </label>
@@ -605,7 +605,7 @@ function ProfileForm({
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl bg-orange-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover disabled:opacity-50 cursor-pointer"
+          className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover disabled:opacity-50 cursor-pointer"
         >
           {saving ? (
             <>
@@ -899,27 +899,27 @@ export default function DashboardPage() {
     return (
       <div className="flex min-h-[calc(100vh-160px)] items-center justify-center px-4">
         <div className="mx-auto max-w-md text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-50">
-            <LogIn className="h-8 w-8 text-orange-primary" />
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-green-50">
+            <LogIn className="h-8 w-8 text-green-primary" />
           </div>
-          <h1 className="mb-2 text-2xl font-bold text-navy">
+          <h1 className="mb-2 text-2xl font-bold text-black-primary">
             Sign in to your Dashboard
           </h1>
-          <p className="mb-8 text-navy/50">
+          <p className="mb-8 text-black-primary/50">
             Please log in or create an account to access your VendHub dashboard,
             manage requests, and connect with operators.
           </p>
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link
               href="/login"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover sm:w-auto"
             >
               <LogIn className="h-4 w-4" />
               Log In
             </Link>
             <Link
               href="/signup"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-navy transition-colors hover:border-orange-200 hover:bg-orange-50 sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-black-primary transition-colors hover:border-green-200 hover:bg-green-50 sm:w-auto"
             >
               <UserPlus className="h-4 w-4" />
               Create Account
@@ -960,37 +960,37 @@ export default function DashboardPage() {
   /* ================================================================ */
 
   return (
-    <div className="min-h-[calc(100vh-160px)] bg-cream">
+    <div className="min-h-[calc(100vh-160px)] bg-light">
       {/* ------- HEADER ------- */}
       <div className="border-b border-gray-100 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <LayoutDashboard className="h-6 w-6 text-orange-primary" />
-                <h1 className="text-2xl font-bold text-navy sm:text-3xl">
+                <LayoutDashboard className="h-6 w-6 text-green-primary" />
+                <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">
                   Dashboard
                 </h1>
               </div>
-              <p className="mt-1 text-navy/50">
-                Welcome back, <span className="font-medium text-navy">{firstName}</span>
+              <p className="mt-1 text-black-primary/50">
+                Welcome back, <span className="font-medium text-black-primary">{firstName}</span>
               </p>
             </div>
             <div className="mt-3 flex items-center gap-2 sm:mt-0">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-peach px-3 py-1.5 text-xs font-medium text-navy">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-light-warm px-3 py-1.5 text-xs font-medium text-black-primary">
                 {isOperator ? (
                   <>
-                    <Building2 className="h-3.5 w-3.5 text-orange-primary" />
+                    <Building2 className="h-3.5 w-3.5 text-green-primary" />
                     Operator
                   </>
                 ) : profile.role === "location_manager" ? (
                   <>
-                    <MapPin className="h-3.5 w-3.5 text-orange-primary" />
+                    <MapPin className="h-3.5 w-3.5 text-green-primary" />
                     Location Manager
                   </>
                 ) : (
                   <>
-                    <User className="h-3.5 w-3.5 text-orange-primary" />
+                    <User className="h-3.5 w-3.5 text-green-primary" />
                     Requestor
                   </>
                 )}
@@ -1137,12 +1137,12 @@ export default function DashboardPage() {
           {isOperator && operatorTab === "applications" && (
             <div>
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-navy">
+                <h2 className="text-lg font-semibold text-black-primary">
                   My Applications
                 </h2>
                 <Link
                   href="/browse-requests"
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-orange-primary hover:underline"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-green-primary hover:underline"
                 >
                   Browse more requests
                   <ChevronRight className="h-4 w-4" />
@@ -1168,7 +1168,7 @@ export default function DashboardPage() {
                   {matches.map((match) => (
                     <div
                       key={match.id}
-                      className="group rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-orange-100 hover:shadow-md sm:p-5"
+                      className="group rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-green-100 hover:shadow-md sm:p-5"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-3 min-w-0">
@@ -1179,10 +1179,10 @@ export default function DashboardPage() {
                             />
                           )}
                           <div className="min-w-0">
-                            <p className="truncate font-semibold text-navy">
+                            <p className="truncate font-semibold text-black-primary">
                               {match.vending_requests?.title || "Untitled Request"}
                             </p>
-                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-navy/50">
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-black-primary/50">
                               {match.vending_requests?.city &&
                                 match.vending_requests?.state && (
                                   <span className="flex items-center gap-1">
@@ -1217,18 +1217,18 @@ export default function DashboardPage() {
 
           {isOperator && operatorTab === "browse" && (
             <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 px-6 py-16 text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-primary">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-50 text-green-primary">
                 <Search className="h-7 w-7" />
               </div>
-              <h3 className="mb-1.5 text-lg font-semibold text-navy">
+              <h3 className="mb-1.5 text-lg font-semibold text-black-primary">
                 Browse Open Requests
               </h3>
-              <p className="mb-6 max-w-sm text-sm leading-relaxed text-navy/50">
+              <p className="mb-6 max-w-sm text-sm leading-relaxed text-black-primary/50">
                 Discover locations looking for vending machines in your service area. Filter by location type, city, and more.
               </p>
               <Link
                 href="/browse-requests"
-                className="inline-flex items-center gap-2 rounded-xl bg-orange-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
               >
                 Go to Browse Requests
                 <ExternalLink className="h-4 w-4" />
@@ -1239,12 +1239,12 @@ export default function DashboardPage() {
           {isOperator && operatorTab === "listings" && (
             <div>
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-navy">
+                <h2 className="text-lg font-semibold text-black-primary">
                   My Listings
                 </h2>
                 <Link
                   href="/listings/new"
-                  className="inline-flex items-center gap-2 rounded-xl bg-orange-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+                  className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
                 >
                   <Plus className="h-4 w-4" />
                   New Listing
@@ -1269,16 +1269,16 @@ export default function DashboardPage() {
                   {listings.map((listing) => (
                     <div
                       key={listing.id}
-                      className="group rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition-all duration-200 hover:border-orange-100 hover:shadow-md"
+                      className="group rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition-all duration-200 hover:border-green-100 hover:shadow-md"
                     >
                       <div className="mb-3 flex items-start justify-between">
-                        <h3 className="font-semibold text-navy">
+                        <h3 className="font-semibold text-black-primary">
                           {listing.title}
                         </h3>
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
-                            className="rounded-lg p-1.5 text-navy/40 transition-colors hover:bg-orange-50 hover:text-orange-primary cursor-pointer"
+                            className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-green-50 hover:text-green-primary cursor-pointer"
                             aria-label="Edit listing"
                           >
                             <Edit3 className="h-4 w-4" />
@@ -1286,7 +1286,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-navy/50">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-black-primary/50">
                         <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2 py-0.5">
                           <Building2 className="h-3 w-3" />
                           {listing.machine_count_available} machines
@@ -1306,20 +1306,20 @@ export default function DashboardPage() {
                           {listing.machine_types.slice(0, 3).map((type) => (
                             <span
                               key={type}
-                              className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-primary"
+                              className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-primary"
                             >
                               {type.replace(/_/g, " ")}
                             </span>
                           ))}
                           {listing.machine_types.length > 3 && (
-                            <span className="rounded-full bg-gray-50 px-2 py-0.5 text-xs text-navy/40">
+                            <span className="rounded-full bg-gray-50 px-2 py-0.5 text-xs text-black-primary/40">
                               +{listing.machine_types.length - 3} more
                             </span>
                           )}
                         </div>
                       )}
 
-                      <div className="mt-3 border-t border-gray-50 pt-3 text-xs text-navy/40">
+                      <div className="mt-3 border-t border-gray-50 pt-3 text-xs text-black-primary/40">
                         Created {formatDate(listing.created_at)}
                       </div>
                     </div>
@@ -1332,7 +1332,7 @@ export default function DashboardPage() {
           {isOperator && operatorTab === "saved" && (
             <div>
               <div className="mb-4">
-                <h2 className="text-lg font-semibold text-navy">
+                <h2 className="text-lg font-semibold text-black-primary">
                   Saved Requests
                 </h2>
               </div>
@@ -1356,17 +1356,17 @@ export default function DashboardPage() {
                     <Link
                       key={req.id}
                       href={`/requests/${req.id}`}
-                      className="group flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-orange-100 hover:shadow-md"
+                      className="group flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-green-100 hover:shadow-md"
                     >
                       <LocationTypeIcon
                         type={req.location_type}
                         size="sm"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold text-navy group-hover:text-orange-primary">
+                        <p className="truncate font-semibold text-black-primary group-hover:text-green-primary">
                           {req.title}
                         </p>
-                        <p className="mt-0.5 text-xs text-navy/50">
+                        <p className="mt-0.5 text-xs text-black-primary/50">
                           {req.city}, {req.state}
                         </p>
                       </div>
@@ -1386,15 +1386,15 @@ export default function DashboardPage() {
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                 <MessageSquare className="h-7 w-7" />
               </div>
-              <h3 className="mb-1.5 text-lg font-semibold text-navy">
+              <h3 className="mb-1.5 text-lg font-semibold text-black-primary">
                 Messages
               </h3>
-              <p className="mb-6 max-w-sm text-sm leading-relaxed text-navy/50">
+              <p className="mb-6 max-w-sm text-sm leading-relaxed text-black-primary/50">
                 View and respond to messages from location managers about your applications.
               </p>
               <Link
                 href="/messages"
-                className="inline-flex items-center gap-2 rounded-xl bg-navy px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-navy-light"
+                className="inline-flex items-center gap-2 rounded-xl bg-black-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-black-primary-light"
               >
                 Go to Messages
                 <ExternalLink className="h-4 w-4" />
@@ -1414,12 +1414,12 @@ export default function DashboardPage() {
           {!isOperator && managerTab === "requests" && (
             <div>
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-navy">
+                <h2 className="text-lg font-semibold text-black-primary">
                   My Requests
                 </h2>
                 <Link
                   href="/post-request"
-                  className="inline-flex items-center gap-2 rounded-xl bg-orange-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+                  className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
                 >
                   <Plus className="h-4 w-4" />
                   Post New Request
@@ -1445,7 +1445,7 @@ export default function DashboardPage() {
                   {requests.map((req) => (
                     <div
                       key={req.id}
-                      className="group rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-orange-100 hover:shadow-md sm:p-5"
+                      className="group rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-green-100 hover:shadow-md sm:p-5"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-3 min-w-0">
@@ -1454,10 +1454,10 @@ export default function DashboardPage() {
                             size="sm"
                           />
                           <div className="min-w-0">
-                            <p className="truncate font-semibold text-navy">
+                            <p className="truncate font-semibold text-black-primary">
                               {req.title}
                             </p>
-                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-navy/50">
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-black-primary/50">
                               <span className="flex items-center gap-1">
                                 <MapPin className="h-3 w-3" />
                                 {req.city}, {req.state}
@@ -1478,7 +1478,7 @@ export default function DashboardPage() {
                           <RequestStatusBadge status={req.status} />
                           <Link
                             href={`/requests/${req.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-navy transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-primary"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-black-primary transition-colors hover:border-green-200 hover:bg-green-50 hover:text-green-primary"
                           >
                             View
                             <ChevronRight className="h-3.5 w-3.5" />
@@ -1495,10 +1495,10 @@ export default function DashboardPage() {
           {!isOperator && managerTab === "matches" && (
             <div>
               <div className="mb-4">
-                <h2 className="text-lg font-semibold text-navy">
+                <h2 className="text-lg font-semibold text-black-primary">
                   Operator Matches
                 </h2>
-                <p className="mt-1 text-sm text-navy/50">
+                <p className="mt-1 text-sm text-black-primary/50">
                   Operators who have applied to your requests
                 </p>
               </div>
@@ -1522,12 +1522,12 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={match.id}
-                        className="group rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-orange-100 hover:shadow-md sm:p-5"
+                        className="group rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-green-100 hover:shadow-md sm:p-5"
                       >
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex items-center gap-3 min-w-0">
                             {/* Avatar */}
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-primary text-sm font-bold text-white">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-primary text-sm font-bold text-white">
                               {operator?.full_name
                                 ?.split(" ")
                                 .map((w: string) => w[0])
@@ -1537,14 +1537,14 @@ export default function DashboardPage() {
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="truncate font-semibold text-navy">
+                                <p className="truncate font-semibold text-black-primary">
                                   {operator?.full_name || "Unknown Operator"}
                                 </p>
                                 {operator?.verified && (
                                   <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-500" />
                                 )}
                               </div>
-                              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-navy/50">
+                              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-black-primary/50">
                                 {operator?.company_name && (
                                   <span>{operator.company_name}</span>
                                 )}
@@ -1615,15 +1615,15 @@ export default function DashboardPage() {
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                 <MessageSquare className="h-7 w-7" />
               </div>
-              <h3 className="mb-1.5 text-lg font-semibold text-navy">
+              <h3 className="mb-1.5 text-lg font-semibold text-black-primary">
                 Messages
               </h3>
-              <p className="mb-6 max-w-sm text-sm leading-relaxed text-navy/50">
+              <p className="mb-6 max-w-sm text-sm leading-relaxed text-black-primary/50">
                 Communicate with operators who have matched with your requests.
               </p>
               <Link
                 href="/messages"
-                className="inline-flex items-center gap-2 rounded-xl bg-navy px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-navy-light"
+                className="inline-flex items-center gap-2 rounded-xl bg-black-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-black-primary-light"
               >
                 Go to Messages
                 <ExternalLink className="h-4 w-4" />

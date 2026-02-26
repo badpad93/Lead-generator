@@ -99,12 +99,12 @@ function MachineTypeMultiSelect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-navy transition-colors hover:border-orange-primary/40 focus:outline-none focus:ring-2 focus:ring-orange-primary/20"
+        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-black-primary transition-colors hover:border-green-primary/40 focus:outline-none focus:ring-2 focus:ring-green-primary/20"
       >
         <span className="whitespace-nowrap">
           Machine Type
           {selected.length > 0 && (
-            <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-primary px-1.5 text-[11px] font-bold text-white">
+            <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-[11px] font-bold text-white">
               {selected.length}
             </span>
           )}
@@ -123,12 +123,12 @@ function MachineTypeMultiSelect({
                 key={mt.value}
                 type="button"
                 onClick={() => toggle(mt.value)}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-navy transition-colors hover:bg-orange-50"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-black-primary transition-colors hover:bg-green-50"
               >
                 <span
                   className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
                     isChecked
-                      ? "border-orange-primary bg-orange-primary"
+                      ? "border-green-primary bg-green-primary"
                       : "border-gray-300 bg-white"
                   }`}
                 >
@@ -143,7 +143,7 @@ function MachineTypeMultiSelect({
               <button
                 type="button"
                 onClick={() => onChange([])}
-                className="w-full rounded-md py-1.5 text-xs font-medium text-gray-500 hover:text-orange-primary transition-colors"
+                className="w-full rounded-md py-1.5 text-xs font-medium text-gray-500 hover:text-green-primary transition-colors"
               >
                 Clear all
               </button>
@@ -187,13 +187,13 @@ function FilterDropdown({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-navy transition-colors hover:border-orange-primary/40 focus:outline-none focus:ring-2 focus:ring-orange-primary/20"
+        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-black-primary transition-colors hover:border-green-primary/40 focus:outline-none focus:ring-2 focus:ring-green-primary/20"
       >
         <span className="whitespace-nowrap">
           {value ? (
             <span>
               {label}:{" "}
-              <span className="font-medium text-orange-primary">
+              <span className="font-medium text-green-primary">
                 {selectedLabel}
               </span>
             </span>
@@ -214,8 +214,8 @@ function FilterDropdown({
               onChange("");
               setOpen(false);
             }}
-            className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-orange-50 ${
-              !value ? "text-orange-primary font-medium" : "text-gray-500"
+            className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-green-50 ${
+              !value ? "text-green-primary font-medium" : "text-gray-500"
             }`}
           >
             All
@@ -228,10 +228,10 @@ function FilterDropdown({
                 onChange(opt.value);
                 setOpen(false);
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-orange-50 ${
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-green-50 ${
                 value === opt.value
-                  ? "text-orange-primary font-medium bg-orange-50"
-                  : "text-navy"
+                  ? "text-green-primary font-medium bg-green-50"
+                  : "text-black-primary"
               }`}
             >
               {opt.label}
@@ -306,14 +306,14 @@ function OperatorAvatar({
       <img
         src={avatarUrl}
         alt={name}
-        className={`${sizeClasses[size]} rounded-full object-cover ring-2 ring-orange-100`}
+        className={`${sizeClasses[size]} rounded-full object-cover ring-2 ring-green-100`}
       />
     );
   }
 
   return (
     <div
-      className={`${sizeClasses[size]} flex items-center justify-center rounded-full bg-orange-primary font-bold text-white ring-2 ring-orange-100`}
+      className={`${sizeClasses[size]} flex items-center justify-center rounded-full bg-green-primary font-bold text-white ring-2 ring-green-100`}
     >
       {initials}
     </div>
@@ -371,13 +371,13 @@ function InlineStarRating({
             key={i}
             className={`h-3.5 w-3.5 ${
               i < Math.round(value)
-                ? "fill-orange-primary text-orange-primary"
+                ? "fill-green-primary text-green-primary"
                 : "fill-none text-gray-300"
             }`}
           />
         ))}
       </div>
-      <span className="text-xs font-medium text-navy">{value.toFixed(1)}</span>
+      <span className="text-xs font-medium text-black-primary">{value.toFixed(1)}</span>
       <span className="text-xs text-gray-400">({count})</span>
     </div>
   );
@@ -402,17 +402,17 @@ function OperatorCard({ operator }: { operator: OperatorWithListings }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-orange-primary/5 group">
+    <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-green-primary/5 group">
       {/* Header */}
       <div className="flex items-start gap-3">
         <OperatorAvatar name={operator.full_name} avatarUrl={operator.avatar_url} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <h3 className="font-semibold text-navy text-base leading-snug truncate">
+            <h3 className="font-semibold text-black-primary text-base leading-snug truncate">
               {operator.full_name}
             </h3>
             {operator.verified && (
-              <BadgeCheck className="h-4.5 w-4.5 shrink-0 text-orange-primary" />
+              <BadgeCheck className="h-4.5 w-4.5 shrink-0 text-green-primary" />
             )}
           </div>
           {operator.company_name && (
@@ -454,7 +454,7 @@ function OperatorCard({ operator }: { operator: OperatorWithListings }) {
         <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-600">
           <Monitor className="h-3.5 w-3.5 text-gray-400" />
           <span>
-            <span className="font-medium text-navy">{totalMachines}</span> Machines Available
+            <span className="font-medium text-black-primary">{totalMachines}</span> Machines Available
           </span>
         </div>
       )}
@@ -472,14 +472,14 @@ function OperatorCard({ operator }: { operator: OperatorWithListings }) {
         <div className="flex items-center gap-2">
           <Link
             href={`/operators/${operator.id}`}
-            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-navy transition-colors hover:border-orange-primary/40 hover:bg-orange-50 hover:text-orange-primary"
+            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50 hover:text-green-primary"
           >
             View Profile
           </Link>
           <button
             type="button"
             onClick={() => alert("Sign up to connect with operators!")}
-            className="inline-flex items-center gap-1 rounded-lg bg-orange-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-orange-hover"
+            className="inline-flex items-center gap-1 rounded-lg bg-green-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
           >
             <UserPlus className="h-3 w-3" />
             Contact
@@ -681,14 +681,14 @@ export default function BrowseOperatorsPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-light">
       {/* ------------------------------------------------------------------ */}
       {/* Hero header */}
       {/* ------------------------------------------------------------------ */}
-      <section className="border-b border-orange-100 bg-gradient-to-b from-peach to-cream">
+      <section className="border-b border-green-100 bg-gradient-to-b from-light-warm to-light">
         <div className="mx-auto max-w-7xl px-4 pb-8 pt-12 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-3xl font-bold tracking-tight text-navy sm:text-4xl">
+            <h1 className="text-3xl font-bold tracking-tight text-black-primary sm:text-4xl">
               Browse Vending Operators
             </h1>
             <p className="mx-auto mt-3 max-w-2xl text-base text-gray-600 sm:text-lg">
@@ -706,7 +706,7 @@ export default function BrowseOperatorsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search operators by name, city, state..."
-                className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-10 text-sm shadow-sm placeholder:text-gray-400 focus:border-orange-primary focus:ring-2 focus:ring-orange-primary/20"
+                className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-10 text-sm shadow-sm placeholder:text-gray-400 focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
               />
               {search && (
                 <button
@@ -732,12 +732,12 @@ export default function BrowseOperatorsPage() {
             <button
               type="button"
               onClick={() => setFiltersVisible(!filtersVisible)}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-navy transition-colors hover:bg-orange-50 lg:hidden"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 lg:hidden"
             >
               <SlidersHorizontal className="h-4 w-4" />
               Filters
               {activeFilterCount > 0 && (
-                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-primary px-1.5 text-[11px] font-bold text-white">
+                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-[11px] font-bold text-white">
                   {activeFilterCount}
                 </span>
               )}
@@ -777,15 +777,15 @@ export default function BrowseOperatorsPage() {
               <button
                 type="button"
                 onClick={() => setCommissionFilter(!commissionFilter)}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-orange-primary/20 ${
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-primary/20 ${
                   commissionFilter
-                    ? "border-orange-primary bg-orange-50 text-orange-primary font-medium"
-                    : "border-gray-200 bg-white text-navy hover:border-orange-primary/40"
+                    ? "border-green-primary bg-green-50 text-green-primary font-medium"
+                    : "border-gray-200 bg-white text-black-primary hover:border-green-primary/40"
                 }`}
               >
                 <span
                   className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                    commissionFilter ? "bg-orange-primary" : "bg-gray-200"
+                    commissionFilter ? "bg-green-primary" : "bg-gray-200"
                   }`}
                 >
                   <span
@@ -832,7 +832,7 @@ export default function BrowseOperatorsPage() {
               <span>
                 {" "}
                 for &ldquo;
-                <span className="font-medium text-navy">{debouncedSearch}</span>
+                <span className="font-medium text-black-primary">{debouncedSearch}</span>
                 &rdquo;
               </span>
             )}
@@ -851,10 +851,10 @@ export default function BrowseOperatorsPage() {
         {/* Empty state */}
         {!loading && operators.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white px-6 py-16 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-50">
-              <SearchX className="h-7 w-7 text-orange-primary" />
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
+              <SearchX className="h-7 w-7 text-green-primary" />
             </div>
-            <h3 className="text-lg font-semibold text-navy">
+            <h3 className="text-lg font-semibold text-black-primary">
               No operators match your filters
             </h3>
             <p className="mx-auto mt-2 max-w-sm text-sm text-gray-500">
@@ -866,14 +866,14 @@ export default function BrowseOperatorsPage() {
                 <button
                   type="button"
                   onClick={clearAllFilters}
-                  className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-navy transition-colors hover:bg-gray-50"
+                  className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
                 >
                   Clear All Filters
                 </button>
               )}
               <Link
                 href="/post-request"
-                className="inline-flex items-center gap-2 rounded-lg bg-orange-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+                className="inline-flex items-center gap-2 rounded-lg bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
               >
                 Post a Request Instead
               </Link>
@@ -897,7 +897,7 @@ export default function BrowseOperatorsPage() {
                   type="button"
                   onClick={handleLoadMore}
                   disabled={loadingMore}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-8 py-3 text-sm font-semibold text-navy shadow-sm transition-all hover:border-orange-primary/40 hover:shadow-md disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-8 py-3 text-sm font-semibold text-black-primary shadow-sm transition-all hover:border-green-primary/40 hover:shadow-md disabled:opacity-60"
                 >
                   {loadingMore ? (
                     <>
@@ -926,9 +926,9 @@ export default function BrowseOperatorsPage() {
       {/* Bottom CTA */}
       {/* ------------------------------------------------------------------ */}
       {!loading && operators.length > 0 && (
-        <section className="border-t border-orange-100 bg-peach">
+        <section className="border-t border-green-100 bg-light-warm">
           <div className="mx-auto max-w-7xl px-4 py-12 text-center sm:px-6 lg:px-8">
-            <h2 className="text-xl font-bold text-navy sm:text-2xl">
+            <h2 className="text-xl font-bold text-black-primary sm:text-2xl">
               Are you a vending machine operator?
             </h2>
             <p className="mx-auto mt-2 max-w-lg text-sm text-gray-600">
@@ -937,7 +937,7 @@ export default function BrowseOperatorsPage() {
             </p>
             <Link
               href="/signup"
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-orange-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-hover"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
             >
               <UserPlus className="h-4 w-4" />
               Sign Up as Operator
