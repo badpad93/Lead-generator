@@ -213,7 +213,7 @@ export default function Navbar() {
                     Dashboard
                   </Link>
                   <Link
-                    href="/dashboard"
+                    href="/dashboard/profile"
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
                   >
