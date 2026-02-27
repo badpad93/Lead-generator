@@ -18,6 +18,7 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -34,12 +35,21 @@ export default function Navbar() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.access_token) {
         try {
-          const res = await fetch("/api/auth/me", {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-          if (res.ok) {
-            const data = await res.json();
+          const [profileRes, adminRes] = await Promise.all([
+            fetch("/api/auth/me", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            }),
+            fetch("/api/admin/check", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            }),
+          ]);
+          if (profileRes.ok) {
+            const data = await profileRes.json();
             setProfile(data);
+          }
+          if (adminRes.ok) {
+            const data = await adminRes.json();
+            setIsAdmin(!!data.isAdmin);
           }
         } catch {
           // ignore
@@ -54,18 +64,28 @@ export default function Navbar() {
       async (event, session) => {
         if (event === "SIGNED_IN" && session?.access_token) {
           try {
-            const res = await fetch("/api/auth/me", {
-              headers: { Authorization: `Bearer ${session.access_token}` },
-            });
-            if (res.ok) {
-              const data = await res.json();
+            const [profileRes, adminRes] = await Promise.all([
+              fetch("/api/auth/me", {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              }),
+              fetch("/api/admin/check", {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              }),
+            ]);
+            if (profileRes.ok) {
+              const data = await profileRes.json();
               setProfile(data);
+            }
+            if (adminRes.ok) {
+              const data = await adminRes.json();
+              setIsAdmin(!!data.isAdmin);
             }
           } catch {
             // ignore
           }
         } else if (event === "SIGNED_OUT") {
           setProfile(null);
+          setIsAdmin(false);
         }
       }
     );
@@ -100,8 +120,6 @@ export default function Navbar() {
     setUserMenuOpen(false);
     router.push("/");
   }
-
-  const isAdmin = profile?.email?.toLowerCase() === "contact@bytebitevending.com";
 
   const initials = profile?.full_name
     ?.split(" ")
