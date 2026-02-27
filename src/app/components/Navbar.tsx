@@ -13,10 +13,16 @@ const navLinks = [
   { label: "How It Works", href: "/how-it-works" },
 ];
 
+interface SessionUser {
+  email: string;
+  name: string;
+}
+
 export default function Navbar() {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -34,6 +40,13 @@ export default function Navbar() {
     async function checkAuth() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.access_token) {
+        // Set basic session info immediately so navbar shows logged-in state
+        const meta = session.user?.user_metadata || {};
+        setSessionUser({
+          email: session.user?.email || "",
+          name: meta.full_name || meta.name || meta.custom_claims?.global_name || session.user?.email?.split("@")[0] || "User",
+        });
+
         try {
           const [profileRes, adminRes] = await Promise.all([
             fetch("/api/auth/me", {
@@ -52,7 +65,7 @@ export default function Navbar() {
             setIsAdmin(!!data.isAdmin);
           }
         } catch {
-          // ignore
+          // ignore — sessionUser still shows logged-in state
         }
       }
     }
@@ -63,6 +76,12 @@ export default function Navbar() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === "SIGNED_IN" && session?.access_token) {
+          const meta = session.user?.user_metadata || {};
+          setSessionUser({
+            email: session.user?.email || "",
+            name: meta.full_name || meta.name || meta.custom_claims?.global_name || session.user?.email?.split("@")[0] || "User",
+          });
+
           try {
             const [profileRes, adminRes] = await Promise.all([
               fetch("/api/auth/me", {
@@ -84,6 +103,7 @@ export default function Navbar() {
             // ignore
           }
         } else if (event === "SIGNED_OUT") {
+          setSessionUser(null);
           setProfile(null);
           setIsAdmin(false);
         }
@@ -116,13 +136,18 @@ export default function Navbar() {
   async function handleLogout() {
     const supabase = createBrowserClient();
     await supabase.auth.signOut();
+    setSessionUser(null);
     setProfile(null);
+    setIsAdmin(false);
     setUserMenuOpen(false);
     router.push("/");
   }
 
-  const initials = profile?.full_name
-    ?.split(" ")
+  const isLoggedIn = !!sessionUser;
+  const displayName = profile?.full_name || sessionUser?.name || "User";
+  const displayEmail = profile?.email || sessionUser?.email || "";
+  const initials = displayName
+    .split(" ")
     .map((w) => w[0])
     .join("")
     .slice(0, 2)
@@ -158,7 +183,7 @@ export default function Navbar() {
 
         {/* Desktop Auth Buttons / User Menu */}
         <div className="hidden items-center gap-3 md:flex">
-          {profile ? (
+          {isLoggedIn ? (
             <div className="relative">
               <button
                 type="button"
@@ -172,7 +197,7 @@ export default function Navbar() {
                   {initials}
                 </div>
                 <span className="text-sm font-medium text-black-primary">
-                  {profile.full_name?.split(" ")[0] || "Account"}
+                  {displayName.split(" ")[0] || "Account"}
                 </span>
               </button>
 
@@ -279,17 +304,17 @@ export default function Navbar() {
         {/* Drawer Navigation Links */}
         <div className="flex-1 overflow-y-auto px-3 py-4">
           {/* User info if logged in */}
-          {profile && (
+          {isLoggedIn && (
             <div className="mb-4 flex items-center gap-3 rounded-xl bg-light-warm px-3 py-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-primary text-sm font-bold text-white">
                 {initials}
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-black-primary">
-                  {profile.full_name}
+                  {displayName}
                 </p>
                 <p className="truncate text-xs text-black-primary/50">
-                  {profile.email}
+                  {displayEmail}
                 </p>
               </div>
             </div>
@@ -309,7 +334,7 @@ export default function Navbar() {
               </li>
             ))}
 
-            {profile && (
+            {isLoggedIn && (
               <>
                 <li>
                   <Link
@@ -359,7 +384,7 @@ export default function Navbar() {
 
         {/* Drawer Auth Buttons */}
         <div className="border-t border-gray-100 px-4 py-4 space-y-3">
-          {profile ? (
+          {isLoggedIn ? (
             <button
               type="button"
               onClick={() => {
