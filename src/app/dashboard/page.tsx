@@ -21,6 +21,7 @@ import {
   Users,
   Clock,
   HandCoins,
+  Settings,
 } from "lucide-react";
 import type {
   Profile,
@@ -285,6 +286,13 @@ export default function DashboardPage() {
                   </>
                 )}
               </span>
+              <Link
+                href="/dashboard/profile"
+                className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-black-primary/60 transition-colors hover:border-green-200 hover:bg-green-50 hover:text-green-primary"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Edit Profile
+              </Link>
               <button
                 type="button"
                 onClick={handleSignOut}
