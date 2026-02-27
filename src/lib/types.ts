@@ -138,6 +138,30 @@ export interface Review {
   reviewer?: Profile;
 }
 
+export interface RouteListing {
+  id: string;
+  created_by: string;
+  title: string;
+  description: string | null;
+  city: string;
+  state: string;
+  num_machines: number;
+  num_locations: number;
+  monthly_revenue: number | null;
+  asking_price: number | null;
+  machine_types: MachineType[];
+  location_types: LocationType[];
+  includes_equipment: boolean;
+  includes_contracts: boolean;
+  contact_email: string | null;
+  contact_phone: string | null;
+  status: "active" | "sold" | "pending";
+  created_at: string;
+  updated_at: string;
+  // Joined
+  profiles?: Profile;
+}
+
 export interface SavedRequest {
   id: string;
   operator_id: string;

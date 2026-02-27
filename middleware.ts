@@ -1,7 +1,7 @@
 import { createMiddlewareClient } from "@/lib/supabaseMiddleware";
 import type { NextRequest } from "next/server";
 
-const PROTECTED_PATHS = ["/dashboard", "/messages", "/post-request", "/listings/new"];
+const PROTECTED_PATHS = ["/dashboard", "/messages", "/post-request", "/listings/new", "/admin"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -30,5 +30,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/messages/:path*", "/post-request/:path*", "/listings/new/:path*"],
+  matcher: ["/dashboard/:path*", "/messages/:path*", "/post-request/:path*", "/listings/new/:path*", "/admin/:path*"],
 };
