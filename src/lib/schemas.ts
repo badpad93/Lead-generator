@@ -45,6 +45,24 @@ export const createListingSchema = z.object({
   machine_count_available: z.number().int().min(1).max(1000).default(1),
 });
 
+export const createRouteSchema = z.object({
+  title: z.string().min(5, "Title must be at least 5 characters").max(200),
+  description: z.string().max(5000).optional(),
+  city: z.string().min(1, "City is required").max(100),
+  state: z.string().min(2).max(2, "Use 2-letter state code"),
+  num_machines: z.number().int().min(1).max(10000),
+  num_locations: z.number().int().min(1).max(10000),
+  monthly_revenue: z.number().min(0).max(10000000).optional(),
+  asking_price: z.number().min(0).max(100000000).optional(),
+  machine_types: z.array(z.string()).min(1, "Select at least one machine type"),
+  location_types: z.array(z.string()).default([]),
+  includes_equipment: z.boolean().default(true),
+  includes_contracts: z.boolean().default(true),
+  contact_email: z.string().email().optional().or(z.literal("")),
+  contact_phone: z.string().max(20).optional(),
+  status: z.enum(["active", "sold", "pending"]).default("active"),
+});
+
 export const sendMessageSchema = z.object({
   recipient_id: z.string().uuid(),
   match_id: z.string().uuid().optional(),
@@ -56,4 +74,5 @@ export type SignupInput = z.infer<typeof signupSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateRequestInput = z.infer<typeof createRequestSchema>;
 export type CreateListingInput = z.infer<typeof createListingSchema>;
+export type CreateRouteInput = z.infer<typeof createRouteSchema>;
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
