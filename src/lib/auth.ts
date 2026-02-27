@@ -35,13 +35,24 @@ export async function getAccessToken(): Promise<string | null> {
   return session?.access_token || null;
 }
 
+/** Get the base site URL (prefer env var, fall back to window.location.origin) */
+function getSiteUrl(): string {
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
+  }
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+  return "http://localhost:3000";
+}
+
 /** Sign in with Discord OAuth via Supabase (uses PKCE flow for SSR cookie compat) */
 export async function signInWithDiscord(): Promise<void> {
   const supabase = createBrowserClient();
   await supabase.auth.signInWithOAuth({
     provider: "discord",
     options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
+      redirectTo: `${getSiteUrl()}/auth/callback`,
       skipBrowserRedirect: false,
     },
   });
