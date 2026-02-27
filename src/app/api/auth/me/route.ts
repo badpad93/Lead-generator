@@ -44,6 +44,10 @@ export async function GET(req: NextRequest) {
       full_name: fullName,
       role: meta.role || "requestor",
       avatar_url: meta.avatar_url || meta.picture || null,
+      country: "US",
+      verified: false,
+      rating: 0,
+      review_count: 0,
     };
 
     const { data: created, error: insertError } = await supabaseAdmin
