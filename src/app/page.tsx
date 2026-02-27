@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { createBrowserClient } from "@/lib/supabase";
 import {
   MapPin,
   Truck,
@@ -143,7 +145,21 @@ const testimonials = [
 /* ------------------------------------------------------------------ */
 
 export default function HomePage() {
+  const router = useRouter();
   const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    const supabase = createBrowserClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.replace("/dashboard");
+      } else {
+        setAuthChecked(true);
+      }
+    });
+  }, [router]);
 
   useEffect(() => {
     fetch("/api/stats")
@@ -158,6 +174,11 @@ export default function HomePage() {
     { label: "Successful Placements", value: stats ? formatStat(stats.placements) : "...", icon: TrendingUp },
     { label: "States Covered", value: "48", icon: Globe },
   ];
+
+  // Show nothing while checking auth (prevents marketing page flash)
+  if (!authChecked) {
+    return <div className="min-h-screen" />;
+  }
 
   return (
     <div className="overflow-hidden">
