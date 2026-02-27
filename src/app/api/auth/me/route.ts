@@ -29,7 +29,34 @@ export async function GET(req: NextRequest) {
     .single();
 
   if (error || !profile) {
-    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    // Auto-create profile from auth user data (e.g. Discord OAuth users)
+    const meta = user.user_metadata || {};
+    const fullName =
+      meta.full_name ||
+      meta.name ||
+      meta.custom_claims?.global_name ||
+      user.email?.split("@")[0] ||
+      "User";
+
+    const newProfile = {
+      id: user.id,
+      email: user.email || "",
+      full_name: fullName,
+      role: meta.role || "requestor",
+      avatar_url: meta.avatar_url || meta.picture || null,
+    };
+
+    const { data: created, error: insertError } = await supabaseAdmin
+      .from("profiles")
+      .upsert(newProfile, { onConflict: "id" })
+      .select("*")
+      .single();
+
+    if (insertError || !created) {
+      return NextResponse.json({ error: "Could not create profile" }, { status: 500 });
+    }
+
+    return NextResponse.json(created);
   }
 
   return NextResponse.json(profile);
