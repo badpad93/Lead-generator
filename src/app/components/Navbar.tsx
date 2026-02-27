@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User } from "lucide-react";
+import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -101,6 +101,8 @@ export default function Navbar() {
     router.push("/");
   }
 
+  const isAdmin = profile?.email?.toLowerCase() === "contact@bytebitevending.com";
+
   const initials = profile?.full_name
     ?.split(" ")
     .map((w) => w[0])
@@ -175,6 +177,16 @@ export default function Navbar() {
                     <User className="h-4 w-4 text-black-primary/50" />
                     Profile
                   </Link>
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-green-primary transition-colors hover:bg-green-50"
+                    >
+                      <Shield className="h-4 w-4" />
+                      Admin Panel
+                    </Link>
+                  )}
                   <hr className="my-1 border-gray-100" />
                   <button
                     type="button"
@@ -307,6 +319,21 @@ export default function Navbar() {
                     <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
                 </li>
+                {isAdmin && (
+                  <li>
+                    <Link
+                      href="/admin"
+                      onClick={() => setMobileOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-green-primary transition-colors hover:bg-green-50"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Admin Panel
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                    </Link>
+                  </li>
+                )}
               </>
             )}
           </ul>
