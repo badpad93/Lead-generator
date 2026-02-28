@@ -7,13 +7,10 @@ import { createServerClient } from "@supabase/ssr";
  */
 const PROTECTED_PATHS = [
   "/dashboard",
-  "/browse-requests",
-  "/browse-operators",
   "/post-request",
   "/listings/new",
   "/messages",
-  "/requests",
-  "/operators",
+  "/admin",
 ];
 
 export async function middleware(req: NextRequest) {
@@ -70,12 +67,9 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     "/dashboard/:path*",
-    "/browse-requests/:path*",
-    "/browse-operators/:path*",
     "/post-request/:path*",
     "/listings/new/:path*",
     "/messages/:path*",
-    "/requests/:path*",
-    "/operators/:path*",
+    "/admin/:path*",
   ],
 };
