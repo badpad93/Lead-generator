@@ -94,8 +94,12 @@ export default function NewListingPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        setSubmitError(typeof data.error === "string" ? data.error : "Something went wrong.");
+        try {
+          const data = await res.json();
+          setSubmitError(typeof data.error === "string" ? data.error : "Something went wrong.");
+        } catch {
+          setSubmitError("Something went wrong.");
+        }
         return;
       }
 

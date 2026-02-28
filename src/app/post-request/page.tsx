@@ -74,15 +74,15 @@ const MACHINE_TYPES = [
 ] as const;
 
 const CONTACT_PREFERENCES = [
-  { value: "platform", label: "Platform Messages", icon: MessageSquare },
+  { value: "platform_message", label: "Platform Messages", icon: MessageSquare },
   { value: "email", label: "Email", icon: Mail },
   { value: "phone", label: "Phone", icon: Phone },
 ] as const;
 
 const URGENCY_OPTIONS = [
   { value: "flexible", label: "Flexible", description: "No rush", icon: Clock },
-  { value: "1_month", label: "Within 1 Month", description: "Moderate", icon: CalendarClock },
-  { value: "2_weeks", label: "Within 2 Weeks", description: "Soon", icon: AlertCircle },
+  { value: "within_1_month", label: "Within 1 Month", description: "Moderate", icon: CalendarClock },
+  { value: "within_2_weeks", label: "Within 2 Weeks", description: "Soon", icon: AlertCircle },
   { value: "asap", label: "ASAP", description: "Urgent", icon: Rocket },
 ] as const;
 
@@ -92,6 +92,34 @@ const STEPS = [
   { label: "Terms", icon: FileText },
   { label: "Review", icon: CheckCircle2 },
 ] as const;
+
+/** Map display location type to DB enum value */
+const LOCATION_TYPE_MAP: Record<string, string> = {
+  "Office/Corporate": "office",
+  "Apartment/Residential": "apartment",
+  "Gym/Fitness Center": "gym",
+  "School/University": "school",
+  "Hospital/Medical": "hospital",
+  "Hotel/Hospitality": "hotel",
+  "Warehouse/Industrial": "warehouse",
+  "Retail/Shopping": "retail",
+  "Government/Public": "government",
+  "Other": "other",
+};
+
+/** Map display machine type label to DB enum value */
+const MACHINE_TYPE_MAP: Record<string, string> = {
+  "Snack": "snack",
+  "Beverage/Soda": "beverage",
+  "Combo": "combo",
+  "Healthy/Organic": "healthy",
+  "Coffee/Hot Drinks": "coffee",
+  "Frozen/Ice Cream": "frozen",
+  "Fresh Food/Meals": "fresh_food",
+  "Personal Care/PPE": "personal_care",
+  "Electronics/Accessories": "electronics",
+  "Custom/Specialty": "custom",
+};
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -129,7 +157,7 @@ const initialFormData: FormData = {
   additionalNotes: "",
   commissionOffered: false,
   commissionNotes: "",
-  contactPreference: "platform",
+  contactPreference: "platform_message",
   urgency: "flexible",
   makePublic: true,
 };
@@ -236,6 +264,15 @@ export default function PostRequestPage() {
         return;
       }
 
+      // Map form display values to API enum values
+      const locationType = LOCATION_TYPE_MAP[formData.locationType] || formData.locationType;
+      const machineTypesWanted = formData.machineTypes.map(
+        (mt) => MACHINE_TYPE_MAP[mt] || mt
+      );
+
+      // Generate a title from form data
+      const title = `${formData.locationType} — ${formData.locationName}`;
+
       const res = await fetch("/api/requests", {
         method: "POST",
         headers: {
@@ -243,30 +280,45 @@ export default function PostRequestPage() {
           Authorization: `Bearer ${currentToken}`,
         },
         body: JSON.stringify({
+          title,
+          description: formData.additionalNotes || undefined,
           location_name: formData.locationName,
-          address: formData.address,
+          address: formData.address || undefined,
           city: formData.city,
           state: formData.state,
-          zip: formData.zip,
-          location_type: formData.locationType,
-          machine_types: formData.machineTypes,
-          daily_foot_traffic: formData.dailyFootTraffic ? Number(formData.dailyFootTraffic) : null,
-          additional_notes: formData.additionalNotes,
+          zip: formData.zip || undefined,
+          location_type: locationType,
+          machine_types_wanted: machineTypesWanted,
+          estimated_daily_traffic: formData.dailyFootTraffic ? Number(formData.dailyFootTraffic) : undefined,
           commission_offered: formData.commissionOffered,
-          commission_notes: formData.commissionNotes,
+          commission_notes: formData.commissionNotes || undefined,
           contact_preference: formData.contactPreference,
           urgency: formData.urgency,
-          make_public: formData.makePublic,
+          is_public: formData.makePublic,
         }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        setSubmitError(data.error || "Something went wrong. Please try again.");
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          if (typeof data.error === "string") {
+            setSubmitError(data.error);
+          } else if (data.error && typeof data.error === "object") {
+            // Zod field errors — extract first message
+            const firstField = Object.keys(data.error)[0];
+            const msgs = data.error[firstField];
+            setSubmitError(Array.isArray(msgs) ? msgs[0] : "Validation error. Please check your inputs.");
+          } else {
+            setSubmitError("Something went wrong. Please try again.");
+          }
+        } catch {
+          setSubmitError(text || "Something went wrong. Please try again.");
+        }
         return;
       }
 
+      const data = await res.json();
       setRequestId(data.id || data.request_id || "NEW");
       setSubmitted(true);
     } catch {
