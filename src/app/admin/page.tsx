@@ -35,6 +35,9 @@ import type { Profile, VendingRequest, OperatorListing } from "@/lib/types";
 
 type Tab = "users" | "operators" | "locations" | "routes";
 
+const inputClass =
+  "w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary";
+
 /* ------------------------------------------------------------------ */
 /*  Shared helpers                                                     */
 /* ------------------------------------------------------------------ */
@@ -1114,9 +1117,14 @@ function OperatorForm({
         body: JSON.stringify(form),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          setError(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
+        } catch {
+          setError(text || `Error ${res.status}`);
+        }
         return;
       }
 
@@ -1154,6 +1162,7 @@ function OperatorForm({
           onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
           placeholder="e.g. Full-service vending operator in Denver metro"
           required
+          className={inputClass}
         />
       </div>
       <div>
@@ -1163,6 +1172,7 @@ function OperatorForm({
           value={form.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           placeholder="Describe the operator's services..."
+          className={inputClass}
         />
       </div>
       <ChipSelect
@@ -1180,6 +1190,7 @@ function OperatorForm({
             max={1000}
             value={form.machine_count_available}
             onChange={(e) => setForm((f) => ({ ...f, machine_count_available: parseInt(e.target.value) || 1 }))}
+            className={inputClass}
           />
         </div>
         <div>
@@ -1190,6 +1201,7 @@ function OperatorForm({
             max={500}
             value={form.service_radius_miles}
             onChange={(e) => setForm((f) => ({ ...f, service_radius_miles: parseInt(e.target.value) || 50 }))}
+            className={inputClass}
           />
         </div>
       </div>
@@ -1277,9 +1289,14 @@ function LocationForm({
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          setError(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
+        } catch {
+          setError(text || `Error ${res.status}`);
+        }
         return;
       }
 
@@ -1323,6 +1340,7 @@ function LocationForm({
           onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
           placeholder="e.g. Snack machine needed for office lobby"
           required
+          className={inputClass}
         />
       </div>
       <div>
@@ -1333,6 +1351,7 @@ function LocationForm({
           onChange={(e) => setForm((f) => ({ ...f, location_name: e.target.value }))}
           placeholder="e.g. Apex Office Park Building A"
           required
+          className={inputClass}
         />
       </div>
       <div>
@@ -1342,6 +1361,7 @@ function LocationForm({
           value={form.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           placeholder="Describe the location and what you're looking for..."
+          className={inputClass}
         />
       </div>
       <div>
@@ -1351,6 +1371,7 @@ function LocationForm({
           value={form.address}
           onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
           placeholder="123 Main St"
+          className={inputClass}
         />
       </div>
       <div className="grid grid-cols-3 gap-4">
@@ -1361,6 +1382,7 @@ function LocationForm({
             value={form.city}
             onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
             required
+            className={inputClass}
           />
         </div>
         <div>
@@ -1369,6 +1391,7 @@ function LocationForm({
             value={form.state}
             onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
             required
+            className={inputClass}
           >
             <option value="">Select</option>
             {US_STATES.map((st) => (
@@ -1383,6 +1406,7 @@ function LocationForm({
             value={form.zip}
             onChange={(e) => setForm((f) => ({ ...f, zip: e.target.value }))}
             maxLength={10}
+            className={inputClass}
           />
         </div>
       </div>
@@ -1391,6 +1415,7 @@ function LocationForm({
         <select
           value={form.location_type}
           onChange={(e) => setForm((f) => ({ ...f, location_type: e.target.value }))}
+          className={inputClass}
         >
           {LOCATION_TYPES.map((lt) => (
             <option key={lt.value} value={lt.value}>{lt.label}</option>
@@ -1412,6 +1437,7 @@ function LocationForm({
             max={100000}
             value={form.estimated_daily_traffic}
             onChange={(e) => setForm((f) => ({ ...f, estimated_daily_traffic: parseInt(e.target.value) || 0 }))}
+            className={inputClass}
           />
         </div>
         <div>
@@ -1419,6 +1445,7 @@ function LocationForm({
           <select
             value={form.urgency}
             onChange={(e) => setForm((f) => ({ ...f, urgency: e.target.value }))}
+            className={inputClass}
           >
             {URGENCY_OPTIONS.map((u) => (
               <option key={u.value} value={u.value}>{u.label}</option>
@@ -1504,9 +1531,14 @@ function RouteForm({
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          setError(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
+        } catch {
+          setError(text || `Error ${res.status}`);
+        }
         return;
       }
 
@@ -1550,6 +1582,7 @@ function RouteForm({
           onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
           placeholder="e.g. 15-machine Denver metro route — $8k/mo revenue"
           required
+          className={inputClass}
         />
       </div>
       <div>
@@ -1559,6 +1592,7 @@ function RouteForm({
           value={form.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           placeholder="Describe the route, locations, revenue history, reason for selling..."
+          className={inputClass}
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -1569,6 +1603,7 @@ function RouteForm({
             value={form.city}
             onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
             required
+            className={inputClass}
           />
         </div>
         <div>
@@ -1577,6 +1612,7 @@ function RouteForm({
             value={form.state}
             onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
             required
+            className={inputClass}
           >
             <option value="">Select</option>
             {US_STATES.map((st) => (
@@ -1593,6 +1629,7 @@ function RouteForm({
             min={1}
             value={form.num_machines}
             onChange={(e) => setForm((f) => ({ ...f, num_machines: parseInt(e.target.value) || 1 }))}
+            className={inputClass}
           />
         </div>
         <div>
@@ -1602,6 +1639,7 @@ function RouteForm({
             min={1}
             value={form.num_locations}
             onChange={(e) => setForm((f) => ({ ...f, num_locations: parseInt(e.target.value) || 1 }))}
+            className={inputClass}
           />
         </div>
       </div>
@@ -1613,6 +1651,7 @@ function RouteForm({
             min={0}
             value={form.monthly_revenue}
             onChange={(e) => setForm((f) => ({ ...f, monthly_revenue: parseFloat(e.target.value) || 0 }))}
+            className={inputClass}
           />
         </div>
         <div>
@@ -1622,6 +1661,7 @@ function RouteForm({
             min={0}
             value={form.asking_price}
             onChange={(e) => setForm((f) => ({ ...f, asking_price: parseFloat(e.target.value) || 0 }))}
+            className={inputClass}
           />
         </div>
       </div>
@@ -1671,6 +1711,7 @@ function RouteForm({
             value={form.contact_email}
             onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
             placeholder="seller@example.com"
+            className={inputClass}
           />
         </div>
         <div>
@@ -1680,6 +1721,7 @@ function RouteForm({
             value={form.contact_phone}
             onChange={(e) => setForm((f) => ({ ...f, contact_phone: e.target.value }))}
             placeholder="(555) 123-4567"
+            className={inputClass}
           />
         </div>
       </div>
