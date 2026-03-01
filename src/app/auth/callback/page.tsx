@@ -43,7 +43,7 @@ export default function AuthCallbackPage() {
 
             // Redirect to the stored path (e.g. user tried to visit
             // /browse-requests before logging in) or fall back to /dashboard.
-            const redirectTo = consumeRedirectAfterLogin() || "/browse-requests";
+            const redirectTo = consumeRedirectAfterLogin() || "/dashboard";
             window.location.href = redirectTo;
           }
         }
