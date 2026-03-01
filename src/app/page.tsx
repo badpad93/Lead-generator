@@ -154,7 +154,7 @@ export default function HomePage() {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        router.replace("/browse-requests");
+        router.replace("/dashboard");
       } else {
         setAuthChecked(true);
       }
