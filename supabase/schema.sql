@@ -270,6 +270,45 @@ create policy "Operators can unsave requests"
   on public.saved_requests for delete using (auth.uid() = operator_id);
 
 -- ============================================================
+-- ROUTE LISTINGS (Routes For Sale)
+-- ============================================================
+create table public.route_listings (
+  id uuid primary key default uuid_generate_v4(),
+  created_by uuid not null references public.profiles(id) on delete cascade,
+  title text not null,
+  description text,
+  city text not null,
+  state text not null,
+  num_machines integer not null,
+  num_locations integer not null,
+  monthly_revenue numeric,
+  asking_price numeric,
+  machine_types text[] not null default '{}',
+  location_types text[] not null default '{}',
+  includes_equipment boolean not null default true,
+  includes_contracts boolean not null default true,
+  contact_email text,
+  contact_phone text,
+  status text not null default 'active' check (status in ('active', 'sold', 'pending')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.route_listings enable row level security;
+
+create policy "Route listings viewable by everyone"
+  on public.route_listings for select using (true);
+
+create policy "Authenticated users can create route listings"
+  on public.route_listings for insert with check (auth.uid() = created_by);
+
+create policy "Owners can update own route listings"
+  on public.route_listings for update using (auth.uid() = created_by);
+
+create policy "Owners can delete own route listings"
+  on public.route_listings for delete using (auth.uid() = created_by);
+
+-- ============================================================
 -- INDEXES
 -- ============================================================
 create index idx_requests_status on public.vending_requests(status);
@@ -283,6 +322,8 @@ create index idx_messages_recipient on public.messages(recipient_id);
 create index idx_messages_sender on public.messages(sender_id);
 create index idx_reviews_reviewee on public.reviews(reviewee_id);
 create index idx_saved_operator on public.saved_requests(operator_id);
+create index idx_route_listings_created_by on public.route_listings(created_by);
+create index idx_route_listings_status on public.route_listings(status);
 
 -- ============================================================
 -- UPDATED_AT TRIGGER
@@ -305,6 +346,10 @@ create trigger set_operator_listings_updated_at
 
 create trigger set_matches_updated_at
   before update on public.matches
+  for each row execute function public.set_updated_at();
+
+create trigger set_route_listings_updated_at
+  before update on public.route_listings
   for each row execute function public.set_updated_at();
 
 -- Enable Realtime on messages

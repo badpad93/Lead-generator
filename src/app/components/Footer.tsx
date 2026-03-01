@@ -12,9 +12,8 @@ const footerColumns = [
   {
     title: "For Operators",
     links: [
-      { label: "Post Listing", href: "/post-listing" },
+      { label: "Post Listing", href: "/listings/new" },
       { label: "Dashboard", href: "/dashboard" },
-      { label: "Pricing", href: "/pricing" },
     ],
   },
   {
@@ -25,12 +24,10 @@ const footerColumns = [
     ],
   },
   {
-    title: "Company",
+    title: "Resources",
     links: [
-      { label: "About", href: "/about" },
-      { label: "Contact", href: "/contact" },
-      { label: "Terms of Service", href: "/terms" },
-      { label: "Privacy Policy", href: "/privacy" },
+      { label: "How It Works", href: "/how-it-works" },
+      { label: "Sign Up", href: "/signup" },
     ],
   },
 ];
