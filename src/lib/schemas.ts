@@ -63,16 +63,8 @@ export const createRouteSchema = z.object({
   status: z.enum(["active", "sold", "pending"]).default("active"),
 });
 
-export const sendMessageSchema = z.object({
-  recipient_id: z.string().uuid(),
-  match_id: z.string().uuid().optional(),
-  subject: z.string().max(200).optional(),
-  body: z.string().min(1, "Message cannot be empty").max(5000),
-});
-
 export type SignupInput = z.infer<typeof signupSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateRequestInput = z.infer<typeof createRequestSchema>;
 export type CreateListingInput = z.infer<typeof createListingSchema>;
 export type CreateRouteInput = z.infer<typeof createRouteSchema>;
-export type SendMessageInput = z.infer<typeof sendMessageSchema>;

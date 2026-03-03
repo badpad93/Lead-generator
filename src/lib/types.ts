@@ -112,20 +112,6 @@ export interface Match {
   profiles?: Profile;
 }
 
-export interface Message {
-  id: string;
-  sender_id: string;
-  recipient_id: string;
-  match_id: string | null;
-  subject: string | null;
-  body: string;
-  read: boolean;
-  created_at: string;
-  // Joined
-  sender?: Profile;
-  recipient?: Profile;
-}
-
 export interface Review {
   id: string;
   reviewer_id: string;
@@ -177,7 +163,6 @@ export interface Database {
       vending_requests: { Row: VendingRequest; Insert: Omit<VendingRequest, "id" | "created_at" | "updated_at" | "views" | "profiles">; Update: Partial<VendingRequest> };
       operator_listings: { Row: OperatorListing; Insert: Omit<OperatorListing, "id" | "created_at" | "updated_at" | "views" | "profiles">; Update: Partial<OperatorListing> };
       matches: { Row: Match; Insert: Omit<Match, "id" | "created_at" | "updated_at">; Update: Partial<Match> };
-      messages: { Row: Message; Insert: Omit<Message, "id" | "created_at" | "sender" | "recipient">; Update: Partial<Message> };
       reviews: { Row: Review; Insert: Omit<Review, "id" | "created_at" | "reviewer">; Update: Partial<Review> };
       saved_requests: { Row: SavedRequest; Insert: Omit<SavedRequest, "id" | "created_at">; Update: Partial<SavedRequest> };
     };
