@@ -8,6 +8,7 @@ import { createServerClient } from "@supabase/ssr";
 const PROTECTED_PATHS = [
   "/dashboard",
   "/post-request",
+  "/post-route",
   "/listings/new",
   "/routes-for-sale",
   "/admin",
@@ -68,6 +69,7 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/post-request/:path*",
+    "/post-route/:path*",
     "/listings/new/:path*",
     "/routes-for-sale/:path*",
     "/admin/:path*",

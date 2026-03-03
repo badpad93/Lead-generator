@@ -21,6 +21,7 @@ import {
   Clock,
   HandCoins,
   Settings,
+  Route,
 } from "lucide-react";
 import type {
   Profile,
@@ -383,6 +384,23 @@ export default function DashboardPage() {
               </Link>
             </>
           )}
+          <Link
+            href="/post-route"
+            className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 transition-colors group-hover:bg-amber-600 group-hover:text-white">
+              <Route className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="font-semibold text-black-primary">
+                Sell a Route
+              </p>
+              <p className="text-sm text-black-primary/50">
+                List your vending route or business for sale
+              </p>
+            </div>
+            <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-600" />
+          </Link>
         </div>
 
         {/* ------- RECENT REQUESTS ------- */}

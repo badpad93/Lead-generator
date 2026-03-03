@@ -13,6 +13,7 @@ import {
   Building2,
   BadgeCheck,
   Star,
+  Plus,
 } from "lucide-react";
 import type { RouteListing } from "@/lib/types";
 import { MACHINE_TYPES, LOCATION_TYPES, US_STATES, US_STATE_NAMES } from "@/lib/types";
@@ -223,6 +224,15 @@ export default function RoutesForSalePage() {
             <p className="mx-auto mt-3 max-w-2xl text-base text-gray-600 sm:text-lg">
               Browse vending routes and businesses available for purchase
             </p>
+            <div className="mt-5">
+              <Link
+                href="/post-route"
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+              >
+                <Plus className="h-4 w-4" />
+                Post a Route for Sale
+              </Link>
+            </div>
           </div>
 
           {/* Search */}
