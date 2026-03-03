@@ -1,7 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { createRouteSchema } from "@/lib/schemas";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 const PAGE_SIZE = 12;
+
+/** POST /api/routes — authenticated user creates a route listing */
+export async function POST(req: NextRequest) {
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const parsed = createRouteSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("route_listings")
+      .insert({
+        created_by: userId,
+        ...parsed.data,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ id: data.id }, { status: 201 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
 
 /** GET /api/routes — list active route listings with filters */
 export async function GET(req: NextRequest) {
