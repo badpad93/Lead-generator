@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield } from "lucide-react";
+import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -220,6 +220,14 @@ export default function Navbar() {
                     <User className="h-4 w-4 text-black-primary/50" />
                     Profile
                   </Link>
+                  <Link
+                    href="/routes-for-sale"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                  >
+                    <Route className="h-4 w-4 text-black-primary/50" />
+                    Routes for Sale
+                  </Link>
                   {isAdmin && (
                     <Link
                       href="/admin"
@@ -345,6 +353,19 @@ export default function Navbar() {
                     <span className="flex items-center gap-2">
                       <LayoutDashboard className="h-4 w-4" />
                       Dashboard
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/routes-for-sale"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Route className="h-4 w-4" />
+                      Routes for Sale
                     </span>
                     <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
