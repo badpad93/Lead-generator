@@ -349,19 +349,6 @@ export default function Navbar() {
                     <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
                 </li>
-                <li>
-                  <Link
-                    href="/messages"
-                    onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
-                  >
-                    <span className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Messages
-                    </span>
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
-                  </Link>
-                </li>
                 {isAdmin && (
                   <li>
                     <Link

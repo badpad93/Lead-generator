@@ -183,33 +183,6 @@ create policy "Involved parties can update matches"
   );
 
 -- ============================================================
--- MESSAGES
--- ============================================================
-create table public.messages (
-  id uuid primary key default uuid_generate_v4(),
-  sender_id uuid not null references public.profiles(id) on delete cascade,
-  recipient_id uuid not null references public.profiles(id) on delete cascade,
-  match_id uuid references public.matches(id) on delete set null,
-  subject text,
-  body text not null,
-  read boolean not null default false,
-  created_at timestamptz not null default now()
-);
-
-alter table public.messages enable row level security;
-
-create policy "Users can view own messages"
-  on public.messages for select using (
-    auth.uid() = sender_id or auth.uid() = recipient_id
-  );
-
-create policy "Authenticated users can send messages"
-  on public.messages for insert with check (auth.uid() = sender_id);
-
-create policy "Recipients can mark messages read"
-  on public.messages for update using (auth.uid() = recipient_id);
-
--- ============================================================
 -- REVIEWS
 -- ============================================================
 create table public.reviews (
@@ -318,8 +291,6 @@ create index idx_listings_operator on public.operator_listings(operator_id);
 create index idx_listings_status on public.operator_listings(status);
 create index idx_matches_request on public.matches(request_id);
 create index idx_matches_operator on public.matches(operator_id);
-create index idx_messages_recipient on public.messages(recipient_id);
-create index idx_messages_sender on public.messages(sender_id);
 create index idx_reviews_reviewee on public.reviews(reviewee_id);
 create index idx_saved_operator on public.saved_requests(operator_id);
 create index idx_route_listings_created_by on public.route_listings(created_by);
@@ -352,5 +323,3 @@ create trigger set_route_listings_updated_at
   before update on public.route_listings
   for each row execute function public.set_updated_at();
 
--- Enable Realtime on messages
-alter publication supabase_realtime add table public.messages;

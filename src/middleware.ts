@@ -9,7 +9,6 @@ const PROTECTED_PATHS = [
   "/dashboard",
   "/post-request",
   "/listings/new",
-  "/messages",
   "/admin",
 ];
 
@@ -69,7 +68,6 @@ export const config = {
     "/dashboard/:path*",
     "/post-request/:path*",
     "/listings/new/:path*",
-    "/messages/:path*",
     "/admin/:path*",
   ],
 };

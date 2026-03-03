@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Search,
-  MessageSquare,
   Plus,
   ChevronRight,
   Loader2,
@@ -384,21 +383,6 @@ export default function DashboardPage() {
               </Link>
             </>
           )}
-          <Link
-            href="/messages"
-            className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
-          >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 transition-colors group-hover:bg-purple-600 group-hover:text-white">
-              <MessageSquare className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="font-semibold text-black-primary">Messages</p>
-              <p className="text-sm text-black-primary/50">
-                View your conversations
-              </p>
-            </div>
-            <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-purple-600" />
-          </Link>
         </div>
 
         {/* ------- RECENT REQUESTS ------- */}
