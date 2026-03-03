@@ -9,6 +9,7 @@ import type { Profile } from "@/lib/types";
 
 const navLinks = [
   { label: "Browse Requests", href: "/browse-requests" },
+  { label: "Routes for Sale", href: "/routes-for-sale" },
   { label: "Browse Operators", href: "/browse-operators" },
   { label: "How It Works", href: "/how-it-works" },
 ];
