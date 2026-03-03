@@ -603,17 +603,6 @@ export default function RequestDetailPage() {
                 Apply as Operator
               </button>
 
-              <button
-                type="button"
-                onClick={() =>
-                  alert("Sign up to send messages to requestors!")
-                }
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:bg-green-50 hover:border-green-primary/40"
-              >
-                <MessageSquare className="h-4 w-4" />
-                Send Message
-              </button>
-
               <div className="mt-5 pt-4 border-t border-gray-100 space-y-2">
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span>Status</span>

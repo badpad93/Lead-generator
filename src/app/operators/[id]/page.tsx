@@ -750,24 +750,10 @@ export default function OperatorProfilePage() {
             {/* Contact Card */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-24 animate-fade-in">
               <h3 className="text-lg font-bold text-black-primary">
-                Contact This Operator
+                Operator Details
               </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Reach out to discuss vending machine placement at your location.
-              </p>
 
-              <button
-                type="button"
-                onClick={() =>
-                  alert("Sign up to send messages to operators!")
-                }
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
-              >
-                <MessageSquare className="h-4 w-4" />
-                Send Message
-              </button>
-
-              <div className="mt-5 pt-4 border-t border-gray-100 space-y-3">
+              <div className="mt-4 space-y-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500">Rating</span>
                   <div className="flex items-center gap-1">
