@@ -41,6 +41,27 @@ export default function AuthCallbackPage() {
               }
             }
 
+            // Check subscription status before redirecting
+            let hasSubscription = false;
+            try {
+              const subRes = await fetch("/api/subscription", {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              });
+              if (subRes.ok) {
+                const subData = await subRes.json();
+                hasSubscription = !!subData.subscribed;
+              }
+            } catch {
+              // If check fails, let them through — webhook may not have fired yet
+              hasSubscription = false;
+            }
+
+            if (!hasSubscription) {
+              // New or unpaid user — send to pricing page
+              window.location.href = "/pricing";
+              return;
+            }
+
             // Redirect to the stored path (e.g. user tried to visit
             // /browse-requests before logging in) or fall back to /dashboard.
             const redirectTo = consumeRedirectAfterLogin() || "/dashboard";
