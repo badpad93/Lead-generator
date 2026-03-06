@@ -13,11 +13,13 @@ import {
 import MachineTypeBadge from "./MachineTypeBadge";
 import UrgencyBadge from "./UrgencyBadge";
 import LocationTypeIcon from "./LocationTypeIcon";
+import { BlurredText } from "./BlurredContent";
 
 interface RequestCardProps {
   request: VendingRequest;
   saved?: boolean;
   onSave?: () => void;
+  isSubscribed?: boolean;
 }
 
 function daysAgo(dateStr: string): string {
@@ -35,6 +37,7 @@ export default function RequestCard({
   request,
   saved = false,
   onSave,
+  isSubscribed = false,
 }: RequestCardProps) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-green-primary/5 group">
@@ -49,7 +52,8 @@ export default function RequestCard({
             <div className="flex items-center gap-1 mt-0.5 text-sm text-gray-500">
               <MapPin className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">
-                {request.city}, {request.state}
+                {isSubscribed ? `${request.city}, ` : ""}
+                {request.state}
               </span>
             </div>
           </div>

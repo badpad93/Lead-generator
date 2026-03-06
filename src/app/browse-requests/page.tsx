@@ -22,6 +22,7 @@ import {
   US_STATE_NAMES,
 } from "@/lib/types";
 import RequestCard from "../components/RequestCard";
+import { useSubscription } from "@/lib/useSubscription";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -254,6 +255,8 @@ function SkeletonCard() {
 // ---------------------------------------------------------------------------
 
 export default function BrowseRequestsPage() {
+  const { subscribed: isSubscribed } = useSubscription();
+
   // Data state
   const [requests, setRequests] = useState<VendingRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -644,6 +647,7 @@ export default function BrowseRequestsPage() {
                   request={req}
                   saved={false}
                   onSave={handleSave}
+                  isSubscribed={isSubscribed}
                 />
               ))}
             </div>

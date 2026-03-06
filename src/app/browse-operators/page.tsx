@@ -19,6 +19,7 @@ import {
 import type { Profile, MachineType, OperatorListing } from "@/lib/types";
 import { MACHINE_TYPES, US_STATES, US_STATE_NAMES } from "@/lib/types";
 import MachineTypeBadge from "../components/MachineTypeBadge";
+import { useSubscription } from "@/lib/useSubscription";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -269,10 +270,12 @@ function OperatorAvatar({
   name,
   avatarUrl,
   size = "md",
+  blurred = false,
 }: {
   name: string;
   avatarUrl: string | null;
   size?: "sm" | "md" | "lg";
+  blurred?: boolean;
 }) {
   const sizeClasses = {
     sm: "h-8 w-8 text-xs",
@@ -292,7 +295,7 @@ function OperatorAvatar({
       <img
         src={avatarUrl}
         alt={name}
-        className={`${sizeClasses[size]} rounded-full object-cover ring-2 ring-green-100`}
+        className={`${sizeClasses[size]} rounded-full object-cover ring-2 ring-green-100 ${blurred ? "blur-md" : ""}`}
       />
     );
   }
@@ -370,7 +373,7 @@ function InlineStarRating({
 }
 
 /** Operator card */
-function OperatorCard({ operator }: { operator: OperatorWithListings }) {
+function OperatorCard({ operator, isSubscribed = false }: { operator: OperatorWithListings; isSubscribed?: boolean }) {
   const machineTypes = operator.aggregated_machine_types ?? [];
   const cities = operator.aggregated_cities ?? [];
   const states = operator.aggregated_states ?? [];
@@ -378,7 +381,7 @@ function OperatorCard({ operator }: { operator: OperatorWithListings }) {
   const status = operator.aggregated_status ?? "available";
 
   const locationParts: string[] = [];
-  if (cities.length > 0) {
+  if (isSubscribed && cities.length > 0) {
     const displayCities = cities.slice(0, 3);
     locationParts.push(displayCities.join(", "));
     if (cities.length > 3) locationParts.push(`+${cities.length - 3} more`);
@@ -391,10 +394,10 @@ function OperatorCard({ operator }: { operator: OperatorWithListings }) {
     <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-green-primary/5 group">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <OperatorAvatar name={operator.full_name} avatarUrl={operator.avatar_url} />
+        <OperatorAvatar name={operator.full_name} avatarUrl={operator.avatar_url} blurred={!isSubscribed && !!operator.avatar_url} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <h3 className="font-semibold text-black-primary text-base leading-snug truncate">
+            <h3 className={`font-semibold text-black-primary text-base leading-snug truncate ${!isSubscribed ? "select-none blur-sm" : ""}`}>
               {operator.full_name}
             </h3>
             {operator.verified && (
@@ -406,11 +409,6 @@ function OperatorCard({ operator }: { operator: OperatorWithListings }) {
           )}
         </div>
         <StatusBadge status={status} />
-      </div>
-
-      {/* Star Rating */}
-      <div className="mt-2.5">
-        <InlineStarRating value={operator.rating} count={operator.review_count} />
       </div>
 
       {/* Machine Types */}
@@ -481,6 +479,8 @@ function OperatorCard({ operator }: { operator: OperatorWithListings }) {
 // ---------------------------------------------------------------------------
 
 export default function BrowseOperatorsPage() {
+  const { subscribed: isSubscribed } = useSubscription();
+
   // Data state
   const [operators, setOperators] = useState<OperatorWithListings[]>([]);
   const [loading, setLoading] = useState(true);
@@ -872,7 +872,7 @@ export default function BrowseOperatorsPage() {
           <>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {operators.map((op) => (
-                <OperatorCard key={op.id} operator={op} />
+                <OperatorCard key={op.id} operator={op} isSubscribed={isSubscribed} />
               ))}
             </div>
 
