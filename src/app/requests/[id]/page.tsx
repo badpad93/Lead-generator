@@ -658,7 +658,7 @@ export default function RequestDetailPage() {
               </h4>
               <p className="text-xs text-gray-600 leading-relaxed">
                 VendHub connects locations that need vending machines with
-                operators ready to serve. Sign up for free and start matching
+                operators ready to serve. Sign up and start matching
                 with the right partners.
               </p>
               <Link

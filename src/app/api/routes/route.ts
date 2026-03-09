@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       .insert({
         created_by: userId,
         ...parsed.data,
+        status: "pending", // All submissions require admin approval
       })
       .select("id")
       .single();

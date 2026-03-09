@@ -4,10 +4,23 @@ import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 /** GET /api/operators/[id] — get an operator's profile with listings */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  // Determine requester role for data access control
+  const requesterId = await getUserIdFromRequest(req);
+  let requesterRole: string | null = null;
+  if (requesterId) {
+    const { data: requesterProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", requesterId)
+      .single();
+    requesterRole = requesterProfile?.role ?? null;
+  }
+  const isLocationAccount = requesterRole === "location_manager" || requesterRole === "requestor";
 
   const { data: profile, error } = await supabaseAdmin
     .from("profiles")
@@ -18,6 +31,23 @@ export async function GET(
 
   if (error || !profile) {
     return NextResponse.json({ error: "Operator not found" }, { status: 404 });
+  }
+
+  // Strip sensitive operator data for location accounts (only show zip code)
+  let safeProfile = profile;
+  if (isLocationAccount) {
+    safeProfile = {
+      ...profile,
+      full_name: "Operator",
+      avatar_url: null,
+      company_name: null,
+      email: null,
+      phone: null,
+      website: null,
+      bio: null,
+      city: null,
+      // Keep: id, zip, state, verified, rating, review_count, role, created_at
+    };
   }
 
   // Get their listings
@@ -48,7 +78,7 @@ export async function GET(
     .eq("status", "installed");
 
   return NextResponse.json({
-    profile,
+    profile: safeProfile,
     listings: listings || [],
     reviews: reviews || [],
     stats: {

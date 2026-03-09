@@ -694,7 +694,7 @@ export default function BrowseRequestsPage() {
               Have a location that needs a vending machine?
             </h2>
             <p className="mx-auto mt-2 max-w-lg text-sm text-gray-600">
-              Post your request for free and let qualified operators come to you.
+              Post your request and let qualified operators come to you.
             </p>
             <Link
               href="/post-request"

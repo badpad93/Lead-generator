@@ -5,6 +5,37 @@ import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 const PAGE_SIZE = 12;
 
+/** Determine the role of the requesting user (if authenticated) */
+async function getRequesterRole(req: NextRequest): Promise<string | null> {
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) return null;
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single();
+  return data?.role ?? null;
+}
+
+/**
+ * Strip location request data for operator accounts.
+ * Operators can only see business industry (location_type) and zip code.
+ */
+function stripRequestForOperators(request: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...request,
+    location_name: "Location",
+    address: null,
+    city: null,
+    description: null,
+    contact_preference: null,
+    profiles: null,
+    // Keep: id, title, zip, state, location_type, machine_types_wanted,
+    //       estimated_daily_traffic, commission_offered, commission_notes,
+    //       urgency, status, views, created_at, updated_at, is_public
+  };
+}
+
 /** GET /api/requests — list vending requests with filters */
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
@@ -19,6 +50,10 @@ export async function GET(req: NextRequest) {
   const mine = params.get("mine");
   const saved = params.get("saved");
   const userId = params.get("user_id");
+
+  // Determine if requester is an operator
+  const requesterRole = await getRequesterRole(req);
+  const isOperator = requesterRole === "operator";
 
   let query = supabaseAdmin
     .from("vending_requests")
@@ -44,7 +79,12 @@ export async function GET(req: NextRequest) {
   }
 
   if (search) {
-    query = query.or(`city.ilike.%${search}%,state.ilike.%${search}%,title.ilike.%${search}%,location_name.ilike.%${search}%`);
+    if (isOperator) {
+      // Operators can only search by state/zip
+      query = query.or(`state.ilike.%${search}%,zip.ilike.%${search}%,title.ilike.%${search}%`);
+    } else {
+      query = query.or(`city.ilike.%${search}%,state.ilike.%${search}%,title.ilike.%${search}%,location_name.ilike.%${search}%`);
+    }
   }
   if (locationType) query = query.eq("location_type", locationType);
   if (state) query = query.eq("state", state);
@@ -67,7 +107,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ requests: data || [], total: count || 0 });
+  // Strip location data for operator accounts
+  let requests = data || [];
+  if (isOperator) {
+    requests = requests.map((r: Record<string, unknown>) => stripRequestForOperators(r));
+  }
+
+  return NextResponse.json({ requests, total: count || 0 });
 }
 
 /** POST /api/requests — create a new vending request */
@@ -93,6 +139,7 @@ export async function POST(req: NextRequest) {
       .insert({
         created_by: userId,
         ...parsed.data,
+        is_public: false, // All submissions require admin approval before going public
       })
       .select("id")
       .single();

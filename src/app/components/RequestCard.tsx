@@ -52,7 +52,8 @@ export default function RequestCard({
             <div className="flex items-center gap-1 mt-0.5 text-sm text-gray-500">
               <MapPin className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">
-                {isSubscribed ? `${request.city}, ` : ""}
+                {request.city ? `${request.city}, ` : ""}
+                {request.zip ? `${request.zip}, ` : ""}
                 {request.state}
               </span>
             </div>

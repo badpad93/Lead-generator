@@ -1,12 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 /** GET /api/requests/[id] — get a single vending request */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  // Determine requester role for data access control
+  const requesterId = await getUserIdFromRequest(req);
+  let requesterRole: string | null = null;
+  if (requesterId) {
+    const { data: requesterProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", requesterId)
+      .single();
+    requesterRole = requesterProfile?.role ?? null;
+  }
+  const isOperator = requesterRole === "operator";
 
   // Increment view count (best-effort)
   try {
@@ -22,6 +36,19 @@ export async function GET(
 
   if (error || !data) {
     return NextResponse.json({ error: "Request not found" }, { status: 404 });
+  }
+
+  // Strip location data for operator accounts (only show business industry + zip)
+  if (isOperator) {
+    return NextResponse.json({
+      ...data,
+      location_name: "Location",
+      address: null,
+      city: null,
+      description: null,
+      contact_preference: null,
+      profiles: null,
+    });
   }
 
   return NextResponse.json(data);

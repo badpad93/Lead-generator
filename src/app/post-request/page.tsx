@@ -357,9 +357,9 @@ export default function PostRequestPage() {
             )}
           </div>
 
-          <h1 className="text-2xl font-bold text-black-primary mb-2">Your request has been posted!</h1>
+          <h1 className="text-2xl font-bold text-black-primary mb-2">Your request has been submitted!</h1>
           <p className="text-black-primary/60 mb-2">
-            Operators in your area will be notified and can respond to your request.
+            Your request is pending admin approval. Once approved, operators in your area will be notified and can respond.
           </p>
           {requestId && (
             <p className="text-sm text-black-primary/40 mb-8">
