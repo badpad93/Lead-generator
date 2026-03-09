@@ -14,6 +14,8 @@ import {
   Globe,
   Phone,
   Mail,
+  Camera,
+  X,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import { US_STATES } from "@/lib/types";
@@ -25,6 +27,9 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [form, setForm] = useState({
     full_name: "",
@@ -58,6 +63,7 @@ export default function ProfilePage() {
         }
         const data: Profile = await res.json();
         setProfile(data);
+        setAvatarPreview(data.avatar_url || null);
         setForm({
           full_name: data.full_name || "",
           company_name: data.company_name || "",
@@ -79,6 +85,61 @@ export default function ProfilePage() {
     loadProfile();
   }, [router]);
 
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type and size
+    if (!file.type.startsWith("image/")) {
+      setToast({ message: "Please select an image file.", type: "error" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setToast({ message: "Image must be less than 5MB.", type: "error" });
+      return;
+    }
+
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function removeAvatar() {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+  }
+
+  async function uploadAvatar(session: { access_token: string }): Promise<string | null> {
+    if (!avatarFile || !profile) return profile?.avatar_url || null;
+
+    setUploadingAvatar(true);
+    try {
+      const supabase = createBrowserClient();
+      const ext = avatarFile.name.split(".").pop() || "jpg";
+      const filePath = `avatars/${profile.id}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, avatarFile, { upsert: true });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      return urlData.publicUrl;
+    } catch {
+      setToast({ message: "Failed to upload avatar.", type: "error" });
+      return profile?.avatar_url || null;
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!profile) return;
@@ -89,6 +150,15 @@ export default function ProfilePage() {
       const supabase = createBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
+
+      // Upload avatar if a new file was selected
+      let avatarUrl = profile.avatar_url;
+      if (avatarFile) {
+        avatarUrl = await uploadAvatar(session);
+      } else if (avatarPreview === null && profile.avatar_url) {
+        // Avatar was removed
+        avatarUrl = null;
+      }
 
       const res = await fetch("/api/auth/me", {
         method: "PATCH",
@@ -106,6 +176,7 @@ export default function ProfilePage() {
           state: form.state || null,
           zip: form.zip || null,
           role: form.role,
+          avatar_url: avatarUrl,
         }),
       });
 
@@ -117,6 +188,8 @@ export default function ProfilePage() {
 
       const updated = await res.json();
       setProfile(updated);
+      setAvatarFile(null);
+      setAvatarPreview(updated.avatar_url || null);
       setToast({ message: "Profile saved successfully!", type: "success" });
       setTimeout(() => setToast(null), 3000);
     } catch {
@@ -166,6 +239,58 @@ export default function ProfilePage() {
 
       <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
         <form onSubmit={handleSave} className="space-y-6">
+          {/* Profile Photo */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-lg font-semibold text-black-primary">
+              Profile Photo
+            </h2>
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                {avatarPreview ? (
+                  <img
+                    src={avatarPreview}
+                    alt="Profile"
+                    className="h-20 w-20 rounded-full object-cover ring-4 ring-green-100"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-primary text-2xl font-bold text-white ring-4 ring-green-100">
+                    {(form.full_name || "U")
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2)}
+                  </div>
+                )}
+                {avatarPreview && (
+                  <button
+                    type="button"
+                    onClick={removeAvatar}
+                    className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
+                    title="Remove photo"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <div>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50">
+                  <Camera className="h-4 w-4 text-black-primary/40" />
+                  {avatarPreview ? "Change Photo" : "Upload Photo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                  />
+                </label>
+                <p className="mt-1.5 text-xs text-gray-400">
+                  JPG, PNG, or GIF. Max 5MB.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Personal Info */}
           <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-lg font-semibold text-black-primary">

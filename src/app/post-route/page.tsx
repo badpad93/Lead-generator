@@ -20,6 +20,7 @@ export default function PostRoutePage() {
   const [token, setToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -103,12 +104,34 @@ export default function PostRoutePage() {
         return;
       }
 
-      router.push("/routes-for-sale");
+      setSubmitted(true);
     } catch {
       setSubmitError("Network error. Please check your connection.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-[calc(100vh-160px)] px-4 py-10 sm:py-14 flex items-center justify-center">
+        <div className="mx-auto max-w-md text-center">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-green-50">
+            <CheckCircle2 className="h-8 w-8 text-green-primary" />
+          </div>
+          <h1 className="text-2xl font-bold text-black-primary mb-2">Route Submitted for Review</h1>
+          <p className="text-black-primary/60 mb-6">
+            Your route listing has been submitted and is pending admin approval. You will be notified once it is approved and visible to buyers.
+          </p>
+          <Link
+            href="/routes-for-sale"
+            className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+          >
+            Back to Routes for Sale
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -125,7 +148,7 @@ export default function PostRoutePage() {
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-black-primary">Post a Route for Sale</h1>
           <p className="text-black-primary/60 mt-2">
-            List your vending route or business for interested buyers.
+            List your vending route or business for interested buyers. All submissions are reviewed by admin before going live.
           </p>
         </div>
 

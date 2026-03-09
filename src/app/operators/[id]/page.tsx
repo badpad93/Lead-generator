@@ -12,7 +12,6 @@ import {
   Users,
   Award,
   Monitor,
-  MessageSquare,
   Loader2,
   AlertCircle,
   Globe,
@@ -22,10 +21,13 @@ import {
   Clock,
   Eye,
   HandCoins,
+  Lock,
 } from "lucide-react";
-import type { Profile, OperatorListing, Review } from "@/lib/types";
+import type { Profile, OperatorListing } from "@/lib/types";
 import MachineTypeBadge from "../../components/MachineTypeBadge";
 import StarRating from "../../components/StarRating";
+import { BlurredText, PaywallOverlay, BlurredImage } from "../../components/BlurredContent";
+import { useSubscription } from "@/lib/useSubscription";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -62,10 +64,12 @@ function AvatarCircle({
   name,
   avatarUrl,
   size = "lg",
+  blurred = false,
 }: {
   name: string;
   avatarUrl: string | null;
   size?: "sm" | "md" | "lg" | "xl";
+  blurred?: boolean;
 }) {
   const sizeClasses = {
     sm: "h-8 w-8 text-xs",
@@ -86,7 +90,7 @@ function AvatarCircle({
       <img
         src={avatarUrl}
         alt={name}
-        className={`${sizeClasses[size]} rounded-full object-cover ring-4 ring-green-100`}
+        className={`${sizeClasses[size]} rounded-full object-cover ring-4 ring-green-100 ${blurred ? "blur-md" : ""}`}
       />
     );
   }
@@ -240,43 +244,6 @@ function ListingCard({ listing }: { listing: OperatorListing }) {
   );
 }
 
-/** Review card */
-function ReviewCard({ review }: { review: Review }) {
-  const reviewer = review.reviewer as
-    | { id: string; full_name: string; avatar_url: string | null }
-    | undefined;
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-start gap-3">
-        <AvatarCircle
-          name={reviewer?.full_name ?? "Anonymous"}
-          avatarUrl={reviewer?.avatar_url ?? null}
-          size="md"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-medium text-black-primary text-sm truncate">
-              {reviewer?.full_name ?? "Anonymous"}
-            </p>
-            <span className="text-xs text-gray-400 shrink-0">
-              {timeAgo(review.created_at)}
-            </span>
-          </div>
-          <div className="mt-1">
-            <StarRating value={review.rating} size="sm" />
-          </div>
-          {review.comment && (
-            <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-              {review.comment}
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /** Loading skeleton for profile page */
 function ProfileSkeleton() {
   return (
@@ -333,11 +300,10 @@ export default function OperatorProfilePage() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [listings, setListings] = useState<OperatorListing[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingListings, setLoadingListings] = useState(false);
-  const [loadingReviews, setLoadingReviews] = useState(false);
+  const { subscribed: isSubscribed, loading: subLoading } = useSubscription();
 
   // Fetch profile
   useEffect(() => {
@@ -402,28 +368,6 @@ export default function OperatorProfilePage() {
     }
 
     fetchListings();
-  }, [id]);
-
-  // Fetch reviews
-  useEffect(() => {
-    if (!id) return;
-
-    async function fetchReviews() {
-      setLoadingReviews(true);
-      try {
-        const res = await fetch(`/api/reviews?user_id=${id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setReviews(Array.isArray(data) ? data : []);
-        }
-      } catch {
-        // Silently fail
-      } finally {
-        setLoadingReviews(false);
-      }
-    }
-
-    fetchReviews();
   }, [id]);
 
   // ---------- Loading state ----------
@@ -504,11 +448,14 @@ export default function OperatorProfilePage() {
                   name={profile.full_name}
                   avatarUrl={profile.avatar_url}
                   size="xl"
+                  blurred={!isSubscribed && !!profile.avatar_url}
                 />
                 <div className="text-center sm:text-left min-w-0 flex-1">
                   <div className="flex items-center justify-center gap-2 sm:justify-start">
                     <h1 className="text-xl font-bold text-black-primary sm:text-2xl">
-                      {profile.full_name}
+                      <BlurredText isSubscribed={isSubscribed} placeholder="John Doe">
+                        {profile.full_name}
+                      </BlurredText>
                     </h1>
                     {profile.verified && (
                       <BadgeCheck className="h-5 w-5 shrink-0 text-green-primary" />
@@ -522,9 +469,9 @@ export default function OperatorProfilePage() {
                   {(profile.city || profile.state) && (
                     <p className="mt-1 flex items-center justify-center gap-1 text-sm text-gray-500 sm:justify-start">
                       <MapPin className="h-3.5 w-3.5" />
-                      {[profile.city, profile.state]
-                        .filter(Boolean)
-                        .join(", ")}
+                      {isSubscribed
+                        ? [profile.city, profile.state].filter(Boolean).join(", ")
+                        : profile.state || ""}
                     </p>
                   )}
 
@@ -532,24 +479,31 @@ export default function OperatorProfilePage() {
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
                     {profile.website && (
                       <a
-                        href={profile.website}
-                        target="_blank"
+                        href={isSubscribed ? profile.website : "#"}
+                        target={isSubscribed ? "_blank" : undefined}
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-green-primary transition-colors"
+                        onClick={!isSubscribed ? (e) => e.preventDefault() : undefined}
                       >
                         <Globe className="h-3 w-3" />
-                        Website
+                        <BlurredText isSubscribed={isSubscribed} placeholder="website.com">
+                          Website
+                        </BlurredText>
                       </a>
                     )}
                     {profile.phone && (
                       <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                         <Phone className="h-3 w-3" />
-                        {profile.phone}
+                        <BlurredText isSubscribed={isSubscribed} placeholder="(555) 123-4567">
+                          {profile.phone}
+                        </BlurredText>
                       </span>
                     )}
                     <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                       <Mail className="h-3 w-3" />
-                      {profile.email}
+                      <BlurredText isSubscribed={isSubscribed} placeholder="user@email.com">
+                        {profile.email}
+                      </BlurredText>
                     </span>
                   </div>
 
@@ -572,17 +526,7 @@ export default function OperatorProfilePage() {
               )}
 
               {/* Stats Row */}
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <StatCard
-                  icon={Star}
-                  label="Rating"
-                  value={profile.rating.toFixed(1)}
-                />
-                <StatCard
-                  icon={Users}
-                  label="Reviews"
-                  value={profile.review_count}
-                />
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-2">
                 <StatCard
                   icon={Award}
                   label="Listings"
@@ -629,13 +573,15 @@ export default function OperatorProfilePage() {
                         Cities Served
                       </p>
                       <p className="text-sm text-black-primary">
-                        {Array.from(allCities).slice(0, 8).join(", ")}
-                        {allCities.size > 8 && (
-                          <span className="text-gray-400">
-                            {" "}
-                            +{allCities.size - 8} more
-                          </span>
-                        )}
+                        <BlurredText isSubscribed={isSubscribed} placeholder="Denver, Aurora, Lakewood">
+                          {Array.from(allCities).slice(0, 8).join(", ")}
+                          {allCities.size > 8 && (
+                            <span className="text-gray-400">
+                              {" "}
+                              +{allCities.size - 8} more
+                            </span>
+                          )}
+                        </BlurredText>
                       </p>
                     </div>
                   )}
@@ -705,42 +651,6 @@ export default function OperatorProfilePage() {
               )}
             </div>
 
-            {/* Reviews */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 animate-fade-in">
-              <h3 className="text-base font-bold text-black-primary mb-4 flex items-center gap-2">
-                <Star className="h-5 w-5 text-green-primary" />
-                Reviews
-                {reviews.length > 0 && (
-                  <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-[11px] font-bold text-white">
-                    {reviews.length}
-                  </span>
-                )}
-              </h3>
-
-              {loadingReviews && (
-                <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading reviews...
-                </div>
-              )}
-
-              {!loadingReviews && reviews.length === 0 && (
-                <div className="rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
-                  <Star className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">
-                    No reviews yet. Be the first to work with this operator!
-                  </p>
-                </div>
-              )}
-
-              {!loadingReviews && reviews.length > 0 && (
-                <div className="space-y-4">
-                  {reviews.map((review) => (
-                    <ReviewCard key={review.id} review={review} />
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* ---------------------------------------------------------------- */}
@@ -754,18 +664,6 @@ export default function OperatorProfilePage() {
               </h3>
 
               <div className="mt-4 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">Rating</span>
-                  <div className="flex items-center gap-1">
-                    <Star className="h-3.5 w-3.5 fill-green-primary text-green-primary" />
-                    <span className="font-semibold text-black-primary">
-                      {profile.rating.toFixed(1)}
-                    </span>
-                    <span className="text-gray-400">
-                      ({profile.review_count})
-                    </span>
-                  </div>
-                </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500">Active Listings</span>
                   <span className="font-semibold text-black-primary">
@@ -795,6 +693,28 @@ export default function OperatorProfilePage() {
                 </div>
               </div>
             </div>
+
+            {/* Upgrade CTA for non-paid users */}
+            {!isSubscribed && (
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <Lock className="h-4 w-4 text-amber-600" />
+                  <h4 className="text-sm font-semibold text-black-primary">
+                    Unlock Full Details
+                  </h4>
+                </div>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Subscribe to see contact names, phone numbers, addresses, cities, and zip codes for all operators.
+                </p>
+                <Link
+                  href="/pricing"
+                  className="mt-3 inline-flex items-center gap-1 rounded-lg bg-green-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
+                >
+                  View Plans
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+            )}
 
             {/* Browse CTA */}
             <div className="bg-gradient-to-br from-green-50 to-light-warm rounded-xl border border-green-100 p-5">

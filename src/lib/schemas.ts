@@ -60,7 +60,7 @@ export const createRouteSchema = z.object({
   includes_contracts: z.boolean().default(true),
   contact_email: z.string().email().optional().or(z.literal("")),
   contact_phone: z.string().max(20).optional(),
-  status: z.enum(["active", "sold", "pending"]).default("active"),
+  status: z.enum(["active", "sold", "pending"]).default("pending"),
 });
 
 export type SignupInput = z.infer<typeof signupSchema>;

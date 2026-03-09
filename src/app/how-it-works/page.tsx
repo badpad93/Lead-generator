@@ -82,8 +82,8 @@ const ROLES = [
 
 const FAQ = [
   {
-    q: "Is VendHub free to use?",
-    a: "Yes! Posting requests and browsing operators is completely free. We plan to offer premium features for operators in the future.",
+    q: "How much does VendHub cost?",
+    a: "VendHub offers a monthly membership for $19.99/month. This gives you full access to browse requests, post listings, connect with operators, and more. Cancel anytime.",
   },
   {
     q: "How does the matching process work?",

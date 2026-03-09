@@ -14,17 +14,19 @@ import {
   Phone,
   MessageSquare,
   BadgeCheck,
-  Star,
   Loader2,
   AlertCircle,
   Send,
   ArrowRight,
+  Lock,
 } from "lucide-react";
 import type { VendingRequest, Profile } from "@/lib/types";
 import { LOCATION_TYPES } from "@/lib/types";
 import MachineTypeBadge from "../../components/MachineTypeBadge";
 import UrgencyBadge from "../../components/UrgencyBadge";
 import LocationTypeIcon from "../../components/LocationTypeIcon";
+import { BlurredText } from "../../components/BlurredContent";
+import { useSubscription } from "@/lib/useSubscription";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -214,7 +216,7 @@ function SimilarRequestCard({ request }: { request: VendingRequest }) {
           <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-500">
             <MapPin className="w-3 h-3 shrink-0" />
             <span className="truncate">
-              {request.city}, {request.state}
+              {request.state}
             </span>
           </div>
         </div>
@@ -248,6 +250,7 @@ export default function RequestDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [similarRequests, setSimilarRequests] = useState<VendingRequest[]>([]);
   const [loadingSimilar, setLoadingSimilar] = useState(false);
+  const { subscribed: isSubscribed } = useSubscription();
 
   // Fetch main request
   useEffect(() => {
@@ -410,7 +413,9 @@ export default function RequestDetailPage() {
                       Location Name
                     </p>
                     <p className="text-sm font-medium text-black-primary mt-0.5">
-                      {request.location_name}
+                      <BlurredText isSubscribed={isSubscribed} placeholder="Sample Location">
+                        {request.location_name}
+                      </BlurredText>
                     </p>
                   </div>
                   {request.address && (
@@ -419,7 +424,9 @@ export default function RequestDetailPage() {
                         Address
                       </p>
                       <p className="text-sm font-medium text-black-primary mt-0.5">
-                        {request.address}
+                        <BlurredText isSubscribed={isSubscribed} placeholder="123 Main Street">
+                          {request.address}
+                        </BlurredText>
                       </p>
                     </div>
                   )}
@@ -428,8 +435,24 @@ export default function RequestDetailPage() {
                       City / State
                     </p>
                     <p className="text-sm font-medium text-black-primary mt-0.5">
-                      {request.city}, {request.state}
-                      {request.zip ? ` ${request.zip}` : ""}
+                      {isSubscribed ? (
+                        <>
+                          {request.city}, {request.state}
+                          {request.zip ? ` ${request.zip}` : ""}
+                        </>
+                      ) : (
+                        <>
+                          <BlurredText isSubscribed={false} placeholder="Denver">{request.city}</BlurredText>
+                          {", "}
+                          {request.state}
+                          {request.zip && (
+                            <>
+                              {" "}
+                              <BlurredText isSubscribed={false} placeholder="80202">{request.zip}</BlurredText>
+                            </>
+                          )}
+                        </>
+                      )}
                     </p>
                   </div>
                   <div>
@@ -445,6 +468,14 @@ export default function RequestDetailPage() {
                     </p>
                   </div>
                 </div>
+                {!isSubscribed && (
+                  <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                    <Lock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    <p className="text-xs text-amber-700">
+                      <Link href="/pricing" className="font-semibold underline hover:text-amber-900">Subscribe</Link> to see full address, city, and zip code details.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Machine Types */}
@@ -540,7 +571,9 @@ export default function RequestDetailPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <p className="font-medium text-black-primary text-sm truncate">
-                          {profile.full_name}
+                          <BlurredText isSubscribed={isSubscribed} placeholder="John Doe">
+                            {profile.full_name}
+                          </BlurredText>
                         </p>
                         {profile.verified && (
                           <BadgeCheck className="h-4 w-4 shrink-0 text-green-primary" />
@@ -551,13 +584,6 @@ export default function RequestDetailPage() {
                           {profile.company_name}
                         </p>
                       )}
-                    </div>
-                    <div className="ml-auto flex items-center gap-1 text-xs text-gray-400">
-                      <Star className="h-3.5 w-3.5 fill-green-primary text-green-primary" />
-                      <span className="font-medium text-black-primary">
-                        {profile.rating.toFixed(1)}
-                      </span>
-                      <span>({profile.review_count})</span>
                     </div>
                   </div>
                 </div>
@@ -632,7 +658,7 @@ export default function RequestDetailPage() {
               </h4>
               <p className="text-xs text-gray-600 leading-relaxed">
                 VendHub connects locations that need vending machines with
-                operators ready to serve. Sign up for free and start matching
+                operators ready to serve. Sign up and start matching
                 with the right partners.
               </p>
               <Link
