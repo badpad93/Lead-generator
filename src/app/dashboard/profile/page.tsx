@@ -117,7 +117,7 @@ export default function ProfilePage() {
     try {
       const supabase = createBrowserClient();
       const ext = avatarFile.name.split(".").pop() || "jpg";
-      const filePath = `avatars/${profile.id}.${ext}`;
+      const filePath = `${profile.id}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("avatars")
@@ -131,7 +131,8 @@ export default function ProfilePage() {
         .from("avatars")
         .getPublicUrl(filePath);
 
-      return urlData.publicUrl;
+      // Add cache-busting param so browser doesn't serve stale image
+      return `${urlData.publicUrl}?t=${Date.now()}`;
     } catch {
       setToast({ message: "Failed to upload avatar.", type: "error" });
       return profile?.avatar_url || null;
