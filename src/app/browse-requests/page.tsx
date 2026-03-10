@@ -273,8 +273,8 @@ export default function BrowseRequestsPage() {
   const [commissionFilter, setCommissionFilter] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  // Pagination
-  const [page, setPage] = useState(1);
+  // Pagination (0-indexed to match API)
+  const [page, setPage] = useState(0);
 
   // Filters panel (mobile toggle)
   const [filtersVisible, setFiltersVisible] = useState(false);
@@ -289,7 +289,7 @@ export default function BrowseRequestsPage() {
 
   // ---------- Reset page when filters change ----------
   useEffect(() => {
-    setPage(1);
+    setPage(0);
   }, [
     debouncedSearch,
     machineTypeFilters,
@@ -361,7 +361,7 @@ export default function BrowseRequestsPage() {
   );
 
   useEffect(() => {
-    fetchRequests(1);
+    fetchRequests(0);
   }, [fetchRequests]);
 
   function handleLoadMore() {

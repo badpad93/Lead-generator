@@ -477,20 +477,25 @@ export default function OperatorProfilePage() {
 
                   {/* Contact links */}
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
-                    {profile.website && (
-                      <a
-                        href={isSubscribed ? profile.website : "#"}
-                        target={isSubscribed ? "_blank" : undefined}
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-green-primary transition-colors"
-                        onClick={!isSubscribed ? (e) => e.preventDefault() : undefined}
-                      >
-                        <Globe className="h-3 w-3" />
-                        <BlurredText isSubscribed={isSubscribed} placeholder="website.com">
-                          Website
-                        </BlurredText>
-                      </a>
-                    )}
+                    {profile.website && (() => {
+                      const websiteUrl = profile.website.match(/^https?:\/\//)
+                        ? profile.website
+                        : `https://${profile.website}`;
+                      return (
+                        <a
+                          href={isSubscribed ? websiteUrl : "#"}
+                          target={isSubscribed ? "_blank" : undefined}
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-green-primary transition-colors"
+                          onClick={!isSubscribed ? (e) => e.preventDefault() : undefined}
+                        >
+                          <Globe className="h-3 w-3" />
+                          <BlurredText isSubscribed={isSubscribed} placeholder="website.com">
+                            {profile.website}
+                          </BlurredText>
+                        </a>
+                      );
+                    })()}
                     {profile.phone && (
                       <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                         <Phone className="h-3 w-3" />

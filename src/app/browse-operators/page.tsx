@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   SlidersHorizontal,
@@ -373,7 +374,7 @@ function InlineStarRating({
 }
 
 /** Operator card */
-function OperatorCard({ operator, isSubscribed = false }: { operator: OperatorWithListings; isSubscribed?: boolean }) {
+function OperatorCard({ operator, isSubscribed = false, onContact }: { operator: OperatorWithListings; isSubscribed?: boolean; onContact: (operatorId: string) => void }) {
   const machineTypes = operator.aggregated_machine_types ?? [];
   const cities = operator.aggregated_cities ?? [];
   const states = operator.aggregated_states ?? [];
@@ -462,7 +463,7 @@ function OperatorCard({ operator, isSubscribed = false }: { operator: OperatorWi
           </Link>
           <button
             type="button"
-            onClick={() => alert("Sign up to connect with operators!")}
+            onClick={() => onContact(operator.id)}
             className="inline-flex items-center gap-1 rounded-lg bg-green-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
           >
             <UserPlus className="h-3 w-3" />
@@ -479,6 +480,7 @@ function OperatorCard({ operator, isSubscribed = false }: { operator: OperatorWi
 // ---------------------------------------------------------------------------
 
 export default function BrowseOperatorsPage() {
+  const router = useRouter();
   const { subscribed: isSubscribed } = useSubscription();
 
   // Data state
@@ -655,6 +657,15 @@ export default function BrowseOperatorsPage() {
     setStateFilter("");
     setCommissionFilter(false);
     setRatingFilter("");
+  }
+
+  // ---------- Contact handler ----------
+  function handleContact(operatorId: string) {
+    if (isSubscribed) {
+      router.push(`/operators/${operatorId}`);
+    } else {
+      router.push("/login");
+    }
   }
 
   // ---------- Has more pages ----------
@@ -872,7 +883,7 @@ export default function BrowseOperatorsPage() {
           <>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {operators.map((op) => (
-                <OperatorCard key={op.id} operator={op} isSubscribed={isSubscribed} />
+                <OperatorCard key={op.id} operator={op} isSubscribed={isSubscribed} onContact={handleContact} />
               ))}
             </div>
 
