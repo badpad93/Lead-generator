@@ -36,8 +36,12 @@ export default function SignupPage() {
 
   function handleRoleSelect(selected: Role) {
     setRole(selected);
-    setStep(2);
     setError(null);
+  }
+
+  function handleContinue() {
+    if (!role) return;
+    setStep(2);
   }
 
   function handleBack() {
@@ -90,12 +94,19 @@ export default function SignupPage() {
                   key={value}
                   type="button"
                   onClick={() => handleRoleSelect(value)}
-                  className="w-full flex items-start gap-4 p-5 rounded-xl border-2 border-gray-100
-                    hover:border-green-primary hover:bg-light-warm/50 transition-all duration-200
-                    text-left cursor-pointer group"
+                  className={`w-full flex items-start gap-4 p-5 rounded-xl border-2 transition-all duration-200
+                    text-left cursor-pointer group ${
+                      role === value
+                        ? "border-green-primary bg-light-warm/50"
+                        : "border-gray-100 hover:border-green-primary hover:bg-light-warm/50"
+                    }`}
                 >
-                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-light-warm flex items-center justify-center
-                    group-hover:bg-green-primary/10 transition-colors">
+                  <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center
+                    transition-colors ${
+                      role === value
+                        ? "bg-green-primary/10"
+                        : "bg-light-warm group-hover:bg-green-primary/10"
+                    }`}>
                     <Icon className="w-6 h-6 text-green-primary" />
                   </div>
                   <div>
@@ -104,6 +115,17 @@ export default function SignupPage() {
                   </div>
                 </button>
               ))}
+
+              <button
+                type="button"
+                onClick={handleContinue}
+                disabled={!role}
+                className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white
+                  font-semibold rounded-xl transition-colors disabled:opacity-40
+                  disabled:cursor-not-allowed mt-2 cursor-pointer"
+              >
+                Continue
+              </button>
             </div>
           )}
 
