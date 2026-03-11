@@ -9,6 +9,7 @@ import {
   Clock,
   ArrowRight,
   HandCoins,
+  DollarSign,
 } from "lucide-react";
 import MachineTypeBadge from "./MachineTypeBadge";
 import UrgencyBadge from "./UrgencyBadge";
@@ -84,6 +85,16 @@ export default function RequestCard({
           <MachineTypeBadge key={mt} type={mt} size="sm" />
         ))}
       </div>
+
+      {/* Price */}
+      {request.price != null && (
+        <div className="flex items-center gap-1.5 mt-3">
+          <DollarSign className="w-4 h-4 text-green-600" />
+          <span className="text-lg font-bold text-green-700">
+            ${request.price.toLocaleString()}
+          </span>
+        </div>
+      )}
 
       {/* Details Row */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 text-sm text-gray-600">

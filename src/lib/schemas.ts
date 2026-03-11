@@ -26,6 +26,7 @@ export const createRequestSchema = z.object({
   ]),
   machine_types_wanted: z.array(z.string()).min(1, "Select at least one machine type"),
   estimated_daily_traffic: z.number().int().min(0).max(100000).optional(),
+  price: z.number().min(0).max(1000000).optional(),
   commission_offered: z.boolean().default(false),
   commission_notes: z.string().max(500).optional(),
   urgency: z.enum(["flexible", "within_1_month", "within_2_weeks", "asap"]).default("flexible"),

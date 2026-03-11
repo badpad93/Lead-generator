@@ -138,6 +138,7 @@ interface FormData {
   dailyFootTraffic: string;
   additionalNotes: string;
   /* Step 3 */
+  price: string;
   commissionOffered: boolean;
   commissionNotes: string;
   contactPreference: string;
@@ -155,6 +156,7 @@ const initialFormData: FormData = {
   machineTypes: [],
   dailyFootTraffic: "",
   additionalNotes: "",
+  price: "",
   commissionOffered: false,
   commissionNotes: "",
   contactPreference: "platform_message",
@@ -290,6 +292,7 @@ export default function PostRequestPage() {
           location_type: locationType,
           machine_types_wanted: machineTypesWanted,
           estimated_daily_traffic: formData.dailyFootTraffic ? Number(formData.dailyFootTraffic) : undefined,
+          price: formData.price ? Number(formData.price) : undefined,
           commission_offered: formData.commissionOffered,
           commission_notes: formData.commissionNotes || undefined,
           contact_preference: formData.contactPreference,
@@ -729,6 +732,26 @@ export default function PostRequestPage() {
                 </div>
               </div>
 
+              {/* Price */}
+              <div>
+                <label htmlFor="price" className="block text-sm font-medium text-black-primary mb-1.5">
+                  Price ($)
+                </label>
+                <p className="text-xs text-black-primary/50 mb-2">
+                  Set a price for this vending placement opportunity.
+                </p>
+                <input
+                  id="price"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.price}
+                  onChange={(e) => updateField("price", e.target.value)}
+                  placeholder="e.g. 500"
+                  className="max-w-xs"
+                />
+              </div>
+
               {/* Commission toggle */}
               <div className="bg-green-50 rounded-xl p-5">
                 <div className="flex items-center justify-between">
@@ -989,6 +1012,9 @@ export default function PostRequestPage() {
                 icon={<FileText className="w-4 h-4 text-green-primary" />}
                 onEdit={() => goToStep(3)}
               >
+                {formData.price && (
+                  <ReviewRow label="Price" value={`$${Number(formData.price).toLocaleString()}`} />
+                )}
                 <ReviewRow
                   label="Commission"
                   value={formData.commissionOffered ? "Yes" : "No"}

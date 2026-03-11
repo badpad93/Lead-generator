@@ -8,6 +8,7 @@ import {
   MapPin,
   Users,
   HandCoins,
+  DollarSign,
   Clock,
   Eye,
   Mail,
@@ -508,6 +509,19 @@ export default function RequestDetailPage() {
                   </div>
                 )}
 
+                {/* Price */}
+                {request.price != null && (
+                  <div className="rounded-lg bg-green-50 p-4 border border-green-100">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide font-medium">
+                      <DollarSign className="h-3.5 w-3.5" />
+                      Price
+                    </div>
+                    <p className="mt-1 text-2xl font-bold text-green-700">
+                      ${request.price.toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
                 {/* Commission */}
                 <div className="rounded-lg bg-gray-50 p-4 border border-gray-100">
                   <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide font-medium">
@@ -628,6 +642,13 @@ export default function RequestDetailPage() {
                 <Send className="h-4 w-4" />
                 Apply as Operator
               </button>
+
+              {request.price != null && (
+                <div className="mt-4 rounded-lg bg-green-50 border border-green-100 p-3 text-center">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Price</p>
+                  <p className="text-2xl font-bold text-green-700 mt-1">${request.price.toLocaleString()}</p>
+                </div>
+              )}
 
               <div className="mt-5 pt-4 border-t border-gray-100 space-y-2">
                 <div className="flex items-center justify-between text-xs text-gray-500">

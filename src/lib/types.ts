@@ -64,6 +64,7 @@ export interface VendingRequest {
   location_type: LocationType;
   machine_types_wanted: MachineType[];
   estimated_daily_traffic: number | null;
+  price: number | null;
   commission_offered: boolean;
   commission_notes: string | null;
   urgency: Urgency;
