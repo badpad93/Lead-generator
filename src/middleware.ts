@@ -17,6 +17,22 @@ const PROTECTED_PATHS = [
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Enforce canonical domain — redirect Vercel preview URLs to vendingconnector.com
+  const host = req.headers.get("host") || "";
+  const canonicalDomain = "vendingconnector.com";
+  if (
+    process.env.NODE_ENV === "production" &&
+    host !== canonicalDomain &&
+    host !== `www.${canonicalDomain}` &&
+    !host.startsWith("localhost")
+  ) {
+    const url = new URL(req.url);
+    url.hostname = canonicalDomain;
+    url.port = "";
+    url.protocol = "https:";
+    return NextResponse.redirect(url, 301);
+  }
+
   // Only check protected paths
   const isProtected = PROTECTED_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
@@ -67,11 +83,13 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
-    "/post-request/:path*",
-    "/post-route/:path*",
-    "/listings/new/:path*",
-    "/routes-for-sale/:path*",
-    "/admin/:path*",
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization)
+     * - favicon.ico, sitemap.xml, robots.txt
+     * - public assets
+     */
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",
   ],
 };

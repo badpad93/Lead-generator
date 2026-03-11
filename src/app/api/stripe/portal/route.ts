@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No subscription found" }, { status: 404 });
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
 
   const session = await getStripe().billingPortal.sessions.create({
     customer: sub.stripe_customer_id,

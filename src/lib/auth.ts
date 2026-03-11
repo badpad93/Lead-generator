@@ -43,7 +43,7 @@ function getSiteUrl(): string {
   if (typeof window !== "undefined") {
     return window.location.origin;
   }
-  return "http://localhost:3000";
+  return "https://vendingconnector.com";
 }
 
 /** Sign in with Discord OAuth via Supabase (uses PKCE flow for SSR cookie compat) */
