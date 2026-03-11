@@ -1,8 +1,8 @@
 import type { Profile } from "./types";
 import { createBrowserClient } from "./supabase";
 
-const SIGNUP_ROLE_KEY = "vendhub_signup_role";
-const REDIRECT_KEY = "vendhub_redirect_after_login";
+const SIGNUP_ROLE_KEY = "vc_signup_role";
+const REDIRECT_KEY = "vc_redirect_after_login";
 
 /** Store where to redirect after login completes */
 export function storeRedirectAfterLogin(path: string): void {
@@ -43,7 +43,7 @@ function getSiteUrl(): string {
   if (typeof window !== "undefined") {
     return window.location.origin;
   }
-  return "http://localhost:3000";
+  return "https://vendingconnector.com";
 }
 
 /** Sign in with Discord OAuth via Supabase (uses PKCE flow for SSR cookie compat) */

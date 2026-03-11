@@ -69,7 +69,7 @@ export default function SignupPage() {
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-black-primary">Join VendHub</h1>
+          <h1 className="text-3xl font-bold text-black-primary">Join Vending Connector</h1>
           <p className="text-black-primary/60 mt-2">
             {step === 1
               ? "Select your role to get started"
@@ -184,7 +184,7 @@ export default function SignupPage() {
 
               <div className="mt-5 rounded-lg bg-gray-50 p-3 text-center">
                 <p className="text-xs text-black-primary/60">
-                  VendHub membership is <span className="font-semibold text-black-primary">$19.99/month</span>. You&apos;ll be asked to subscribe after signing up.
+                  Vending Connector membership is <span className="font-semibold text-black-primary">$19.99/month</span>. You&apos;ll be asked to subscribe after signing up.
                 </p>
               </div>
 

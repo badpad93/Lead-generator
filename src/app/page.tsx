@@ -116,7 +116,7 @@ const locationTypes = [
 const testimonials = [
   {
     quote:
-      "VendHub helped me place 12 machines in just 2 months. The quality of location requests is outstanding — every lead was a real opportunity, not a dead end.",
+      "Vending Connector helped me place 12 machines in just 2 months. The quality of location requests is outstanding — every lead was a real opportunity, not a dead end.",
     name: "Sarah M.",
     role: "Vending Operator",
     location: "Phoenix, AZ",
@@ -132,7 +132,7 @@ const testimonials = [
   },
   {
     quote:
-      "As a gym owner, I always wanted healthy vending options but never knew where to start. VendHub connected me with an operator who specializes in fitness nutrition.",
+      "As a gym owner, I always wanted healthy vending options but never knew where to start. Vending Connector connected me with an operator who specializes in fitness nutrition.",
     name: "Maria L.",
     role: "Gym Owner",
     location: "Denver, CO",
@@ -290,7 +290,7 @@ export default function HomePage() {
           {/* Header */}
           <div className="animate-fade-in text-center">
             <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
-              How VendHub Works
+              How Vending Connector Works
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-base text-black-primary/60 sm:text-lg">
               Four simple steps from listing to a fully installed machine.
@@ -369,7 +369,7 @@ export default function HomePage() {
               Every Location Type, Covered
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-base text-black-primary/60 sm:text-lg">
-              Whether you manage an office building or run a gym, VendHub
+              Whether you manage an office building or run a gym, Vending Connector
               connects you with the right operator.
             </p>
           </div>
@@ -473,7 +473,7 @@ export default function HomePage() {
             </h2>
             <p className="mx-auto mt-4 max-w-lg text-base leading-relaxed text-white/60 sm:text-lg">
               Join hundreds of operators and location owners already growing
-              with VendHub. It takes less than two minutes.
+              with Vending Connector. It takes less than two minutes.
             </p>
 
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">

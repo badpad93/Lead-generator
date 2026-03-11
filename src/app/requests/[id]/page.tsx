@@ -654,10 +654,10 @@ export default function RequestDetailPage() {
             {/* Quick info card */}
             <div className="bg-gradient-to-br from-green-50 to-light-warm rounded-xl border border-green-100 p-5">
               <h4 className="text-sm font-semibold text-black-primary mb-2">
-                New to VendHub?
+                New to Vending Connector?
               </h4>
               <p className="text-xs text-gray-600 leading-relaxed">
-                VendHub connects locations that need vending machines with
+                Vending Connector connects locations that need vending machines with
                 operators ready to serve. Sign up and start matching
                 with the right partners.
               </p>

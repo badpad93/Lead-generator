@@ -7,9 +7,23 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com"
   ),
-  title: "VendHub — Vending Machine Marketplace",
+  title: {
+    default: "Vending Connector — Vending Machine Marketplace",
+    template: "%s | Vending Connector",
+  },
   description:
     "Connect locations that need vending machines with operators ready to serve. The smarter way to place vending machines.",
+  openGraph: {
+    type: "website",
+    siteName: "Vending Connector",
+    title: "Vending Connector — Vending Machine Marketplace",
+    description:
+      "Connect locations that need vending machines with operators ready to serve.",
+    url: "https://vendingconnector.com",
+  },
+  alternates: {
+    canonical: "/",
+  },
 };
 
 export default function RootLayout({

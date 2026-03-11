@@ -1,4 +1,4 @@
--- VendHub Database Schema
+-- Vending Connector Database Schema
 -- Run this in Supabase SQL Editor
 
 -- Enable UUID extension

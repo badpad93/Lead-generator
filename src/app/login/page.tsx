@@ -33,7 +33,7 @@ function LoginContent() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-black-primary">Welcome Back</h1>
-          <p className="text-black-primary/60 mt-2">Sign in to your VendHub account</p>
+          <p className="text-black-primary/60 mt-2">Sign in to your Vending Connector account</p>
         </div>
 
         {/* Card */}
