@@ -8,15 +8,15 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com"
   ),
   title: {
-    default: "VendHub — Vending Machine Marketplace",
-    template: "%s | VendHub",
+    default: "Vending Connector — Vending Machine Marketplace",
+    template: "%s | Vending Connector",
   },
   description:
     "Connect locations that need vending machines with operators ready to serve. The smarter way to place vending machines.",
   openGraph: {
     type: "website",
-    siteName: "VendHub",
-    title: "VendHub — Vending Machine Marketplace",
+    siteName: "Vending Connector",
+    title: "Vending Connector — Vending Machine Marketplace",
     description:
       "Connect locations that need vending machines with operators ready to serve.",
     url: "https://vendingconnector.com",

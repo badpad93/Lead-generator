@@ -1,4 +1,4 @@
--- VendHub Seed Data
+-- Vending Connector Seed Data
 -- Run this AFTER schema.sql in Supabase SQL Editor
 -- Note: These use fixed UUIDs so foreign keys work. In production, these would
 -- be created through the auth flow.

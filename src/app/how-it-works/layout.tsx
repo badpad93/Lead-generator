@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "How It Works",
   description:
-    "Learn how VendHub connects locations with vending machine operators in three simple steps.",
+    "Learn how Vending Connector connects locations with vending machine operators in three simple steps.",
   alternates: { canonical: "/how-it-works" },
 };
 

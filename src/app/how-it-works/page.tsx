@@ -82,8 +82,8 @@ const ROLES = [
 
 const FAQ = [
   {
-    q: "How much does VendHub cost?",
-    a: "VendHub offers a monthly membership for $19.99/month. This gives you full access to browse requests, post listings, connect with operators, and more. Cancel anytime.",
+    q: "How much does Vending Connector cost?",
+    a: "Vending Connector offers a monthly membership for $19.99/month. This gives you full access to browse requests, post listings, connect with operators, and more. Cancel anytime.",
   },
   {
     q: "How does the matching process work?",
@@ -116,11 +116,11 @@ export default function HowItWorksPage() {
       <section className="bg-gradient-to-b from-light-warm to-light py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-4xl font-bold text-black-primary mb-4">
-            How VendHub Works
+            How Vending Connector Works
           </h1>
           <p className="text-lg text-slate-600 max-w-2xl mx-auto">
             Whether you&apos;re looking for a vending machine or looking to place
-            one, VendHub makes it simple.
+            one, Vending Connector makes it simple.
           </p>
         </div>
       </section>
@@ -225,7 +225,7 @@ export default function HowItWorksPage() {
             Ready to Get Started?
           </h2>
           <p className="text-slate-300 mb-8">
-            Join hundreds of operators and locations already using VendHub.
+            Join hundreds of operators and locations already using Vending Connector.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link

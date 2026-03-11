@@ -227,7 +227,7 @@ export default function DashboardPage() {
             Sign in to your Dashboard
           </h1>
           <p className="mb-8 text-black-primary/50">
-            Please log in or create an account to access your VendHub dashboard.
+            Please log in or create an account to access your Vending Connector dashboard.
           </p>
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link
@@ -315,7 +315,7 @@ export default function DashboardPage() {
         {!subscription.loading && !subscription.subscribed && (
           <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-6 text-center">
             <h2 className="text-lg font-bold text-black-primary">
-              Subscribe to unlock VendHub
+              Subscribe to unlock Vending Connector
             </h2>
             <p className="mt-1 text-sm text-black-primary/60">
               A monthly membership is required to access all features — browse requests, post listings, connect with operators, and more.

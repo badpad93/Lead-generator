@@ -42,7 +42,7 @@ export default function Footer() {
           <div className="lg:col-span-1">
             <Link href="/" className="inline-block">
               <span className="text-2xl font-bold tracking-tight text-green-primary">
-                VendHub
+                Vending Connector
               </span>
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-gray-400">
@@ -78,7 +78,7 @@ export default function Footer() {
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-5 sm:flex-row sm:px-6 lg:px-8">
           <p className="text-xs text-gray-500">
-            &copy; {new Date().getFullYear()} VendHub. All rights reserved.
+            &copy; {new Date().getFullYear()} Vending Connector. All rights reserved.
           </p>
           <p className="text-xs text-gray-500">
             Made with{" "}

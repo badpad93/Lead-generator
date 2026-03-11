@@ -105,7 +105,7 @@ export default function PricingPage() {
       <section className="border-b border-green-100 bg-gradient-to-b from-light-warm to-light">
         <div className="mx-auto max-w-3xl px-4 pb-10 pt-14 sm:px-6 lg:px-8 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-black-primary sm:text-4xl">
-            Unlock Full Access to VendHub
+            Unlock Full Access to Vending Connector
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-base text-gray-600 sm:text-lg">
             One simple plan. Everything you need to grow your vending business.

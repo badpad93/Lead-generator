@@ -165,7 +165,7 @@ export default function Navbar() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-1">
           <span className="text-2xl font-bold tracking-tight text-green-primary">
-            VendHub
+            Vending Connector
           </span>
         </Link>
 
@@ -307,7 +307,7 @@ export default function Navbar() {
         {/* Drawer Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-4">
           <span className="text-xl font-bold text-green-primary">
-            VendHub
+            Vending Connector
           </span>
           <button
             type="button"

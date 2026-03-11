@@ -1,8 +1,8 @@
 import type { Profile } from "./types";
 import { createBrowserClient } from "./supabase";
 
-const SIGNUP_ROLE_KEY = "vendhub_signup_role";
-const REDIRECT_KEY = "vendhub_redirect_after_login";
+const SIGNUP_ROLE_KEY = "vc_signup_role";
+const REDIRECT_KEY = "vc_redirect_after_login";
 
 /** Store where to redirect after login completes */
 export function storeRedirectAfterLogin(path: string): void {

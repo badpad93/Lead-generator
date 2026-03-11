@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Admin",
-  description: "VendHub administration panel.",
+  description: "Vending Connector administration panel.",
   alternates: { canonical: "/admin" },
 };
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Dashboard",
-  description: "Manage your VendHub account, requests, and listings.",
+  description: "Manage your Vending Connector account, requests, and listings.",
   alternates: { canonical: "/dashboard" },
 };
 
