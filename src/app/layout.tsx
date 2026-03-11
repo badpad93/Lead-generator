@@ -4,6 +4,9 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com"
+  ),
   title: "VendHub — Vending Machine Marketplace",
   description:
     "Connect locations that need vending machines with operators ready to serve. The smarter way to place vending machines.",
