@@ -504,6 +504,44 @@ function ListingsManager({
   const [deleteTarget, setDeleteTarget] = useState<ListingWithProfile | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  async function handleApproveListing(listing: ListingWithProfile) {
+    try {
+      const res = await fetch(`/api/admin/listings/${listing.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ featured: true }),
+      });
+      if (res.ok) {
+        fetchListings();
+        onSuccess("Operator listing approved and now visible!");
+      }
+    } catch {
+      /* noop */
+    }
+  }
+
+  async function handleDenyListing(listing: ListingWithProfile) {
+    try {
+      const res = await fetch(`/api/admin/listings/${listing.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ featured: false }),
+      });
+      if (res.ok) {
+        fetchListings();
+        onSuccess("Operator listing unapproved.");
+      }
+    } catch {
+      /* noop */
+    }
+  }
+
   const fetchListings = useCallback(async () => {
     setLoading(true);
     try {
@@ -641,6 +679,7 @@ function ListingsManager({
                 <th className="px-4 py-3 font-medium text-black-primary/60">Operator</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Machines</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Status</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Approved</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Actions</th>
               </tr>
             </thead>
@@ -649,11 +688,6 @@ function ListingsManager({
                 <tr key={listing.id} className="hover:bg-gray-50/50">
                   <td className="px-4 py-3 font-medium text-black-primary max-w-[200px] truncate">
                     {listing.title}
-                    {listing.featured && (
-                      <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
-                        Featured
-                      </span>
-                    )}
                   </td>
                   <td className="px-4 py-3 text-black-primary/60 text-xs">
                     {listing.profiles?.full_name || "Unknown"}
@@ -663,11 +697,33 @@ function ListingsManager({
                   </td>
                   <td className="px-4 py-3">{statusBadge(listing.status)}</td>
                   <td className="px-4 py-3">
+                    {listing.featured ? (
+                      <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-200">
+                        Approved
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+                        Pending
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
+                      {!listing.featured && (
+                        <button
+                          type="button"
+                          onClick={() => handleApproveListing(listing)}
+                          className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-green-50 hover:text-green-600 cursor-pointer"
+                          title="Approve"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => openEdit(listing)}
                         className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
+                        title="Edit"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
@@ -675,6 +731,7 @@ function ListingsManager({
                         type="button"
                         onClick={() => setDeleteTarget(listing)}
                         className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                        title="Delete"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -794,6 +851,25 @@ function RequestsManager({
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RequestWithProfile | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  async function handleApproveRequest(request: RequestWithProfile) {
+    try {
+      const res = await fetch(`/api/admin/requests/${request.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_public: true }),
+      });
+      if (res.ok) {
+        fetchRequests();
+        onSuccess("Request approved and now publicly visible!");
+      }
+    } catch {
+      /* noop */
+    }
+  }
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
@@ -932,6 +1008,7 @@ function RequestsManager({
                 <th className="px-4 py-3 font-medium text-black-primary/60">Location</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Posted By</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Status</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Visibility</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Urgency</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Actions</th>
               </tr>
@@ -950,16 +1027,38 @@ function RequestsManager({
                   </td>
                   <td className="px-4 py-3">{statusBadge(request.status)}</td>
                   <td className="px-4 py-3">
+                    {request.is_public ? (
+                      <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-200">
+                        Public
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+                        Pending
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
                     <span className="text-xs text-black-primary/60">
                       {URGENCY_OPTIONS.find((u) => u.value === request.urgency)?.label || request.urgency}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
+                      {!request.is_public && (
+                        <button
+                          type="button"
+                          onClick={() => handleApproveRequest(request)}
+                          className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-green-50 hover:text-green-600 cursor-pointer"
+                          title="Approve (make public)"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => openEdit(request)}
                         className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
+                        title="Edit"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
@@ -967,6 +1066,7 @@ function RequestsManager({
                         type="button"
                         onClick={() => setDeleteTarget(request)}
                         className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                        title="Delete"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
