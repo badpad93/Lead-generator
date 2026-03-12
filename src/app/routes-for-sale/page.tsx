@@ -158,7 +158,7 @@ export default function RoutesForSalePage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("");
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 350);
@@ -166,7 +166,7 @@ export default function RoutesForSalePage() {
   }, [search]);
 
   useEffect(() => {
-    setPage(1);
+    setPage(0);
   }, [debouncedSearch, stateFilter]);
 
   const fetchRoutes = useCallback(
@@ -201,7 +201,7 @@ export default function RoutesForSalePage() {
   );
 
   useEffect(() => {
-    fetchRoutes(1);
+    fetchRoutes(0);
   }, [fetchRoutes]);
 
   function handleLoadMore() {
