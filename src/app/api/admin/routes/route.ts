@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from("route_listings")
-    .select("*")
+    .select("*, profiles!created_by(id, full_name, email)")
     .order("created_at", { ascending: false })
     .limit(50);
 

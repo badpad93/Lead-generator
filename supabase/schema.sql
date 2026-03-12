@@ -74,6 +74,7 @@ create table public.vending_requests (
   )),
   machine_types_wanted text[] not null default '{}',
   estimated_daily_traffic integer,
+  price numeric,
   commission_offered boolean not null default false,
   commission_notes text,
   urgency text not null default 'flexible' check (urgency in (

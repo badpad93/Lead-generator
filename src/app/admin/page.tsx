@@ -1478,6 +1478,322 @@ function LocationForm({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Routes Manager                                                     */
+/* ------------------------------------------------------------------ */
+
+interface RouteWithProfile {
+  id: string;
+  title: string;
+  city: string;
+  state: string;
+  status: string;
+  asking_price: number | null;
+  num_machines: number;
+  num_locations: number;
+  created_at: string;
+  profiles?: { id: string; full_name: string; email: string } | null;
+}
+
+function RoutesManager({
+  token,
+  onSuccess,
+}: {
+  token: string;
+  onSuccess: (msg: string) => void;
+}) {
+  const [view, setView] = useState<"list" | "add">("list");
+  const [routes, setRoutes] = useState<RouteWithProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingRoute, setEditingRoute] = useState<RouteWithProfile | null>(null);
+  const [editForm, setEditForm] = useState({ title: "", status: "" });
+  const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<RouteWithProfile | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const fetchRoutes = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/routes", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setRoutes(data.routes || []);
+    } catch {
+      /* noop */
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchRoutes();
+  }, [fetchRoutes]);
+
+  function openEdit(route: RouteWithProfile) {
+    setEditingRoute(route);
+    setEditForm({
+      title: route.title,
+      status: route.status,
+    });
+  }
+
+  async function handleSave() {
+    if (!editingRoute) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/routes/${editingRoute.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(editForm),
+      });
+      if (res.ok) {
+        setEditingRoute(null);
+        fetchRoutes();
+        onSuccess("Route updated!");
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleApprove(route: RouteWithProfile) {
+    try {
+      const res = await fetch(`/api/admin/routes/${route.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: "active" }),
+      });
+      if (res.ok) {
+        fetchRoutes();
+        onSuccess("Route approved and now visible to users!");
+      }
+    } catch {
+      /* noop */
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await fetch(`/api/admin/routes/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setDeleteTarget(null);
+      fetchRoutes();
+      onSuccess("Route deleted!");
+    } catch {
+      /* noop */
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const statusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      active: "bg-green-50 text-green-700 ring-green-200",
+      pending: "bg-amber-50 text-amber-700 ring-amber-200",
+      sold: "bg-gray-100 text-gray-500 ring-gray-200",
+    };
+    return (
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+          colors[status] || "bg-gray-100 text-gray-700 ring-gray-200"
+        }`}
+      >
+        {status}
+      </span>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-black-primary">
+          {view === "list" ? "All Route Listings" : "Add Route For Sale"}
+        </h2>
+        <button
+          type="button"
+          onClick={() => setView(view === "list" ? "add" : "list")}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50 cursor-pointer"
+        >
+          {view === "list" ? (
+            <>
+              <Plus className="h-4 w-4" />
+              Add New
+            </>
+          ) : (
+            <>
+              <Eye className="h-4 w-4" />
+              View All
+            </>
+          )}
+        </button>
+      </div>
+
+      {view === "add" ? (
+        <RouteForm
+          token={token}
+          onSuccess={(msg) => {
+            onSuccess(msg);
+            setView("list");
+            fetchRoutes();
+          }}
+        />
+      ) : loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-green-primary" />
+        </div>
+      ) : routes.length === 0 ? (
+        <p className="py-8 text-center text-sm text-black-primary/40">No route listings yet</p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-gray-100">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-gray-100 bg-gray-50/50">
+              <tr>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Location</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Submitted By</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Price</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Status</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {routes.map((route) => (
+                <tr key={route.id} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3 font-medium text-black-primary max-w-[200px] truncate">
+                    {route.title}
+                  </td>
+                  <td className="px-4 py-3 text-black-primary/60 text-xs">
+                    {route.city}, {route.state}
+                  </td>
+                  <td className="px-4 py-3 text-black-primary/60 text-xs">
+                    {route.profiles?.full_name || "Unknown"}
+                  </td>
+                  <td className="px-4 py-3 text-black-primary/60 text-xs">
+                    {route.asking_price ? `$${route.asking_price.toLocaleString()}` : "—"}
+                  </td>
+                  <td className="px-4 py-3">{statusBadge(route.status)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      {route.status === "pending" && (
+                        <button
+                          type="button"
+                          onClick={() => handleApprove(route)}
+                          className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-green-50 hover:text-green-600 cursor-pointer"
+                          title="Approve"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openEdit(route)}
+                        className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(route)}
+                        className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingRoute && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-black-primary">Edit Route</h3>
+              <button
+                type="button"
+                onClick={() => setEditingRoute(null)}
+                className="rounded-lg p-1 text-black-primary/40 hover:bg-gray-100 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Title</label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Status</label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="active">Active (Approved)</option>
+                  <option value="sold">Sold</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditingRoute(null)}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2 text-sm font-medium text-white hover:bg-green-hover disabled:opacity-50 cursor-pointer"
+              >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete Route"
+          message={`Are you sure you want to delete "${deleteTarget.title}"?`}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteTarget(null)}
+          loading={deleting}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Route For Sale Form (kept from original)                           */
 /* ------------------------------------------------------------------ */
 
@@ -1860,12 +2176,7 @@ export default function AdminPage() {
             <RequestsManager token={token} onSuccess={handleSuccess} />
           )}
           {activeTab === "routes" && (
-            <>
-              <h2 className="mb-6 text-lg font-semibold text-black-primary">
-                Add Route For Sale
-              </h2>
-              <RouteForm token={token} onSuccess={handleSuccess} />
-            </>
+            <RoutesManager token={token} onSuccess={handleSuccess} />
           )}
         </div>
       </div>
