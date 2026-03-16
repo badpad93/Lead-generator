@@ -1020,7 +1020,11 @@ function RequestsManager({
                     {request.title}
                   </td>
                   <td className="px-4 py-3 text-black-primary/60 text-xs">
-                    {request.city}, {request.state}
+                    {request.city && request.state &&
+                      request.city.toLowerCase() !== "unknown" &&
+                      request.state.toLowerCase() !== "unknown"
+                        ? `${request.city}, ${request.state}`
+                        : "—"}
                   </td>
                   <td className="px-4 py-3 text-black-primary/60 text-xs">
                     {request.profiles?.full_name || "Unknown"}
@@ -1775,7 +1779,11 @@ function RoutesManager({
                     {route.title}
                   </td>
                   <td className="px-4 py-3 text-black-primary/60 text-xs">
-                    {route.city}, {route.state}
+                    {route.city && route.state &&
+                      route.city.toLowerCase() !== "unknown" &&
+                      route.state.toLowerCase() !== "unknown"
+                        ? `${route.city}, ${route.state}`
+                        : "—"}
                   </td>
                   <td className="px-4 py-3 text-black-primary/60 text-xs">
                     {route.profiles?.full_name || "Unknown"}

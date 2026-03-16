@@ -33,6 +33,7 @@ export async function GET(
     .select("*, profiles!created_by(id, full_name, avatar_url, company_name, verified, city, state, rating, review_count)")
     .eq("id", id)
     .neq("city", "").neq("state", "").not("city", "is", null).not("state", "is", null)
+    .neq("city", "Unknown").neq("state", "Unknown").neq("city", "unknown").neq("state", "unknown")
     .single();
 
   if (error || !data) {

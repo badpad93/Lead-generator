@@ -478,12 +478,16 @@ export default function DashboardPage() {
                       <h3 className="font-semibold text-black-primary text-sm leading-snug line-clamp-2 group-hover:text-green-primary transition-colors">
                         {req.title}
                       </h3>
-                      <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
-                        <MapPin className="w-3 h-3 shrink-0" />
-                        <span className="truncate">
-                          {req.city}, {req.state}
-                        </span>
-                      </div>
+                      {req.city && req.state &&
+                        req.city.toLowerCase() !== "unknown" &&
+                        req.state.toLowerCase() !== "unknown" && (
+                        <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+                          <MapPin className="w-3 h-3 shrink-0" />
+                          <span className="truncate">
+                            {req.city}, {req.state}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
