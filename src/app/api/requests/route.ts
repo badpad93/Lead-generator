@@ -80,6 +80,9 @@ export async function GET(req: NextRequest) {
       query = query.eq("is_public", true);
     }
 
+    // Exclude locations with missing city or state
+    query = query.neq("city", "").neq("state", "").not("city", "is", null).not("state", "is", null);
+
     if (search) {
       if (isOperator) {
         // Operators can only search by state/zip
