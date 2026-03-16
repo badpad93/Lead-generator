@@ -428,7 +428,7 @@ export default function BrowseRequestsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by city, state, or location type..."
-                className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-9 pr-10 text-sm shadow-sm placeholder:text-gray-400 focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
+                className="w-full rounded-xl border border-gray-200 bg-white py-3 !pl-9 pr-10 text-sm shadow-sm placeholder:text-gray-400 focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
               />
               {search && (
                 <button
