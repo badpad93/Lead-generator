@@ -571,37 +571,6 @@ export default function RequestDetailPage() {
                 </div>
               </div>
 
-              {/* Posted By */}
-              {profile && (
-                <div className="mt-6 pt-6 border-t border-gray-100">
-                  <h3 className="text-sm font-semibold text-black-primary mb-3">
-                    Posted By
-                  </h3>
-                  <div className="flex items-center gap-3">
-                    <AvatarCircle
-                      name={profile.full_name}
-                      avatarUrl={profile.avatar_url}
-                    />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-medium text-black-primary text-sm truncate">
-                          <BlurredText isSubscribed={isSubscribed} placeholder="John Doe">
-                            {profile.full_name}
-                          </BlurredText>
-                        </p>
-                        {profile.verified && (
-                          <BadgeCheck className="h-4 w-4 shrink-0 text-green-primary" />
-                        )}
-                      </div>
-                      {profile.company_name && (
-                        <p className="text-xs text-gray-500 truncate">
-                          {profile.company_name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Timestamps */}
               <div className="mt-6 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-400">
