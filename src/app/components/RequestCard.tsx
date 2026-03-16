@@ -50,14 +50,16 @@ export default function RequestCard({
             <h3 className="font-semibold text-black-primary text-base leading-snug truncate">
               {request.title}
             </h3>
-            <div className="flex items-center gap-1 mt-0.5 text-sm text-gray-500">
-              <MapPin className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">
-                {request.city ? `${request.city}, ` : ""}
-                {request.zip ? `${request.zip}, ` : ""}
-                {request.state}
-              </span>
-            </div>
+            {request.city && request.state &&
+              request.city.toLowerCase() !== "unknown" &&
+              request.state.toLowerCase() !== "unknown" && (
+              <div className="flex items-center gap-1 mt-0.5 text-sm text-gray-500">
+                <MapPin className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
+                  {request.city}, {request.zip ? `${request.zip}, ` : ""}{request.state}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

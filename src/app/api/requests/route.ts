@@ -80,8 +80,12 @@ export async function GET(req: NextRequest) {
       query = query.eq("is_public", true);
     }
 
-    // Exclude locations with missing city or state
-    query = query.neq("city", "").neq("state", "").not("city", "is", null).not("state", "is", null);
+    // Exclude locations with missing or unknown city/state
+    query = query
+      .neq("city", "").neq("state", "")
+      .not("city", "is", null).not("state", "is", null)
+      .neq("city", "Unknown").neq("state", "Unknown")
+      .neq("city", "unknown").neq("state", "unknown");
 
     if (search) {
       if (isOperator) {

@@ -63,10 +63,14 @@ function RouteCard({ route }: { route: RouteListing }) {
       </h3>
 
       {/* Location */}
-      <div className="flex items-center gap-1 mt-1.5 text-sm text-gray-500">
-        <MapPin className="w-3.5 h-3.5 shrink-0" />
-        <span>{route.city}, {route.state}</span>
-      </div>
+      {route.city && route.state &&
+        route.city.toLowerCase() !== "unknown" &&
+        route.state.toLowerCase() !== "unknown" && (
+        <div className="flex items-center gap-1 mt-1.5 text-sm text-gray-500">
+          <MapPin className="w-3.5 h-3.5 shrink-0" />
+          <span>{route.city}, {route.state}</span>
+        </div>
+      )}
 
       {/* Stats grid */}
       <div className="mt-4 grid grid-cols-2 gap-3">

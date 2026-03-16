@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     .from("vending_requests")
     .select("*, profiles!created_by(id, full_name, email)")
     .neq("city", "").neq("state", "").not("city", "is", null).not("state", "is", null)
+    .neq("city", "Unknown").neq("state", "Unknown").neq("city", "unknown").neq("state", "unknown")
     .order("created_at", { ascending: false })
     .limit(50);
 

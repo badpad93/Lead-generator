@@ -56,8 +56,12 @@ export async function GET(req: NextRequest) {
     .select("*, profiles!created_by(id, full_name, avatar_url, company_name, verified)", { count: "exact" })
     .eq("status", "active");
 
-  // Exclude locations with missing city or state
-  query = query.neq("city", "").neq("state", "").not("city", "is", null).not("state", "is", null);
+  // Exclude locations with missing or unknown city/state
+  query = query
+    .neq("city", "").neq("state", "")
+    .not("city", "is", null).not("state", "is", null)
+    .neq("city", "Unknown").neq("state", "Unknown")
+    .neq("city", "unknown").neq("state", "unknown");
 
   if (search) {
     query = query.or(`city.ilike.%${search}%,state.ilike.%${search}%,title.ilike.%${search}%`);

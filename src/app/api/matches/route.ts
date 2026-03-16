@@ -18,6 +18,8 @@ export async function GET(req: NextRequest) {
       .select("*, vending_requests!inner(id, title, city, state, location_type, status, machine_types_wanted)")
       .neq("vending_requests.city", "").neq("vending_requests.state", "")
       .not("vending_requests.city", "is", null).not("vending_requests.state", "is", null)
+      .neq("vending_requests.city", "Unknown").neq("vending_requests.state", "Unknown")
+      .neq("vending_requests.city", "unknown").neq("vending_requests.state", "unknown")
       .eq("operator_id", userId)
       .order("created_at", { ascending: false });
 
