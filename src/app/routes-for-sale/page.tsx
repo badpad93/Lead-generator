@@ -11,8 +11,6 @@ import {
   DollarSign,
   Cpu,
   Building2,
-  BadgeCheck,
-  Star,
   Plus,
 } from "lucide-react";
 import type { RouteListing } from "@/lib/types";
@@ -50,7 +48,6 @@ function SkeletonCard() {
 }
 
 function RouteCard({ route }: { route: RouteListing }) {
-  const profile = route.profiles;
   const locationLabels = route.location_types
     .map((lt) => LOCATION_TYPES.find((l) => l.value === lt)?.label ?? lt)
     .slice(0, 2);
@@ -131,21 +128,6 @@ function RouteCard({ route }: { route: RouteListing }) {
         )}
       </div>
 
-      {/* Footer - posted by */}
-      {profile && (
-        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span className="font-medium text-black-primary">{profile.full_name}</span>
-            {profile.verified && <BadgeCheck className="h-3.5 w-3.5 text-green-primary" />}
-          </div>
-          {profile.rating > 0 && (
-            <div className="flex items-center gap-1 text-xs text-gray-400">
-              <Star className="h-3 w-3 fill-green-primary text-green-primary" />
-              <span className="font-medium text-black-primary">{profile.rating.toFixed(1)}</span>
-            </div>
-          )}
-        </div>
-      )}
     </Link>
   );
 }
