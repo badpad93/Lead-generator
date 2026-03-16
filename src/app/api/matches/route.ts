@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
     // Operator: get matches they applied to
     const { data, error } = await supabaseAdmin
       .from("matches")
-      .select("*, vending_requests(id, title, city, state, location_type, status, machine_types_wanted)")
+      .select("*, vending_requests!inner(id, title, city, state, location_type, status, machine_types_wanted)")
+      .neq("vending_requests.city", "").neq("vending_requests.state", "")
+      .not("vending_requests.city", "is", null).not("vending_requests.state", "is", null)
       .eq("operator_id", userId)
       .order("created_at", { ascending: false });
 
