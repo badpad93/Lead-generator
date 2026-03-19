@@ -1,192 +1,154 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Check,
-  Loader2,
   Shield,
-  Zap,
-  Users,
   MapPin,
-  Star,
-  CreditCard,
+  Eye,
+  Lock,
+  Mail,
+  Building2,
 } from "lucide-react";
-import { getAccessToken } from "@/lib/auth";
-import { createBrowserClient } from "@/lib/supabase";
 
-const features = [
-  { icon: MapPin, text: "Browse & post unlimited vending requests" },
-  { icon: Users, text: "Connect with operators and location managers" },
-  { icon: Zap, text: "Post routes for sale" },
-  { icon: Star, text: "Access all operator listings" },
-  { icon: Shield, text: "Verified profile badge eligibility" },
+const freeFeatures = [
+  { icon: Eye, text: "Browse all locations and operators" },
+  { icon: MapPin, text: "View city, state, and industry for every listing" },
+  { icon: Building2, text: "See machine types, urgency, and commission status" },
+];
+
+const purchasedFeatures = [
+  { icon: Check, text: "Full location name and street address" },
+  { icon: Check, text: "Zip code and complete contact details" },
+  { icon: Check, text: "Full description and business information" },
+  { icon: Check, text: "Daily traffic data and pricing details" },
 ];
 
 export default function PricingPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [alreadySubscribed, setAlreadySubscribed] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function check() {
-      const supabase = createBrowserClient();
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        setCheckingAuth(false);
-        return;
-      }
-
-      setIsLoggedIn(true);
-
-      try {
-        const res = await fetch("/api/subscription", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.subscribed) {
-            setAlreadySubscribed(true);
-          }
-        }
-      } catch {
-        // ignore
-      }
-      setCheckingAuth(false);
-    }
-
-    check();
-  }, []);
-
-  async function handleSubscribe() {
-    setError(null);
-    setLoading(true);
-
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        // Not logged in — redirect to signup
-        router.push("/signup");
-        return;
-      }
-
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        setError(typeof data.error === "string" ? data.error : "Something went wrong.");
-        return;
-      }
-
-      const { url } = await res.json();
-      if (url) {
-        window.location.href = url;
-      }
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <div className="min-h-[calc(100vh-160px)] bg-light">
       {/* Hero */}
       <section className="border-b border-green-100 bg-gradient-to-b from-light-warm to-light">
         <div className="mx-auto max-w-3xl px-4 pb-10 pt-14 sm:px-6 lg:px-8 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-black-primary sm:text-4xl">
-            Unlock Full Access to Vending Connector
+            Purchase Individual Leads
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-base text-gray-600 sm:text-lg">
-            One simple plan. Everything you need to grow your vending business.
+            Browse for free. Only pay for the leads you want. No monthly subscription required.
           </p>
         </div>
       </section>
 
-      {/* Pricing card */}
-      <section className="mx-auto max-w-lg px-4 py-12 sm:px-6">
-        <div className="rounded-2xl border-2 border-green-primary bg-white p-8 shadow-lg shadow-green-primary/5">
-          {/* Price */}
-          <div className="text-center mb-6">
-            <p className="text-sm font-medium text-green-primary uppercase tracking-wide">
-              Monthly Membership
-            </p>
-            <div className="mt-3 flex items-baseline justify-center gap-1">
-              <span className="text-5xl font-bold text-black-primary">$19</span>
-              <span className="text-2xl font-bold text-black-primary">.99</span>
-              <span className="ml-1 text-base text-gray-500">/month</span>
+      {/* Pricing cards */}
+      <section className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Free tier */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+            <div className="text-center mb-6">
+              <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                Free Access
+              </p>
+              <div className="mt-3 flex items-baseline justify-center gap-1">
+                <span className="text-5xl font-bold text-black-primary">$0</span>
+              </div>
+              <p className="mt-2 text-sm text-gray-500">
+                Browse and discover available leads
+              </p>
             </div>
-            <p className="mt-2 text-sm text-gray-500">
-              Cancel anytime. No long-term commitment.
-            </p>
+
+            <ul className="space-y-3 mb-8">
+              {freeFeatures.map(({ icon: Icon, text }) => (
+                <li key={text} className="flex items-center gap-3">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-50">
+                    <Icon className="h-3.5 w-3.5 text-green-primary" />
+                  </div>
+                  <span className="text-sm text-black-primary">{text}</span>
+                </li>
+              ))}
+            </ul>
+
+            <Link
+              href="/browse-requests"
+              className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white px-6 py-3.5 text-base font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
+            >
+              Start Browsing
+            </Link>
           </div>
 
-          {/* Features */}
-          <ul className="space-y-3 mb-8">
-            {features.map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-center gap-3">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-50">
-                  <Check className="h-3.5 w-3.5 text-green-primary" />
-                </div>
-                <span className="text-sm text-black-primary">{text}</span>
-              </li>
-            ))}
-          </ul>
-
-          {/* CTA */}
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm text-center">
-              {error}
-            </div>
-          )}
-
-          {checkingAuth ? (
-            <div className="flex justify-center py-3">
-              <Loader2 className="h-6 w-6 animate-spin text-green-primary" />
-            </div>
-          ) : alreadySubscribed ? (
-            <div className="text-center py-3">
-              <div className="inline-flex items-center gap-2 rounded-xl bg-green-50 px-5 py-3 text-sm font-semibold text-green-700">
-                <Check className="h-5 w-5" />
-                You&apos;re already subscribed!
+          {/* Per-lead purchase */}
+          <div className="rounded-2xl border-2 border-green-primary bg-white p-8 shadow-lg shadow-green-primary/5">
+            <div className="text-center mb-6">
+              <p className="text-sm font-medium text-green-primary uppercase tracking-wide">
+                Per-Lead Purchase
+              </p>
+              <div className="mt-3 flex items-baseline justify-center gap-1">
+                <span className="text-3xl font-bold text-black-primary">Pay Per Lead</span>
               </div>
+              <p className="mt-2 text-sm text-gray-500">
+                Unlock full details for individual locations or operators
+              </p>
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSubscribe}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-green-primary px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-green-hover disabled:opacity-50 cursor-pointer"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Redirecting to checkout...
-                </>
-              ) : (
-                <>
-                  <CreditCard className="h-5 w-5" />
-                  {isLoggedIn ? "Subscribe Now" : "Get Started"}
-                </>
-              )}
-            </button>
-          )}
 
-          {/* Security note */}
-          <p className="mt-4 text-center text-xs text-gray-400 flex items-center justify-center gap-1">
-            <Shield className="h-3 w-3" />
-            Secure payment powered by Stripe
-          </p>
+            <ul className="space-y-3 mb-8">
+              {purchasedFeatures.map(({ icon: Icon, text }) => (
+                <li key={text} className="flex items-center gap-3">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-50">
+                    <Icon className="h-3.5 w-3.5 text-green-primary" />
+                  </div>
+                  <span className="text-sm text-black-primary">{text}</span>
+                </li>
+              ))}
+            </ul>
+
+            <a
+              href="mailto:admin@vendingconnector.com"
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-green-primary px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+            >
+              <Mail className="h-5 w-5" />
+              Contact Admin to Purchase
+            </a>
+
+            <p className="mt-4 text-center text-xs text-gray-400 flex items-center justify-center gap-1">
+              <Shield className="h-3 w-3" />
+              All requests handled securely by our admin team
+            </p>
+          </div>
+        </div>
+
+        {/* How it works */}
+        <div className="mt-12 rounded-2xl border border-gray-200 bg-white p-8">
+          <h2 className="text-xl font-bold text-black-primary text-center mb-6">
+            How It Works
+          </h2>
+          <div className="grid gap-6 md:grid-cols-3">
+            <div className="text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-50 text-green-primary">
+                <Eye className="h-6 w-6" />
+              </div>
+              <h3 className="font-semibold text-black-primary">1. Browse Free</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                View city, state, and industry for all listings at no cost.
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-50 text-green-primary">
+                <Lock className="h-6 w-6" />
+              </div>
+              <h3 className="font-semibold text-black-primary">2. Purchase Leads</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Contact admin to purchase individual leads and unlock full details.
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-50 text-green-primary">
+                <Building2 className="h-6 w-6" />
+              </div>
+              <h3 className="font-semibold text-black-primary">3. Connect</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Once purchased, reach out to locations directly to start the placement process.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
     </div>

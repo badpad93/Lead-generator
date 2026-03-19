@@ -46,45 +46,17 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** POST /api/matches — operator applies to a request */
-export async function POST(req: NextRequest) {
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    const body = await req.json();
-    const { request_id, notes } = body;
-
-    if (!request_id) {
-      return NextResponse.json({ error: "request_id is required" }, { status: 400 });
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from("matches")
-      .insert({
-        request_id,
-        operator_id: userId,
-        matched_by: "operator_applied",
-        status: "pending",
-        notes: notes || null,
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      if (error.code === "23505") {
-        return NextResponse.json({ error: "You have already applied to this request" }, { status: 409 });
-      }
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ id: data.id }, { status: 201 });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
+/**
+ * POST /api/matches — disabled.
+ * Direct communication between operators and locations is not allowed.
+ * All requests must go through the admin, or operators can reach out
+ * to locations once they purchase the lead.
+ */
+export async function POST() {
+  return NextResponse.json(
+    { error: "Direct applications are disabled. Please contact the admin or purchase the lead to connect." },
+    { status: 403 }
+  );
 }
 
 /** PATCH /api/matches — update match status */

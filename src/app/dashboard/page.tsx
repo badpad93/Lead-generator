@@ -31,7 +31,6 @@ import type {
 } from "@/lib/types";
 import { MACHINE_TYPES } from "@/lib/types";
 import { createBrowserClient } from "@/lib/supabase";
-import { useSubscription } from "@/lib/useSubscription";
 import LocationTypeIcon from "@/app/components/LocationTypeIcon";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
 import UrgencyBadge from "@/app/components/UrgencyBadge";
@@ -92,9 +91,6 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [notLoggedIn, setNotLoggedIn] = useState(false);
-
-  /* ---- Subscription ---- */
-  const subscription = useSubscription();
 
   /* ---- Data ---- */
   const [requests, setRequests] = useState<VendingRequest[]>([]);
@@ -311,25 +307,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
-        {/* ------- SUBSCRIPTION PAYWALL ------- */}
-        {!subscription.loading && !subscription.subscribed && (
-          <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-6 text-center">
-            <h2 className="text-lg font-bold text-black-primary">
-              Subscribe to unlock Vending Connector
-            </h2>
-            <p className="mt-1 text-sm text-black-primary/60">
-              A monthly membership is required to access all features — browse requests, post listings, connect with operators, and more.
-            </p>
-            <Link
-              href="/pricing"
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-green-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
-            >
-              View Plans — $19.99/mo
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        )}
-
         {/* ------- QUICK ACTIONS ------- */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {isOperator ? (
