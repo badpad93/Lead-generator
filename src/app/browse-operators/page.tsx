@@ -20,7 +20,7 @@ import {
 import type { Profile, MachineType, OperatorListing } from "@/lib/types";
 import { MACHINE_TYPES, US_STATES, US_STATE_NAMES } from "@/lib/types";
 import MachineTypeBadge from "../components/MachineTypeBadge";
-import { useSubscription } from "@/lib/useSubscription";
+// Subscription removed - per-lead purchase model
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -374,19 +374,14 @@ function InlineStarRating({
 }
 
 /** Operator card */
-function OperatorCard({ operator, isSubscribed = false, onContact }: { operator: OperatorWithListings; isSubscribed?: boolean; onContact: (operatorId: string) => void }) {
+function OperatorCard({ operator, onViewProfile }: { operator: OperatorWithListings; onViewProfile: (operatorId: string) => void }) {
   const machineTypes = operator.aggregated_machine_types ?? [];
-  const cities = operator.aggregated_cities ?? [];
   const states = operator.aggregated_states ?? [];
   const totalMachines = operator.total_machines ?? 0;
   const status = operator.aggregated_status ?? "available";
 
+  // Show only states (free info) - cities are blurred until purchased
   const locationParts: string[] = [];
-  if (isSubscribed && cities.length > 0) {
-    const displayCities = cities.slice(0, 3);
-    locationParts.push(displayCities.join(", "));
-    if (cities.length > 3) locationParts.push(`+${cities.length - 3} more`);
-  }
   if (states.length > 0) {
     locationParts.push(states.slice(0, 4).join(", "));
   }
@@ -395,10 +390,10 @@ function OperatorCard({ operator, isSubscribed = false, onContact }: { operator:
     <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-green-primary/5 group">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <OperatorAvatar name={operator.full_name} avatarUrl={operator.avatar_url} blurred={!isSubscribed && !!operator.avatar_url} />
+        <OperatorAvatar name={operator.full_name} avatarUrl={operator.avatar_url} blurred={!!operator.avatar_url} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <h3 className={`font-semibold text-black-primary text-base leading-snug truncate ${!isSubscribed ? "select-none blur-sm" : ""}`}>
+            <h3 className="font-semibold text-black-primary text-base leading-snug truncate select-none blur-sm">
               {operator.full_name}
             </h3>
             {operator.verified && (
@@ -461,14 +456,6 @@ function OperatorCard({ operator, isSubscribed = false, onContact }: { operator:
           >
             View Profile
           </Link>
-          <button
-            type="button"
-            onClick={() => onContact(operator.id)}
-            className="inline-flex items-center gap-1 rounded-lg bg-green-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
-          >
-            <UserPlus className="h-3 w-3" />
-            Contact
-          </button>
         </div>
       </div>
     </div>
@@ -481,7 +468,6 @@ function OperatorCard({ operator, isSubscribed = false, onContact }: { operator:
 
 export default function BrowseOperatorsPage() {
   const router = useRouter();
-  const { subscribed: isSubscribed } = useSubscription();
 
   // Data state
   const [operators, setOperators] = useState<OperatorWithListings[]>([]);
@@ -657,15 +643,6 @@ export default function BrowseOperatorsPage() {
     setStateFilter("");
     setCommissionFilter(false);
     setRatingFilter("");
-  }
-
-  // ---------- Contact handler ----------
-  function handleContact(operatorId: string) {
-    if (isSubscribed) {
-      router.push(`/operators/${operatorId}`);
-    } else {
-      router.push("/login");
-    }
   }
 
   // ---------- Has more pages ----------
@@ -884,7 +861,7 @@ export default function BrowseOperatorsPage() {
           <>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {operators.map((op) => (
-                <OperatorCard key={op.id} operator={op} isSubscribed={isSubscribed} onContact={handleContact} />
+                <OperatorCard key={op.id} operator={op} onViewProfile={(id) => router.push(`/operators/${id}`)} />
               ))}
             </div>
 

@@ -9,25 +9,20 @@ import {
   MapPin,
   BadgeCheck,
   Star,
-  Users,
   Award,
   Monitor,
   Loader2,
   AlertCircle,
-  Globe,
-  Phone,
-  Mail,
   Compass,
   Clock,
   Eye,
   HandCoins,
   Lock,
+  Mail,
 } from "lucide-react";
 import type { Profile, OperatorListing } from "@/lib/types";
 import MachineTypeBadge from "../../components/MachineTypeBadge";
-import StarRating from "../../components/StarRating";
-import { BlurredText, PaywallOverlay, BlurredImage } from "../../components/BlurredContent";
-import { useSubscription } from "@/lib/useSubscription";
+import { BlurredText } from "../../components/BlurredContent";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -165,7 +160,7 @@ function StatCard({
 }
 
 /** Active listing card */
-function ListingCard({ listing }: { listing: OperatorListing }) {
+function ListingCard({ listing, isPurchased }: { listing: OperatorListing; isPurchased: boolean }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-green-primary/5">
       {/* Header */}
@@ -176,7 +171,9 @@ function ListingCard({ listing }: { listing: OperatorListing }) {
           </h4>
           {listing.description && (
             <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-              {listing.description}
+              <BlurredText isPurchased={isPurchased} placeholder="Listing details available after purchase">
+                {listing.description}
+              </BlurredText>
             </p>
           )}
         </div>
@@ -211,19 +208,11 @@ function ListingCard({ listing }: { listing: OperatorListing }) {
         )}
       </div>
 
-      {/* Locations served */}
-      {(listing.cities_served.length > 0 ||
-        listing.states_served.length > 0) && (
+      {/* Locations served - show states only (free), blur cities */}
+      {(listing.states_served.length > 0) && (
         <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-500">
           <MapPin className="h-3 w-3 shrink-0" />
           <span className="truncate">
-            {listing.cities_served.length > 0
-              ? listing.cities_served.slice(0, 3).join(", ")
-              : ""}
-            {listing.cities_served.length > 0 &&
-            listing.states_served.length > 0
-              ? " | "
-              : ""}
             {listing.states_served.join(", ")}
           </span>
         </div>
@@ -252,7 +241,6 @@ function ProfileSkeleton() {
         <div className="skeleton h-4 w-36 mb-8" />
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
-            {/* Profile header skeleton */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <div className="flex items-center gap-5">
                 <div className="skeleton h-24 w-24 rounded-full" />
@@ -269,7 +257,6 @@ function ProfileSkeleton() {
                 <div className="skeleton h-16 rounded-lg" />
               </div>
             </div>
-            {/* Listings skeleton */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <div className="skeleton h-5 w-32 mb-4" />
               <div className="space-y-4">
@@ -303,7 +290,9 @@ export default function OperatorProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingListings, setLoadingListings] = useState(false);
-  const { subscribed: isSubscribed, loading: subLoading } = useSubscription();
+
+  // Per-lead purchase model: nothing is purchased by default
+  const isPurchased = false;
 
   // Fetch profile
   useEffect(() => {
@@ -314,7 +303,6 @@ export default function OperatorProfilePage() {
       setError(null);
 
       try {
-        // Fetch operator profile via the profiles mode
         const params = new URLSearchParams();
         params.set("mode", "profiles");
         params.set("search", "");
@@ -404,22 +392,19 @@ export default function OperatorProfilePage() {
 
   // Aggregate data from listings
   const allMachineTypes = new Set<string>();
-  const allCities = new Set<string>();
   const allStates = new Set<string>();
   let totalMachines = 0;
   let maxRadius = 0;
 
   for (const listing of listings) {
     for (const mt of listing.machine_types) allMachineTypes.add(mt);
-    for (const c of listing.cities_served) allCities.add(c);
     for (const s of listing.states_served) allStates.add(s);
     totalMachines += listing.machine_count_available;
     if (listing.service_radius_miles > maxRadius)
       maxRadius = listing.service_radius_miles;
   }
 
-  // Add profile-level city/state if available
-  if (profile.city) allCities.add(profile.city);
+  // Add profile-level state if available
   if (profile.state) allStates.add(profile.state);
 
   const memberSince = formatDate(profile.created_at);
@@ -448,12 +433,12 @@ export default function OperatorProfilePage() {
                   name={profile.full_name}
                   avatarUrl={profile.avatar_url}
                   size="xl"
-                  blurred={!isSubscribed && !!profile.avatar_url}
+                  blurred={!isPurchased && !!profile.avatar_url}
                 />
                 <div className="text-center sm:text-left min-w-0 flex-1">
                   <div className="flex items-center justify-center gap-2 sm:justify-start">
                     <h1 className="text-xl font-bold text-black-primary sm:text-2xl">
-                      <BlurredText isSubscribed={isSubscribed} placeholder="John Doe">
+                      <BlurredText isPurchased={isPurchased} placeholder="Operator Name">
                         {profile.full_name}
                       </BlurredText>
                     </h1>
@@ -463,50 +448,24 @@ export default function OperatorProfilePage() {
                   </div>
                   {profile.company_name && (
                     <p className="mt-0.5 text-sm text-gray-500">
-                      {profile.company_name}
+                      <BlurredText isPurchased={isPurchased} placeholder="Company Name">
+                        {profile.company_name}
+                      </BlurredText>
                     </p>
                   )}
+                  {/* City and state always visible */}
                   {(profile.city || profile.state) && (
                     <p className="mt-1 flex items-center justify-center gap-1 text-sm text-gray-500 sm:justify-start">
                       <MapPin className="h-3.5 w-3.5" />
-                      {isSubscribed
-                        ? [profile.city, profile.state].filter(Boolean).join(", ")
-                        : profile.state || ""}
+                      {[profile.city, profile.state].filter(Boolean).join(", ")}
                     </p>
                   )}
 
-                  {/* Contact links */}
+                  {/* Contact links - all blurred until purchased */}
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
-                    {profile.website && (() => {
-                      const websiteUrl = profile.website.match(/^https?:\/\//)
-                        ? profile.website
-                        : `https://${profile.website}`;
-                      return (
-                        <a
-                          href={isSubscribed ? websiteUrl : "#"}
-                          target={isSubscribed ? "_blank" : undefined}
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-green-primary transition-colors"
-                          onClick={!isSubscribed ? (e) => e.preventDefault() : undefined}
-                        >
-                          <Globe className="h-3 w-3" />
-                          <BlurredText isSubscribed={isSubscribed} placeholder="website.com">
-                            {profile.website}
-                          </BlurredText>
-                        </a>
-                      );
-                    })()}
-                    {profile.phone && (
-                      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                        <Phone className="h-3 w-3" />
-                        <BlurredText isSubscribed={isSubscribed} placeholder="(555) 123-4567">
-                          {profile.phone}
-                        </BlurredText>
-                      </span>
-                    )}
                     <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                       <Mail className="h-3 w-3" />
-                      <BlurredText isSubscribed={isSubscribed} placeholder="user@email.com">
+                      <BlurredText isPurchased={isPurchased} placeholder="user@email.com">
                         {profile.email}
                       </BlurredText>
                     </span>
@@ -518,14 +477,16 @@ export default function OperatorProfilePage() {
                 </div>
               </div>
 
-              {/* Bio */}
+              {/* Bio - blurred until purchased */}
               {profile.bio && (
                 <div className="mt-6 pt-5 border-t border-gray-100">
                   <h3 className="text-sm font-semibold text-black-primary mb-2">
                     About
                   </h3>
                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-                    {profile.bio}
+                    <BlurredText isPurchased={isPurchased} placeholder="Operator bio and description available after purchase.">
+                      {profile.bio}
+                    </BlurredText>
                   </p>
                 </div>
               )}
@@ -545,10 +506,8 @@ export default function OperatorProfilePage() {
               </div>
             </div>
 
-            {/* Service Area */}
-            {(allCities.size > 0 ||
-              allStates.size > 0 ||
-              maxRadius > 0) && (
+            {/* Service Area - show states (free), blur cities */}
+            {(allStates.size > 0 || maxRadius > 0) && (
               <div className="bg-white rounded-xl border border-gray-200 p-6 animate-fade-in">
                 <h3 className="text-base font-bold text-black-primary mb-4 flex items-center gap-2">
                   <Compass className="h-5 w-5 text-green-primary" />
@@ -570,24 +529,6 @@ export default function OperatorProfilePage() {
                           </span>
                         ))}
                       </div>
-                    </div>
-                  )}
-                  {allCities.size > 0 && (
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">
-                        Cities Served
-                      </p>
-                      <p className="text-sm text-black-primary">
-                        <BlurredText isSubscribed={isSubscribed} placeholder="Denver, Aurora, Lakewood">
-                          {Array.from(allCities).slice(0, 8).join(", ")}
-                          {allCities.size > 8 && (
-                            <span className="text-gray-400">
-                              {" "}
-                              +{allCities.size - 8} more
-                            </span>
-                          )}
-                        </BlurredText>
-                      </p>
                     </div>
                   )}
                   {maxRadius > 0 && (
@@ -650,7 +591,7 @@ export default function OperatorProfilePage() {
               {!loadingListings && listings.length > 0 && (
                 <div className="space-y-4">
                   {listings.map((listing) => (
-                    <ListingCard key={listing.id} listing={listing} />
+                    <ListingCard key={listing.id} listing={listing} isPurchased={isPurchased} />
                   ))}
                 </div>
               )}
@@ -662,7 +603,7 @@ export default function OperatorProfilePage() {
           {/* Sidebar */}
           {/* ---------------------------------------------------------------- */}
           <div className="space-y-6">
-            {/* Contact Card */}
+            {/* Details Card */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-24 animate-fade-in">
               <h3 className="text-lg font-bold text-black-primary">
                 Operator Details
@@ -699,8 +640,8 @@ export default function OperatorProfilePage() {
               </div>
             </div>
 
-            {/* Upgrade CTA for non-paid users */}
-            {!isSubscribed && (
+            {/* Purchase CTA for non-paid users */}
+            {!isPurchased && (
               <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-5">
                 <div className="flex items-center gap-2 mb-2">
                   <Lock className="h-4 w-4 text-amber-600" />
@@ -709,15 +650,22 @@ export default function OperatorProfilePage() {
                   </h4>
                 </div>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  Subscribe to see contact names, phone numbers, addresses, cities, and zip codes for all operators.
+                  Purchase this operator lead to see contact name, phone number, email, company details, and full profile information.
                 </p>
                 <Link
                   href="/pricing"
                   className="mt-3 inline-flex items-center gap-1 rounded-lg bg-green-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
                 >
-                  View Plans
+                  Purchase Lead
                   <ArrowRight className="h-3 w-3" />
                 </Link>
+                <a
+                  href="mailto:admin@vendingconnector.com"
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-green-primary transition-colors"
+                >
+                  <Mail className="h-3 w-3" />
+                  Or contact admin
+                </a>
               </div>
             )}
 

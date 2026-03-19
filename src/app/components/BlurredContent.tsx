@@ -6,14 +6,16 @@ import { Lock } from "lucide-react";
 /** Blurs text content for non-paid users */
 export function BlurredText({
   children,
-  isSubscribed,
+  isPurchased,
   placeholder,
 }: {
   children: React.ReactNode;
-  isSubscribed: boolean;
+  isPurchased: boolean;
   placeholder?: string;
+  /** @deprecated use isPurchased */
+  isSubscribed?: boolean;
 }) {
-  if (isSubscribed) {
+  if (isPurchased) {
     return <>{children}</>;
   }
 
@@ -27,14 +29,16 @@ export function BlurredText({
 /** Blurs an entire section with a paywall overlay */
 export function PaywallOverlay({
   children,
-  isSubscribed,
-  message = "Subscribe to view full details",
+  isPurchased,
+  message = "Purchase to view full details",
 }: {
   children: React.ReactNode;
-  isSubscribed: boolean;
+  isPurchased: boolean;
   message?: string;
+  /** @deprecated use isPurchased */
+  isSubscribed?: boolean;
 }) {
-  if (isSubscribed) {
+  if (isPurchased) {
     return <>{children}</>;
   }
 
@@ -61,18 +65,20 @@ export function BlurredImage({
   src,
   alt,
   className,
-  isSubscribed,
+  isPurchased,
 }: {
   src: string;
   alt: string;
   className?: string;
-  isSubscribed: boolean;
+  isPurchased: boolean;
+  /** @deprecated use isPurchased */
+  isSubscribed?: boolean;
 }) {
   return (
     <img
       src={src}
       alt={alt}
-      className={`${className || ""} ${!isSubscribed ? "blur-md" : ""}`}
+      className={`${className || ""} ${!isPurchased ? "blur-md" : ""}`}
     />
   );
 }

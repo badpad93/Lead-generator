@@ -11,15 +11,11 @@ import {
   DollarSign,
   Clock,
   Eye,
-  Mail,
-  Phone,
-  MessageSquare,
-  BadgeCheck,
   Loader2,
   AlertCircle,
-  Send,
   ArrowRight,
   Lock,
+  Mail,
 } from "lucide-react";
 import type { VendingRequest, Profile } from "@/lib/types";
 import { LOCATION_TYPES } from "@/lib/types";
@@ -27,7 +23,6 @@ import MachineTypeBadge from "../../components/MachineTypeBadge";
 import UrgencyBadge from "../../components/UrgencyBadge";
 import LocationTypeIcon from "../../components/LocationTypeIcon";
 import { BlurredText } from "../../components/BlurredContent";
-import { useSubscription } from "@/lib/useSubscription";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -53,21 +48,6 @@ function timeAgo(dateStr: string): string {
   const months = Math.floor(diffDays / 30);
   if (months === 1) return "1 month ago";
   return `${months} months ago`;
-}
-
-function getContactPreferenceDisplay(pref: string): {
-  label: string;
-  icon: React.ElementType;
-} {
-  switch (pref) {
-    case "email":
-      return { label: "Email", icon: Mail };
-    case "phone":
-      return { label: "Phone", icon: Phone };
-    case "platform_message":
-    default:
-      return { label: "Platform Message", icon: MessageSquare };
-  }
 }
 
 function getStatusConfig(status: string): {
@@ -111,48 +91,6 @@ function getStatusConfig(status: string): {
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-
-/** Avatar with initials fallback */
-function AvatarCircle({
-  name,
-  avatarUrl,
-  size = "md",
-}: {
-  name: string;
-  avatarUrl: string | null;
-  size?: "sm" | "md" | "lg";
-}) {
-  const sizeClasses = {
-    sm: "h-8 w-8 text-xs",
-    md: "h-10 w-10 text-sm",
-    lg: "h-14 w-14 text-base",
-  };
-
-  const initials = name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
-  if (avatarUrl) {
-    return (
-      <img
-        src={avatarUrl}
-        alt={name}
-        className={`${sizeClasses[size]} rounded-full object-cover ring-2 ring-green-100`}
-      />
-    );
-  }
-
-  return (
-    <div
-      className={`${sizeClasses[size]} flex items-center justify-center rounded-full bg-green-primary font-bold text-white ring-2 ring-green-100`}
-    >
-      {initials}
-    </div>
-  );
-}
 
 /** Loading skeleton for the request detail */
 function DetailSkeleton() {
@@ -217,7 +155,7 @@ function SimilarRequestCard({ request }: { request: VendingRequest }) {
           <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-500">
             <MapPin className="w-3 h-3 shrink-0" />
             <span className="truncate">
-              {request.state}
+              {request.city}, {request.state}
             </span>
           </div>
         </div>
@@ -251,7 +189,9 @@ export default function RequestDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [similarRequests, setSimilarRequests] = useState<VendingRequest[]>([]);
   const [loadingSimilar, setLoadingSimilar] = useState(false);
-  const { subscribed: isSubscribed } = useSubscription();
+
+  // Per-lead purchase model: nothing is purchased by default
+  const isPurchased = false;
 
   // Fetch main request
   useEffect(() => {
@@ -348,13 +288,10 @@ export default function RequestDetailPage() {
     );
   }
 
-  const profile = request.profiles as Profile | undefined;
   const statusConfig = getStatusConfig(request.status);
   const locationLabel =
     LOCATION_TYPES.find((lt) => lt.value === request.location_type)?.label ??
     request.location_type;
-  const contactPref = getContactPreferenceDisplay(request.contact_preference);
-  const ContactIcon = contactPref.icon;
 
   return (
     <div className="min-h-screen bg-light">
@@ -393,11 +330,13 @@ export default function RequestDetailPage() {
                 </div>
               </div>
 
-              {/* Description */}
+              {/* Description - blurred until purchased */}
               {request.description && (
                 <div className="mt-6">
                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-                    {request.description}
+                    <BlurredText isPurchased={isPurchased} placeholder="This location is looking for vending machine placement. Purchase this lead to see full details about the opportunity, requirements, and specifications.">
+                      {request.description}
+                    </BlurredText>
                   </p>
                 </div>
               )}
@@ -414,7 +353,7 @@ export default function RequestDetailPage() {
                       Location Name
                     </p>
                     <p className="text-sm font-medium text-black-primary mt-0.5">
-                      <BlurredText isSubscribed={isSubscribed} placeholder="Sample Location">
+                      <BlurredText isPurchased={isPurchased} placeholder="Sample Location">
                         {request.location_name}
                       </BlurredText>
                     </p>
@@ -425,7 +364,7 @@ export default function RequestDetailPage() {
                         Address
                       </p>
                       <p className="text-sm font-medium text-black-primary mt-0.5">
-                        <BlurredText isSubscribed={isSubscribed} placeholder="123 Main Street">
+                        <BlurredText isPurchased={isPurchased} placeholder="123 Main Street">
                           {request.address}
                         </BlurredText>
                       </p>
@@ -436,24 +375,7 @@ export default function RequestDetailPage() {
                       City / State
                     </p>
                     <p className="text-sm font-medium text-black-primary mt-0.5">
-                      {isSubscribed ? (
-                        <>
-                          {request.city}, {request.state}
-                          {request.zip ? ` ${request.zip}` : ""}
-                        </>
-                      ) : (
-                        <>
-                          <BlurredText isSubscribed={false} placeholder="Denver">{request.city}</BlurredText>
-                          {", "}
-                          {request.state}
-                          {request.zip && (
-                            <>
-                              {" "}
-                              <BlurredText isSubscribed={false} placeholder="80202">{request.zip}</BlurredText>
-                            </>
-                          )}
-                        </>
-                      )}
+                      {request.city}, {request.state}
                     </p>
                   </div>
                   <div>
@@ -468,12 +390,24 @@ export default function RequestDetailPage() {
                       {locationLabel}
                     </p>
                   </div>
+                  {request.zip && (
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
+                        Zip Code
+                      </p>
+                      <p className="text-sm font-medium text-black-primary mt-0.5">
+                        <BlurredText isPurchased={isPurchased} placeholder="80202">
+                          {request.zip}
+                        </BlurredText>
+                      </p>
+                    </div>
+                  )}
                 </div>
-                {!isSubscribed && (
+                {!isPurchased && (
                   <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
                     <Lock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                     <p className="text-xs text-amber-700">
-                      <Link href="/pricing" className="font-semibold underline hover:text-amber-900">Subscribe</Link> to see full address, city, and zip code details.
+                      <Link href="/pricing" className="font-semibold underline hover:text-amber-900">Purchase this lead</Link> to see full location details including name, address, and zip code.
                     </p>
                   </div>
                 )}
@@ -501,7 +435,9 @@ export default function RequestDetailPage() {
                       Estimated Daily Traffic
                     </div>
                     <p className="mt-1 text-lg font-bold text-black-primary">
-                      {request.estimated_daily_traffic.toLocaleString()}
+                      <BlurredText isPurchased={isPurchased} placeholder="500+">
+                        {request.estimated_daily_traffic.toLocaleString()}
+                      </BlurredText>
                       <span className="text-sm font-normal text-gray-500 ml-1">
                         people / day
                       </span>
@@ -517,7 +453,9 @@ export default function RequestDetailPage() {
                       Price
                     </div>
                     <p className="mt-1 text-2xl font-bold text-green-700">
-                      ${request.price.toLocaleString()}
+                      <BlurredText isPurchased={isPurchased} placeholder="$XXX">
+                        ${request.price.toLocaleString()}
+                      </BlurredText>
                     </p>
                   </div>
                 )}
@@ -543,20 +481,11 @@ export default function RequestDetailPage() {
                   </p>
                   {request.commission_notes && (
                     <p className="mt-1.5 text-xs text-gray-500 italic">
-                      {request.commission_notes}
+                      <BlurredText isPurchased={isPurchased} placeholder="Commission details available after purchase">
+                        {request.commission_notes}
+                      </BlurredText>
                     </p>
                   )}
-                </div>
-
-                {/* Contact Preference */}
-                <div className="rounded-lg bg-gray-50 p-4 border border-gray-100">
-                  <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide font-medium">
-                    <ContactIcon className="h-3.5 w-3.5" />
-                    Preferred Contact
-                  </div>
-                  <p className="mt-1 text-sm font-semibold text-black-primary">
-                    {contactPref.label}
-                  </p>
                 </div>
 
                 {/* Views */}
@@ -590,34 +519,30 @@ export default function RequestDetailPage() {
           {/* Sidebar */}
           {/* ---------------------------------------------------------------- */}
           <div className="space-y-6">
-            {/* CTA Card */}
+            {/* Purchase CTA Card */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-24 animate-fade-in">
               <h3 className="text-lg font-bold text-black-primary">
                 Interested in this location?
               </h3>
               <p className="mt-1 text-sm text-gray-500">
-                Connect with the requestor and start the placement process.
+                Purchase this lead to unlock full location details, or contact the admin to get connected.
               </p>
 
-              <button
-                type="button"
-                onClick={() =>
-                  alert(
-                    "Sign up as an operator to apply for vending placement requests!"
-                  )
-                }
+              <Link
+                href="/pricing"
                 className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
               >
-                <Send className="h-4 w-4" />
-                Apply as Operator
-              </button>
+                <Lock className="h-4 w-4" />
+                Purchase This Lead
+              </Link>
 
-              {request.price != null && (
-                <div className="mt-4 rounded-lg bg-green-50 border border-green-100 p-3 text-center">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Price</p>
-                  <p className="text-2xl font-bold text-green-700 mt-1">${request.price.toLocaleString()}</p>
-                </div>
-              )}
+              <a
+                href="mailto:admin@vendingconnector.com"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
+              >
+                <Mail className="h-4 w-4" />
+                Contact Admin
+              </a>
 
               <div className="mt-5 pt-4 border-t border-gray-100 space-y-2">
                 <div className="flex items-center justify-between text-xs text-gray-500">
@@ -644,18 +569,18 @@ export default function RequestDetailPage() {
             {/* Quick info card */}
             <div className="bg-gradient-to-br from-green-50 to-light-warm rounded-xl border border-green-100 p-5">
               <h4 className="text-sm font-semibold text-black-primary mb-2">
-                New to Vending Connector?
+                How it works
               </h4>
               <p className="text-xs text-gray-600 leading-relaxed">
-                Vending Connector connects locations that need vending machines with
-                operators ready to serve. Sign up and start matching
-                with the right partners.
+                Browse available locations by city, state, and industry for free.
+                Purchase individual leads to unlock full details, or contact the
+                admin to get connected with the location.
               </p>
               <Link
-                href="/signup"
+                href="/pricing"
                 className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-green-primary hover:text-green-hover transition-colors"
               >
-                Get Started
+                Learn More
                 <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
