@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Unlock full access to Vending Connector's vending machine marketplace with our subscription plan.",
+    "Browse locations and operators for free. Purchase individual leads to unlock full details.",
   alternates: { canonical: "/pricing" },
 };
 

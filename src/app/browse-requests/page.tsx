@@ -22,7 +22,6 @@ import {
   US_STATE_NAMES,
 } from "@/lib/types";
 import RequestCard from "../components/RequestCard";
-// Subscription removed - per-lead purchase model
 
 // ---------------------------------------------------------------------------
 // Constants

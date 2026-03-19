@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, CreditCard } from "lucide-react";
+import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, Tag } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -235,8 +235,8 @@ export default function Navbar() {
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
                   >
-                    <CreditCard className="h-4 w-4 text-black-primary/50" />
-                    Subscription
+                    <Tag className="h-4 w-4 text-black-primary/50" />
+                    Pricing
                   </Link>
                   {isAdmin && (
                     <Link
@@ -387,8 +387,8 @@ export default function Navbar() {
                     className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
                   >
                     <span className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      Subscription
+                      <Tag className="h-4 w-4" />
+                      Pricing
                     </span>
                     <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>

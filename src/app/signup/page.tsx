@@ -182,12 +182,6 @@ export default function SignupPage() {
                 )}
               </button>
 
-              <div className="mt-5 rounded-lg bg-gray-50 p-3 text-center">
-                <p className="text-xs text-black-primary/60">
-                  Vending Connector membership is <span className="font-semibold text-black-primary">$19.99/month</span>. You&apos;ll be asked to subscribe after signing up.
-                </p>
-              </div>
-
               <div className="mt-4 text-center">
                 <p className="text-xs text-black-primary/40">
                   By signing up, you agree to our Terms of Service and Privacy Policy.

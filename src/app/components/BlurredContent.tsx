@@ -12,8 +12,6 @@ export function BlurredText({
   children: React.ReactNode;
   isPurchased: boolean;
   placeholder?: string;
-  /** @deprecated use isPurchased */
-  isSubscribed?: boolean;
 }) {
   if (isPurchased) {
     return <>{children}</>;
@@ -35,8 +33,6 @@ export function PaywallOverlay({
   children: React.ReactNode;
   isPurchased: boolean;
   message?: string;
-  /** @deprecated use isPurchased */
-  isSubscribed?: boolean;
 }) {
   if (isPurchased) {
     return <>{children}</>;
@@ -71,8 +67,6 @@ export function BlurredImage({
   alt: string;
   className?: string;
   isPurchased: boolean;
-  /** @deprecated use isPurchased */
-  isSubscribed?: boolean;
 }) {
   return (
     <img
