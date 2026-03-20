@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   MapPin,
@@ -16,9 +16,12 @@ import {
   ArrowRight,
   Lock,
   Mail,
+  CheckCircle,
+  CreditCard,
 } from "lucide-react";
 import type { VendingRequest, Profile } from "@/lib/types";
 import { LOCATION_TYPES } from "@/lib/types";
+import { apiRequest, getAccessToken } from "@/lib/auth";
 import MachineTypeBadge from "../../components/MachineTypeBadge";
 import UrgencyBadge from "../../components/UrgencyBadge";
 import LocationTypeIcon from "../../components/LocationTypeIcon";
@@ -182,6 +185,7 @@ function SimilarRequestCard({ request }: { request: VendingRequest }) {
 
 export default function RequestDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
 
   const [request, setRequest] = useState<VendingRequest | null>(null);
@@ -189,9 +193,10 @@ export default function RequestDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [similarRequests, setSimilarRequests] = useState<VendingRequest[]>([]);
   const [loadingSimilar, setLoadingSimilar] = useState(false);
-
-  // Per-lead purchase model: nothing is purchased by default
-  const isPurchased = false;
+  const [isPurchased, setIsPurchased] = useState(false);
+  const [purchasing, setPurchasing] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const justPurchased = searchParams.get("purchased") === "true";
 
   // Fetch main request
   useEffect(() => {
@@ -255,6 +260,51 @@ export default function RequestDetailPage() {
 
     fetchSimilar();
   }, [request]);
+
+  // Check if the user has purchased this lead
+  useEffect(() => {
+    if (!id) return;
+
+    async function checkPurchase() {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        const res = await fetch(`/api/purchases?requestId=${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.purchased) setIsPurchased(true);
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+
+    checkPurchase();
+  }, [id, justPurchased]);
+
+  async function handlePurchase() {
+    setPurchasing(true);
+    setPurchaseError(null);
+    try {
+      const res = await apiRequest("/api/checkout", {
+        method: "POST",
+        body: JSON.stringify({ requestId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPurchaseError(data.error || "Failed to create checkout session");
+        return;
+      }
+      // Redirect to Stripe Checkout
+      window.location.href = data.url;
+    } catch {
+      setPurchaseError("Something went wrong. Please try again.");
+    } finally {
+      setPurchasing(false);
+    }
+  }
 
   // ---------- Loading state ----------
   if (loading) return <DetailSkeleton />;
@@ -513,28 +563,68 @@ export default function RequestDetailPage() {
           <div className="space-y-6">
             {/* Purchase CTA Card */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-24 animate-fade-in">
-              <h3 className="text-lg font-bold text-black-primary">
-                Interested in this location?
-              </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Purchase this lead to unlock full location details, or contact the admin to get connected.
-              </p>
+              {isPurchased || justPurchased ? (
+                <>
+                  <div className="flex items-center gap-2 text-green-700">
+                    <CheckCircle className="h-5 w-5" />
+                    <h3 className="text-lg font-bold">Lead Purchased</h3>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500">
+                    You have full access to this lead&apos;s details. Reach out to
+                    the location directly to start the placement process.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-lg font-bold text-black-primary">
+                    Interested in this location?
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Purchase this lead to unlock full location details, or contact the admin to get connected.
+                  </p>
 
-              <Link
-                href="/pricing"
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
-              >
-                <Lock className="h-4 w-4" />
-                Purchase This Lead
-              </Link>
+                  {request.price != null && request.price > 0 ? (
+                    <>
+                      <button
+                        onClick={handlePurchase}
+                        disabled={purchasing}
+                        className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {purchasing ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Redirecting to payment...
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="h-4 w-4" />
+                            Purchase This Lead — ${request.price.toLocaleString()}
+                          </>
+                        )}
+                      </button>
+                      {purchaseError && (
+                        <p className="mt-2 text-xs text-red-600">{purchaseError}</p>
+                      )}
+                    </>
+                  ) : (
+                    <a
+                      href="mailto:contact@bytebitevending.com?subject=Lead%20Purchase%20Inquiry&body=I%20am%20interested%20in%20purchasing%20a%20lead.%20Request%20ID:%20${id}"
+                      className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                    >
+                      <Mail className="h-4 w-4" />
+                      Contact Admin for Pricing
+                    </a>
+                  )}
 
-              <a
-                href="mailto:admin@vendingconnector.com"
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
-              >
-                <Mail className="h-4 w-4" />
-                Contact Admin
-              </a>
+                  <a
+                    href="mailto:contact@bytebitevending.com"
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
+                  >
+                    <Mail className="h-4 w-4" />
+                    Contact Admin
+                  </a>
+                </>
+              )}
 
               <div className="mt-5 pt-4 border-t border-gray-100 space-y-2">
                 <div className="flex items-center justify-between text-xs text-gray-500">

@@ -7,7 +7,6 @@ import {
   MapPin,
   Eye,
   Lock,
-  Mail,
   Building2,
 } from "lucide-react";
 
@@ -100,17 +99,16 @@ export default function PricingPage() {
               ))}
             </ul>
 
-            <a
-              href="mailto:admin@vendingconnector.com"
+            <Link
+              href="/browse-requests"
               className="w-full flex items-center justify-center gap-2 rounded-xl bg-green-primary px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
             >
-              <Mail className="h-5 w-5" />
-              Contact Admin to Purchase
-            </a>
+              Browse &amp; Purchase Leads
+            </Link>
 
             <p className="mt-4 text-center text-xs text-gray-400 flex items-center justify-center gap-1">
               <Shield className="h-3 w-3" />
-              All requests handled securely by our admin team
+              Secure payments powered by Stripe
             </p>
           </div>
         </div>
@@ -136,7 +134,7 @@ export default function PricingPage() {
               </div>
               <h3 className="font-semibold text-black-primary">2. Purchase Leads</h3>
               <p className="mt-1 text-sm text-gray-500">
-                Contact admin to purchase individual leads and unlock full details.
+                Click the purchase button on any lead to pay securely via Stripe and unlock full details.
               </p>
             </div>
             <div className="text-center">
