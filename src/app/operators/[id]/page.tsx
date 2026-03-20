@@ -54,17 +54,13 @@ function timeAgo(dateStr: string): string {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-/** Avatar with initials fallback */
+/** Avatar with initials */
 function AvatarCircle({
   name,
-  avatarUrl,
   size = "lg",
-  blurred = false,
 }: {
   name: string;
-  avatarUrl: string | null;
   size?: "sm" | "md" | "lg" | "xl";
-  blurred?: boolean;
 }) {
   const sizeClasses = {
     sm: "h-8 w-8 text-xs",
@@ -79,16 +75,6 @@ function AvatarCircle({
     .join("")
     .toUpperCase()
     .slice(0, 2);
-
-  if (avatarUrl) {
-    return (
-      <img
-        src={avatarUrl}
-        alt={name}
-        className={`${sizeClasses[size]} rounded-full object-cover ring-4 ring-green-100 ${blurred ? "blur-md" : ""}`}
-      />
-    );
-  }
 
   return (
     <div
@@ -431,9 +417,7 @@ export default function OperatorProfilePage() {
               <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
                 <AvatarCircle
                   name={profile.full_name}
-                  avatarUrl={profile.avatar_url}
                   size="xl"
-                  blurred={!isPurchased && !!profile.avatar_url}
                 />
                 <div className="text-center sm:text-left min-w-0 flex-1">
                   <div className="flex items-center justify-center gap-2 sm:justify-start">

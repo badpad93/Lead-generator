@@ -30,9 +30,8 @@ function stripOperatorProfileForLocations(profile: Record<string, unknown> | nul
     verified: profile.verified ?? false,
     rating: profile.rating ?? 0,
     review_count: profile.review_count ?? 0,
-    // Hide: full_name, avatar_url, company_name, email, phone, website, bio, city
+    // Hide: full_name, company_name, email, phone, website, bio, city
     full_name: "Operator",
-    avatar_url: null,
     company_name: null,
   };
 }
@@ -82,7 +81,6 @@ export async function GET(req: NextRequest) {
       operators = operators.map((op: Record<string, unknown>) => ({
         ...op,
         full_name: "Operator",
-        avatar_url: null,
         company_name: null,
         email: null,
         phone: null,
@@ -99,7 +97,7 @@ export async function GET(req: NextRequest) {
   // Listings mode
   let query = supabaseAdmin
     .from("operator_listings")
-    .select("*, profiles!operator_id(id, full_name, avatar_url, company_name, verified, rating, review_count, city, state, zip)", { count: "exact" });
+    .select("*, profiles!operator_id(id, full_name, company_name, verified, rating, review_count, city, state, zip)", { count: "exact" });
 
   if (mine === "true" && userId) {
     query = query.eq("operator_id", userId);

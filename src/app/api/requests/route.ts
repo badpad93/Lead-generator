@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabaseAdmin
       .from("vending_requests")
-      .select("*, profiles(id, full_name, avatar_url, company_name, verified)", { count: "exact" });
+      .select("*, profiles(id, full_name, company_name, verified)", { count: "exact" });
 
     // If requesting own requests, need auth context via header
     if (mine === "true" && userId) {
