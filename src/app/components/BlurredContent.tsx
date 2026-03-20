@@ -24,7 +24,7 @@ export function BlurredText({
   );
 }
 
-/** Blurs an entire section with a paywall overlay */
+/** Blurs an entire section with a purchase-required overlay */
 export function PaywallOverlay({
   children,
   isPurchased,
