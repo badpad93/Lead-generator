@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, Tag } from "lucide-react";
+import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -11,7 +11,6 @@ const navLinks = [
   { label: "Browse Requests", href: "/browse-requests" },
   { label: "Routes for Sale", href: "/routes-for-sale" },
   { label: "Browse Operators", href: "/browse-operators" },
-  { label: "Pricing", href: "/pricing" },
   { label: "How It Works", href: "/how-it-works" },
 ];
 
@@ -230,14 +229,6 @@ export default function Navbar() {
                     <Route className="h-4 w-4 text-black-primary/50" />
                     Routes for Sale
                   </Link>
-                  <Link
-                    href="/pricing"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
-                  >
-                    <Tag className="h-4 w-4 text-black-primary/50" />
-                    Pricing
-                  </Link>
                   {isAdmin && (
                     <Link
                       href="/admin"
@@ -376,19 +367,6 @@ export default function Navbar() {
                     <span className="flex items-center gap-2">
                       <Route className="h-4 w-4" />
                       Routes for Sale
-                    </span>
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/pricing"
-                    onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Tag className="h-4 w-4" />
-                      Pricing
                     </span>
                     <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
