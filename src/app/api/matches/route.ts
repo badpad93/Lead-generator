@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from("matches")
-      .select("*, profiles!operator_id(id, full_name, avatar_url, company_name, verified, rating, review_count), vending_requests(id, title)")
+      .select("*, profiles!operator_id(id, full_name, company_name, verified, rating, review_count), vending_requests(id, title)")
       .in("request_id", requestIds)
       .order("created_at", { ascending: false });
 

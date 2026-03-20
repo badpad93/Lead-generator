@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from("reviews")
-    .select("*, reviewer:profiles!reviewer_id(id, full_name, avatar_url)")
+    .select("*, reviewer:profiles!reviewer_id(id, full_name)")
     .eq("reviewee_id", userId)
     .order("created_at", { ascending: false });
 

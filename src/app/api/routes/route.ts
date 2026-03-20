@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from("route_listings")
-    .select("*, profiles!created_by(id, full_name, avatar_url, company_name, verified)", { count: "exact" })
+    .select("*, profiles!created_by(id, full_name, company_name, verified)", { count: "exact" })
     .eq("status", "active");
 
   // Exclude locations with missing or unknown city/state

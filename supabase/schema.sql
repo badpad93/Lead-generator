@@ -11,7 +11,6 @@ create table public.profiles (
   id uuid primary key references auth.users on delete cascade,
   full_name text not null default '',
   email text not null default '',
-  avatar_url text,
   role text not null check (role in ('operator', 'location_manager', 'requestor')),
   company_name text,
   phone text,
@@ -313,41 +312,6 @@ create index idx_subscriptions_stripe_customer on public.subscriptions(stripe_cu
 create trigger set_subscriptions_updated_at
   before update on public.subscriptions
   for each row execute function public.set_updated_at();
-
--- ============================================================
--- STORAGE: Avatars bucket
--- ============================================================
-insert into storage.buckets (id, name, public) values ('avatars', 'avatars', true)
-  on conflict (id) do nothing;
-
--- Anyone can view avatars (public bucket)
-create policy "Avatar images are publicly accessible"
-  on storage.objects for select using (bucket_id = 'avatars');
-
--- Authenticated users can upload their own avatar
-create policy "Users can upload own avatar"
-  on storage.objects for insert with check (
-    bucket_id = 'avatars'
-    and auth.role() = 'authenticated'
-    and (storage.foldername(name))[1] is null
-    and starts_with(name, auth.uid()::text)
-  );
-
--- Authenticated users can update (overwrite) their own avatar
-create policy "Users can update own avatar"
-  on storage.objects for update using (
-    bucket_id = 'avatars'
-    and auth.role() = 'authenticated'
-    and starts_with(name, auth.uid()::text)
-  );
-
--- Authenticated users can delete their own avatar
-create policy "Users can delete own avatar"
-  on storage.objects for delete using (
-    bucket_id = 'avatars'
-    and auth.role() = 'authenticated'
-    and starts_with(name, auth.uid()::text)
-  );
 
 -- ============================================================
 -- INDEXES

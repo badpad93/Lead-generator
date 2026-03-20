@@ -43,7 +43,6 @@ export async function GET(req: NextRequest) {
       email: user.email || "",
       full_name: fullName,
       role: meta.role || "requestor",
-      avatar_url: meta.avatar_url || meta.picture || null,
       country: "US",
       verified: false,
       rating: 0,
@@ -90,7 +89,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const allowedFields = [
       "full_name", "company_name", "phone", "website", "bio",
-      "city", "state", "zip", "avatar_url", "role",
+      "city", "state", "zip", "role",
     ];
     const updates: Partial<Record<string, string | null>> = {};
     for (const field of allowedFields) {

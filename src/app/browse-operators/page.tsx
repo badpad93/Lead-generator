@@ -265,17 +265,13 @@ function OperatorCardSkeleton() {
   );
 }
 
-/** Operator avatar with initials fallback */
+/** Operator avatar with initials */
 function OperatorAvatar({
   name,
-  avatarUrl,
   size = "md",
-  blurred = false,
 }: {
   name: string;
-  avatarUrl: string | null;
   size?: "sm" | "md" | "lg";
-  blurred?: boolean;
 }) {
   const sizeClasses = {
     sm: "h-8 w-8 text-xs",
@@ -289,16 +285,6 @@ function OperatorAvatar({
     .join("")
     .toUpperCase()
     .slice(0, 2);
-
-  if (avatarUrl) {
-    return (
-      <img
-        src={avatarUrl}
-        alt={name}
-        className={`${sizeClasses[size]} rounded-full object-cover ring-2 ring-green-100 ${blurred ? "blur-md" : ""}`}
-      />
-    );
-  }
 
   return (
     <div
@@ -389,7 +375,7 @@ function OperatorCard({ operator, onViewProfile }: { operator: OperatorWithListi
     <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-green-primary/5 group">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <OperatorAvatar name={operator.full_name} avatarUrl={operator.avatar_url} blurred={!!operator.avatar_url} />
+        <OperatorAvatar name={operator.full_name} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <h3 className="font-semibold text-black-primary text-base leading-snug truncate select-none blur-sm">

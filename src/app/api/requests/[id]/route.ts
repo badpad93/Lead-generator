@@ -30,7 +30,7 @@ export async function GET(
 
   const { data, error } = await supabaseAdmin
     .from("vending_requests")
-    .select("*, profiles!created_by(id, full_name, avatar_url, company_name, verified, city, state, rating, review_count)")
+    .select("*, profiles!created_by(id, full_name, company_name, verified, city, state, rating, review_count)")
     .eq("id", id)
     .neq("city", "").neq("state", "").not("city", "is", null).not("state", "is", null)
     .neq("city", "Unknown").neq("state", "Unknown").neq("city", "unknown").neq("state", "unknown")

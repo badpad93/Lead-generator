@@ -39,7 +39,6 @@ export async function GET(
     safeProfile = {
       ...profile,
       full_name: "Operator",
-      avatar_url: null,
       company_name: null,
       email: null,
       phone: null,
@@ -60,7 +59,7 @@ export async function GET(
   // Get reviews
   const { data: reviews } = await supabaseAdmin
     .from("reviews")
-    .select("*, reviewer:profiles!reviewer_id(id, full_name, avatar_url)")
+    .select("*, reviewer:profiles!reviewer_id(id, full_name)")
     .eq("reviewee_id", id)
     .order("created_at", { ascending: false })
     .limit(10);

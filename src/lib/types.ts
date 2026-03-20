@@ -35,7 +35,6 @@ export interface Profile {
   id: string;
   full_name: string;
   email: string;
-  avatar_url: string | null;
   role: UserRole;
   company_name: string | null;
   phone: string | null;
