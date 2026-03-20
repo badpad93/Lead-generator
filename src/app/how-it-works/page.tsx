@@ -83,11 +83,11 @@ const ROLES = [
 const FAQ = [
   {
     q: "How much does Vending Connector cost?",
-    a: "Vending Connector offers a monthly membership for $19.99/month. This gives you full access to browse requests, post listings, connect with operators, and more. Cancel anytime.",
+    a: "Browsing locations and operators is completely free. You can view city, state, and industry for every listing. To unlock full details like contact info and addresses, you purchase individual leads.",
   },
   {
     q: "How does the matching process work?",
-    a: "When you post a request, operators in your area can see it and apply. You'll receive their application with profile details, and you choose who to work with.",
+    a: "When you post a request, operators can browse it by city, state, and industry. Operators purchase the lead to unlock full details, or contact the admin to get connected with you.",
   },
   {
     q: "Do I need to be a verified operator?",

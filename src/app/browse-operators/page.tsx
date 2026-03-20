@@ -20,7 +20,6 @@ import {
 import type { Profile, MachineType, OperatorListing } from "@/lib/types";
 import { MACHINE_TYPES, US_STATES, US_STATE_NAMES } from "@/lib/types";
 import MachineTypeBadge from "../components/MachineTypeBadge";
-// Subscription removed - per-lead purchase model
 
 // ---------------------------------------------------------------------------
 // Constants
