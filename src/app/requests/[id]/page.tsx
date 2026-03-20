@@ -403,14 +403,6 @@ export default function RequestDetailPage() {
                     </div>
                   )}
                 </div>
-                {!isPurchased && (
-                  <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-                    <Lock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                    <p className="text-xs text-amber-700">
-                      <Link href="/pricing" className="font-semibold underline hover:text-amber-900">Purchase this lead</Link> to see full location details including name, address, and zip code.
-                    </p>
-                  </div>
-                )}
               </div>
 
               {/* Machine Types */}
