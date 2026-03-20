@@ -34,7 +34,7 @@ export default function PricingPage() {
             Purchase Individual Leads
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-base text-gray-600 sm:text-lg">
-            Browse for free. Only pay for the leads you want. No monthly subscription required.
+            Browse for free. Only pay for the leads you want. No commitments.
           </p>
         </div>
       </section>
