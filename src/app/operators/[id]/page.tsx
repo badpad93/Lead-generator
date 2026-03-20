@@ -17,7 +17,6 @@ import {
   Clock,
   Eye,
   HandCoins,
-  Lock,
   Mail,
 } from "lucide-react";
 import type { Profile, OperatorListing } from "@/lib/types";
@@ -624,34 +623,25 @@ export default function OperatorProfilePage() {
               </div>
             </div>
 
-            {/* Purchase CTA for non-paid users */}
-            {!isPurchased && (
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-5">
-                <div className="flex items-center gap-2 mb-2">
-                  <Lock className="h-4 w-4 text-amber-600" />
-                  <h4 className="text-sm font-semibold text-black-primary">
-                    Unlock Full Details
-                  </h4>
-                </div>
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  Purchase this operator lead to see contact name, phone number, email, company details, and full profile information.
-                </p>
-                <Link
-                  href="/pricing"
-                  className="mt-3 inline-flex items-center gap-1 rounded-lg bg-green-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
-                >
-                  Purchase Lead
-                  <ArrowRight className="h-3 w-3" />
-                </Link>
-                <a
-                  href="mailto:admin@vendingconnector.com"
-                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-green-primary transition-colors"
-                >
-                  <Mail className="h-3 w-3" />
-                  Or contact admin
-                </a>
+            {/* Contact Admin CTA */}
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200 p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Mail className="h-4 w-4 text-green-600" />
+                <h4 className="text-sm font-semibold text-black-primary">
+                  Interested in this operator?
+                </h4>
               </div>
-            )}
+              <p className="text-xs text-gray-600 leading-relaxed">
+                Contact our team and we&apos;ll connect you with this operator directly. No cost to locations.
+              </p>
+              <a
+                href="mailto:contact@bytebitevending.com"
+                className="mt-3 inline-flex items-center gap-1 rounded-lg bg-green-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
+              >
+                <Mail className="h-3 w-3" />
+                Email Us
+              </a>
+            </div>
 
             {/* Browse CTA */}
             <div className="bg-gradient-to-br from-green-50 to-light-warm rounded-xl border border-green-100 p-5">
