@@ -16,11 +16,33 @@ export async function GET(req: NextRequest) {
 
   const { data } = await supabaseAdmin
     .from("lead_purchases")
-    .select("id")
+    .select("id, buyer_email")
     .eq("user_id", userId)
     .eq("request_id", requestId)
     .eq("status", "completed")
     .maybeSingle();
 
-  return NextResponse.json({ purchased: !!data });
+  if (!data) {
+    return NextResponse.json({ purchased: false });
+  }
+
+  // Check if the lead has all contact fields populated
+  const { data: lead } = await supabaseAdmin
+    .from("vending_requests")
+    .select("contact_phone, address, decision_maker_name, contact_email")
+    .eq("id", requestId)
+    .single();
+
+  const leadInfoComplete = !!(
+    lead?.contact_phone &&
+    lead?.address &&
+    lead?.decision_maker_name &&
+    lead?.contact_email
+  );
+
+  return NextResponse.json({
+    purchased: true,
+    buyerEmail: data.buyer_email,
+    leadInfoComplete,
+  });
 }
