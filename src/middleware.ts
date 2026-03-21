@@ -11,6 +11,7 @@ const PROTECTED_PATHS = [
   "/post-route",
   "/listings/new",
   "/routes-for-sale",
+  "/your-leads",
   "/admin",
 ];
 
