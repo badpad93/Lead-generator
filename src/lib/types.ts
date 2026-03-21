@@ -68,6 +68,9 @@ export interface VendingRequest {
   commission_notes: string | null;
   urgency: Urgency;
   status: RequestStatus;
+  contact_phone: string | null;
+  contact_email: string | null;
+  decision_maker_name: string | null;
   contact_preference: ContactPreference;
   is_public: boolean;
   views: number;

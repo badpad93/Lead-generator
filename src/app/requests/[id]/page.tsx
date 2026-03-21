@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import {
@@ -18,6 +18,9 @@ import {
   Mail,
   CheckCircle,
   CreditCard,
+  Download,
+  Phone,
+  User,
 } from "lucide-react";
 import type { VendingRequest, Profile } from "@/lib/types";
 import { LOCATION_TYPES } from "@/lib/types";
@@ -89,6 +92,94 @@ function getStatusConfig(status: string): {
         label: status,
       };
   }
+}
+
+function formatCurrency(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+// ---------------------------------------------------------------------------
+// PDF Receipt generation (client-side using jsPDF)
+// ---------------------------------------------------------------------------
+
+async function downloadReceiptPdf(requestId: string) {
+  const token = await getAccessToken();
+  if (!token) return;
+
+  const res = await fetch(`/api/receipt?requestId=${requestId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) throw new Error("Failed to fetch receipt data");
+  const data = await res.json();
+
+  // Use ES module build to avoid node Worker issues with SSR
+  const { jsPDF } = await import("jspdf/dist/jspdf.es.min.js");
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 50;
+  let y = 60;
+
+  // Header
+  doc.setFontSize(22);
+  doc.setTextColor(22, 163, 74); // green-600
+  doc.text("ByteBite Vending", pageWidth / 2, y, { align: "center" });
+  y += 24;
+  doc.setFontSize(12);
+  doc.setTextColor(107, 114, 128); // gray-500
+  doc.text("Purchase Receipt", pageWidth / 2, y, { align: "center" });
+  y += 40;
+
+  // Divider
+  doc.setDrawColor(229, 231, 235);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 30;
+
+  // Receipt details
+  const rows: [string, string][] = [
+    ["Lead", data.leadTitle],
+    ["Location", data.leadLocation],
+    ["Date", formatDate(data.purchaseDate)],
+    ["Order ID", data.orderId],
+    ["Buyer Email", data.buyerEmail || "N/A"],
+  ];
+
+  doc.setFontSize(11);
+  for (const [label, value] of rows) {
+    doc.setTextColor(107, 114, 128);
+    doc.text(label, margin, y);
+    doc.setTextColor(17, 24, 39);
+    doc.text(value, pageWidth - margin, y, { align: "right" });
+    y += 22;
+  }
+
+  // Amount
+  y += 10;
+  doc.setDrawColor(229, 231, 235);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 28;
+  doc.setFontSize(13);
+  doc.setTextColor(17, 24, 39);
+  doc.text("Amount Paid", margin, y);
+  doc.setFontSize(18);
+  doc.setTextColor(22, 163, 74);
+  doc.text(formatCurrency(data.amountCents), pageWidth - margin, y, {
+    align: "right",
+  });
+  y += 50;
+
+  // Footer
+  doc.setFontSize(9);
+  doc.setTextColor(156, 163, 175);
+  doc.text(
+    "Thank you for your purchase! Questions? contact@bytebitevending.com",
+    pageWidth / 2,
+    y,
+    { align: "center" }
+  );
+
+  doc.save(`receipt-${data.orderId.slice(0, 8)}.pdf`);
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +287,9 @@ export default function RequestDetailPage() {
   const [isPurchased, setIsPurchased] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
+  const [buyerEmail, setBuyerEmail] = useState<string | null>(null);
+  const [leadInfoComplete, setLeadInfoComplete] = useState(false);
   const justPurchased = searchParams.get("purchased") === "true";
 
   // Fetch main request
@@ -274,7 +368,11 @@ export default function RequestDetailPage() {
         });
         if (res.ok) {
           const data = await res.json();
-          if (data.purchased) setIsPurchased(true);
+          if (data.purchased) {
+            setIsPurchased(true);
+            setBuyerEmail(data.buyerEmail ?? null);
+            setLeadInfoComplete(data.leadInfoComplete ?? false);
+          }
         }
       } catch {
         // Silently fail
@@ -305,6 +403,17 @@ export default function RequestDetailPage() {
       setPurchasing(false);
     }
   }
+
+  const handleDownloadReceipt = useCallback(async () => {
+    setDownloadingReceipt(true);
+    try {
+      await downloadReceiptPdf(id);
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setDownloadingReceipt(false);
+    }
+  }, [id]);
 
   // ---------- Loading state ----------
   if (loading) return <DetailSkeleton />;
@@ -342,6 +451,11 @@ export default function RequestDetailPage() {
   const locationLabel =
     LOCATION_TYPES.find((lt) => lt.value === request.location_type)?.label ??
     request.location_type;
+
+  // For purchased leads: determine if we should show contact details (Case A)
+  // or the "please wait" message (Case B)
+  const showContactDetails = isPurchased && leadInfoComplete;
+  const showWaitingMessage = isPurchased && !leadInfoComplete;
 
   return (
     <div className="min-h-screen bg-light">
@@ -454,6 +568,82 @@ export default function RequestDetailPage() {
                   )}
                 </div>
               </div>
+
+              {/* Contact Details — only shown for purchased leads */}
+              {isPurchased && (
+                <div className="mt-6 rounded-lg border border-green-200 bg-green-50/50 p-4">
+                  <h3 className="text-sm font-semibold text-black-primary mb-3 flex items-center gap-2">
+                    <User className="h-4 w-4 text-green-primary" />
+                    Contact Details
+                  </h3>
+
+                  {showContactDetails ? (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {request.decision_maker_name && (
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
+                            Decision Maker
+                          </p>
+                          <p className="text-sm font-medium text-black-primary mt-0.5 flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5 text-gray-400" />
+                            {request.decision_maker_name}
+                          </p>
+                        </div>
+                      )}
+                      {request.contact_phone && (
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
+                            Phone
+                          </p>
+                          <p className="text-sm font-medium text-black-primary mt-0.5 flex items-center gap-1.5">
+                            <Phone className="h-3.5 w-3.5 text-gray-400" />
+                            <a
+                              href={`tel:${request.contact_phone}`}
+                              className="text-green-primary hover:underline"
+                            >
+                              {request.contact_phone}
+                            </a>
+                          </p>
+                        </div>
+                      )}
+                      {request.contact_email && (
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
+                            Email
+                          </p>
+                          <p className="text-sm font-medium text-black-primary mt-0.5 flex items-center gap-1.5">
+                            <Mail className="h-3.5 w-3.5 text-gray-400" />
+                            <a
+                              href={`mailto:${request.contact_email}`}
+                              className="text-green-primary hover:underline"
+                            >
+                              {request.contact_email}
+                            </a>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : showWaitingMessage ? (
+                    <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
+                      <div className="flex items-start gap-3">
+                        <Clock className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-800">
+                            Please wait 5–10 minutes
+                          </p>
+                          <p className="text-sm text-amber-700 mt-1">
+                            An email with the full lead information will be sent
+                            to:{" "}
+                            <span className="font-semibold">
+                              {buyerEmail || "your checkout email"}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {/* Machine Types */}
               <div className="mt-6">
@@ -573,6 +763,25 @@ export default function RequestDetailPage() {
                     You have full access to this lead&apos;s details. Reach out to
                     the location directly to start the placement process.
                   </p>
+
+                  {/* Download Receipt Button */}
+                  <button
+                    onClick={handleDownloadReceipt}
+                    disabled={downloadingReceipt}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {downloadingReceipt ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating PDF...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" />
+                        Download Receipt (PDF)
+                      </>
+                    )}
+                  </button>
                 </>
               ) : (
                 <>
