@@ -78,6 +78,16 @@ export async function GET(req: NextRequest) {
     } else {
       // Public view: only show public requests
       query = query.eq("is_public", true);
+
+      // Exclude leads that have already been purchased by anyone
+      const { data: purchasedRows } = await supabaseAdmin
+        .from("lead_purchases")
+        .select("request_id")
+        .eq("status", "completed");
+      const purchasedIds = purchasedRows?.map((r) => r.request_id) ?? [];
+      if (purchasedIds.length > 0) {
+        query = query.not("id", "in", `(${purchasedIds.join(",")})`);
+      }
     }
 
     // Exclude locations with missing or unknown city/state
