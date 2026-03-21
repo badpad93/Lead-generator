@@ -345,7 +345,10 @@ export default function RequestDetailPage() {
     if (!receiptData || !request) return;
     setDownloadingReceipt(true);
     try {
-      const { jsPDF } = await import("jspdf/dist/jspdf.es.min.js");
+      // Use the browser-specific ES build to avoid Node.js worker issues during SSR
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mod: any = await import("jspdf/dist/jspdf.es.min.js");
+      const jsPDF = mod.jsPDF ?? mod.default;
       const doc = new jsPDF({ unit: "pt", format: "letter" });
 
       const pageWidth = doc.internal.pageSize.getWidth();

@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     .select("id")
     .eq("request_id", requestId)
     .eq("status", "completed")
+    .limit(1)
     .maybeSingle();
 
   const purchasedByAnyone = !!anyPurchase;

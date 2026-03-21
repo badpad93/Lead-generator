@@ -14,6 +14,14 @@ const navLinks = [
   { label: "How It Works", href: "/how-it-works" },
 ];
 
+const authNavLinks = [
+  { label: "Browse Requests", href: "/browse-requests" },
+  { label: "Your Leads", href: "/your-leads" },
+  { label: "Routes for Sale", href: "/routes-for-sale" },
+  { label: "Browse Operators", href: "/browse-operators" },
+  { label: "How It Works", href: "/how-it-works" },
+];
+
 interface SessionUser {
   email: string;
   name: string;
@@ -170,7 +178,7 @@ export default function Navbar() {
 
         {/* Desktop Navigation */}
         <ul className="hidden items-center gap-1 md:flex">
-          {navLinks.map((link) => (
+          {(isLoggedIn ? authNavLinks : navLinks).map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
@@ -338,7 +346,7 @@ export default function Navbar() {
           )}
 
           <ul className="space-y-1">
-            {navLinks.map((link) => (
+            {(isLoggedIn ? authNavLinks : navLinks).map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
