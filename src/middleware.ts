@@ -91,6 +91,6 @@ export const config = {
      * - favicon.ico, sitemap.xml, robots.txt
      * - public assets
      */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|api/).*)",
   ],
 };
