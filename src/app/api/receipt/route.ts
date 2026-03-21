@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 /** GET /api/receipt?requestId=xxx — return receipt data for PDF generation */
 export async function GET(req: NextRequest) {
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const token = authHeader.replace("Bearer ", "");
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const userId = user.id;
 
   const requestId = req.nextUrl.searchParams.get("requestId");
   if (!requestId) {

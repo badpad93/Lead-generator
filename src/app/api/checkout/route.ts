@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 /** POST /api/checkout — create a Stripe Checkout Session for a lead purchase */
 export async function POST(req: NextRequest) {
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const token = authHeader.replace("Bearer ", "");
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const userId = user.id;
 
   const body = await req.json();
   const { requestId } = body;
@@ -28,6 +35,7 @@ export async function POST(req: NextRequest) {
     .select("id, user_id")
     .eq("request_id", requestId)
     .eq("status", "completed")
+    .limit(1)
     .maybeSingle();
 
   if (existing) {
