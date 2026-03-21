@@ -99,87 +99,15 @@ function formatCurrency(cents: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// PDF Receipt generation (client-side using jsPDF)
+// Receipt data stored in component state after purchase check
 // ---------------------------------------------------------------------------
 
-async function downloadReceiptPdf(requestId: string) {
-  const token = await getAccessToken();
-  if (!token) return;
-
-  const res = await fetch(`/api/receipt?requestId=${requestId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!res.ok) throw new Error("Failed to fetch receipt data");
-  const data = await res.json();
-
-  // Use ES module build to avoid node Worker issues with SSR
-  const { jsPDF } = await import("jspdf/dist/jspdf.es.min.js");
-  const doc = new jsPDF({ unit: "pt", format: "letter" });
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 50;
-  let y = 60;
-
-  // Header
-  doc.setFontSize(22);
-  doc.setTextColor(22, 163, 74); // green-600
-  doc.text("ByteBite Vending", pageWidth / 2, y, { align: "center" });
-  y += 24;
-  doc.setFontSize(12);
-  doc.setTextColor(107, 114, 128); // gray-500
-  doc.text("Purchase Receipt", pageWidth / 2, y, { align: "center" });
-  y += 40;
-
-  // Divider
-  doc.setDrawColor(229, 231, 235);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 30;
-
-  // Receipt details
-  const rows: [string, string][] = [
-    ["Lead", data.leadTitle],
-    ["Location", data.leadLocation],
-    ["Date", formatDate(data.purchaseDate)],
-    ["Order ID", data.orderId],
-    ["Buyer Email", data.buyerEmail || "N/A"],
-  ];
-
-  doc.setFontSize(11);
-  for (const [label, value] of rows) {
-    doc.setTextColor(107, 114, 128);
-    doc.text(label, margin, y);
-    doc.setTextColor(17, 24, 39);
-    doc.text(value, pageWidth - margin, y, { align: "right" });
-    y += 22;
-  }
-
-  // Amount
-  y += 10;
-  doc.setDrawColor(229, 231, 235);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 28;
-  doc.setFontSize(13);
-  doc.setTextColor(17, 24, 39);
-  doc.text("Amount Paid", margin, y);
-  doc.setFontSize(18);
-  doc.setTextColor(22, 163, 74);
-  doc.text(formatCurrency(data.amountCents), pageWidth - margin, y, {
-    align: "right",
-  });
-  y += 50;
-
-  // Footer
-  doc.setFontSize(9);
-  doc.setTextColor(156, 163, 175);
-  doc.text(
-    "Thank you for your purchase! Questions? contact@bytebitevending.com",
-    pageWidth / 2,
-    y,
-    { align: "center" }
-  );
-
-  doc.save(`receipt-${data.orderId.slice(0, 8)}.pdf`);
+interface ReceiptData {
+  orderId: string;
+  amountCents: number;
+  purchaseDate: string;
+  stripeSessionId: string | null;
+  buyerEmail: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -285,11 +213,13 @@ export default function RequestDetailPage() {
   const [similarRequests, setSimilarRequests] = useState<VendingRequest[]>([]);
   const [loadingSimilar, setLoadingSimilar] = useState(false);
   const [isPurchased, setIsPurchased] = useState(false);
+  const [purchasedByAnyone, setPurchasedByAnyone] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [downloadingReceipt, setDownloadingReceipt] = useState(false);
   const [buyerEmail, setBuyerEmail] = useState<string | null>(null);
   const [leadInfoComplete, setLeadInfoComplete] = useState(false);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const justPurchased = searchParams.get("purchased") === "true";
 
   // Fetch main request
@@ -355,23 +285,30 @@ export default function RequestDetailPage() {
     fetchSimilar();
   }, [request]);
 
-  // Check if the user has purchased this lead
+  // Check if the user (or anyone) has purchased this lead
   useEffect(() => {
     if (!id) return;
 
     async function checkPurchase() {
       try {
         const token = await getAccessToken();
-        if (!token) return;
-        const res = await fetch(`/api/purchases?requestId=${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(`/api/purchases?requestId=${id}`, { headers });
         if (res.ok) {
           const data = await res.json();
+          setPurchasedByAnyone(!!data.purchasedByAnyone);
           if (data.purchased) {
             setIsPurchased(true);
             setBuyerEmail(data.buyerEmail ?? null);
             setLeadInfoComplete(data.leadInfoComplete ?? false);
+            setReceiptData({
+              orderId: data.orderId,
+              amountCents: data.amountCents,
+              purchaseDate: data.purchaseDate,
+              stripeSessionId: data.stripeSessionId ?? null,
+              buyerEmail: data.buyerEmail ?? null,
+            });
           }
         }
       } catch {
@@ -405,15 +342,78 @@ export default function RequestDetailPage() {
   }
 
   const handleDownloadReceipt = useCallback(async () => {
+    if (!receiptData || !request) return;
     setDownloadingReceipt(true);
     try {
-      await downloadReceiptPdf(id);
+      const { jsPDF } = await import("jspdf/dist/jspdf.es.min.js");
+      const doc = new jsPDF({ unit: "pt", format: "letter" });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 50;
+      let y = 60;
+
+      // Header
+      doc.setFontSize(22);
+      doc.setTextColor(22, 163, 74);
+      doc.text("ByteBite Vending", pageWidth / 2, y, { align: "center" });
+      y += 24;
+      doc.setFontSize(12);
+      doc.setTextColor(107, 114, 128);
+      doc.text("Purchase Receipt", pageWidth / 2, y, { align: "center" });
+      y += 40;
+
+      doc.setDrawColor(229, 231, 235);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 30;
+
+      const rows: [string, string][] = [
+        ["Lead", request.title],
+        ["Location", `${request.city}, ${request.state}`],
+        ["Date", formatDate(receiptData.purchaseDate)],
+        ["Order ID", receiptData.orderId],
+        ["Stripe Session", receiptData.stripeSessionId || "N/A"],
+        ["Buyer Email", receiptData.buyerEmail || "N/A"],
+      ];
+
+      doc.setFontSize(11);
+      for (const [label, value] of rows) {
+        doc.setTextColor(107, 114, 128);
+        doc.text(label, margin, y);
+        doc.setTextColor(17, 24, 39);
+        doc.text(value, pageWidth - margin, y, { align: "right" });
+        y += 22;
+      }
+
+      y += 10;
+      doc.setDrawColor(229, 231, 235);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 28;
+      doc.setFontSize(13);
+      doc.setTextColor(17, 24, 39);
+      doc.text("Amount Paid", margin, y);
+      doc.setFontSize(18);
+      doc.setTextColor(22, 163, 74);
+      doc.text(formatCurrency(receiptData.amountCents), pageWidth - margin, y, {
+        align: "right",
+      });
+      y += 50;
+
+      doc.setFontSize(9);
+      doc.setTextColor(156, 163, 175);
+      doc.text(
+        "Thank you for your purchase! Questions? contact@bytebitevending.com",
+        pageWidth / 2,
+        y,
+        { align: "center" }
+      );
+
+      doc.save("receipt.pdf");
     } catch {
       // silently fail — user can retry
     } finally {
       setDownloadingReceipt(false);
     }
-  }, [id]);
+  }, [receiptData, request]);
 
   // ---------- Loading state ----------
   if (loading) return <DetailSkeleton />;
@@ -767,7 +767,7 @@ export default function RequestDetailPage() {
                   {/* Download Receipt Button */}
                   <button
                     onClick={handleDownloadReceipt}
-                    disabled={downloadingReceipt}
+                    disabled={downloadingReceipt || !receiptData}
                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {downloadingReceipt ? (
@@ -782,6 +782,22 @@ export default function RequestDetailPage() {
                       </>
                     )}
                   </button>
+                </>
+              ) : purchasedByAnyone ? (
+                <>
+                  <div className="flex items-center gap-2 text-amber-700">
+                    <Lock className="h-5 w-5" />
+                    <h3 className="text-lg font-bold">This lead has been purchased</h3>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500">
+                    This lead has already been purchased by another user and is no longer available.
+                  </p>
+                  <Link
+                    href="/browse-requests"
+                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                  >
+                    Browse Other Leads
+                  </Link>
                 </>
               ) : (
                 <>

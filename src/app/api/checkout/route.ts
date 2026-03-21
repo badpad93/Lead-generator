@@ -22,20 +22,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Check if already purchased
+  // Check if already purchased by anyone
   const { data: existing } = await supabaseAdmin
     .from("lead_purchases")
-    .select("id")
-    .eq("user_id", userId)
+    .select("id, user_id")
     .eq("request_id", requestId)
     .eq("status", "completed")
     .maybeSingle();
 
   if (existing) {
-    return NextResponse.json(
-      { error: "You have already purchased this lead" },
-      { status: 409 }
-    );
+    const msg =
+      existing.user_id === userId
+        ? "You have already purchased this lead"
+        : "This lead has already been purchased";
+    return NextResponse.json({ error: msg }, { status: 409 });
   }
 
   // Fetch the lead to get the price
