@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 /** GET /api/purchases?requestId=xxx — check if the current user has purchased a lead */
 export async function GET(req: NextRequest) {
-  const userId = await getUserIdFromRequest(req);
+  // Extract user ID from Bearer token (optional — unauthenticated users still get purchasedByAnyone)
+  let userId: string | null = null;
+  const authHeader = req.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+    userId = user?.id ?? null;
+  }
 
   const requestId = req.nextUrl.searchParams.get("requestId");
   if (!requestId) {
