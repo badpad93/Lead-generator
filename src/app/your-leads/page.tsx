@@ -11,7 +11,6 @@ import {
   ArrowRight,
   Search,
 } from "lucide-react";
-import { getAccessToken } from "@/lib/auth";
 import type { MachineType } from "@/lib/types";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
 
@@ -46,15 +45,7 @@ export default function YourLeadsPage() {
   useEffect(() => {
     async function fetchPurchases() {
       try {
-        const token = await getAccessToken();
-        if (!token) {
-          router.push("/login?redirect=/your-leads");
-          return;
-        }
-
-        const res = await fetch("/api/user/purchases", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch("/api/user/purchases");
 
         if (res.status === 401) {
           router.push("/login?redirect=/your-leads");
