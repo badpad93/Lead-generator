@@ -1,18 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 /** POST /api/checkout — create a Stripe Checkout Session for a lead purchase */
 export async function POST(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const cookieStore = await cookies();
 
-  const token = authHeader.replace("Bearer ", "");
-  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll() {},
+      },
+    }
+  );
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import type { VendingRequest, Profile } from "@/lib/types";
 import { LOCATION_TYPES } from "@/lib/types";
-import { apiRequest, getAccessToken } from "@/lib/auth";
 import MachineTypeBadge from "../../components/MachineTypeBadge";
 import UrgencyBadge from "../../components/UrgencyBadge";
 import LocationTypeIcon from "../../components/LocationTypeIcon";
@@ -291,10 +290,7 @@ export default function RequestDetailPage() {
 
     async function checkPurchase() {
       try {
-        const token = await getAccessToken();
-        const headers: Record<string, string> = {};
-        if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch(`/api/purchases?requestId=${id}`, { headers });
+        const res = await fetch(`/api/purchases?requestId=${id}`);
         if (res.ok) {
           const data = await res.json();
           setPurchasedByAnyone(!!data.purchasedByAnyone);
@@ -323,8 +319,9 @@ export default function RequestDetailPage() {
     setPurchasing(true);
     setPurchaseError(null);
     try {
-      const res = await apiRequest("/api/checkout", {
+      const res = await fetch("/api/checkout", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId: id }),
       });
       const data = await res.json();
