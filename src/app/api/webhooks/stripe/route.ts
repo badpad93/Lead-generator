@@ -50,6 +50,12 @@ export async function POST(req: NextRequest) {
         .select("id, amount_cents, created_at")
         .single();
 
+      // Mark the lead as no longer public so it stops appearing in browse results
+      await supabaseAdmin
+        .from("vending_requests")
+        .update({ is_public: false, status: "matched" })
+        .eq("id", requestId);
+
       // Fetch the lead details for emails
       const { data: lead } = await supabaseAdmin
         .from("vending_requests")

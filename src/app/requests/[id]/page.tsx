@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import type { VendingRequest, Profile } from "@/lib/types";
 import { LOCATION_TYPES } from "@/lib/types";
-import { apiRequest, getAccessToken } from "@/lib/auth";
 import MachineTypeBadge from "../../components/MachineTypeBadge";
 import UrgencyBadge from "../../components/UrgencyBadge";
 import LocationTypeIcon from "../../components/LocationTypeIcon";
@@ -291,10 +290,7 @@ export default function RequestDetailPage() {
 
     async function checkPurchase() {
       try {
-        const token = await getAccessToken();
-        const headers: Record<string, string> = {};
-        if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch(`/api/purchases?requestId=${id}`, { headers });
+        const res = await fetch(`/api/purchases?requestId=${id}`);
         if (res.ok) {
           const data = await res.json();
           setPurchasedByAnyone(!!data.purchasedByAnyone);
@@ -323,8 +319,9 @@ export default function RequestDetailPage() {
     setPurchasing(true);
     setPurchaseError(null);
     try {
-      const res = await apiRequest("/api/checkout", {
+      const res = await fetch("/api/checkout", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId: id }),
       });
       const data = await res.json();
@@ -345,7 +342,6 @@ export default function RequestDetailPage() {
     if (!receiptData || !request) return;
     setDownloadingReceipt(true);
     try {
-      // Use the browser-specific ES build to avoid Node.js worker issues during SSR
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mod: any = await import("jspdf/dist/jspdf.es.min.js");
       const jsPDF = mod.jsPDF ?? mod.default;
@@ -355,42 +351,83 @@ export default function RequestDetailPage() {
       const margin = 50;
       let y = 60;
 
-      // Header
+      // Header — VendingConnector branding
       doc.setFontSize(22);
       doc.setTextColor(22, 163, 74);
-      doc.text("ByteBite Vending", pageWidth / 2, y, { align: "center" });
+      doc.text("VendingConnector", pageWidth / 2, y, { align: "center" });
       y += 24;
       doc.setFontSize(12);
       doc.setTextColor(107, 114, 128);
       doc.text("Purchase Receipt", pageWidth / 2, y, { align: "center" });
-      y += 40;
+      y += 12;
+      doc.setFontSize(10);
+      doc.text("Your lead purchase has been confirmed.", pageWidth / 2, y, {
+        align: "center",
+      });
+      y += 30;
 
       doc.setDrawColor(229, 231, 235);
       doc.line(margin, y, pageWidth - margin, y);
-      y += 30;
+      y += 25;
 
-      const rows: [string, string][] = [
-        ["Lead", request.title],
-        ["Location", `${request.city}, ${request.state}`],
-        ["Date", formatDate(receiptData.purchaseDate)],
-        ["Order ID", receiptData.orderId],
-        ["Stripe Session", receiptData.stripeSessionId || "N/A"],
-        ["Buyer Email", receiptData.buyerEmail || "N/A"],
+      // Lead details
+      doc.setFontSize(13);
+      doc.setTextColor(17, 24, 39);
+      doc.text("Lead Details", margin, y);
+      y += 20;
+
+      const leadRows: [string, string][] = [
+        ["Location Name", request.location_name || request.title],
+        ["City / State", `${request.city}, ${request.state}`],
+        ["Address", request.address || "N/A"],
+        ["Machine Types", request.machine_types_wanted?.join(", ") || "N/A"],
+        ["Price Paid", formatCurrency(receiptData.amountCents)],
       ];
 
-      doc.setFontSize(11);
-      for (const [label, value] of rows) {
+      doc.setFontSize(10);
+      for (const [label, value] of leadRows) {
         doc.setTextColor(107, 114, 128);
         doc.text(label, margin, y);
         doc.setTextColor(17, 24, 39);
         doc.text(value, pageWidth - margin, y, { align: "right" });
-        y += 22;
+        y += 18;
       }
 
       y += 10;
       doc.setDrawColor(229, 231, 235);
       doc.line(margin, y, pageWidth - margin, y);
-      y += 28;
+      y += 25;
+
+      // Purchase info
+      doc.setFontSize(13);
+      doc.setTextColor(17, 24, 39);
+      doc.text("Purchase Information", margin, y);
+      y += 20;
+
+      const purchaseRows: [string, string][] = [
+        ["Buyer Email", receiptData.buyerEmail || "N/A"],
+        ["Purchase Date", formatDate(receiptData.purchaseDate)],
+        ["Order ID", receiptData.orderId],
+        ["Stripe Reference", receiptData.stripeSessionId || "N/A"],
+      ];
+
+      doc.setFontSize(10);
+      for (const [label, value] of purchaseRows) {
+        doc.setTextColor(107, 114, 128);
+        doc.text(label, margin, y);
+        doc.setTextColor(17, 24, 39);
+        const maxWidth = pageWidth - margin - 180;
+        const lines = doc.splitTextToSize(value, maxWidth);
+        doc.text(lines, pageWidth - margin, y, { align: "right" });
+        y += Math.max(lines.length, 1) * 14 + 4;
+      }
+
+      y += 10;
+      doc.setDrawColor(229, 231, 235);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 25;
+
+      // Amount
       doc.setFontSize(13);
       doc.setTextColor(17, 24, 39);
       doc.text("Amount Paid", margin, y);
@@ -399,7 +436,7 @@ export default function RequestDetailPage() {
       doc.text(formatCurrency(receiptData.amountCents), pageWidth - margin, y, {
         align: "right",
       });
-      y += 50;
+      y += 40;
 
       doc.setFontSize(9);
       doc.setTextColor(156, 163, 175);

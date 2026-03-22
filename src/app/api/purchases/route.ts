@@ -1,15 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /** GET /api/purchases?requestId=xxx — check if the current user has purchased a lead */
 export async function GET(req: NextRequest) {
-  // Extract user ID from Bearer token (optional — unauthenticated users still get purchasedByAnyone)
+  // Extract user ID from cookies (optional — unauthenticated users still get purchasedByAnyone)
   let userId: string | null = null;
-  const authHeader = req.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+  try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll() {},
+        },
+      }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
     userId = user?.id ?? null;
+  } catch {
+    // Continue as unauthenticated
   }
 
   const requestId = req.nextUrl.searchParams.get("requestId");
