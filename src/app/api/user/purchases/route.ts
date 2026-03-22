@@ -30,7 +30,7 @@ export async function GET() {
   const { data: purchases, error } = await supabaseAdmin
     .from("lead_purchases")
     .select(
-      "id, request_id, amount_cents, created_at, vending_requests(id, title, city, state, machine_types_wanted, location_type)"
+      "id, request_id, amount_cents, buyer_email, stripe_checkout_session_id, created_at, vending_requests(id, title, location_name, address, city, state, zip, location_type, machine_types_wanted, estimated_daily_traffic, price, urgency, commission_offered, commission_notes, description, contact_phone, contact_email, decision_maker_name)"
     )
     .eq("user_id", userId)
     .eq("status", "completed")
