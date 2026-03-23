@@ -27,8 +27,7 @@ export type MachineType =
 export type Urgency = "flexible" | "within_1_month" | "within_2_weeks" | "asap";
 export type RequestStatus = "open" | "matched" | "closed";
 export type OperatorStatus = "available" | "limited" | "full";
-export type MatchStatus = "pending" | "accepted" | "declined" | "installed";
-export type MatchedBy = "platform" | "operator_applied" | "manual";
+
 export type ContactPreference = "platform_message" | "email" | "phone";
 
 export interface Profile {
@@ -101,20 +100,6 @@ export interface OperatorListing {
   profiles?: Profile;
 }
 
-export interface Match {
-  id: string;
-  request_id: string;
-  operator_id: string;
-  matched_by: MatchedBy;
-  status: MatchStatus;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-  // Joined
-  vending_requests?: VendingRequest;
-  profiles?: Profile;
-}
-
 export interface Review {
   id: string;
   reviewer_id: string;
@@ -151,13 +136,6 @@ export interface RouteListing {
   profiles?: Profile;
 }
 
-export interface SavedRequest {
-  id: string;
-  operator_id: string;
-  request_id: string;
-  created_at: string;
-}
-
 // Supabase Database type (simplified)
 export interface Database {
   public: {
@@ -165,9 +143,7 @@ export interface Database {
       profiles: { Row: Profile; Insert: Partial<Profile> & { id: string }; Update: Partial<Profile> };
       vending_requests: { Row: VendingRequest; Insert: Omit<VendingRequest, "id" | "created_at" | "updated_at" | "views" | "profiles">; Update: Partial<VendingRequest> };
       operator_listings: { Row: OperatorListing; Insert: Omit<OperatorListing, "id" | "created_at" | "updated_at" | "views" | "profiles">; Update: Partial<OperatorListing> };
-      matches: { Row: Match; Insert: Omit<Match, "id" | "created_at" | "updated_at">; Update: Partial<Match> };
       reviews: { Row: Review; Insert: Omit<Review, "id" | "created_at" | "reviewer">; Update: Partial<Review> };
-      saved_requests: { Row: SavedRequest; Insert: Omit<SavedRequest, "id" | "created_at">; Update: Partial<SavedRequest> };
     };
   };
 }
