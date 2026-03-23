@@ -192,6 +192,53 @@ export async function sendLeadDetailsEmail(params: LeadDetailsEmailParams) {
 }
 
 // ---------------------------------------------------------------------------
+// Purchase Confirmation Email
+// ---------------------------------------------------------------------------
+
+interface PurchaseConfirmationEmailParams {
+  to: string;
+  leadTitle: string;
+  locationName: string | null;
+}
+
+export async function sendPurchaseConfirmationEmail(
+  params: PurchaseConfirmationEmailParams
+) {
+  const { to, leadTitle, locationName } = params;
+  const displayName = locationName || leadTitle;
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <div style="text-align: center; margin-bottom: 32px;">
+        <h1 style="color: #16a34a; font-size: 24px; margin: 0;">Vending Connector</h1>
+      </div>
+
+      <div style="background: #f9fafb; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+        <h2 style="margin: 0 0 12px; font-size: 18px; color: #111827;">Your purchase is confirmed!</h2>
+        <p style="margin: 0 0 16px; font-size: 14px; color: #374151; line-height: 1.6;">
+          Thank you for purchasing the lead for <strong>${displayName}</strong>.
+        </p>
+        <p style="margin: 0; font-size: 14px; color: #374151; line-height: 1.6;">
+          Full location details including the address, contact name, and phone number will be sent to your email within the next few minutes.
+        </p>
+      </div>
+
+      <p style="font-size: 13px; color: #6b7280; text-align: center; margin: 0;">
+        — Vending Connector Team
+      </p>
+    </div>
+  `;
+
+  return getResend().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject:
+      "Your lead purchase is confirmed — details coming shortly",
+    html,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Helper: check if lead has all contact fields
 // ---------------------------------------------------------------------------
 
