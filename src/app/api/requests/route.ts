@@ -132,12 +132,19 @@ export async function GET(req: NextRequest) {
       requests = requests.map((r: Record<string, unknown>) => stripRequestForOperators(r));
     } else {
       // Everyone: hide business name, address, zip in browse view
-      requests = requests.map((r: Record<string, unknown>) => ({
-        ...r,
-        location_name: null,
-        address: null,
-        zip: null,
-      }));
+      requests = requests.map((r: Record<string, unknown>) => {
+        // Remove business name from title (old format: "Type — BusinessName")
+        const title = typeof r.title === "string" && (r.title as string).includes(" — ")
+          ? (r.title as string).split(" — ")[0]
+          : r.title;
+        return {
+          ...r,
+          title,
+          location_name: null,
+          address: null,
+          zip: null,
+        };
+      });
     }
 
     return NextResponse.json({ requests, total: count || 0 });

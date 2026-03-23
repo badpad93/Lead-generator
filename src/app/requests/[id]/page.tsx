@@ -221,7 +221,7 @@ export default function RequestDetailPage() {
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const justPurchased = searchParams.get("purchased") === "true";
 
-  // Fetch main request
+  // Fetch main request — re-fetch when purchase is detected to get full data
   useEffect(() => {
     if (!id) return;
 
@@ -250,7 +250,7 @@ export default function RequestDetailPage() {
     }
 
     fetchRequest();
-  }, [id]);
+  }, [id, isPurchased]);
 
   // Fetch similar requests
   useEffect(() => {
