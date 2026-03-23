@@ -847,7 +847,11 @@ function RequestsManager({
   const [requests, setRequests] = useState<RequestWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingRequest, setEditingRequest] = useState<RequestWithProfile | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", status: "", urgency: "", is_public: true });
+  const [editForm, setEditForm] = useState({
+    title: "", status: "", urgency: "", is_public: true,
+    price: "", location_name: "", address: "", zip: "",
+    contact_phone: "", contact_email: "", decision_maker_name: "",
+  });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RequestWithProfile | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -897,6 +901,13 @@ function RequestsManager({
       status: request.status,
       urgency: request.urgency,
       is_public: request.is_public,
+      price: request.price != null ? String(request.price) : "",
+      location_name: request.location_name || "",
+      address: request.address || "",
+      zip: request.zip || "",
+      contact_phone: request.contact_phone || "",
+      contact_email: request.contact_email || "",
+      decision_maker_name: request.decision_maker_name || "",
     });
   }
 
@@ -904,13 +915,17 @@ function RequestsManager({
     if (!editingRequest) return;
     setSaving(true);
     try {
+      const payload = {
+        ...editForm,
+        price: editForm.price ? Number(editForm.price) : null,
+      };
       const res = await fetch(`/api/admin/requests/${editingRequest.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setEditingRequest(null);
@@ -1085,7 +1100,7 @@ function RequestsManager({
 
       {/* Edit Modal */}
       {editingRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-8">
           <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-black-primary">Edit Request</h3>
@@ -1097,13 +1112,52 @@ function RequestsManager({
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
               <div>
                 <label className="mb-1 block text-sm font-medium text-black-primary">Title</label>
                 <input
                   type="text"
                   value={editForm.title}
                   onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Price ($)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editForm.price}
+                  onChange={(e) => setEditForm((f) => ({ ...f, price: e.target.value }))}
+                  placeholder="e.g. 20"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Business Name</label>
+                <input
+                  type="text"
+                  value={editForm.location_name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, location_name: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Address</label>
+                <input
+                  type="text"
+                  value={editForm.address}
+                  onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Zip Code</label>
+                <input
+                  type="text"
+                  value={editForm.zip}
+                  onChange={(e) => setEditForm((f) => ({ ...f, zip: e.target.value }))}
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
                 />
               </div>
@@ -1133,6 +1187,36 @@ function RequestsManager({
                   ))}
                 </select>
               </div>
+              <hr className="border-gray-100" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact Info (shown after purchase)</p>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Decision Maker Name</label>
+                <input
+                  type="text"
+                  value={editForm.decision_maker_name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, decision_maker_name: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Contact Phone</label>
+                <input
+                  type="text"
+                  value={editForm.contact_phone}
+                  onChange={(e) => setEditForm((f) => ({ ...f, contact_phone: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Contact Email</label>
+                <input
+                  type="text"
+                  value={editForm.contact_email}
+                  onChange={(e) => setEditForm((f) => ({ ...f, contact_email: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
+              </div>
+              <hr className="border-gray-100" />
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"

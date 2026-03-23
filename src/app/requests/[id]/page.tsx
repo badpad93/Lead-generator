@@ -550,15 +550,19 @@ export default function RequestDetailPage() {
                   Location Details
                 </h3>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
-                      Location Name
-                    </p>
-                    <p className="text-sm font-medium text-black-primary mt-0.5">
-                      {request.location_name}
-                    </p>
-                  </div>
-                  {request.address && (
+                  {/* Business name — only shown after purchase */}
+                  {isPurchased && request.location_name && (
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
+                        Business Name
+                      </p>
+                      <p className="text-sm font-medium text-black-primary mt-0.5">
+                        {request.location_name}
+                      </p>
+                    </div>
+                  )}
+                  {/* Address — only shown after purchase */}
+                  {isPurchased && request.address && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
                         Address
@@ -568,14 +572,16 @@ export default function RequestDetailPage() {
                       </p>
                     </div>
                   )}
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
-                      City / State
-                    </p>
-                    <p className="text-sm font-medium text-black-primary mt-0.5">
-                      {request.city}, {request.state}
-                    </p>
-                  </div>
+                  {request.city && request.state && (
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
+                        City / State
+                      </p>
+                      <p className="text-sm font-medium text-black-primary mt-0.5">
+                        {request.city}, {request.state}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
                       Location Type
@@ -588,7 +594,8 @@ export default function RequestDetailPage() {
                       {locationLabel}
                     </p>
                   </div>
-                  {request.zip && (
+                  {/* Zip — only shown after purchase */}
+                  {isPurchased && request.zip && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
                         Zip Code

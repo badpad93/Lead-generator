@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
         // Operators can only search by state/zip
         query = query.or(`state.ilike.%${search}%,zip.ilike.%${search}%,title.ilike.%${search}%`);
       } else {
-        query = query.or(`city.ilike.%${search}%,state.ilike.%${search}%,title.ilike.%${search}%,location_name.ilike.%${search}%`);
+        query = query.or(`city.ilike.%${search}%,state.ilike.%${search}%,title.ilike.%${search}%`);
       }
     }
     if (locationType) query = query.eq("location_type", locationType);
@@ -126,10 +126,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Strip location data for operator accounts
+    // Strip sensitive fields from browse results
     let requests = data || [];
     if (isOperator) {
       requests = requests.map((r: Record<string, unknown>) => stripRequestForOperators(r));
+    } else {
+      // Everyone: hide business name, address, zip in browse view
+      requests = requests.map((r: Record<string, unknown>) => ({
+        ...r,
+        location_name: null,
+        address: null,
+        zip: null,
+      }));
     }
 
     return NextResponse.json({ requests, total: count || 0 });

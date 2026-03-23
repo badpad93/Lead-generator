@@ -63,16 +63,17 @@ export async function GET(
     }
   }
 
-  // Strip location data for operator accounts who have NOT purchased this lead
-  if (isOperator && !isBuyer) {
+  // Strip sensitive fields for anyone who has NOT purchased this lead
+  if (!isBuyer) {
     return NextResponse.json({
       ...data,
-      location_name: "Location",
+      location_name: null,
       address: null,
-      city: null,
-      description: null,
+      zip: null,
       contact_preference: null,
       profiles: null,
+      // Operators also lose city and description
+      ...(isOperator ? { city: null, description: null } : {}),
     });
   }
 
