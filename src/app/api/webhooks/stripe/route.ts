@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   sendReceiptEmail,
   sendLeadDetailsEmail,
+  sendPurchaseConfirmationEmail,
   isLeadInfoComplete,
 } from "@/lib/email";
 
@@ -64,6 +65,19 @@ export async function POST(req: NextRequest) {
         )
         .eq("id", requestId)
         .single();
+
+      // Send purchase confirmation email immediately
+      if (buyerEmail && lead) {
+        try {
+          await sendPurchaseConfirmationEmail({
+            to: buyerEmail,
+            leadTitle: lead.title,
+            locationName: lead.location_name,
+          });
+        } catch (e) {
+          console.error("Failed to send purchase confirmation email:", e);
+        }
+      }
 
       if (buyerEmail && lead && purchase) {
         const leadLocation = `${lead.city}, ${lead.state}`;

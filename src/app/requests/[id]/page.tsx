@@ -27,7 +27,7 @@ import { LOCATION_TYPES } from "@/lib/types";
 import MachineTypeBadge from "../../components/MachineTypeBadge";
 import UrgencyBadge from "../../components/UrgencyBadge";
 import LocationTypeIcon from "../../components/LocationTypeIcon";
-import { BlurredText } from "../../components/BlurredContent";
+
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -538,9 +538,7 @@ export default function RequestDetailPage() {
               {request.description && (
                 <div className="mt-6">
                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-                    <BlurredText isPurchased={isPurchased} placeholder="This location is looking for vending machine placement. Purchase this lead to see full details about the opportunity, requirements, and specifications.">
-                      {request.description}
-                    </BlurredText>
+                    {request.description}
                   </p>
                 </div>
               )}
@@ -557,9 +555,7 @@ export default function RequestDetailPage() {
                       Location Name
                     </p>
                     <p className="text-sm font-medium text-black-primary mt-0.5">
-                      <BlurredText isPurchased={isPurchased} placeholder="Sample Location">
-                        {request.location_name}
-                      </BlurredText>
+                      {request.location_name}
                     </p>
                   </div>
                   {request.address && (
@@ -568,9 +564,7 @@ export default function RequestDetailPage() {
                         Address
                       </p>
                       <p className="text-sm font-medium text-black-primary mt-0.5">
-                        <BlurredText isPurchased={isPurchased} placeholder="123 Main Street">
-                          {request.address}
-                        </BlurredText>
+                        {request.address}
                       </p>
                     </div>
                   )}
@@ -600,9 +594,7 @@ export default function RequestDetailPage() {
                         Zip Code
                       </p>
                       <p className="text-sm font-medium text-black-primary mt-0.5">
-                        <BlurredText isPurchased={isPurchased} placeholder="80202">
-                          {request.zip}
-                        </BlurredText>
+                        {request.zip}
                       </p>
                     </div>
                   )}
@@ -707,9 +699,7 @@ export default function RequestDetailPage() {
                       Estimated Daily Traffic
                     </div>
                     <p className="mt-1 text-lg font-bold text-black-primary">
-                      <BlurredText isPurchased={isPurchased} placeholder="500+">
-                        {request.estimated_daily_traffic.toLocaleString()}
-                      </BlurredText>
+                      {request.estimated_daily_traffic.toLocaleString()}
                       <span className="text-sm font-normal text-gray-500 ml-1">
                         people / day
                       </span>
@@ -725,9 +715,7 @@ export default function RequestDetailPage() {
                       Price
                     </div>
                     <p className="mt-1 text-2xl font-bold text-green-700">
-                      <BlurredText isPurchased={isPurchased} placeholder="$XXX">
-                        ${request.price.toLocaleString()}
-                      </BlurredText>
+                      ${request.price.toLocaleString()}
                     </p>
                   </div>
                 )}
@@ -753,9 +741,7 @@ export default function RequestDetailPage() {
                   </p>
                   {request.commission_notes && (
                     <p className="mt-1.5 text-xs text-gray-500 italic">
-                      <BlurredText isPurchased={isPurchased} placeholder="Commission details available after purchase">
-                        {request.commission_notes}
-                      </BlurredText>
+                      {request.commission_notes}
                     </p>
                   )}
                 </div>
