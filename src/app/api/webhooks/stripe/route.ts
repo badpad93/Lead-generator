@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     if (userId && requestId) {
       // Update purchase record with status, payment intent, and buyer email
-      const { data: purchase } = await supabaseAdmin
+      const { data: purchase, error: purchaseError } = await supabaseAdmin
         .from("lead_purchases")
         .update({
           status: "completed",
@@ -51,11 +51,20 @@ export async function POST(req: NextRequest) {
         .select("id, amount_cents, created_at")
         .single();
 
+      if (purchaseError) {
+        console.error("Webhook: failed to update purchase record:", purchaseError);
+        return NextResponse.json({ error: "Failed to update purchase" }, { status: 500 });
+      }
+
       // Mark the lead as no longer public so it stops appearing in browse results
-      await supabaseAdmin
+      const { error: leadUpdateError } = await supabaseAdmin
         .from("vending_requests")
         .update({ is_public: false, status: "matched" })
         .eq("id", requestId);
+
+      if (leadUpdateError) {
+        console.error("Webhook: failed to update lead visibility:", leadUpdateError);
+      }
 
       // Fetch the lead details for emails
       const { data: lead } = await supabaseAdmin
