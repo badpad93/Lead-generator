@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 
@@ -11,29 +9,7 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  // Determine requester identity — try Bearer token first, then cookies
-  let requesterId = await getUserIdFromRequest(req);
-  if (!requesterId) {
-    try {
-      const cookieStore = await cookies();
-      const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookies: {
-            getAll() {
-              return cookieStore.getAll();
-            },
-            setAll() {},
-          },
-        }
-      );
-      const { data: { user } } = await supabase.auth.getUser();
-      requesterId = user?.id ?? null;
-    } catch {
-      // Continue as unauthenticated
-    }
-  }
+  const requesterId = await getUserIdFromRequest(req);
 
   let requesterRole: string | null = null;
   if (requesterId) {
