@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Truck, Building2, UserPlus, ArrowLeft, Loader2 } from "lucide-react";
-import { signInWithDiscord, storeSignupRole } from "@/lib/auth";
+import { signInWithDiscord, storeSignupRole, storeRedirectAfterLogin } from "@/lib/auth";
 
 type Role = "operator" | "location_manager" | "requestor";
 
@@ -55,8 +55,9 @@ export default function SignupPage() {
     setError(null);
 
     try {
-      // Store the selected role before redirecting to Discord
+      // Store the selected role and default redirect before going to Discord
       storeSignupRole(role);
+      storeRedirectAfterLogin("/dashboard");
       await signInWithDiscord();
     } catch {
       setError("Failed to connect to Discord. Please try again.");

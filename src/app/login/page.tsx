@@ -15,10 +15,8 @@ function LoginContent() {
     setLoading(true);
     setError(null);
     // Store the intended destination so the callback can redirect there
-    const redirect = searchParams.get("redirect");
-    if (redirect) {
-      storeRedirectAfterLogin(redirect);
-    }
+    const redirect = searchParams.get("redirect") || "/dashboard";
+    storeRedirectAfterLogin(redirect);
     try {
       await signInWithDiscord();
     } catch {
