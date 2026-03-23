@@ -40,31 +40,31 @@ export async function GET(
     return NextResponse.json({ error: "Request not found" }, { status: 404 });
   }
 
+  // Check if the requester has purchased this lead
+  let isBuyer = false;
+  if (requesterId) {
+    const { data: purchase } = await supabaseAdmin
+      .from("lead_purchases")
+      .select("id")
+      .eq("user_id", requesterId)
+      .eq("request_id", id)
+      .eq("status", "completed")
+      .limit(1)
+      .maybeSingle();
+    isBuyer = !!purchase;
+  }
+
   // Block access to purchased leads unless the viewer is the buyer or the owner
   if (!data.is_public || data.status === "matched") {
     const isOwner = requesterId && requesterId === data.created_by;
-
-    // Check if the requester is the buyer
-    let isBuyer = false;
-    if (requesterId) {
-      const { data: purchase } = await supabaseAdmin
-        .from("lead_purchases")
-        .select("id")
-        .eq("user_id", requesterId)
-        .eq("request_id", id)
-        .eq("status", "completed")
-        .limit(1)
-        .maybeSingle();
-      isBuyer = !!purchase;
-    }
 
     if (!isOwner && !isBuyer) {
       return NextResponse.json({ error: "Request not found" }, { status: 404 });
     }
   }
 
-  // Strip location data for operator accounts (only show business industry + zip)
-  if (isOperator) {
+  // Strip location data for operator accounts who have NOT purchased this lead
+  if (isOperator && !isBuyer) {
     return NextResponse.json({
       ...data,
       location_name: "Location",
