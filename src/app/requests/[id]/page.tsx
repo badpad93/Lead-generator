@@ -284,12 +284,27 @@ export default function RequestDetailPage() {
     fetchSimilar();
   }, [request]);
 
-  // Check if the user (or anyone) has purchased this lead
+  // Check if the user (or anyone) has purchased this lead.
+  // When returning from Stripe (?purchased=true), first verify the payment
+  // server-side so we don't depend on the webhook having fired yet.
   useEffect(() => {
     if (!id) return;
 
     async function checkPurchase() {
       try {
+        // If user just returned from Stripe, verify the purchase first
+        if (justPurchased) {
+          try {
+            await fetch("/api/verify-purchase", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ requestId: id }),
+            });
+          } catch {
+            // Continue to normal check even if verify fails
+          }
+        }
+
         const res = await fetch(`/api/purchases?requestId=${id}`);
         if (res.ok) {
           const data = await res.json();
