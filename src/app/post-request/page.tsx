@@ -138,7 +138,6 @@ interface FormData {
   dailyFootTraffic: string;
   additionalNotes: string;
   /* Step 3 */
-  price: string;
   commissionOffered: boolean;
   commissionNotes: string;
   contactPreference: string;
@@ -156,7 +155,6 @@ const initialFormData: FormData = {
   machineTypes: [],
   dailyFootTraffic: "",
   additionalNotes: "",
-  price: "",
   commissionOffered: false,
   commissionNotes: "",
   contactPreference: "platform_message",
@@ -217,7 +215,7 @@ export default function PostRequestPage() {
     const newErrors: Partial<Record<keyof FormData, string>> = {};
 
     if (step === 1) {
-      if (!formData.locationName.trim()) newErrors.locationName = "Location name is required";
+      if (!formData.locationName.trim()) newErrors.locationName = "Business name is required";
       if (!formData.city.trim()) newErrors.city = "City is required";
       if (!formData.state) newErrors.state = "State is required";
       if (!formData.locationType) newErrors.locationType = "Location type is required";
@@ -272,8 +270,8 @@ export default function PostRequestPage() {
         (mt) => MACHINE_TYPE_MAP[mt] || mt
       );
 
-      // Generate a title from form data
-      const title = `${formData.locationType} — ${formData.locationName}`;
+      // Generate a title from form data (no business name — that's private until purchase)
+      const title = `${formData.locationType} in ${formData.city}, ${formData.state}`;
 
       const res = await fetch("/api/requests", {
         method: "POST",
@@ -292,7 +290,6 @@ export default function PostRequestPage() {
           location_type: locationType,
           machine_types_wanted: machineTypesWanted,
           estimated_daily_traffic: formData.dailyFootTraffic ? Number(formData.dailyFootTraffic) : undefined,
-          price: formData.price ? Number(formData.price) : undefined,
           commission_offered: formData.commissionOffered,
           commission_notes: formData.commissionNotes || undefined,
           contact_preference: formData.contactPreference,
@@ -489,17 +486,20 @@ export default function PostRequestPage() {
                 </div>
               </div>
 
-              {/* Location Name */}
+              {/* Business Name */}
               <div>
                 <label htmlFor="locationName" className="block text-sm font-medium text-black-primary mb-1.5">
-                  Location Name <span className="text-red-500">*</span>
+                  Business Name <span className="text-red-500">*</span>
                 </label>
+                <p className="text-xs text-black-primary/50 mb-2">
+                  This will only be shown to operators who purchase this lead.
+                </p>
                 <input
                   id="locationName"
                   type="text"
                   value={formData.locationName}
                   onChange={(e) => updateField("locationName", e.target.value)}
-                  placeholder="e.g. ABC Corp - Downtown Office"
+                  placeholder="e.g. ABC Corp"
                   className={errors.locationName ? "!border-red-400 !shadow-red-100" : ""}
                 />
                 {errors.locationName && (
@@ -732,26 +732,6 @@ export default function PostRequestPage() {
                 </div>
               </div>
 
-              {/* Price */}
-              <div>
-                <label htmlFor="price" className="block text-sm font-medium text-black-primary mb-1.5">
-                  Price ($)
-                </label>
-                <p className="text-xs text-black-primary/50 mb-2">
-                  Set a price for this vending placement opportunity.
-                </p>
-                <input
-                  id="price"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={formData.price}
-                  onChange={(e) => updateField("price", e.target.value)}
-                  placeholder="e.g. 500"
-                  className="max-w-xs"
-                />
-              </div>
-
               {/* Commission toggle */}
               <div className="bg-green-50 rounded-xl p-5">
                 <div className="flex items-center justify-between">
@@ -968,7 +948,7 @@ export default function PostRequestPage() {
                 icon={<MapPin className="w-4 h-4 text-green-primary" />}
                 onEdit={() => goToStep(1)}
               >
-                <ReviewRow label="Location Name" value={formData.locationName} />
+                <ReviewRow label="Business Name" value={formData.locationName} />
                 {formData.address && <ReviewRow label="Address" value={formData.address} />}
                 <ReviewRow label="City" value={formData.city} />
                 <ReviewRow label="State" value={formData.state} />
@@ -1012,9 +992,6 @@ export default function PostRequestPage() {
                 icon={<FileText className="w-4 h-4 text-green-primary" />}
                 onEdit={() => goToStep(3)}
               >
-                {formData.price && (
-                  <ReviewRow label="Price" value={`$${Number(formData.price).toLocaleString()}`} />
-                )}
                 <ReviewRow
                   label="Commission"
                   value={formData.commissionOffered ? "Yes" : "No"}

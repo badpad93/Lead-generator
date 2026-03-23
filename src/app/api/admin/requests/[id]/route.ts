@@ -19,8 +19,9 @@ export async function PATCH(
     const allowedFields = [
       "title", "description", "location_name", "address", "city", "state",
       "zip", "location_type", "machine_types_wanted", "estimated_daily_traffic",
-      "commission_offered", "commission_notes", "urgency", "status",
+      "price", "commission_offered", "commission_notes", "urgency", "status",
       "contact_preference", "is_public",
+      "contact_phone", "contact_email", "decision_maker_name",
     ];
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {
