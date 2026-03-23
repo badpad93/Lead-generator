@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     .single();
 
   if (error || !profile) {
-    // Auto-create profile from auth user data (e.g. Discord OAuth users)
+    // Auto-create profile from auth user data (e.g. Google OAuth users)
     const meta = user.user_metadata || {};
     const fullName =
       meta.full_name ||
