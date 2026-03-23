@@ -65,8 +65,14 @@ export async function GET(
 
   // Strip sensitive fields for anyone who has NOT purchased this lead
   if (!isBuyer) {
+    // Remove business name from title (old format: "Type — BusinessName")
+    const safeTitle = typeof data.title === "string" && data.title.includes(" — ")
+      ? data.title.split(" — ")[0]
+      : data.title;
+
     return NextResponse.json({
       ...data,
+      title: safeTitle,
       location_name: null,
       address: null,
       zip: null,
