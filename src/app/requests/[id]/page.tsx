@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
+import { useRealtimeSubscription } from "@/lib/useRealtimeSubscription";
 import {
   ArrowLeft,
   MapPin,
@@ -222,35 +223,34 @@ export default function RequestDetailPage() {
   const justPurchased = searchParams.get("purchased") === "true";
 
   // Fetch main request — re-fetch when purchase is detected to get full data
-  useEffect(() => {
+  const fetchRequest = useCallback(async () => {
     if (!id) return;
+    setLoading(true);
+    setError(null);
 
-    async function fetchRequest() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const res = await fetch(`/api/requests/${id}`);
-        if (!res.ok) {
-          if (res.status === 404) {
-            setError("Request not found");
-          } else {
-            setError("Failed to load request");
-          }
-          return;
+    try {
+      const res = await fetch(`/api/requests/${id}`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          setError("Request not found");
+        } else {
+          setError("Failed to load request");
         }
-
-        const data = await res.json();
-        setRequest(data);
-      } catch {
-        setError("Failed to load request. Please try again.");
-      } finally {
-        setLoading(false);
+        return;
       }
-    }
 
+      const data = await res.json();
+      setRequest(data);
+    } catch {
+      setError("Failed to load request. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
     fetchRequest();
-  }, [id, isPurchased]);
+  }, [fetchRequest, isPurchased]);
 
   // Fetch similar requests
   useEffect(() => {
@@ -285,50 +285,82 @@ export default function RequestDetailPage() {
   }, [request]);
 
   // Check if the user (or anyone) has purchased this lead.
-  // When returning from Stripe (?purchased=true), first verify the payment
-  // server-side so we don't depend on the webhook having fired yet.
+  const checkPurchase = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/purchases?requestId=${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPurchasedByAnyone(!!data.purchasedByAnyone);
+        if (data.purchased) {
+          setIsPurchased(true);
+          setBuyerEmail(data.buyerEmail ?? null);
+          setLeadInfoComplete(data.leadInfoComplete ?? false);
+          setReceiptData({
+            orderId: data.orderId,
+            amountCents: data.amountCents,
+            purchaseDate: data.purchaseDate,
+            stripeSessionId: data.stripeSessionId ?? null,
+            buyerEmail: data.buyerEmail ?? null,
+          });
+        }
+      }
+    } catch {
+      // Silently fail
+    }
+  }, [id]);
+
+  // When returning from Stripe, verify the purchase first then check status
   useEffect(() => {
     if (!id) return;
 
-    async function checkPurchase() {
-      try {
-        // If user just returned from Stripe, verify the purchase first
-        if (justPurchased) {
-          try {
-            await fetch("/api/verify-purchase", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ requestId: id }),
-            });
-          } catch {
-            // Continue to normal check even if verify fails
-          }
+    async function verifyAndCheck() {
+      if (justPurchased) {
+        try {
+          await fetch("/api/verify-purchase", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ requestId: id }),
+          });
+        } catch {
+          // Continue to normal check even if verify fails
         }
-
-        const res = await fetch(`/api/purchases?requestId=${id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setPurchasedByAnyone(!!data.purchasedByAnyone);
-          if (data.purchased) {
-            setIsPurchased(true);
-            setBuyerEmail(data.buyerEmail ?? null);
-            setLeadInfoComplete(data.leadInfoComplete ?? false);
-            setReceiptData({
-              orderId: data.orderId,
-              amountCents: data.amountCents,
-              purchaseDate: data.purchaseDate,
-              stripeSessionId: data.stripeSessionId ?? null,
-              buyerEmail: data.buyerEmail ?? null,
-            });
-          }
-        }
-      } catch {
-        // Silently fail
       }
+      await checkPurchase();
     }
 
-    checkPurchase();
-  }, [id, justPurchased]);
+    verifyAndCheck();
+  }, [id, justPurchased, checkPurchase]);
+
+  // Live-update when lead data or purchase status changes
+  useRealtimeSubscription(
+    id
+      ? [
+          {
+            table: "vending_requests",
+            filter: `id=eq.${id}`,
+            event: "UPDATE",
+            onEvent: () => {
+              fetchRequest();
+              checkPurchase();
+            },
+          },
+          {
+            table: "lead_purchases",
+            filter: `request_id=eq.${id}`,
+            event: "UPDATE",
+            onEvent: ({ new: row }) => {
+              if (row?.status === "completed") {
+                setIsPurchased(true);
+                fetchRequest();
+                checkPurchase();
+              }
+            },
+          },
+        ]
+      : [],
+    [id, fetchRequest, checkPurchase]
+  );
 
   async function handlePurchase() {
     setPurchasing(true);

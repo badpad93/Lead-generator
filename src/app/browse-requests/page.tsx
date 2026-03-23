@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRealtimeSubscription } from "@/lib/useRealtimeSubscription";
 import {
   Search,
   SlidersHorizontal,
@@ -361,6 +362,30 @@ export default function BrowseRequestsPage() {
   useEffect(() => {
     fetchRequests(0);
   }, [fetchRequests]);
+
+  // Live-remove leads when they become purchased (is_public → false)
+  // and add new leads that appear
+  useRealtimeSubscription(
+    [
+      {
+        table: "vending_requests",
+        onEvent: ({ eventType, new: row }) => {
+          if (eventType === "UPDATE" && row) {
+            // Remove leads that are no longer public or changed to matched/closed
+            if (!row.is_public || row.status === "matched" || row.status === "closed") {
+              setRequests((prev) => prev.filter((r) => r.id !== row.id));
+              setTotalCount((prev) => Math.max(0, prev - 1));
+            }
+          }
+          if (eventType === "INSERT") {
+            // New lead posted — re-fetch current page to include it
+            fetchRequests(0);
+          }
+        },
+      },
+    ],
+    [fetchRequests]
+  );
 
   function handleLoadMore() {
     const nextPage = page + 1;
