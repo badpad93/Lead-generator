@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { MachineType } from "@/lib/types";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
+import { useRealtimeSubscription } from "@/lib/useRealtimeSubscription";
 
 interface PurchasedLead {
   id: string;
@@ -345,29 +346,46 @@ export default function YourLeadsPage() {
   const [purchases, setPurchases] = useState<PurchasedLead[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchPurchases() {
-      try {
-        const res = await fetch("/api/user/purchases");
+  const fetchPurchases = useCallback(async () => {
+    try {
+      const res = await fetch("/api/user/purchases");
 
-        if (res.status === 401) {
-          router.push("/login?redirect=/your-leads");
-          return;
-        }
-
-        if (res.ok) {
-          const data = await res.json();
-          setPurchases(data.purchases ?? []);
-        }
-      } catch {
-        // silently fail
-      } finally {
-        setLoading(false);
+      if (res.status === 401) {
+        router.push("/login?redirect=/your-leads");
+        return;
       }
-    }
 
-    fetchPurchases();
+      if (res.ok) {
+        const data = await res.json();
+        setPurchases(data.purchases ?? []);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false);
+    }
   }, [router]);
+
+  useEffect(() => {
+    fetchPurchases();
+  }, [fetchPurchases]);
+
+  // Live-update when admin edits contact info or a new purchase completes
+  useRealtimeSubscription(
+    [
+      {
+        table: "vending_requests",
+        event: "UPDATE",
+        onEvent: () => fetchPurchases(),
+      },
+      {
+        table: "lead_purchases",
+        event: "UPDATE",
+        onEvent: () => fetchPurchases(),
+      },
+    ],
+    [fetchPurchases]
+  );
 
   if (loading) {
     return (

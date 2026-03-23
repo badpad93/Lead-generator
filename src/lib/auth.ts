@@ -16,7 +16,7 @@ export function consumeRedirectAfterLogin(): string | null {
   return path;
 }
 
-/** Store the role selected during signup (before Discord redirect) */
+/** Store the role selected during signup (before OAuth redirect) */
 export function storeSignupRole(role: string): void {
   localStorage.setItem(SIGNUP_ROLE_KEY, role);
 }
@@ -46,11 +46,11 @@ function getSiteUrl(): string {
   return "https://vendingconnector.com";
 }
 
-/** Sign in with Discord OAuth via Supabase (uses PKCE flow for SSR cookie compat) */
-export async function signInWithDiscord(): Promise<void> {
+/** Sign in with Google OAuth via Supabase (uses PKCE flow for SSR cookie compat) */
+export async function signInWithGoogle(): Promise<void> {
   const supabase = createBrowserClient();
   await supabase.auth.signInWithOAuth({
-    provider: "discord",
+    provider: "google",
     options: {
       redirectTo: `${getSiteUrl()}/auth/callback`,
       skipBrowserRedirect: false,
