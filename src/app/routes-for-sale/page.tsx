@@ -54,7 +54,7 @@ function RouteCard({ route }: { route: RouteListing }) {
 
   return (
     <Link
-      href="#"
+      href={`/routes-for-sale/${route.id}`}
       className="block rounded-xl border border-gray-200 bg-white p-5 transition-shadow hover:shadow-lg hover:shadow-green-primary/5 group"
     >
       {/* Title */}
