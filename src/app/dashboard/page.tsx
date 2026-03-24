@@ -35,6 +35,7 @@ import { createBrowserClient } from "@/lib/supabase";
 import LocationTypeIcon from "@/app/components/LocationTypeIcon";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
 import UrgencyBadge from "@/app/components/UrgencyBadge";
+import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -315,6 +316,8 @@ export default function DashboardPage() {
               <Link
                 href="/browse-requests"
                 className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
+                title={TOOLTIP_COPY["Browse Requests"]}
+                aria-label={TOOLTIP_COPY["Browse Requests"]}
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-primary group-hover:text-white">
                   <Search className="h-6 w-6" />
@@ -332,6 +335,8 @@ export default function DashboardPage() {
               <Link
                 href="/listings/new"
                 className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
+                title={TOOLTIP_COPY["Create Listing"]}
+                aria-label={TOOLTIP_COPY["Create Listing"]}
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white">
                   <Plus className="h-6 w-6" />
@@ -352,6 +357,8 @@ export default function DashboardPage() {
               <Link
                 href="/post-request"
                 className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
+                title={TOOLTIP_COPY["Post a Request"]}
+                aria-label={TOOLTIP_COPY["Post a Request"]}
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-primary group-hover:text-white">
                   <Plus className="h-6 w-6" />
@@ -369,6 +376,8 @@ export default function DashboardPage() {
               <Link
                 href="/browse-operators"
                 className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
+                title={TOOLTIP_COPY["Browse Operators"]}
+                aria-label={TOOLTIP_COPY["Browse Operators"]}
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white">
                   <Search className="h-6 w-6" />
@@ -388,6 +397,8 @@ export default function DashboardPage() {
           <Link
             href="/post-route"
             className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
+            title={TOOLTIP_COPY["Sell a Route"]}
+            aria-label={TOOLTIP_COPY["Sell a Route"]}
           >
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 transition-colors group-hover:bg-amber-600 group-hover:text-white">
               <Route className="h-6 w-6" />
@@ -405,6 +416,8 @@ export default function DashboardPage() {
           <Link
             href="/your-leads"
             className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
+            title={TOOLTIP_COPY["Your Leads"]}
+            aria-label={TOOLTIP_COPY["Your Leads"]}
           >
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 transition-colors group-hover:bg-purple-600 group-hover:text-white">
               <ShoppingBag className="h-6 w-6" />
