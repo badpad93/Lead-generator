@@ -16,10 +16,25 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Vending Connector",
+    title: "Vending Connector — The Marketplace for Vending Opportunities",
+    description:
+      "Connect operators with locations. Find vending routes, post listings, and grow your business.",
+    url: "https://vendingconnector.com",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Vending Connector — The Marketplace for Vending Opportunities",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
     title: "Vending Connector — Vending Machine Marketplace",
     description:
-      "Connect locations that need vending machines with operators ready to serve.",
-    url: "https://vendingconnector.com",
+      "Connect operators with locations. Find vending routes, post listings, and grow your business.",
+    images: ["/og-image.png"],
   },
   alternates: {
     canonical: "/",
