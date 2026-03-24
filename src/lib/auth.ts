@@ -54,6 +54,9 @@ export async function signInWithGoogle(): Promise<void> {
     options: {
       redirectTo: `${getSiteUrl()}/auth/callback`,
       skipBrowserRedirect: false,
+      queryParams: {
+        prompt: "select_account",
+      },
     },
   });
 }

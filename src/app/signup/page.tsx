@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Truck, Building2, UserPlus, ArrowLeft, Loader2 } from "lucide-react";
+import { Truck, Building2, UserPlus, ArrowLeft, Loader2, LogOut } from "lucide-react";
 import { signInWithGoogle, storeSignupRole, storeRedirectAfterLogin } from "@/lib/auth";
+import { createBrowserClient } from "@/lib/supabase";
 
 type Role = "operator" | "location_manager" | "requestor";
 
@@ -33,6 +34,31 @@ export default function SignupPage() {
   const [role, setRole] = useState<Role | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [existingEmail, setExistingEmail] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  // Detect existing session so the user can choose to sign out first
+  useEffect(() => {
+    const supabase = createBrowserClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) {
+        setExistingEmail(session.user.email);
+      }
+    });
+  }, []);
+
+  async function handleSignOutAndContinue() {
+    setSigningOut(true);
+    try {
+      const supabase = createBrowserClient();
+      await supabase.auth.signOut();
+      setExistingEmail(null);
+    } catch {
+      setError("Failed to sign out. Please try again.");
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   function handleRoleSelect(selected: Role) {
     setRole(selected);
@@ -55,6 +81,10 @@ export default function SignupPage() {
     setError(null);
 
     try {
+      // Clear any existing session before starting a fresh signup
+      const supabase = createBrowserClient();
+      await supabase.auth.signOut();
+
       // Store the selected role and default redirect before going to Google
       storeSignupRole(role);
       storeRedirectAfterLogin("/dashboard");
@@ -77,6 +107,28 @@ export default function SignupPage() {
               : "Connect your Google account to continue"}
           </p>
         </div>
+
+        {/* Existing session banner */}
+        {existingEmail && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+            <p className="text-sm text-amber-800">
+              You&apos;re currently signed in as <strong>{existingEmail}</strong>.
+            </p>
+            <button
+              type="button"
+              onClick={handleSignOutAndContinue}
+              disabled={signingOut}
+              className="inline-flex items-center gap-1.5 shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 border border-amber-300 transition-colors hover:bg-amber-100 cursor-pointer disabled:opacity-50"
+            >
+              {signingOut ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <LogOut className="h-3.5 w-3.5" />
+              )}
+              Sign out &amp; continue
+            </button>
+          </div>
+        )}
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
