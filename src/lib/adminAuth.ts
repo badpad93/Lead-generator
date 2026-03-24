@@ -4,6 +4,7 @@ import { supabaseAdmin } from "./supabaseAdmin";
 
 const ADMIN_EMAILS = [
   "contact@bytebitevending.com",
+  "jamespadden93x@gmail.com",
 ];
 
 /**
