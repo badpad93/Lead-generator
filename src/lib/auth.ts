@@ -3,6 +3,7 @@ import { createBrowserClient } from "./supabase";
 
 const SIGNUP_ROLE_KEY = "vc_signup_role";
 const REDIRECT_KEY = "vc_redirect_after_login";
+const FLOW_KEY = "vc_auth_flow";
 
 /** Store where to redirect after login completes */
 export function storeRedirectAfterLogin(path: string): void {
@@ -28,6 +29,18 @@ export function consumeSignupRole(): string | null {
   return role;
 }
 
+/** Store the auth flow type so the callback can distinguish login vs signup */
+export function storeAuthFlow(flow: "login" | "signup"): void {
+  localStorage.setItem(FLOW_KEY, flow);
+}
+
+/** Retrieve and clear the stored auth flow type */
+export function consumeAuthFlow(): "login" | "signup" | null {
+  const flow = localStorage.getItem(FLOW_KEY) as "login" | "signup" | null;
+  if (flow) localStorage.removeItem(FLOW_KEY);
+  return flow;
+}
+
 /** Get the current Supabase session access token */
 export async function getAccessToken(): Promise<string | null> {
   const supabase = createBrowserClient();
@@ -46,13 +59,42 @@ function getSiteUrl(): string {
   return "https://vendingconnector.com";
 }
 
-/** Sign in with Google OAuth via Supabase (uses PKCE flow for SSR cookie compat) */
+/**
+ * Fully clear any existing Supabase session and verify it's gone.
+ * Returns true if session is confirmed cleared.
+ */
+export async function ensureSignedOut(): Promise<boolean> {
+  const supabase = createBrowserClient();
+  await supabase.auth.signOut();
+  // Verify the session is actually gone
+  const { data: { session } } = await supabase.auth.getSession();
+  return session === null;
+}
+
+/** Sign in with Google OAuth for LOGIN flow */
 export async function signInWithGoogle(): Promise<void> {
   const supabase = createBrowserClient();
+  storeAuthFlow("login");
   await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${getSiteUrl()}/auth/callback`,
+      redirectTo: `${getSiteUrl()}/auth/callback?flow=login`,
+      skipBrowserRedirect: false,
+      queryParams: {
+        prompt: "select_account",
+      },
+    },
+  });
+}
+
+/** Sign in with Google OAuth for SIGNUP flow (forces account selection) */
+export async function signUpWithGoogle(): Promise<void> {
+  const supabase = createBrowserClient();
+  storeAuthFlow("signup");
+  await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${getSiteUrl()}/auth/callback?flow=signup`,
       skipBrowserRedirect: false,
       queryParams: {
         prompt: "select_account",

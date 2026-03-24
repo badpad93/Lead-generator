@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Truck, Building2, UserPlus, ArrowLeft, Loader2, LogOut } from "lucide-react";
-import { signInWithGoogle, storeSignupRole, storeRedirectAfterLogin } from "@/lib/auth";
+import { signUpWithGoogle, storeSignupRole, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
 
 type Role = "operator" | "location_manager" | "requestor";
@@ -50,9 +50,12 @@ export default function SignupPage() {
   async function handleSignOutAndContinue() {
     setSigningOut(true);
     try {
-      const supabase = createBrowserClient();
-      await supabase.auth.signOut();
-      setExistingEmail(null);
+      const cleared = await ensureSignedOut();
+      if (!cleared) {
+        setError("Failed to fully sign out. Please refresh and try again.");
+      } else {
+        setExistingEmail(null);
+      }
     } catch {
       setError("Failed to sign out. Please try again.");
     } finally {
@@ -81,14 +84,19 @@ export default function SignupPage() {
     setError(null);
 
     try {
-      // Clear any existing session before starting a fresh signup
-      const supabase = createBrowserClient();
-      await supabase.auth.signOut();
+      // Clear any existing session and verify it's gone before starting OAuth
+      const cleared = await ensureSignedOut();
+      if (!cleared) {
+        setError("Could not clear existing session. Please refresh and try again.");
+        setLoading(false);
+        return;
+      }
+      setExistingEmail(null);
 
       // Store the selected role and default redirect before going to Google
       storeSignupRole(role);
       storeRedirectAfterLogin("/dashboard");
-      await signInWithGoogle();
+      await signUpWithGoogle();
     } catch {
       setError("Failed to connect to Google. Please try again.");
       setLoading(false);
