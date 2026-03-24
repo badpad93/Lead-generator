@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
 const footerColumns = [
   {
@@ -63,6 +64,8 @@ export default function Footer() {
                     <Link
                       href={link.href}
                       className="text-sm text-gray-400 transition-colors hover:text-green-primary"
+                      title={TOOLTIP_COPY[link.label]}
+                      aria-label={TOOLTIP_COPY[link.label]}
                     >
                       {link.label}
                     </Link>

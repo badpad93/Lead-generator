@@ -26,6 +26,8 @@ import {
   TrendingUp,
   Globe,
 } from "lucide-react";
+import Tooltip from "@/app/components/Tooltip";
+import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
 /* ------------------------------------------------------------------ */
 /*  Data                                                               */
@@ -225,44 +227,50 @@ export default function HomePage() {
             style={{ animationDelay: "0.3s" }}
           >
             {/* Card — Location Owner */}
-            <Link
-              href="/post-request"
-              className="group relative rounded-2xl border border-green-200/60 bg-white p-7 shadow-lg shadow-green-primary/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-green-primary/10"
-            >
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-100">
-                <MapPin className="h-6 w-6" />
-              </div>
-              <h3 className="mb-1.5 text-lg font-bold text-black-primary">
-                I Need a Vending Machine
-              </h3>
-              <p className="mb-5 text-sm leading-relaxed text-black-primary/60">
-                Post your location and get matched with verified operators
-              </p>
-              <span className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors group-hover:bg-green-hover">
-                Post a Request
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </span>
-            </Link>
+            <Tooltip content={TOOLTIP_COPY["Post a Request"]} position="top">
+              <Link
+                href="/post-request"
+                className="group relative rounded-2xl border border-green-200/60 bg-white p-7 shadow-lg shadow-green-primary/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-green-primary/10"
+                aria-label={TOOLTIP_COPY["Post a Request"]}
+              >
+                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-100">
+                  <MapPin className="h-6 w-6" />
+                </div>
+                <h3 className="mb-1.5 text-lg font-bold text-black-primary">
+                  I Need a Vending Machine
+                </h3>
+                <p className="mb-5 text-sm leading-relaxed text-black-primary/60">
+                  Post your location and get matched with verified operators
+                </p>
+                <span className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors group-hover:bg-green-hover">
+                  Post a Request
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </Link>
+            </Tooltip>
 
             {/* Card — Operator */}
-            <Link
-              href="/browse-requests"
-              className="group relative rounded-2xl border border-navy/10 bg-white p-7 shadow-lg shadow-navy/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-navy/10"
-            >
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-black-primary/5 text-black-primary transition-colors group-hover:bg-black-primary/10">
-                <Truck className="h-6 w-6" />
-              </div>
-              <h3 className="mb-1.5 text-lg font-bold text-black-primary">
-                I&apos;m a Vending Operator
-              </h3>
-              <p className="mb-5 text-sm leading-relaxed text-black-primary/60">
-                Browse open locations and grow your vending business
-              </p>
-              <span className="inline-flex items-center gap-2 rounded-xl bg-black-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors group-hover:bg-black-primary-light">
-                Browse Locations
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </span>
-            </Link>
+            <Tooltip content={TOOLTIP_COPY["Browse Requests"]} position="top">
+              <Link
+                href="/browse-requests"
+                className="group relative rounded-2xl border border-navy/10 bg-white p-7 shadow-lg shadow-navy/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-navy/10"
+                aria-label={TOOLTIP_COPY["Browse Requests"]}
+              >
+                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-black-primary/5 text-black-primary transition-colors group-hover:bg-black-primary/10">
+                  <Truck className="h-6 w-6" />
+                </div>
+                <h3 className="mb-1.5 text-lg font-bold text-black-primary">
+                  I&apos;m a Vending Operator
+                </h3>
+                <p className="mb-5 text-sm leading-relaxed text-black-primary/60">
+                  Browse open locations and grow your vending business
+                </p>
+                <span className="inline-flex items-center gap-2 rounded-xl bg-black-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors group-hover:bg-black-primary-light">
+                  Browse Locations
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </Link>
+            </Tooltip>
           </div>
         </div>
 
@@ -477,20 +485,26 @@ export default function HomePage() {
             </p>
 
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Link
-                href="/post-request"
-                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover hover:shadow-xl hover:shadow-green-primary/30"
-              >
-                Post a Request
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href="/browse-operators"
-                className="inline-flex items-center gap-2 rounded-xl border-2 border-white/20 bg-transparent px-7 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/5"
-              >
-                Browse Operators
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+              <Tooltip content={TOOLTIP_COPY["Post a Request"]} position="top">
+                <Link
+                  href="/post-request"
+                  className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover hover:shadow-xl hover:shadow-green-primary/30"
+                  aria-label={TOOLTIP_COPY["Post a Request"]}
+                >
+                  Post a Request
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Tooltip>
+              <Tooltip content={TOOLTIP_COPY["Browse Operators"]} position="top">
+                <Link
+                  href="/browse-operators"
+                  className="inline-flex items-center gap-2 rounded-xl border-2 border-white/20 bg-transparent px-7 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/5"
+                  aria-label={TOOLTIP_COPY["Browse Operators"]}
+                >
+                  Browse Operators
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Tooltip>
             </div>
           </div>
         </div>

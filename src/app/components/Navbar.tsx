@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
+import Tooltip from "@/app/components/Tooltip";
+import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
 const navLinks = [
   { label: "Browse Requests", href: "/browse-requests" },
@@ -180,12 +182,15 @@ export default function Navbar() {
         <ul className="hidden items-center gap-1 md:flex">
           {(isLoggedIn ? authNavLinks : navLinks).map((link) => (
             <li key={link.href}>
-              <Link
-                href={link.href}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
-              >
-                {link.label}
-              </Link>
+              <Tooltip content={TOOLTIP_COPY[link.label] ?? link.label}>
+                <Link
+                  href={link.href}
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                  aria-label={TOOLTIP_COPY[link.label] ?? undefined}
+                >
+                  {link.label}
+                </Link>
+              </Tooltip>
             </li>
           ))}
         </ul>
@@ -217,6 +222,8 @@ export default function Navbar() {
                     href="/dashboard"
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                    title={TOOLTIP_COPY["Dashboard"]}
+                    aria-label={TOOLTIP_COPY["Dashboard"]}
                   >
                     <LayoutDashboard className="h-4 w-4 text-black-primary/50" />
                     Dashboard
@@ -225,6 +232,8 @@ export default function Navbar() {
                     href="/your-leads"
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                    title={TOOLTIP_COPY["Your Leads"]}
+                    aria-label={TOOLTIP_COPY["Your Leads"]}
                   >
                     <ShoppingBag className="h-4 w-4 text-black-primary/50" />
                     Your Leads
@@ -241,6 +250,8 @@ export default function Navbar() {
                     href="/routes-for-sale"
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                    title={TOOLTIP_COPY["Routes for Sale"]}
+                    aria-label={TOOLTIP_COPY["Routes for Sale"]}
                   >
                     <Route className="h-4 w-4 text-black-primary/50" />
                     Routes for Sale
@@ -269,18 +280,24 @@ export default function Navbar() {
             </div>
           ) : (
             <>
-              <Link
-                href="/login"
-                className="rounded-lg px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
-              >
-                Login
-              </Link>
-              <Link
-                href="/signup"
-                className="rounded-lg bg-green-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
-              >
-                Get Started
-              </Link>
+              <Tooltip content={TOOLTIP_COPY["Login"]}>
+                <Link
+                  href="/login"
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
+                  aria-label={TOOLTIP_COPY["Login"]}
+                >
+                  Login
+                </Link>
+              </Tooltip>
+              <Tooltip content={TOOLTIP_COPY["Get Started"]}>
+                <Link
+                  href="/signup"
+                  className="rounded-lg bg-green-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                  aria-label={TOOLTIP_COPY["Get Started"]}
+                >
+                  Get Started
+                </Link>
+              </Tooltip>
             </>
           )}
         </div>
@@ -352,6 +369,7 @@ export default function Navbar() {
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
                   className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                  aria-label={TOOLTIP_COPY[link.label] ?? undefined}
                 >
                   {link.label}
                   <ChevronRight className="h-4 w-4 text-gray-400" />
@@ -366,6 +384,7 @@ export default function Navbar() {
                     href="/dashboard"
                     onClick={() => setMobileOpen(false)}
                     className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                    aria-label={TOOLTIP_COPY["Dashboard"]}
                   >
                     <span className="flex items-center gap-2">
                       <LayoutDashboard className="h-4 w-4" />
@@ -379,6 +398,7 @@ export default function Navbar() {
                     href="/your-leads"
                     onClick={() => setMobileOpen(false)}
                     className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                    aria-label={TOOLTIP_COPY["Your Leads"]}
                   >
                     <span className="flex items-center gap-2">
                       <ShoppingBag className="h-4 w-4" />
@@ -392,6 +412,7 @@ export default function Navbar() {
                     href="/routes-for-sale"
                     onClick={() => setMobileOpen(false)}
                     className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                    aria-label={TOOLTIP_COPY["Routes for Sale"]}
                   >
                     <span className="flex items-center gap-2">
                       <Route className="h-4 w-4" />
@@ -440,6 +461,7 @@ export default function Navbar() {
                 href="/login"
                 onClick={() => setMobileOpen(false)}
                 className="block w-full rounded-lg border border-gray-200 px-4 py-2.5 text-center text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
+                aria-label={TOOLTIP_COPY["Login"]}
               >
                 Login
               </Link>
@@ -447,6 +469,7 @@ export default function Navbar() {
                 href="/signup"
                 onClick={() => setMobileOpen(false)}
                 className="block w-full rounded-lg bg-green-primary px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                aria-label={TOOLTIP_COPY["Get Started"]}
               >
                 Get Started
               </Link>
