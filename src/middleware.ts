@@ -13,6 +13,7 @@ const PROTECTED_PATHS = [
   "/routes-for-sale",
   "/your-leads",
   "/admin",
+  "/account",
 ];
 
 export async function middleware(req: NextRequest) {

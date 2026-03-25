@@ -136,6 +136,37 @@ export interface RouteListing {
   profiles?: Profile;
 }
 
+export interface SignedAgreement {
+  id: string;
+  user_id: string;
+  lead_id: string | null;
+  purchase_id: string | null;
+  agreement_version: string;
+  agreement_html: string;
+  signed_name: string;
+  signer_email: string;
+  ip_address: string | null;
+  pdf_url: string | null;
+  created_at: string;
+  // Joined
+  vending_requests?: Pick<VendingRequest, "id" | "title" | "location_name" | "city" | "state"> | null;
+  lead_purchases?: Pick<PurchasedLeadRow, "id" | "amount_cents" | "stripe_checkout_session_id"> | null;
+}
+
+export interface PurchasedLeadRow {
+  id: string;
+  user_id: string;
+  request_id: string;
+  stripe_checkout_session_id: string;
+  stripe_payment_intent_id: string | null;
+  amount_cents: number;
+  currency: string;
+  buyer_email: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Supabase Database type (simplified)
 export interface Database {
   public: {
