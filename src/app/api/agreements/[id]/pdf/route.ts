@@ -15,7 +15,7 @@ export async function GET(
 
   const { data, error } = await supabaseAdmin
     .from("signed_agreements")
-    .select("id, user_id, agreement_html, signed_name, signer_email, ip_address, agreement_version, pdf_url, created_at")
+    .select("id, user_id, agreement_text, full_name, user_email, ip_address, agreement_version, created_at")
     .eq("id", id)
     .single();
 
@@ -27,13 +27,7 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // If a pre-generated PDF URL exists, redirect to it
-  if (data.pdf_url) {
-    return NextResponse.redirect(data.pdf_url);
-  }
-
-  // Generate PDF server-side from agreement_html
-  // Build a simple HTML document and convert to PDF-like format
+  // Generate downloadable HTML document from agreement text
   const htmlContent = buildPdfHtml(data);
 
   return new NextResponse(htmlContent, {
@@ -47,9 +41,9 @@ export async function GET(
 
 function buildPdfHtml(data: {
   id: string;
-  agreement_html: string;
-  signed_name: string;
-  signer_email: string;
+  agreement_text: string;
+  full_name: string;
+  user_email: string;
   ip_address: string | null;
   agreement_version: string;
   created_at: string;
@@ -63,6 +57,11 @@ function buildPdfHtml(data: {
     timeZoneName: "short",
   });
 
+  const escapedText = data.agreement_text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -74,7 +73,7 @@ function buildPdfHtml(data: {
     .header { text-align: center; border-bottom: 2px solid #16a34a; padding-bottom: 20px; margin-bottom: 30px; }
     .header h1 { color: #16a34a; font-size: 24px; margin: 0; }
     .header p { color: #6b7280; font-size: 14px; margin: 4px 0; }
-    .agreement-body { margin-bottom: 40px; }
+    .agreement-body { margin-bottom: 40px; white-space: pre-wrap; font-family: inherit; }
     .signature-block { border-top: 2px solid #e5e7eb; padding-top: 24px; margin-top: 40px; }
     .signature-block h3 { margin: 0 0 16px; color: #111827; }
     .sig-row { display: flex; gap: 40px; margin-bottom: 8px; }
@@ -89,13 +88,11 @@ function buildPdfHtml(data: {
     <p>Signed Agreement</p>
     <p>Version ${data.agreement_version} &bull; Agreement ID: ${data.id}</p>
   </div>
-  <div class="agreement-body">
-    ${data.agreement_html}
-  </div>
+  <div class="agreement-body">${escapedText}</div>
   <div class="signature-block">
     <h3>Signature</h3>
-    <div class="sig-row"><span class="sig-label">Signed By:</span><span class="sig-value">${data.signed_name}</span></div>
-    <div class="sig-row"><span class="sig-label">Email:</span><span class="sig-value">${data.signer_email}</span></div>
+    <div class="sig-row"><span class="sig-label">Signed By:</span><span class="sig-value">${data.full_name}</span></div>
+    <div class="sig-row"><span class="sig-label">Email:</span><span class="sig-value">${data.user_email}</span></div>
     <div class="sig-row"><span class="sig-label">Date:</span><span class="sig-value">${signedDate}</span></div>
     <div class="sig-row"><span class="sig-label">IP Address:</span><span class="sig-value">${data.ip_address || "N/A"}</span></div>
   </div>

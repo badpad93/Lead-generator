@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
     const session = event.data.object as Stripe.Checkout.Session;
     const userId = session.metadata?.user_id;
     const requestId = session.metadata?.request_id;
+    const agreementId = session.metadata?.agreement_id;
     const buyerEmail = session.customer_details?.email ?? null;
 
     if (userId && requestId) {
@@ -64,6 +65,14 @@ export async function POST(req: NextRequest) {
 
       if (leadUpdateError) {
         console.error("Webhook: failed to update lead visibility:", leadUpdateError);
+      }
+
+      // Link the purchase to the signed agreement
+      if (agreementId && purchase) {
+        await supabaseAdmin
+          .from("signed_agreements")
+          .update({ purchase_id: purchase.id })
+          .eq("id", agreementId);
       }
 
       // Fetch the lead details for emails

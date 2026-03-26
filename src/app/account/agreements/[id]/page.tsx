@@ -164,7 +164,7 @@ export default function AgreementDetailPage() {
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Mail className="h-4 w-4" />
-                  {agreement.signer_email}
+                  {agreement.user_email}
                 </span>
                 {agreement.ip_address && (
                   <span className="inline-flex items-center gap-1.5">
@@ -181,12 +181,9 @@ export default function AgreementDetailPage() {
                 <FileText className="h-5 w-5 text-green-primary" />
                 Agreement Text
               </h2>
-              <div
-                className="prose prose-sm prose-gray max-w-none [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm"
-                dangerouslySetInnerHTML={{
-                  __html: agreement.agreement_html,
-                }}
-              />
+              <pre className="text-sm text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">
+                {agreement.agreement_text}
+              </pre>
             </div>
 
             {/* Signature Block */}
@@ -201,7 +198,7 @@ export default function AgreementDetailPage() {
                     Signed Name
                   </p>
                   <p className="text-sm font-semibold text-black-primary italic text-lg">
-                    {agreement.signed_name}
+                    {agreement.full_name}
                   </p>
                 </div>
                 <div className="rounded-lg bg-gray-50 p-4">
@@ -209,7 +206,7 @@ export default function AgreementDetailPage() {
                     Email
                   </p>
                   <p className="text-sm text-black-primary">
-                    {agreement.signer_email}
+                    {agreement.user_email}
                   </p>
                 </div>
                 <div className="rounded-lg bg-gray-50 p-4">
