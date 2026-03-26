@@ -22,9 +22,6 @@ import {
   Sparkles,
   Heart,
   GlassWater,
-  MessageSquare,
-  Mail,
-  Phone,
   Clock,
   CalendarClock,
   AlertCircle,
@@ -71,12 +68,6 @@ const MACHINE_TYPES = [
   { label: "Personal Care/PPE", icon: ShieldCheck },
   { label: "Electronics/Accessories", icon: Smartphone },
   { label: "Custom/Specialty", icon: Sparkles },
-] as const;
-
-const CONTACT_PREFERENCES = [
-  { value: "platform_message", label: "Platform Messages", icon: MessageSquare },
-  { value: "email", label: "Email", icon: Mail },
-  { value: "phone", label: "Phone", icon: Phone },
 ] as const;
 
 const URGENCY_OPTIONS = [
@@ -140,7 +131,6 @@ interface FormData {
   /* Step 3 */
   commissionOffered: boolean;
   commissionNotes: string;
-  contactPreference: string;
   urgency: string;
   makePublic: boolean;
 }
@@ -157,7 +147,6 @@ const initialFormData: FormData = {
   additionalNotes: "",
   commissionOffered: false,
   commissionNotes: "",
-  contactPreference: "platform_message",
   urgency: "flexible",
   makePublic: true,
 };
@@ -226,7 +215,6 @@ export default function PostRequestPage() {
     }
 
     if (step === 3) {
-      if (!formData.contactPreference) newErrors.contactPreference = "Select a contact preference";
       if (!formData.urgency) newErrors.urgency = "Select urgency";
     }
 
@@ -292,7 +280,6 @@ export default function PostRequestPage() {
           estimated_daily_traffic: formData.dailyFootTraffic ? Number(formData.dailyFootTraffic) : undefined,
           commission_offered: formData.commissionOffered,
           commission_notes: formData.commissionNotes || undefined,
-          contact_preference: formData.contactPreference,
           urgency: formData.urgency,
           is_public: formData.makePublic,
         }),
@@ -781,59 +768,6 @@ export default function PostRequestPage() {
                 )}
               </div>
 
-              {/* Contact Preference */}
-              <div>
-                <label className="block text-sm font-medium text-black-primary mb-3">
-                  Contact Preference <span className="text-red-500">*</span>
-                </label>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  {CONTACT_PREFERENCES.map(({ value, label, icon: Icon }) => {
-                    const selected = formData.contactPreference === value;
-                    return (
-                      <label
-                        key={value}
-                        className={`
-                          flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all
-                          ${
-                            selected
-                              ? "border-green-primary bg-light-warm"
-                              : "border-gray-100 hover:border-gray-200"
-                          }
-                        `}
-                      >
-                        <input
-                          type="radio"
-                          name="contactPreference"
-                          value={value}
-                          checked={selected}
-                          onChange={() => updateField("contactPreference", value)}
-                          className="sr-only"
-                        />
-                        <div
-                          className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                            selected ? "bg-green-primary/10" : "bg-gray-100"
-                          }`}
-                        >
-                          <Icon
-                            className={`w-5 h-5 ${selected ? "text-green-primary" : "text-gray-500"}`}
-                          />
-                        </div>
-                        <span
-                          className={`text-sm font-medium ${selected ? "text-green-primary" : "text-black-primary/70"}`}
-                        >
-                          {label}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-                {errors.contactPreference && (
-                  <p className="text-red-500 text-xs mt-2 flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5" /> {errors.contactPreference}
-                  </p>
-                )}
-              </div>
-
               {/* Urgency */}
               <div>
                 <label className="block text-sm font-medium text-black-primary mb-3">
@@ -999,13 +933,6 @@ export default function PostRequestPage() {
                 {formData.commissionOffered && formData.commissionNotes && (
                   <ReviewRow label="Commission Notes" value={formData.commissionNotes} />
                 )}
-                <ReviewRow
-                  label="Contact Preference"
-                  value={
-                    CONTACT_PREFERENCES.find((c) => c.value === formData.contactPreference)?.label ||
-                    formData.contactPreference
-                  }
-                />
                 <ReviewRow
                   label="Urgency"
                   value={
