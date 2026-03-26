@@ -1025,6 +1025,7 @@ function RequestsManager({
                 <th className="px-4 py-3 font-medium text-black-primary/60">Status</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Visibility</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Urgency</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Price</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Actions</th>
               </tr>
             </thead>
@@ -1059,6 +1060,11 @@ function RequestsManager({
                   <td className="px-4 py-3">
                     <span className="text-xs text-black-primary/60">
                       {URGENCY_OPTIONS.find((u) => u.value === request.urgency)?.label || request.urgency}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm font-medium text-black-primary">
+                      {request.price != null ? `$${Number(request.price).toLocaleString()}` : "—"}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -1676,6 +1682,7 @@ interface RouteWithProfile {
   state: string;
   status: string;
   asking_price: number | null;
+  monthly_revenue: number | null;
   num_machines: number;
   num_locations: number;
   created_at: string;
@@ -1693,7 +1700,7 @@ function RoutesManager({
   const [routes, setRoutes] = useState<RouteWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingRoute, setEditingRoute] = useState<RouteWithProfile | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", status: "" });
+  const [editForm, setEditForm] = useState({ title: "", status: "", asking_price: "", monthly_revenue: "" });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RouteWithProfile | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -1722,6 +1729,8 @@ function RoutesManager({
     setEditForm({
       title: route.title,
       status: route.status,
+      asking_price: route.asking_price != null ? String(route.asking_price) : "",
+      monthly_revenue: route.monthly_revenue != null ? String(route.monthly_revenue) : "",
     });
   }
 
@@ -1735,7 +1744,12 @@ function RoutesManager({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify({
+          title: editForm.title,
+          status: editForm.status,
+          asking_price: editForm.asking_price ? Number(editForm.asking_price) : null,
+          monthly_revenue: editForm.monthly_revenue ? Number(editForm.monthly_revenue) : null,
+        }),
       });
       if (res.ok) {
         setEditingRoute(null);
@@ -1948,6 +1962,30 @@ function RoutesManager({
                   <option value="active">Active (Approved)</option>
                   <option value="sold">Sold</option>
                 </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Asking Price ($)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editForm.asking_price}
+                  onChange={(e) => setEditForm((f) => ({ ...f, asking_price: e.target.value }))}
+                  placeholder="e.g. 50000"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Monthly Revenue ($)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editForm.monthly_revenue}
+                  onChange={(e) => setEditForm((f) => ({ ...f, monthly_revenue: e.target.value }))}
+                  placeholder="e.g. 5000"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">
