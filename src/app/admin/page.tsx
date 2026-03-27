@@ -19,6 +19,7 @@ import {
   X,
   BadgeCheck,
   Eye,
+  ScrollText,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import {
@@ -33,7 +34,7 @@ import type { Profile, VendingRequest, OperatorListing } from "@/lib/types";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-type Tab = "users" | "operators" | "locations" | "routes";
+type Tab = "users" | "operators" | "locations" | "routes" | "agreements";
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary";
@@ -2284,6 +2285,267 @@ function RouteForm({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Agreements Manager                                                 */
+/* ------------------------------------------------------------------ */
+
+interface AdminAgreement {
+  id: string;
+  user_id: string;
+  user_email: string;
+  lead_id: string | null;
+  purchase_id: string | null;
+  agreement_version: string;
+  agreement_text: string;
+  accepted_terms: boolean;
+  accepted_population_clause: boolean;
+  accepted_esign: boolean;
+  full_name: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+function AgreementsManager({ token }: { token: string }) {
+  const [agreements, setAgreements] = useState<AdminAgreement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [viewingAgreement, setViewingAgreement] = useState<AdminAgreement | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const fetchAgreements = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/agreements", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setAgreements(data.agreements || []);
+    } catch {
+      /* noop */
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchAgreements();
+  }, [fetchAgreements]);
+
+  const filtered = agreements.filter((a) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      a.user_email.toLowerCase().includes(q) ||
+      a.full_name.toLowerCase().includes(q) ||
+      a.id.toLowerCase().includes(q) ||
+      (a.lead_id && a.lead_id.toLowerCase().includes(q)) ||
+      (a.purchase_id && a.purchase_id.toLowerCase().includes(q))
+    );
+  });
+
+  function formatDate(dateStr: string): string {
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-black-primary">Signed Agreements</h2>
+          <p className="text-sm text-black-primary/50 mt-1">
+            {agreements.length} total agreement{agreements.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black-primary/30" />
+        <input
+          type="text"
+          placeholder="Search by email, name, ID..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+        />
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-green-primary" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="py-12 text-center text-sm text-black-primary/40">
+          {searchQuery ? "No agreements match your search." : "No signed agreements yet."}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-gray-100 bg-gray-50/50">
+              <tr>
+                <th className="px-4 py-3 font-medium text-black-primary/60">User Email</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Full Name</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Lead ID</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Purchase ID</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Date Signed</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">IP Address</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Version</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map((agreement) => (
+                <tr key={agreement.id} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3 text-black-primary text-xs max-w-[180px] truncate">
+                    {agreement.user_email}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-black-primary text-xs">
+                    {agreement.full_name}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-black-primary/60">
+                    {agreement.lead_id ? agreement.lead_id.slice(0, 8) : "—"}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-black-primary/60">
+                    {agreement.purchase_id ? agreement.purchase_id.slice(0, 8) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-black-primary/60">
+                    {formatDate(agreement.created_at)}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-black-primary/60">
+                    {agreement.ip_address || "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-200">
+                      {agreement.agreement_version}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setViewingAgreement(agreement)}
+                      className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
+                      title="View Details"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {viewingAgreement && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-8">
+          <div className="mx-4 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h3 className="text-lg font-semibold text-black-primary">Agreement Details</h3>
+              <button
+                type="button"
+                onClick={() => setViewingAgreement(null)}
+                className="rounded-lg p-1 text-black-primary/40 hover:bg-gray-100 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 space-y-4">
+              {/* Signer Info */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-400 uppercase">Full Name</p>
+                  <p className="text-sm font-semibold text-black-primary mt-1">{viewingAgreement.full_name}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-400 uppercase">Email</p>
+                  <p className="text-sm text-black-primary mt-1">{viewingAgreement.user_email}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-400 uppercase">Date Signed</p>
+                  <p className="text-sm text-black-primary mt-1">{formatDate(viewingAgreement.created_at)}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-400 uppercase">IP Address</p>
+                  <p className="text-sm font-mono text-black-primary mt-1">{viewingAgreement.ip_address || "N/A"}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-400 uppercase">Agreement ID</p>
+                  <p className="text-sm font-mono text-black-primary mt-1">{viewingAgreement.id}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-400 uppercase">Version</p>
+                  <p className="text-sm text-black-primary mt-1">{viewingAgreement.agreement_version}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-400 uppercase">Lead ID</p>
+                  <p className="text-sm font-mono text-black-primary mt-1">{viewingAgreement.lead_id || "N/A"}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-400 uppercase">Purchase ID</p>
+                  <p className="text-sm font-mono text-black-primary mt-1">{viewingAgreement.purchase_id || "N/A"}</p>
+                </div>
+              </div>
+
+              {/* Checkbox Values */}
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase mb-2">Acknowledgments</p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className={`h-4 w-4 ${viewingAgreement.accepted_population_clause ? "text-green-500" : "text-red-400"}`} />
+                    <span className="text-sm text-black-primary">Population delay clause</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className={`h-4 w-4 ${viewingAgreement.accepted_terms ? "text-green-500" : "text-red-400"}`} />
+                    <span className="text-sm text-black-primary">Lead Purchase Agreement terms</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className={`h-4 w-4 ${viewingAgreement.accepted_esign ? "text-green-500" : "text-red-400"}`} />
+                    <span className="text-sm text-black-primary">Electronic signature consent</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* User Agent */}
+              {viewingAgreement.user_agent && (
+                <div>
+                  <p className="text-xs font-medium text-gray-400 uppercase mb-1">User Agent</p>
+                  <p className="text-xs text-black-primary/60 break-all bg-gray-50 rounded-lg p-2">{viewingAgreement.user_agent}</p>
+                </div>
+              )}
+
+              {/* Full Agreement Text */}
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase mb-2">Full Agreement Text</p>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 max-h-60 overflow-y-auto">
+                  <pre className="text-xs text-black-primary/70 whitespace-pre-wrap font-sans">{viewingAgreement.agreement_text}</pre>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewingAgreement(null)}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary hover:bg-gray-50 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Admin Page                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -2350,6 +2612,7 @@ export default function AdminPage() {
     { key: "operators", label: "Operator Listings", icon: Building2 },
     { key: "locations", label: "Location Requests", icon: MapPin },
     { key: "routes", label: "Routes For Sale", icon: Route },
+    { key: "agreements", label: "Signed Agreements", icon: ScrollText },
   ];
 
   return (
@@ -2407,6 +2670,9 @@ export default function AdminPage() {
           )}
           {activeTab === "routes" && (
             <RoutesManager token={token} onSuccess={handleSuccess} />
+          )}
+          {activeTab === "agreements" && (
+            <AgreementsManager token={token} />
           )}
         </div>
       </div>

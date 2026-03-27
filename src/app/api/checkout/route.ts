@@ -31,11 +31,54 @@ export async function POST(req: NextRequest) {
   const userId = user.id;
 
   const body = await req.json();
-  const { requestId } = body;
+  const { requestId, agreementId } = body;
 
   if (!requestId) {
     return NextResponse.json(
       { error: "requestId is required" },
+      { status: 400 }
+    );
+  }
+
+  // Enforce signed agreement before purchase
+  if (!agreementId) {
+    return NextResponse.json(
+      { error: "You must sign the Lead Purchase Agreement before purchasing" },
+      { status: 400 }
+    );
+  }
+
+  // Verify the agreement exists, belongs to this user, and matches this lead
+  const { data: agreement, error: agreementError } = await supabaseAdmin
+    .from("signed_agreements")
+    .select("id, user_id, lead_id, accepted_terms, accepted_population_clause, accepted_esign")
+    .eq("id", agreementId)
+    .single();
+
+  if (agreementError || !agreement) {
+    return NextResponse.json(
+      { error: "Agreement not found. Please sign the agreement first." },
+      { status: 400 }
+    );
+  }
+
+  if (agreement.user_id !== userId) {
+    return NextResponse.json(
+      { error: "Agreement does not belong to this user" },
+      { status: 403 }
+    );
+  }
+
+  if (agreement.lead_id !== requestId) {
+    return NextResponse.json(
+      { error: "Agreement does not match this lead" },
+      { status: 400 }
+    );
+  }
+
+  if (!agreement.accepted_terms || !agreement.accepted_population_clause || !agreement.accepted_esign) {
+    return NextResponse.json(
+      { error: "Agreement is incomplete. All terms must be accepted." },
       { status: 400 }
     );
   }
@@ -97,6 +140,7 @@ export async function POST(req: NextRequest) {
     metadata: {
       user_id: userId,
       request_id: requestId,
+      agreement_id: agreementId,
     },
     success_url: `${siteUrl}/requests/${requestId}?purchased=true`,
     cancel_url: `${siteUrl}/requests/${requestId}?canceled=true`,

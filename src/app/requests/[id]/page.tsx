@@ -28,6 +28,7 @@ import { LOCATION_TYPES } from "@/lib/types";
 import MachineTypeBadge from "../../components/MachineTypeBadge";
 import UrgencyBadge from "../../components/UrgencyBadge";
 import LocationTypeIcon from "../../components/LocationTypeIcon";
+import LeadPurchaseAgreement from "../../components/LeadPurchaseAgreement";
 
 
 // ---------------------------------------------------------------------------
@@ -220,6 +221,8 @@ export default function RequestDetailPage() {
   const [buyerEmail, setBuyerEmail] = useState<string | null>(null);
   const [leadInfoComplete, setLeadInfoComplete] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+  const [showAgreement, setShowAgreement] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
   const justPurchased = searchParams.get("purchased") === "true";
 
   // Fetch main request — re-fetch when purchase is detected to get full data
@@ -363,13 +366,29 @@ export default function RequestDetailPage() {
   );
 
   async function handlePurchase() {
+    // Show agreement modal instead of going directly to checkout
+    setPurchaseError(null);
+    try {
+      // Fetch user email for the agreement form
+      const { createBrowserClient } = await import("@/lib/supabase");
+      const supabase = createBrowserClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserEmail(user?.email || "");
+    } catch {
+      // continue without email - user can see it in the form
+    }
+    setShowAgreement(true);
+  }
+
+  async function handleAgreementSigned(agreementId: string) {
+    setShowAgreement(false);
     setPurchasing(true);
     setPurchaseError(null);
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId: id }),
+        body: JSON.stringify({ requestId: id, agreementId }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -1000,6 +1019,18 @@ export default function RequestDetailPage() {
           </section>
         )}
       </div>
+
+      {/* Lead Purchase Agreement Modal */}
+      {showAgreement && request && request.price != null && (
+        <LeadPurchaseAgreement
+          leadId={id}
+          leadTitle={request.title}
+          leadPrice={request.price}
+          userEmail={currentUserEmail}
+          onSigned={handleAgreementSigned}
+          onCancel={() => setShowAgreement(false)}
+        />
+      )}
     </div>
   );
 }

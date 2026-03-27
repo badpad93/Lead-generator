@@ -139,14 +139,17 @@ export interface RouteListing {
 export interface SignedAgreement {
   id: string;
   user_id: string;
+  user_email: string;
   lead_id: string | null;
   purchase_id: string | null;
   agreement_version: string;
-  agreement_html: string;
-  signed_name: string;
-  signer_email: string;
+  agreement_text: string;
+  accepted_terms: boolean;
+  accepted_population_clause: boolean;
+  accepted_esign: boolean;
+  full_name: string;
   ip_address: string | null;
-  pdf_url: string | null;
+  user_agent: string | null;
   created_at: string;
   // Joined
   vending_requests?: Pick<VendingRequest, "id" | "title" | "location_name" | "city" | "state"> | null;
