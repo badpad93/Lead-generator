@@ -852,6 +852,7 @@ function RequestsManager({
     title: "", status: "", urgency: "", is_public: true,
     price: "", location_name: "", address: "", zip: "",
     contact_phone: "", contact_email: "", decision_maker_name: "",
+    seller_name: "",
   });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RequestWithProfile | null>(null);
@@ -909,6 +910,7 @@ function RequestsManager({
       contact_phone: request.contact_phone || "",
       contact_email: request.contact_email || "",
       decision_maker_name: request.decision_maker_name || "",
+      seller_name: request.seller_name || "",
     });
   }
 
@@ -1193,6 +1195,16 @@ function RequestsManager({
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Seller Name</label>
+                <input
+                  type="text"
+                  value={editForm.seller_name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, seller_name: e.target.value }))}
+                  placeholder="e.g. John Smith"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
               </div>
               <hr className="border-gray-100" />
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact Info (shown after purchase)</p>

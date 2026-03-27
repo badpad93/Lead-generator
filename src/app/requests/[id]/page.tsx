@@ -600,12 +600,22 @@ export default function RequestDetailPage() {
                 </div>
               </div>
 
-              {/* Description - blurred until purchased */}
+              {/* Description */}
               {request.description && (
                 <div className="mt-6">
                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
                     {request.description}
                   </p>
+                </div>
+              )}
+
+              {/* Seller Name */}
+              {request.seller_name && (
+                <div className="mt-4 flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm text-gray-600">
+                    Seller: <span className="font-medium text-black-primary">{request.seller_name}</span>
+                  </span>
                 </div>
               )}
 
