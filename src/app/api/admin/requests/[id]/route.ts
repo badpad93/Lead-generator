@@ -21,7 +21,7 @@ export async function PATCH(
       "zip", "location_type", "machine_types_wanted", "estimated_daily_traffic",
       "price", "commission_offered", "commission_notes", "urgency", "status",
       "contact_preference", "is_public",
-      "contact_phone", "contact_email", "decision_maker_name",
+      "contact_phone", "contact_email", "decision_maker_name", "seller_name",
     ];
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {

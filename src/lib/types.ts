@@ -73,6 +73,7 @@ export interface VendingRequest {
   contact_preference: ContactPreference;
   is_public: boolean;
   views: number;
+  seller_name: string | null;
   created_at: string;
   updated_at: string;
   // Joined
