@@ -70,16 +70,23 @@ export async function GET(
       ? data.title.split(" — ")[0]
       : data.title;
 
+    // Strip imported lead descriptions for all users
+    const safeDescription = typeof data.description === "string" &&
+      /Original seller|Imported lead/i.test(data.description)
+        ? null
+        : data.description;
+
     return NextResponse.json({
       ...data,
       title: safeTitle,
+      description: isOperator ? null : safeDescription,
       location_name: null,
       address: null,
       zip: null,
       contact_preference: null,
       profiles: null,
-      // Operators also lose city and description
-      ...(isOperator ? { city: null, description: null } : {}),
+      // Operators also lose city
+      ...(isOperator ? { city: null } : {}),
     });
   }
 
