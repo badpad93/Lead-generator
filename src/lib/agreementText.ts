@@ -1,4 +1,4 @@
-export const AGREEMENT_VERSION = "v1.0";
+export const AGREEMENT_VERSION = "v1.1";
 
 export const AGREEMENT_TEXT = `Lead Purchase Agreement
 
@@ -17,7 +17,7 @@ All leads are sold as-is with no guarantee of response, conversion, or financial
 Buyer acknowledges that some leads may take up to 20 minutes to fully populate after purchase.
 
 4. No Refunds
-All purchases are final and non-refundable.
+All purchases are final and non-refundable, except as expressly provided under Section 8 (Lead Quality Review & Limited Remedy).
 
 5. Acceptable Use
 Buyer agrees not to resell, distribute, or misuse lead data and must comply with all applicable laws.
@@ -26,4 +26,16 @@ Buyer agrees not to resell, distribute, or misuse lead data and must comply with
 Company is not liable for lost revenue, missed opportunities, or inaccurate data.
 
 7. Agreement Acceptance
-Buyer must explicitly agree before purchase.`;
+Buyer must explicitly agree before purchase.
+
+8. Lead Quality Review & Limited Remedy
+As a limited exception to Section 4, Buyer may submit a review request within 72 hours of purchase under the following conditions:
+
+Eligible claims:
+  (a) The lead contains invalid or non-working contact information.
+  (b) The business listed does not exist or has permanently closed.
+  (c) The listing is a duplicate of a lead Buyer has already purchased, or the lead was materially misrepresented.
+
+If a review request is approved, Company will, at its sole discretion, provide either a replacement lead of comparable value or a refund of the original purchase price. Refunds, if issued, will be processed within 3-5 business days.
+
+This remedy does not apply to, and no refund or replacement will be issued for: non-response from the lead contact, failure to close a deal, dissatisfaction with lead quality or potential, or any reason not expressly listed above. Company retains sole and absolute discretion over all review decisions, and its determination shall be final.`;
