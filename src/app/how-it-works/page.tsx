@@ -28,8 +28,8 @@ const STEPS = [
   },
   {
     icon: MessageSquare,
-    title: "Connect & Negotiate",
-    desc: "Chat directly on the platform. Discuss commission terms, machine types, installation timelines, and more.",
+    title: "Purchase & Contact",
+    desc: "Buy a lead to unlock full contact details. Reach out directly to discuss commission terms, machine types, installation timelines, and more.",
   },
   {
     icon: CheckCircle2,
