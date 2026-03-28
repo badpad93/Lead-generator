@@ -14,6 +14,7 @@ const PROTECTED_PATHS = [
   "/your-leads",
   "/admin",
   "/account",
+  "/saved-requests",
 ];
 
 export async function middleware(req: NextRequest) {
