@@ -14,6 +14,7 @@ import {
   Loader2,
   SearchX,
   PlusCircle,
+  Bookmark,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { VendingRequest, MachineType, LocationType, Urgency } from "@/lib/types";
@@ -258,6 +259,11 @@ function SkeletonCard() {
 
 export default function BrowseRequestsPage() {
 
+  // Auth state
+  const [userId, setUserId] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
   // Data state
   const [requests, setRequests] = useState<VendingRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -279,6 +285,30 @@ export default function BrowseRequestsPage() {
 
   // Filters panel (mobile toggle)
   const [filtersVisible, setFiltersVisible] = useState(false);
+
+  // ---------- Check auth & fetch saved IDs ----------
+  useEffect(() => {
+    const supabase = createBrowserClient();
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token && session.user?.id) {
+        setUserId(session.user.id);
+        setAccessToken(session.access_token);
+        // Fetch saved request IDs
+        try {
+          const res = await fetch("/api/saved-requests", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const ids = new Set<string>(data.map((s: { request_id: string }) => s.request_id));
+            setSavedIds(ids);
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    init();
+  }, []);
 
   // ---------- Debounce search ----------
   useEffect(() => {
@@ -414,9 +444,32 @@ export default function BrowseRequestsPage() {
     setStatusFilter("all");
   }
 
-  // ---------- Save handler (public page - prompt signup) ----------
-  function handleSave() {
-    alert("Sign up to save requests and get notified about new matches!");
+  // ---------- Save/unsave handler ----------
+  async function handleSave(requestId: string) {
+    if (!userId || !accessToken) {
+      alert("Sign up to save requests and get notified about new matches!");
+      return;
+    }
+    const isSaved = savedIds.has(requestId);
+    const method = isSaved ? "DELETE" : "POST";
+    try {
+      const res = await fetch("/api/saved-requests", {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ requestId }),
+      });
+      if (res.ok) {
+        setSavedIds((prev) => {
+          const next = new Set(prev);
+          if (isSaved) next.delete(requestId);
+          else next.add(requestId);
+          return next;
+        });
+      }
+    } catch { /* ignore */ }
   }
 
   // ---------- Has more pages ----------
@@ -671,8 +724,8 @@ export default function BrowseRequestsPage() {
                 <RequestCard
                   key={req.id}
                   request={req}
-                  saved={false}
-                  onSave={handleSave}
+                  saved={savedIds.has(req.id)}
+                  onSave={() => handleSave(req.id)}
                 />
               ))}
             </div>

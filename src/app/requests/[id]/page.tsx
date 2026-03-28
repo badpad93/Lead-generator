@@ -601,7 +601,7 @@ export default function RequestDetailPage() {
               </div>
 
               {/* Description */}
-              {request.description && (
+              {request.description && !/Original seller|Imported lead/i.test(request.description) && (
                 <div className="mt-6">
                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
                     {request.description}

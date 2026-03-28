@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText } from "lucide-react";
+import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText, Heart } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import Tooltip from "@/app/components/Tooltip";
@@ -239,6 +239,16 @@ export default function Navbar() {
                     Your Leads
                   </Link>
                   <Link
+                    href="/saved-requests"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                    title="View your saved requests"
+                    aria-label="View your saved requests"
+                  >
+                    <Heart className="h-4 w-4 text-black-primary/50" />
+                    Saved Requests
+                  </Link>
+                  <Link
                     href="/account/agreements"
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
@@ -413,6 +423,20 @@ export default function Navbar() {
                     <span className="flex items-center gap-2">
                       <ShoppingBag className="h-4 w-4" />
                       Your Leads
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/saved-requests"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                    aria-label="View your saved requests"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Heart className="h-4 w-4" />
+                      Saved Requests
                     </span>
                     <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
