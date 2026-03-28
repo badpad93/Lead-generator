@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRealtimeSubscription } from "@/lib/useRealtimeSubscription";
 import {
   Search,
@@ -14,6 +15,7 @@ import {
   SearchX,
   PlusCircle,
 } from "lucide-react";
+import { createBrowserClient } from "@/lib/supabase";
 import type { VendingRequest, MachineType, LocationType, Urgency } from "@/lib/types";
 import {
   MACHINE_TYPES,
