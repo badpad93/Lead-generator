@@ -1,4 +1,4 @@
-export type UserRole = "operator" | "location_manager" | "requestor";
+export type UserRole = "operator" | "location_manager" | "requestor" | "admin" | "sales";
 
 export type LocationType =
   | "office"

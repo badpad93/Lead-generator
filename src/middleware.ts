@@ -15,6 +15,7 @@ const PROTECTED_PATHS = [
   "/admin",
   "/account",
   "/saved-requests",
+  "/sales",
 ];
 
 export async function middleware(req: NextRequest) {
