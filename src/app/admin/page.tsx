@@ -106,6 +106,15 @@ function ChipSelect({
   );
 }
 
+function DetailField({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-500">{label}</p>
+      <p className="text-sm text-black-primary mt-0.5">{value || "—"}</p>
+    </div>
+  );
+}
+
 function StateSelect({
   label,
   selected,
@@ -847,6 +856,11 @@ function RequestsManager({
   const [view, setView] = useState<"list" | "add">("list");
   const [requests, setRequests] = useState<RequestWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  const [adminPage, setAdminPage] = useState(0);
+  const [adminSearch, setAdminSearch] = useState("");
+  const [debouncedAdminSearch, setDebouncedAdminSearch] = useState("");
+  const [viewingRequest, setViewingRequest] = useState<RequestWithProfile | null>(null);
   const [editingRequest, setEditingRequest] = useState<RequestWithProfile | null>(null);
   const [editForm, setEditForm] = useState({
     title: "", status: "", urgency: "", is_public: true,
@@ -877,20 +891,36 @@ function RequestsManager({
     }
   }
 
+  // Debounce admin search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedAdminSearch(adminSearch);
+      setAdminPage(0);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [adminSearch]);
+
+  const PER_PAGE_ADMIN = 100;
+
   const fetchRequests = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/requests", {
+      const params = new URLSearchParams();
+      params.set("page", String(adminPage));
+      params.set("per_page", String(PER_PAGE_ADMIN));
+      if (debouncedAdminSearch) params.set("search", debouncedAdminSearch);
+      const res = await fetch(`/api/admin/requests?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       setRequests(data.requests || []);
+      setTotalCount(data.total || 0);
     } catch {
       /* noop */
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, adminPage, debouncedAdminSearch]);
 
   useEffect(() => {
     fetchRequests();
@@ -1002,6 +1032,29 @@ function RequestsManager({
         </button>
       </div>
 
+      {/* Search bar */}
+      {view === "list" && (
+        <div className="relative mb-4">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={adminSearch}
+            onChange={(e) => setAdminSearch(e.target.value)}
+            placeholder="Search by title, city, state, or business name..."
+            className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-10 text-sm placeholder:text-gray-400 focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
+          />
+          {adminSearch && (
+            <button
+              type="button"
+              onClick={() => setAdminSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
+
       {view === "add" ? (
         <LocationForm
           token={token}
@@ -1034,7 +1087,7 @@ function RequestsManager({
             </thead>
             <tbody className="divide-y divide-gray-50">
               {requests.map((request) => (
-                <tr key={request.id} className="hover:bg-gray-50/50">
+                <tr key={request.id} className="hover:bg-gray-50/50 cursor-pointer" onClick={() => setViewingRequest(request)}>
                   <td className="px-4 py-3 font-medium text-black-primary max-w-[200px] truncate">
                     {request.title}
                   </td>
@@ -1070,7 +1123,7 @@ function RequestsManager({
                       {request.price != null ? `$${Number(request.price).toLocaleString()}` : "—"}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
                       {!request.is_public && (
                         <button
@@ -1104,6 +1157,112 @@ function RequestsManager({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination & count */}
+      {!loading && requests.length > 0 && (
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-xs text-gray-500">
+            Showing {adminPage * PER_PAGE_ADMIN + 1}–{Math.min((adminPage + 1) * PER_PAGE_ADMIN, totalCount)} of {totalCount}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAdminPage((p) => Math.max(0, p - 1))}
+              disabled={adminPage === 0}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-black-primary disabled:opacity-40 hover:bg-gray-50 cursor-pointer"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdminPage((p) => p + 1)}
+              disabled={(adminPage + 1) * PER_PAGE_ADMIN >= totalCount}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-black-primary disabled:opacity-40 hover:bg-gray-50 cursor-pointer"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Detail View Modal */}
+      {viewingRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-8">
+          <div className="mx-4 w-full max-w-2xl rounded-2xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 shrink-0">
+              <h3 className="text-lg font-semibold text-black-primary">Lead Details</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setViewingRequest(null); openEdit(viewingRequest); }}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                >
+                  <Pencil className="h-3.5 w-3.5 inline mr-1" />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewingRequest(null)}
+                  className="rounded-lg p-1 text-black-primary/40 hover:bg-gray-100 cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="overflow-y-auto px-6 py-4 space-y-4">
+              <div>
+                <h4 className="text-xl font-bold text-black-primary">{viewingRequest.title}</h4>
+                <p className="text-xs text-gray-400 mt-1">ID: {viewingRequest.id}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <DetailField label="Status" value={viewingRequest.status} />
+                <DetailField label="Visibility" value={viewingRequest.is_public ? "Public" : "Pending"} />
+                <DetailField label="Price" value={viewingRequest.price != null ? `$${Number(viewingRequest.price).toLocaleString()}` : "Not set"} />
+                <DetailField label="Urgency" value={URGENCY_OPTIONS.find((u) => u.value === viewingRequest.urgency)?.label || viewingRequest.urgency} />
+              </div>
+
+              <hr className="border-gray-100" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Location</p>
+              <div className="grid grid-cols-2 gap-3">
+                <DetailField label="Business Name" value={viewingRequest.location_name} />
+                <DetailField label="City" value={viewingRequest.city} />
+                <DetailField label="State" value={viewingRequest.state} />
+                <DetailField label="Zip" value={viewingRequest.zip} />
+                <DetailField label="Address" value={viewingRequest.address} />
+                <DetailField label="Location Type" value={LOCATION_TYPES.find((lt) => lt.value === viewingRequest.location_type)?.label || viewingRequest.location_type} />
+              </div>
+
+              <hr className="border-gray-100" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact Info</p>
+              <div className="grid grid-cols-2 gap-3">
+                <DetailField label="Decision Maker" value={viewingRequest.decision_maker_name} />
+                <DetailField label="Phone" value={viewingRequest.contact_phone} />
+                <DetailField label="Email" value={viewingRequest.contact_email} />
+                <DetailField label="Seller Name" value={viewingRequest.seller_name} />
+                <DetailField label="Posted By" value={viewingRequest.profiles?.full_name} />
+                <DetailField label="Posted By Email" value={viewingRequest.profiles?.email} />
+              </div>
+
+              <hr className="border-gray-100" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Details</p>
+              <div className="grid grid-cols-2 gap-3">
+                <DetailField label="Machine Types" value={viewingRequest.machine_types_wanted?.map((mt: string) => MACHINE_TYPES.find((m) => m.value === mt)?.label || mt).join(", ")} />
+                <DetailField label="Daily Traffic" value={viewingRequest.estimated_daily_traffic != null ? String(viewingRequest.estimated_daily_traffic) : null} />
+                <DetailField label="Commission Offered" value={viewingRequest.commission_offered ? "Yes" : "No"} />
+                <DetailField label="Created" value={new Date(viewingRequest.created_at).toLocaleDateString()} />
+              </div>
+
+              {viewingRequest.description && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Description</p>
+                  <p className="text-sm text-black-primary/80 whitespace-pre-line bg-gray-50 rounded-lg p-3">{viewingRequest.description}</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

@@ -10,19 +10,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { data, error } = await supabaseAdmin
+  const params = req.nextUrl.searchParams;
+  const page = Math.max(0, parseInt(params.get("page") || "0"));
+  const perPage = Math.min(200, Math.max(1, parseInt(params.get("per_page") || "100")));
+  const search = params.get("search") || "";
+
+  let query = supabaseAdmin
     .from("vending_requests")
-    .select("*, profiles!created_by(id, full_name, email)")
-    .neq("city", "").neq("state", "").not("city", "is", null).not("state", "is", null)
-    .neq("city", "Unknown").neq("state", "Unknown").neq("city", "unknown").neq("state", "unknown")
+    .select("*, profiles!created_by(id, full_name, email)", { count: "exact" });
+
+  if (search) {
+    query = query.or(`title.ilike.%${search}%,city.ilike.%${search}%,state.ilike.%${search}%,location_name.ilike.%${search}%`);
+  }
+
+  const from = page * perPage;
+  const to = from + perPage - 1;
+
+  const { data, error, count } = await query
     .order("created_at", { ascending: false })
-    .limit(50);
+    .range(from, to);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ requests: data || [] });
+  return NextResponse.json({ requests: data || [], total: count || 0 });
 }
 
 /** POST /api/admin/requests — admin creates a location request */
