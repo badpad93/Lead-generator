@@ -201,6 +201,22 @@ export default function HomePage() {
             </span>
           </div>
 
+          {/* Request Location Services CTA */}
+          <div className="animate-fade-in mb-6 flex justify-center">
+            <Tooltip content={TOOLTIP_COPY["Request Location Services"]} position="top">
+              <Link
+                href="/request-location"
+                aria-label={TOOLTIP_COPY["Request Location Services"]}
+                title={TOOLTIP_COPY["Request Location Services"]}
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover"
+              >
+                <MapPin className="h-4 w-4" />
+                Request Location Services
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Tooltip>
+          </div>
+
           {/* Headline */}
           <h1
             className="animate-fade-in mx-auto max-w-4xl text-center text-4xl font-extrabold leading-tight tracking-tight text-black-primary sm:text-5xl lg:text-6xl"

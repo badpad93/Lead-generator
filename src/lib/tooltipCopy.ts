@@ -39,4 +39,6 @@ export const TOOLTIP_COPY: Record<string, string> = {
     "List your vending route or machine portfolio for sale on the marketplace.",
   "Browse Locations":
     "Browse available locations requesting services for vending, coffee, ATM, AI vending, and more.",
+  "Request Location Services":
+    "We find high quality locations for your vending machines",
 };

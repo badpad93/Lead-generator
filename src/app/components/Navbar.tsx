@@ -300,6 +300,16 @@ export default function Navbar() {
             </div>
           ) : (
             <>
+              <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
+                <Link
+                  href="/request-location"
+                  className="rounded-lg bg-green-50 px-4 py-2 text-sm font-semibold text-green-primary transition-colors hover:bg-green-100"
+                  aria-label={TOOLTIP_COPY["Request Location Services"]}
+                  title={TOOLTIP_COPY["Request Location Services"]}
+                >
+                  Request Location Services
+                </Link>
+              </Tooltip>
               <Tooltip content={TOOLTIP_COPY["Login"]}>
                 <Link
                   href="/login"
