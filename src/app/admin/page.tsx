@@ -20,7 +20,9 @@ import {
   BadgeCheck,
   Eye,
   ScrollText,
+  Briefcase,
 } from "lucide-react";
+import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
 import {
   MACHINE_TYPES,
@@ -286,11 +288,15 @@ function UsersManager({ token }: { token: string }) {
       operator: "bg-blue-50 text-blue-700 ring-blue-200",
       location_manager: "bg-purple-50 text-purple-700 ring-purple-200",
       requestor: "bg-gray-100 text-gray-700 ring-gray-200",
+      admin: "bg-red-50 text-red-700 ring-red-200",
+      sales: "bg-amber-50 text-amber-700 ring-amber-200",
     };
     const labels: Record<string, string> = {
       operator: "Operator",
       location_manager: "Location Mgr",
       requestor: "Requestor",
+      admin: "Admin",
+      sales: "Sales",
     };
     return (
       <span
@@ -323,6 +329,8 @@ function UsersManager({ token }: { token: string }) {
           className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
         >
           <option value="">All Roles</option>
+          <option value="admin">Admins</option>
+          <option value="sales">Sales Team</option>
           <option value="operator">Operators</option>
           <option value="location_manager">Location Managers</option>
           <option value="requestor">Requestors</option>
@@ -439,6 +447,8 @@ function UsersManager({ token }: { token: string }) {
                   <option value="operator">Operator</option>
                   <option value="location_manager">Location Manager</option>
                   <option value="requestor">Requestor</option>
+                  <option value="sales">Sales Team Member</option>
+                  <option value="admin">Admin</option>
                 </select>
               </div>
               <div className="flex items-center gap-2">
@@ -2791,18 +2801,28 @@ export default function AdminPage() {
       {/* Header */}
       <div className="border-b border-gray-100 bg-white">
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50">
-              <Shield className="h-6 w-6 text-green-primary" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50">
+                <Shield className="h-6 w-6 text-green-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-black-primary">
+                  Admin Panel
+                </h1>
+                <p className="text-sm text-black-primary/50">
+                  Manage users, listings, requests, and routes
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-black-primary">
-                Admin Panel
-              </h1>
-              <p className="text-sm text-black-primary/50">
-                Manage users, listings, requests, and routes
-              </p>
-            </div>
+            <Link
+              href="/sales"
+              className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-primary/90"
+            >
+              <Briefcase className="h-4 w-4" />
+              <span className="hidden sm:inline">Open Sales CRM</span>
+              <span className="sm:hidden">CRM</span>
+            </Link>
           </div>
         </div>
       </div>
