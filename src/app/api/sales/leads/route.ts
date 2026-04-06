@@ -56,7 +56,27 @@ export async function POST(req: NextRequest) {
   if (!business_name)
     return NextResponse.json({ error: "business_name required" }, { status: 400 });
 
-  // Standard CRM behavior: creator owns the lead by default
+  // Standard CRM behavior: creator owns the lead by default.
+  // Auto-create a corresponding account so leads/deals/orders for this customer
+  // all roll up to one record. Sales rep can add more details to the account later.
+  const { data: account, error: acctErr } = await supabaseAdmin
+    .from("sales_accounts")
+    .insert({
+      business_name,
+      contact_name: contact_name || null,
+      phone: phone || null,
+      email: email || null,
+      address: address || null,
+      assigned_to: user.id,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+
+  if (acctErr) {
+    return NextResponse.json({ error: `Account create failed: ${acctErr.message}` }, { status: 500 });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("sales_leads")
     .insert({
@@ -69,6 +89,7 @@ export async function POST(req: NextRequest) {
       notes: notes || null,
       created_by: user.id,
       assigned_to: user.id,
+      account_id: account.id,
     })
     .select("*")
     .single();

@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { ArrowLeft, Loader2, FileText, Upload } from "lucide-react";
-import type { SalesAccount, SalesDeal, SalesOrder, SalesDocument } from "@/lib/salesTypes";
+import type { SalesAccount, SalesDeal, SalesOrder, SalesDocument, SalesLead } from "@/lib/salesTypes";
 
 interface AccountDetail extends SalesAccount {
+  leads: SalesLead[];
   deals: SalesDeal[];
   orders: SalesOrder[];
   documents: SalesDocument[];
@@ -92,6 +93,28 @@ export default function AccountDetailPage() {
         </div>
       </div>
 
+      {/* Leads */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-3">Leads ({account.leads.length})</h2>
+        {account.leads.length === 0 ? (
+          <p className="text-sm text-gray-400">No leads linked to this account</p>
+        ) : (
+          <div className="space-y-2">
+            {account.leads.map((lead) => (
+              <div key={lead.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{lead.business_name}</p>
+                  <p className="text-xs text-gray-500">
+                    {lead.contact_name || "—"} · {lead.phone || "—"}
+                  </p>
+                </div>
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 capitalize">{lead.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Services from deals */}
       <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
         <h2 className="text-sm font-semibold text-gray-900 mb-3">Services</h2>
@@ -138,6 +161,29 @@ export default function AccountDetailPage() {
                 {doc.file_name || doc.type}
                 <span className="ml-auto text-xs text-gray-400">{new Date(doc.created_at).toLocaleDateString()}</span>
               </a>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Orders */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-3">Orders ({account.orders.length})</h2>
+        {account.orders.length === 0 ? (
+          <p className="text-sm text-gray-400">No orders for this account</p>
+        ) : (
+          <div className="space-y-2">
+            {account.orders.map((order) => (
+              <div key={order.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
+                <div>
+                  <p className="text-sm text-gray-900">Order #{order.id.slice(0, 8)}</p>
+                  <p className="text-xs text-gray-500">{new Date(order.created_at).toLocaleDateString()}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 capitalize">{order.status}</span>
+                  <span className="text-sm font-medium text-gray-900">${Number(order.total_value).toLocaleString()}</span>
+                </div>
+              </div>
             ))}
           </div>
         )}
