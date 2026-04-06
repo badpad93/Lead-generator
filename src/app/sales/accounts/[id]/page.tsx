@@ -45,27 +45,40 @@ export default function AccountDetailPage() {
     if (!file || !token) return;
     setUploading(true);
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("accountId", id);
+    try {
+      const supabase = (await import("@/lib/supabase")).createBrowserClient();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const filePath = `accounts/${id}/${Date.now()}-${safeName}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("documents")
+        .upload(filePath, file, { upsert: false, contentType: file.type || undefined });
 
-    // Upload directly to Supabase storage via a simple fetch
-    const supabase = (await import("@/lib/supabase")).createBrowserClient();
-    const filePath = `accounts/${id}/${Date.now()}-${file.name}`;
-    const { error: uploadErr } = await supabase.storage.from("documents").upload(filePath, file);
+      if (uploadErr) {
+        alert(`Upload failed: ${uploadErr.message}`);
+        return;
+      }
 
-    if (!uploadErr) {
       const { data: urlData } = supabase.storage.from("documents").getPublicUrl(filePath);
-      // Save document record via admin client
-      await fetch(`/api/sales/accounts/${id}`, {
-        method: "PATCH",
+      const res = await fetch("/api/sales/documents", {
+        method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ _upload_doc: { file_url: urlData.publicUrl, file_name: file.name, type: "contract" } }),
+        body: JSON.stringify({
+          account_id: id,
+          file_url: urlData.publicUrl,
+          file_name: file.name,
+          type: "contract",
+        }),
       });
-    }
 
-    setUploading(false);
-    fetchAccount();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Saved file but could not record document: ${err.error || res.statusText}`);
+      }
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+      fetchAccount();
+    }
   }
 
   async function handleDelete() {

@@ -70,8 +70,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
-  if (!user || user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
+
+  if (user.role !== "admin") {
+    const { data: deal } = await supabaseAdmin
+      .from("sales_deals")
+      .select("assigned_to")
+      .eq("id", id)
+      .single();
+    if (!deal || deal.assigned_to !== user.id) {
+      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+    }
+  }
+
+  // Detach orders so the FK doesn't block deletion
+  await supabaseAdmin.from("sales_orders").update({ deal_id: null }).eq("deal_id", id);
 
   const { error } = await supabaseAdmin.from("sales_deals").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
