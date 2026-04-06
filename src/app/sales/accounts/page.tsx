@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Loader2, Search, X, Building2 } from "lucide-react";
+import { Loader2, Search, X, Building2, Plus } from "lucide-react";
 import type { SalesAccount } from "@/lib/salesTypes";
 
 export default function AccountsPage() {
@@ -12,14 +12,14 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState("");
   const [search, setSearch] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", notes: "" });
 
   useEffect(() => {
     const supabase = createBrowserClient();
-    async function init() {
-      const { data: { session } } = await supabase.auth.getSession();
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.access_token) setToken(session.access_token);
-    }
-    init();
+    });
   }, []);
 
   const fetchAccounts = useCallback(async () => {
@@ -32,6 +32,23 @@ export default function AccountsPage() {
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
+  async function handleAdd() {
+    if (!form.business_name) return;
+    const res = await fetch("/api/sales/accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(form),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to create account");
+      return;
+    }
+    setForm({ business_name: "", contact_name: "", phone: "", email: "", address: "", notes: "" });
+    setShowAdd(false);
+    fetchAccounts();
+  }
+
   const filtered = accounts.filter((a) =>
     !search || a.business_name.toLowerCase().includes(search.toLowerCase()) ||
     (a.contact_name || "").toLowerCase().includes(search.toLowerCase())
@@ -39,7 +56,34 @@ export default function AccountsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Accounts</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Accounts</h1>
+        <button
+          onClick={() => setShowAdd(!showAdd)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />
+          New Account
+        </button>
+      </div>
+
+      {showAdd && (
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">New Account</h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <input placeholder="Business Name *" value={form.business_name} onChange={(e) => setForm((f) => ({ ...f, business_name: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+            <input placeholder="Contact Name" value={form.contact_name} onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+            <input placeholder="Phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+            <input placeholder="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+            <input placeholder="Address" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+          </div>
+          <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" rows={2} />
+          <div className="mt-3 flex gap-2">
+            <button onClick={handleAdd} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer">Save</button>
+            <button onClick={() => setShowAdd(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+          </div>
+        </div>
+      )}
 
       <div className="relative mb-4">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -61,7 +105,7 @@ export default function AccountsPage() {
       ) : filtered.length === 0 ? (
         <div className="py-16 text-center">
           <Building2 className="mx-auto h-10 w-10 text-gray-300 mb-3" />
-          <p className="text-sm text-gray-400">No accounts yet. Accounts are auto-created when deals are won.</p>
+          <p className="text-sm text-gray-400">No accounts yet. Add one above or create a lead — accounts are auto-created with new leads.</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">

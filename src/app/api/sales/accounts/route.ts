@@ -6,12 +6,17 @@ export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("sales_accounts")
     .select("*")
-    .order("created_at", { ascending: false })
-    .limit(500);
+    .order("created_at", { ascending: false });
 
+  // Sales reps see accounts they own or created (admin sees all)
+  if (user.role === "sales") {
+    query = query.or(`assigned_to.eq.${user.id},created_by.eq.${user.id}`);
+  }
+
+  const { data, error } = await query.limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data || []);
 }
@@ -21,13 +26,23 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { business_name, contact_name, phone, email, address } = body;
-  if (!business_name) return NextResponse.json({ error: "business_name required" }, { status: 400 });
+  const { business_name, contact_name, phone, email, address, notes } = body;
+  if (!business_name)
+    return NextResponse.json({ error: "business_name required" }, { status: 400 });
 
   const { data, error } = await supabaseAdmin
     .from("sales_accounts")
-    .insert({ business_name, contact_name, phone, email, address })
-    .select("id")
+    .insert({
+      business_name,
+      contact_name: contact_name || null,
+      phone: phone || null,
+      email: email || null,
+      address: address || null,
+      notes: notes || null,
+      assigned_to: user.id,
+      created_by: user.id,
+    })
+    .select("*")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

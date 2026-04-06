@@ -21,6 +21,7 @@ import {
   Eye,
   ScrollText,
   Briefcase,
+  TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
@@ -36,7 +37,7 @@ import type { Profile, VendingRequest, OperatorListing } from "@/lib/types";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-type Tab = "users" | "operators" | "locations" | "routes" | "agreements";
+type Tab = "users" | "operators" | "locations" | "routes" | "agreements" | "sales_results";
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary";
@@ -2727,6 +2728,225 @@ function AgreementsManager({ token }: { token: string }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Sales Results Manager                                              */
+/* ------------------------------------------------------------------ */
+
+interface SalesResults {
+  metrics: {
+    leads_total: number;
+    leads_by_status: Record<string, number>;
+    deals_total: number;
+    deals_won: number;
+    pipeline_value: number;
+    won_value: number;
+    orders_total: number;
+    orders_completed: number;
+    order_revenue: number;
+    conversion_rate: number;
+  };
+  goal: {
+    id: string;
+    period: string;
+    target_revenue: number;
+    target_deals: number;
+    target_leads: number;
+  } | null;
+}
+
+function SalesResultsManager({ token }: { token: string }) {
+  const [salesUsers, setSalesUsers] = useState<{ id: string; full_name: string; email: string; role: string }[]>([]);
+  const [selectedUser, setSelectedUser] = useState("");
+  const [period, setPeriod] = useState("monthly");
+  const [results, setResults] = useState<SalesResults | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [goalForm, setGoalForm] = useState({ target_revenue: "", target_deals: "", target_leads: "" });
+  const [savingGoal, setSavingGoal] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/sales/users", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        const reps = (data || []).filter((u: { role: string }) => u.role === "sales");
+        setSalesUsers(reps);
+        if (reps.length && !selectedUser) setSelectedUser(reps[0].id);
+      });
+  }, [token, selectedUser]);
+
+  const loadResults = useCallback(async () => {
+    if (!token || !selectedUser) return;
+    setLoading(true);
+    const res = await fetch(`/api/sales/results?user_id=${selectedUser}&period=${period}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setResults(data);
+      if (data.goal) {
+        setGoalForm({
+          target_revenue: String(data.goal.target_revenue),
+          target_deals: String(data.goal.target_deals),
+          target_leads: String(data.goal.target_leads),
+        });
+      } else {
+        setGoalForm({ target_revenue: "", target_deals: "", target_leads: "" });
+      }
+    }
+    setLoading(false);
+  }, [token, selectedUser, period]);
+
+  useEffect(() => { loadResults(); }, [loadResults]);
+
+  async function saveGoal() {
+    if (!selectedUser) return;
+    setSavingGoal(true);
+    const goalPeriod = period === "ytd" ? "yearly" : period;
+    await fetch("/api/sales/goals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        user_id: selectedUser,
+        period: goalPeriod,
+        target_revenue: Number(goalForm.target_revenue) || 0,
+        target_deals: Number(goalForm.target_deals) || 0,
+        target_leads: Number(goalForm.target_leads) || 0,
+      }),
+    });
+    setSavingGoal(false);
+    loadResults();
+  }
+
+  const fmt = (n: number) => `$${Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <select
+          value={selectedUser}
+          onChange={(e) => setSelectedUser(e.target.value)}
+          className={inputClass}
+        >
+          <option value="">Select sales rep...</option>
+          {salesUsers.map((u) => (
+            <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+          ))}
+        </select>
+        <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value)}
+          className={inputClass}
+        >
+          <option value="daily">Today</option>
+          <option value="weekly">This Week</option>
+          <option value="monthly">This Month</option>
+          <option value="quarterly">This Quarter</option>
+          <option value="ytd">YTD</option>
+          <option value="yearly">Year</option>
+        </select>
+      </div>
+
+      {salesUsers.length === 0 && (
+        <p className="text-sm text-black-primary/40">
+          No sales reps yet. Use the Users tab to assign a user the &quot;Sales Team Member&quot; role.
+        </p>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-green-primary" /></div>
+      ) : results && selectedUser ? (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="text-xs text-black-primary/50">Leads Worked</p>
+              <p className="text-xl font-bold text-black-primary">{results.metrics.leads_total}</p>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="text-xs text-black-primary/50">Deals Won</p>
+              <p className="text-xl font-bold text-black-primary">{results.metrics.deals_won}</p>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="text-xs text-black-primary/50">Won Revenue</p>
+              <p className="text-xl font-bold text-green-600">{fmt(results.metrics.won_value)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="text-xs text-black-primary/50">Pipeline</p>
+              <p className="text-xl font-bold text-black-primary">{fmt(results.metrics.pipeline_value)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="text-xs text-black-primary/50">Orders Sent</p>
+              <p className="text-xl font-bold text-black-primary">{results.metrics.orders_total}</p>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="text-xs text-black-primary/50">Order Revenue</p>
+              <p className="text-xl font-bold text-black-primary">{fmt(results.metrics.order_revenue)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="text-xs text-black-primary/50">Conversion</p>
+              <p className="text-xl font-bold text-black-primary">{(results.metrics.conversion_rate * 100).toFixed(1)}%</p>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="text-xs text-black-primary/50">Completed Orders</p>
+              <p className="text-xl font-bold text-black-primary">{results.metrics.orders_completed}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 text-xs">
+            {Object.entries(results.metrics.leads_by_status).map(([k, v]) => (
+              <span key={k} className="rounded-full bg-gray-100 px-3 py-1 text-black-primary/70">
+                <span className="capitalize">{k}</span>: <strong>{v}</strong>
+              </span>
+            ))}
+          </div>
+
+          {/* Goals */}
+          <div className="mt-6 rounded-xl border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-black-primary mb-3">
+              Set Goal — {period === "ytd" ? "Yearly" : period.charAt(0).toUpperCase() + period.slice(1)}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-black-primary/60">Revenue Target ($)</label>
+                <input
+                  type="number"
+                  value={goalForm.target_revenue}
+                  onChange={(e) => setGoalForm((f) => ({ ...f, target_revenue: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-black-primary/60">Deals Target</label>
+                <input
+                  type="number"
+                  value={goalForm.target_deals}
+                  onChange={(e) => setGoalForm((f) => ({ ...f, target_deals: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-black-primary/60">Leads Target</label>
+                <input
+                  type="number"
+                  value={goalForm.target_leads}
+                  onChange={(e) => setGoalForm((f) => ({ ...f, target_leads: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <button
+              onClick={saveGoal}
+              disabled={savingGoal}
+              className="mt-3 rounded-lg bg-green-primary px-4 py-2 text-sm font-medium text-white hover:bg-green-primary/90 disabled:opacity-50 cursor-pointer"
+            >
+              {savingGoal ? "Saving..." : "Save Goal"}
+            </button>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Admin Page                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -2794,6 +3014,7 @@ export default function AdminPage() {
     { key: "locations", label: "Location Requests", icon: MapPin },
     { key: "routes", label: "Routes For Sale", icon: Route },
     { key: "agreements", label: "Signed Agreements", icon: ScrollText },
+    { key: "sales_results", label: "Sales Results", icon: TrendingUp },
   ];
 
   return (
@@ -2864,6 +3085,9 @@ export default function AdminPage() {
           )}
           {activeTab === "agreements" && (
             <AgreementsManager token={token} />
+          )}
+          {activeTab === "sales_results" && (
+            <SalesResultsManager token={token} />
           )}
         </div>
       </div>

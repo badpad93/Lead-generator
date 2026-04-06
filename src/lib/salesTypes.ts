@@ -7,6 +7,7 @@ export interface SalesLead {
   address: string | null;
   status: "new" | "contacted" | "qualified" | "unqualified" | "lost";
   assigned_to: string | null;
+  account_id?: string | null;
   created_by?: string | null;
   source?: string | null;
   notes?: string | null;
@@ -50,6 +51,9 @@ export interface SalesAccount {
   phone: string | null;
   email: string | null;
   address: string | null;
+  notes?: string | null;
+  assigned_to?: string | null;
+  created_by?: string | null;
   created_at: string;
 }
 

@@ -42,7 +42,11 @@ export async function GET(req: NextRequest) {
       id: user.id,
       email: user.email || "",
       full_name: fullName,
-      role: meta.role || "requestor",
+      // Never allow self-signup to grant admin/sales — those roles are admin-assigned only
+      role:
+        meta.role && meta.role !== "admin" && meta.role !== "sales"
+          ? meta.role
+          : "requestor",
       country: "US",
       verified: false,
       rating: 0,
@@ -91,6 +95,19 @@ export async function PATCH(req: NextRequest) {
       "full_name", "company_name", "phone", "website", "bio",
       "city", "state", "zip", "role",
     ];
+    // Privileged roles can ONLY be set by an admin via /api/admin/users.
+    // Self-service signup must never grant admin/sales access.
+    const PRIVILEGED_ROLES = new Set(["admin", "sales"]);
+    if (
+      "role" in body &&
+      typeof body.role === "string" &&
+      PRIVILEGED_ROLES.has(body.role)
+    ) {
+      return NextResponse.json(
+        { error: "This role can only be assigned by an admin" },
+        { status: 403 }
+      );
+    }
     const updates: Partial<Record<string, string | null>> = {};
     for (const field of allowedFields) {
       if (field in body) updates[field] = body[field];
