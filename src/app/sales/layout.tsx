@@ -10,6 +10,7 @@ import {
   Kanban,
   Building2,
   ClipboardList,
+  FolderOpen,
   LogOut,
   Menu,
   X,
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { href: "/sales/deals", label: "Deals", icon: Kanban },
   { href: "/sales/accounts", label: "Accounts", icon: Building2 },
   { href: "/sales/orders", label: "Orders", icon: ClipboardList },
+  { href: "/sales/resources", label: "Resources", icon: FolderOpen },
 ];
 
 export default function SalesLayout({ children }: { children: React.ReactNode }) {

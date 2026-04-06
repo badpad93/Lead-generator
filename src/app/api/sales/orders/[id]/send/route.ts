@@ -65,26 +65,48 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // Send email via Resend
-  try {
-    const businessName = account?.business_name || "Customer";
-    await getResend().emails.send({
-      from: FROM_EMAIL,
-      to: recipientEmail,
-      subject: `New Order – ${businessName}`,
-      html: `<p>A new service order has been submitted for <strong>${businessName}</strong>.</p><p>Please see the attached order summary below.</p><hr/>${pdfHtml}`,
-    });
-  } catch (emailErr) {
-    console.error("Email send error:", emailErr);
-    // Don't fail the whole operation for email issues
+  let emailSent = false;
+  let emailError: string | null = null;
+
+  if (!process.env.RESEND_API_KEY) {
+    emailError = "RESEND_API_KEY is not configured on the server";
+  } else {
+    try {
+      const businessName = account?.business_name || "Customer";
+      const result = await getResend().emails.send({
+        from: FROM_EMAIL,
+        to: recipientEmail,
+        subject: `New Order – ${businessName}`,
+        html: `<p>A new service order has been submitted for <strong>${businessName}</strong>.</p><p>Please see the attached order summary below.</p><hr/>${pdfHtml}`,
+      });
+      if (result.error) {
+        emailError = result.error.message || String(result.error);
+        console.error("Resend returned error:", result.error);
+      } else {
+        emailSent = true;
+      }
+    } catch (e) {
+      emailError = e instanceof Error ? e.message : String(e);
+      console.error("Email send threw:", e);
+    }
   }
 
-  // Mark order as sent
-  await supabaseAdmin
-    .from("sales_orders")
-    .update({ status: "sent" })
-    .eq("id", orderId);
+  // Mark order as sent only if the email actually went out
+  if (emailSent) {
+    await supabaseAdmin
+      .from("sales_orders")
+      .update({ status: "sent" })
+      .eq("id", orderId);
+  }
 
-  return NextResponse.json({ ok: true, fileUrl });
+  return NextResponse.json({
+    ok: emailSent,
+    emailSent,
+    emailError,
+    recipient: recipientEmail,
+    from: FROM_EMAIL,
+    fileUrl,
+  });
 }
 
 function generateOrderPdfHtml(
