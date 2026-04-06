@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Loader2, Search, X, Building2, Plus } from "lucide-react";
+import { Loader2, Search, X, Building2, Plus, Trash2 } from "lucide-react";
 import type { SalesAccount } from "@/lib/salesTypes";
 
 export default function AccountsPage() {
@@ -46,6 +46,21 @@ export default function AccountsPage() {
     }
     setForm({ business_name: "", contact_name: "", phone: "", email: "", address: "", notes: "" });
     setShowAdd(false);
+    fetchAccounts();
+  }
+
+  async function handleDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
+    if (!confirm("Delete this account? Linked leads, deals, and orders will be unlinked.")) return;
+    const res = await fetch(`/api/sales/accounts/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to delete");
+      return;
+    }
     fetchAccounts();
   }
 
@@ -117,6 +132,7 @@ export default function AccountsPage() {
                 <th className="px-4 py-3 font-medium text-gray-500">Phone</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Email</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Created</th>
+                <th className="px-4 py-3 font-medium text-gray-500"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -131,6 +147,15 @@ export default function AccountsPage() {
                   <td className="px-4 py-3 text-gray-600">{acct.phone || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{acct.email || "—"}</td>
                   <td className="px-4 py-3 text-xs text-gray-400">{new Date(acct.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={(e) => handleDelete(e, acct.id)}
+                      title="Delete"
+                      className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

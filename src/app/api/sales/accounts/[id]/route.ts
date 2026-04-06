@@ -49,3 +49,32 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getSalesUser(req);
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { id } = await params;
+
+  // Sales reps can only delete accounts they own; admins can delete any.
+  if (user.role !== "admin") {
+    const { data: acct } = await supabaseAdmin
+      .from("sales_accounts")
+      .select("assigned_to, created_by")
+      .eq("id", id)
+      .single();
+    if (!acct || (acct.assigned_to !== user.id && acct.created_by !== user.id)) {
+      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+    }
+  }
+
+  // Detach related records so FK constraints don't block the delete.
+  // Leads, deals, and orders survive but lose their account link.
+  await supabaseAdmin.from("sales_leads").update({ account_id: null }).eq("account_id", id);
+  await supabaseAdmin.from("sales_deals").update({ account_id: null }).eq("account_id", id);
+  await supabaseAdmin.from("sales_orders").update({ account_id: null }).eq("account_id", id);
+  await supabaseAdmin.from("sales_documents").delete().eq("account_id", id);
+
+  const { error } = await supabaseAdmin.from("sales_accounts").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
