@@ -14,7 +14,7 @@ export default function LeadsPage() {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [salesUsers, setSalesUsers] = useState<{ id: string; full_name: string }[]>([]);
-  const [addForm, setAddForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "" });
+  const [addForm, setAddForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", source: "", notes: "" });
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -47,12 +47,17 @@ export default function LeadsPage() {
 
   async function handleAdd() {
     if (!addForm.business_name) return;
-    await fetch("/api/sales/leads", {
+    const res = await fetch("/api/sales/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(addForm),
     });
-    setAddForm({ business_name: "", contact_name: "", phone: "", email: "", address: "" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to add lead");
+      return;
+    }
+    setAddForm({ business_name: "", contact_name: "", phone: "", email: "", address: "", source: "", notes: "" });
     setShowAdd(false);
     fetchLeads();
   }
@@ -104,6 +109,8 @@ export default function LeadsPage() {
     new: "bg-blue-50 text-blue-700 ring-blue-200",
     contacted: "bg-yellow-50 text-yellow-700 ring-yellow-200",
     qualified: "bg-green-50 text-green-700 ring-green-200",
+    unqualified: "bg-gray-100 text-gray-600 ring-gray-200",
+    lost: "bg-red-50 text-red-700 ring-red-200",
   };
 
   return (
@@ -129,7 +136,9 @@ export default function LeadsPage() {
             <input placeholder="Phone" value={addForm.phone} onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <input placeholder="Email" value={addForm.email} onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <input placeholder="Address" value={addForm.address} onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+            <input placeholder="Source (referral, web, cold call...)" value={addForm.source} onChange={(e) => setAddForm((f) => ({ ...f, source: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
           </div>
+          <textarea placeholder="Notes" value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" rows={2} />
           <div className="mt-3 flex gap-2">
             <button onClick={handleAdd} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer">Save</button>
             <button onClick={() => setShowAdd(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
@@ -185,6 +194,8 @@ export default function LeadsPage() {
                       <option value="new">New</option>
                       <option value="contacted">Contacted</option>
                       <option value="qualified">Qualified</option>
+                      <option value="unqualified">Unqualified</option>
+                      <option value="lost">Lost</option>
                     </select>
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-600">
