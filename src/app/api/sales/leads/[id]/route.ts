@@ -147,6 +147,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
   }
 
+  // Detach related deals so the FK constraint doesn't block deletion.
+  // Activity log rows cascade automatically.
+  await supabaseAdmin.from("sales_deals").update({ lead_id: null }).eq("lead_id", id);
+
   const { error } = await supabaseAdmin.from("sales_leads").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
