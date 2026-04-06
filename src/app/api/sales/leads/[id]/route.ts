@@ -39,6 +39,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     "phone",
     "email",
     "address",
+    "city",
+    "state",
     "status",
     "source",
     "notes",

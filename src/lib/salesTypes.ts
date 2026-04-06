@@ -5,6 +5,8 @@ export interface SalesLead {
   phone: string | null;
   email: string | null;
   address: string | null;
+  city?: string | null;
+  state?: string | null;
   status: "new" | "contacted" | "qualified" | "unqualified" | "lost";
   assigned_to: string | null;
   account_id?: string | null;

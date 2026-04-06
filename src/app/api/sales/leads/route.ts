@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { business_name, contact_name, phone, email, address, source, notes } = body;
+  const { business_name, contact_name, phone, email, address, city, state, source, notes } = body;
   if (!business_name)
     return NextResponse.json({ error: "business_name required" }, { status: 400 });
 
@@ -85,6 +85,8 @@ export async function POST(req: NextRequest) {
       phone,
       email,
       address,
+      city: city || null,
+      state: state || null,
       source: source || null,
       notes: notes || null,
       created_by: user.id,
