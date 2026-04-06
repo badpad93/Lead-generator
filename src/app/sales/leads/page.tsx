@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { Plus, Loader2, Search, X, UserPlus, ArrowRight } from "lucide-react";
+import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2 } from "lucide-react";
 import type { SalesLead } from "@/lib/salesTypes";
 
 export default function LeadsPage() {
@@ -89,6 +89,20 @@ export default function LeadsPage() {
     if (res.ok) {
       fetchLeads();
     }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this lead? This cannot be undone.")) return;
+    const res = await fetch(`/api/sales/leads/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to delete");
+      return;
+    }
+    fetchLeads();
   }
 
   async function handleStatusChange(id: string, status: string) {
@@ -231,6 +245,13 @@ export default function LeadsPage() {
                         className="rounded-lg p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 cursor-pointer"
                       >
                         <ArrowRight className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(lead.id)}
+                        title="Delete"
+                        className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </td>

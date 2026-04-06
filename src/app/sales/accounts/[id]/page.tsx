@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, FileText, Upload } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, Upload, Trash2 } from "lucide-react";
 import type { SalesAccount, SalesDeal, SalesOrder, SalesDocument, SalesLead } from "@/lib/salesTypes";
 
 interface AccountDetail extends SalesAccount {
@@ -68,6 +68,20 @@ export default function AccountDetailPage() {
     fetchAccount();
   }
 
+  async function handleDelete() {
+    if (!confirm("Delete this account? Linked leads, deals, and orders will be unlinked.")) return;
+    const res = await fetch(`/api/sales/accounts/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to delete");
+      return;
+    }
+    router.push("/sales/accounts");
+  }
+
   if (loading) {
     return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
   }
@@ -84,7 +98,16 @@ export default function AccountDetailPage() {
 
       {/* Account Info */}
       <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
-        <h1 className="text-xl font-bold text-gray-900 mb-4">{account.business_name}</h1>
+        <div className="flex items-start justify-between mb-4">
+          <h1 className="text-xl font-bold text-gray-900">{account.business_name}</h1>
+          <button
+            onClick={handleDelete}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 cursor-pointer"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete Account
+          </button>
+        </div>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div><span className="text-gray-500">Contact:</span> <span className="ml-2 text-gray-900">{account.contact_name || "—"}</span></div>
           <div><span className="text-gray-500">Phone:</span> <span className="ml-2 text-gray-900">{account.phone || "—"}</span></div>
