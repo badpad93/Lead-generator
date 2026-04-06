@@ -5,11 +5,17 @@ export interface SalesLead {
   phone: string | null;
   email: string | null;
   address: string | null;
-  status: "new" | "contacted" | "qualified";
+  status: "new" | "contacted" | "qualified" | "unqualified" | "lost";
   assigned_to: string | null;
+  created_by?: string | null;
+  source?: string | null;
+  notes?: string | null;
+  last_contacted_at?: string | null;
+  next_followup_at?: string | null;
   created_at: string;
+  updated_at?: string;
   // Joined
-  assigned_profile?: { full_name: string; email: string } | null;
+  assigned_profile?: { full_name: string | null; email: string | null } | null;
 }
 
 export type DealStage = "new" | "contacted" | "qualified" | "proposal" | "closing" | "won" | "lost";

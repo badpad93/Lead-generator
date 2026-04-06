@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from("sales_deals")
-    .select("*, assigned_profile:profiles!assigned_to(full_name, email), deal_services(*)")
+    .select("*, deal_services(*)")
     .order("created_at", { ascending: false });
 
   if (user.role === "sales") {
@@ -17,7 +17,24 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await query.limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data || []);
+
+  const deals = data || [];
+  const ids = Array.from(new Set(deals.map((d) => d.assigned_to).filter(Boolean))) as string[];
+  let nameById: Record<string, { full_name: string | null; email: string | null }> = {};
+  if (ids.length > 0) {
+    const { data: profiles } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", ids);
+    nameById = Object.fromEntries(
+      (profiles || []).map((p) => [p.id, { full_name: p.full_name, email: p.email }])
+    );
+  }
+  const hydrated = deals.map((d) => ({
+    ...d,
+    assigned_profile: d.assigned_to ? nameById[d.assigned_to] || null : null,
+  }));
+  return NextResponse.json(hydrated);
 }
 
 export async function POST(req: NextRequest) {

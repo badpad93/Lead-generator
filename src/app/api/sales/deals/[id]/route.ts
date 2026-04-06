@@ -9,7 +9,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data, error } = await supabaseAdmin
     .from("sales_deals")
-    .select("*, assigned_profile:profiles!assigned_to(full_name, email), deal_services(*)")
+    .select("*, deal_services(*)")
     .eq("id", id)
     .single();
 
@@ -61,7 +61,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .from("sales_deals")
     .update(updates)
     .eq("id", id)
-    .select("*, assigned_profile:profiles!assigned_to(full_name, email), deal_services(*)")
+    .select("*, deal_services(*)")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -9,12 +9,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data, error } = await supabaseAdmin
     .from("sales_leads")
-    .select("*, assigned_profile:profiles!assigned_to(full_name, email)")
+    .select("*")
     .eq("id", id)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 404 });
-  return NextResponse.json(data);
+
+  let assigned_profile = null;
+  if (data?.assigned_to) {
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", data.assigned_to)
+      .single();
+    assigned_profile = prof || null;
+  }
+  return NextResponse.json({ ...data, assigned_profile });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -23,7 +33,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await req.json();
 
-  const allowed = ["business_name", "contact_name", "phone", "email", "address", "status"];
+  const allowed = [
+    "business_name",
+    "contact_name",
+    "phone",
+    "email",
+    "address",
+    "status",
+    "source",
+    "notes",
+    "last_contacted_at",
+    "next_followup_at",
+  ];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) updates[key] = body[key];
