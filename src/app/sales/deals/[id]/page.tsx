@@ -99,11 +99,20 @@ export default function DealDetailPage() {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    if (sendRes.ok) {
+    const result = await sendRes.json().catch(() => ({}));
+    if (result.emailSent) {
+      alert(`Order sent to ${result.recipient}`);
       setShowFinalize(false);
       fetchDeal();
     } else {
-      alert("Order created but failed to send email");
+      alert(
+        `Order was created but the email did NOT go out.\n\n` +
+        `Recipient: ${result.recipient || finalizeForm.recipient_email}\n` +
+        `From: ${result.from || "(not set)"}\n` +
+        `Reason: ${result.emailError || "Unknown error"}\n\n` +
+        `Check that RESEND_API_KEY and FROM_EMAIL are set on the server, ` +
+        `and that the FROM_EMAIL domain is verified in your Resend account.`
+      );
     }
     setSending(false);
   }
