@@ -18,73 +18,61 @@ function CallbackContent() {
       const supabase = createBrowserClient();
 
       // Determine the flow from URL param (primary) or localStorage fallback.
-      // The URL param is set in the OAuth redirectTo, and localStorage is set
-      // before the OAuth redirect as a belt-and-suspenders approach.
       const flowParam = searchParams.get("flow");
       const storedFlow = consumeAuthFlow();
       const flow = flowParam || storedFlow || "login";
       const isSignup = flow === "signup";
 
-      // The @supabase/ssr browser client has detectSessionInUrl: true and
-      // flowType: "pkce" built in. It automatically exchanges the ?code=
-      // param and writes the session to document.cookie.
-      // We listen for the SIGNED_IN event to know when it's done.
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          if (cancelled) return;
-          if (event === "SIGNED_IN" && session) {
-            subscription.unsubscribe();
+      // Explicitly exchange the OAuth code for a session. Doing this
+      // synchronously (instead of relying on detectSessionInUrl +
+      // onAuthStateChange) guarantees that the auth cookies are fully
+      // written before we navigate, so the middleware sees the session on
+      // the very next request. Without this, the user had to log in twice
+      // because the first redirect raced the cookie write.
+      const code = searchParams.get("code");
+      if (!code) {
+        setError("Missing authorization code. Please try again.");
+        setTimeout(() => { window.location.href = "/login"; }, 2000);
+        return;
+      }
 
-            if (isSignup) {
-              // SIGNUP FLOW: apply the selected role to the user's profile
-              const signupRole = consumeSignupRole();
-              if (signupRole) {
-                try {
-                  await fetch("/api/auth/me", {
-                    method: "PATCH",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${session.access_token}`,
-                    },
-                    body: JSON.stringify({ role: signupRole }),
-                  });
-                } catch {
-                  // Profile might not exist yet — ignore
-                }
-              }
+      const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+      if (cancelled) return;
+      if (exchangeErr || !data.session) {
+        setError(exchangeErr?.message || "Failed to complete sign-in.");
+        setTimeout(() => { window.location.href = "/login"; }, 2000);
+        return;
+      }
 
-              // Redirect to the stored path or dashboard for signup
-              const redirectTo = consumeRedirectAfterLogin() || "/dashboard";
-              window.location.href = redirectTo;
-            } else {
-              // LOGIN FLOW: consume any stale signup role (shouldn't exist, but clean up)
-              consumeSignupRole();
-
-              // Redirect to the stored path (e.g. user tried to visit
-              // /browse-requests before logging in) or fall back to /dashboard.
-              const redirectTo = consumeRedirectAfterLogin() || "/dashboard";
-              window.location.href = redirectTo;
-            }
+      if (isSignup) {
+        const signupRole = consumeSignupRole();
+        if (signupRole) {
+          try {
+            await fetch("/api/auth/me", {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${data.session.access_token}`,
+              },
+              body: JSON.stringify({ role: signupRole }),
+            });
+          } catch {
+            // Profile might not exist yet — ignore
           }
         }
-      );
+      } else {
+        // Clean up any stale signup role from prior flows
+        consumeSignupRole();
+      }
 
-      // Safety timeout — if no SIGNED_IN event fires within 10s, fail
-      const timer = setTimeout(() => {
-        if (cancelled) return;
-        subscription.unsubscribe();
-        setError("Authentication timed out. Please try again.");
-        setTimeout(() => { window.location.href = "/login"; }, 2000);
-      }, 10000);
-
-      return () => {
-        cancelled = true;
-        subscription.unsubscribe();
-        clearTimeout(timer);
-      };
+      const redirectTo = consumeRedirectAfterLogin() || "/dashboard";
+      window.location.href = redirectTo;
     }
 
     handleCallback();
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams]);
 
   if (error) {
