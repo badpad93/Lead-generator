@@ -54,6 +54,23 @@ export async function POST(req: Request) {
     );
   }
 
+  // Optional referring sales rep — validate they actually have a sales/admin role
+  // so commissions and results dashboards attribute the lead correctly.
+  const ref = clean(body.ref);
+  let referringRep: string | null = null;
+  let referringRepName: string | null = null;
+  if (ref) {
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, role")
+      .eq("id", ref)
+      .single();
+    if (profile && (profile.role === "sales" || profile.role === "admin")) {
+      referringRep = profile.id;
+      referringRepName = profile.full_name;
+    }
+  }
+
   const { error: dbError } = await supabaseAdmin.from("sales_leads").insert({
     business_name,
     contact_name,
@@ -63,8 +80,10 @@ export async function POST(req: Request) {
     zip_code,
     machine_count,
     status: "new",
-    source: "request-location",
-    notes: `Location services request — ${machine_count} machine(s) requested for ZIP ${zip_code}`,
+    source: referringRep ? "request-location-referral" : "request-location",
+    notes: `Location services request — ${machine_count} machine(s) requested for ZIP ${zip_code}${referringRepName ? ` (referred by ${referringRepName})` : ""}`,
+    created_by: referringRep,
+    assigned_to: referringRep,
   });
 
   if (dbError) {

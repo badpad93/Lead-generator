@@ -11,6 +11,9 @@ import {
   TrendingUp,
   Target,
   DollarSign,
+  Link2,
+  Copy,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -72,6 +75,8 @@ function ProgressBar({ value, target, label }: { value: number; target: number; 
 
 export default function SalesDashboard() {
   const [token, setToken] = useState("");
+  const [userId, setUserId] = useState("");
+  const [copied, setCopied] = useState(false);
   const [period, setPeriod] = useState<Period>("monthly");
   const [results, setResults] = useState<ResultsResponse | null>(null);
   const [counts, setCounts] = useState({ leads: 0, deals: 0, accounts: 0, orders: 0 });
@@ -80,7 +85,10 @@ export default function SalesDashboard() {
   useEffect(() => {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) setToken(session.access_token);
+      if (session?.access_token) {
+        setToken(session.access_token);
+        setUserId(session.user.id);
+      }
     });
   }, []);
 
@@ -141,6 +149,43 @@ export default function SalesDashboard() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* Referral link for commission tracking */}
+          {userId && (
+            <div className="rounded-xl border border-green-200 bg-green-50/50 p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-100 text-green-700">
+                  <Link2 className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold text-gray-900">Your Referral Link</h3>
+                  <p className="mt-0.5 text-xs text-gray-600">
+                    Share this link — any leads submitted through it are attributed to you for commission tracking.
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      readOnly
+                      value={typeof window !== "undefined" ? `${window.location.origin}/request-location?ref=${userId}` : ""}
+                      className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:border-green-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const link = `${window.location.origin}/request-location?ref=${userId}`;
+                        navigator.clipboard.writeText(link);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white hover:bg-green-700 cursor-pointer"
+                    >
+                      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copied ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Totals */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {cards.map((card) => (

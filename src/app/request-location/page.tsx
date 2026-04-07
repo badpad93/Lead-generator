@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { MapPin } from "lucide-react";
 
 interface FormState {
@@ -24,10 +25,25 @@ const initial: FormState = {
 };
 
 export default function RequestLocationPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <RequestLocationInner />
+    </Suspense>
+  );
+}
+
+function RequestLocationInner() {
+  const searchParams = useSearchParams();
+  const [ref, setRef] = useState<string>("");
   const [form, setForm] = useState<FormState>(initial);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const r = searchParams.get("ref");
+    if (r) setRef(r);
+  }, [searchParams]);
 
   function update<K extends keyof FormState>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -52,6 +68,7 @@ export default function RequestLocationPage() {
         body: JSON.stringify({
           ...form,
           machine_count: Number(form.machine_count),
+          ref: ref || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
