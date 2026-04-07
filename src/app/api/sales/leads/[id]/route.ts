@@ -46,6 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     "notes",
     "do_not_call",
     "entity_type",
+    "immediate_need",
     "last_contacted_at",
     "next_followup_at",
   ];
