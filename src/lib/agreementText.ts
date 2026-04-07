@@ -1,4 +1,4 @@
-export const AGREEMENT_VERSION = "v1.2";
+export const AGREEMENT_VERSION = "v1.3";
 
 export const AGREEMENT_TEXT = `Lead Purchase Agreement
 
@@ -14,10 +14,10 @@ Buyer is purchasing access to a business lead or opportunity listing. No guarant
 All leads are sold as-is with no guarantee of response, conversion, or financial outcome.
 
 3. Lead Delivery Timing
-Buyer acknowledges that some leads may take up to 20 minutes to fully populate after purchase.
+Buyer acknowledges that some leads may take up to 20 minutes to begin populating after purchase. Complete location information may take up to four (4) days from the point of sale to be fully delivered. If the complete location information has not been received within four (4) days of purchase, Buyer is entitled to a full refund of the original purchase price as set forth in Section 9.
 
 4. No Refunds
-All purchases are final and non-refundable, except as expressly provided under Section 8 (Lead Quality Review & Limited Remedy).
+All purchases are final and non-refundable, except as expressly provided under Section 8 (Lead Quality Review & Limited Remedy) or Section 9 (Location Information Delivery Window).
 
 5. Acceptable Use
 Buyer agrees not to resell, distribute, or misuse lead data and must comply with all applicable laws.
