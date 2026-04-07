@@ -1,9 +1,10 @@
-export type EntityType = "operator" | "location" | "machine_sales";
+export type EntityType = "operator" | "location" | "machine_sales" | "vending_maintenance";
 
 export const ENTITY_TYPES: { value: EntityType; label: string }[] = [
   { value: "location", label: "Location" },
   { value: "operator", label: "Operator" },
   { value: "machine_sales", label: "Machine Sales Company" },
+  { value: "vending_maintenance", label: "Vending Maintenance" },
 ];
 
 export interface SalesLead {
