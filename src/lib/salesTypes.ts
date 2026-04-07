@@ -13,6 +13,7 @@ export interface SalesLead {
   created_by?: string | null;
   source?: string | null;
   notes?: string | null;
+  do_not_call?: boolean;
   last_contacted_at?: string | null;
   next_followup_at?: string | null;
   created_at: string;
