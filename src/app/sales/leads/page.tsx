@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2 } from "lucide-react";
+import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone } from "lucide-react";
 import type { SalesLead } from "@/lib/salesTypes";
 
 export default function LeadsPage() {
@@ -15,7 +15,8 @@ export default function LeadsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [salesUsers, setSalesUsers] = useState<{ id: string; full_name: string }[]>([]);
   const [stateFilter, setStateFilter] = useState("");
-  const [addForm, setAddForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "" });
+  const [hideDnc, setHideDnc] = useState(false);
+  const [addForm, setAddForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false });
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -58,7 +59,7 @@ export default function LeadsPage() {
       alert(err.error || "Failed to add lead");
       return;
     }
-    setAddForm({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "" });
+    setAddForm({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false });
     setShowAdd(false);
     fetchLeads();
   }
@@ -106,6 +107,15 @@ export default function LeadsPage() {
     fetchLeads();
   }
 
+  async function handleToggleDnc(id: string, current: boolean) {
+    await fetch(`/api/sales/leads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ do_not_call: !current }),
+    });
+    fetchLeads();
+  }
+
   async function handleStatusChange(id: string, status: string) {
     await fetch(`/api/sales/leads/${id}`, {
       method: "PATCH",
@@ -120,6 +130,7 @@ export default function LeadsPage() {
   ).sort();
 
   const filtered = leads.filter((l) => {
+    if (hideDnc && l.do_not_call) return false;
     if (stateFilter && (l.state || "").toUpperCase() !== stateFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
@@ -167,6 +178,16 @@ export default function LeadsPage() {
             <input placeholder="Source (referral, web, cold call...)" value={addForm.source} onChange={(e) => setAddForm((f) => ({ ...f, source: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
           </div>
           <textarea placeholder="Notes" value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" rows={2} />
+          <label className="mt-3 flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={addForm.do_not_call}
+              onChange={(e) => setAddForm((f) => ({ ...f, do_not_call: e.target.checked }))}
+              className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+            />
+            <PhoneOff className="h-4 w-4 text-red-600" />
+            Do Not Call
+          </label>
           <div className="mt-3 flex gap-2">
             <button onClick={handleAdd} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer">Save</button>
             <button onClick={() => setShowAdd(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
@@ -200,6 +221,15 @@ export default function LeadsPage() {
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
+        <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={hideDnc}
+            onChange={(e) => setHideDnc(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+          />
+          Hide Do Not Call
+        </label>
       </div>
 
       {loading ? (
@@ -225,7 +255,16 @@ export default function LeadsPage() {
                 <tr key={lead.id} className="hover:bg-gray-50/50">
                   <td className="px-4 py-3 font-medium text-gray-900">{lead.business_name}</td>
                   <td className="px-4 py-3 text-gray-600">{lead.contact_name || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{lead.phone || "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {lead.do_not_call ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200" title="Do Not Call">
+                        <PhoneOff className="h-3 w-3" />
+                        DNC
+                      </span>
+                    ) : (
+                      lead.phone || "—"
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">
                     {lead.state ? (
                       <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
@@ -275,6 +314,13 @@ export default function LeadsPage() {
                           <UserPlus className="h-4 w-4" />
                         </button>
                       )}
+                      <button
+                        onClick={() => handleToggleDnc(lead.id, !!lead.do_not_call)}
+                        title={lead.do_not_call ? "Remove Do Not Call" : "Mark Do Not Call"}
+                        className={`rounded-lg p-1.5 cursor-pointer ${lead.do_not_call ? "bg-red-50 text-red-600 hover:bg-red-100" : "text-gray-400 hover:bg-red-50 hover:text-red-600"}`}
+                      >
+                        {lead.do_not_call ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
+                      </button>
                       <button
                         onClick={() => handleConvert(lead.id)}
                         title="Convert to Deal"
