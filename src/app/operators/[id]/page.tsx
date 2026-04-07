@@ -436,11 +436,17 @@ export default function OperatorProfilePage() {
                       </BlurredText>
                     </p>
                   )}
-                  {/* City and state always visible */}
-                  {(profile.city || profile.state) && (
+                  {/* Full address always visible */}
+                  {(profile.address || profile.city || profile.state || profile.zip) && (
                     <p className="mt-1 flex items-center justify-center gap-1 text-sm text-gray-500 sm:justify-start">
                       <MapPin className="h-3.5 w-3.5" />
-                      {[profile.city, profile.state].filter(Boolean).join(", ")}
+                      {[
+                        profile.address,
+                        [profile.city, profile.state].filter(Boolean).join(", "),
+                        profile.zip,
+                      ]
+                        .filter(Boolean)
+                        .join(" • ")}
                     </p>
                   )}
 

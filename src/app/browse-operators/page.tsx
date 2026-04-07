@@ -365,9 +365,13 @@ function OperatorCard({ operator, onViewProfile }: { operator: OperatorWithListi
   const totalMachines = operator.total_machines ?? 0;
   const status = operator.aggregated_status ?? "available";
 
-  // Show only states (free info) - cities are blurred until purchased
+  // Operator service address is public so locations can find them.
   const locationParts: string[] = [];
-  if (states.length > 0) {
+  if (operator.address) locationParts.push(operator.address);
+  const cityState = [operator.city, operator.state].filter(Boolean).join(", ");
+  if (cityState) locationParts.push(cityState);
+  if (operator.zip) locationParts.push(operator.zip);
+  if (locationParts.length === 0 && states.length > 0) {
     locationParts.push(states.slice(0, 4).join(", "));
   }
 

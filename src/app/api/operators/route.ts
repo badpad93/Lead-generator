@@ -25,6 +25,8 @@ function stripOperatorProfileForLocations(profile: Record<string, unknown> | nul
   if (!profile) return null;
   return {
     id: profile.id,
+    address: profile.address ?? null,
+    city: profile.city ?? null,
     zip: profile.zip ?? null,
     state: profile.state ?? null,
     verified: profile.verified ?? false,
@@ -86,8 +88,7 @@ export async function GET(req: NextRequest) {
         phone: null,
         website: null,
         bio: null,
-        city: null,
-        // Keep: id, zip, state, verified, rating, review_count, role, created_at
+        // Keep: id, address, city, zip, state, verified, rating, review_count, role, created_at
       }));
     }
 
@@ -97,7 +98,7 @@ export async function GET(req: NextRequest) {
   // Listings mode
   let query = supabaseAdmin
     .from("operator_listings")
-    .select("*, profiles!operator_id(id, full_name, company_name, verified, rating, review_count, city, state, zip)", { count: "exact" });
+    .select("*, profiles!operator_id(id, full_name, company_name, verified, rating, review_count, address, city, state, zip)", { count: "exact" });
 
   if (mine === "true" && userId) {
     query = query.eq("operator_id", userId);
