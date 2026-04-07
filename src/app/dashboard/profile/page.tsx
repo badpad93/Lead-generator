@@ -31,6 +31,7 @@ export default function ProfilePage() {
     phone: "",
     website: "",
     bio: "",
+    address: "",
     city: "",
     state: "",
     zip: "",
@@ -63,6 +64,7 @@ export default function ProfilePage() {
           phone: data.phone || "",
           website: data.website || "",
           bio: data.bio || "",
+          address: data.address || "",
           city: data.city || "",
           state: data.state || "",
           zip: data.zip || "",
@@ -101,6 +103,7 @@ export default function ProfilePage() {
           phone: form.phone || null,
           website: form.website || null,
           bio: form.bio || null,
+          address: form.address || null,
           city: form.city || null,
           state: form.state || null,
           zip: form.zip || null,
@@ -272,6 +275,18 @@ export default function ProfilePage() {
               <MapPin className="h-5 w-5 text-black-primary/40" />
               Location
             </h2>
+            <div className="mb-4">
+              <label className="mb-1.5 block text-sm font-medium text-black-primary">
+                Street Address
+              </label>
+              <input
+                type="text"
+                value={form.address}
+                onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                placeholder="123 Main St"
+                className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+              />
+            </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-black-primary">

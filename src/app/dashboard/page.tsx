@@ -36,6 +36,7 @@ import LocationTypeIcon from "@/app/components/LocationTypeIcon";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
 import UrgencyBadge from "@/app/components/UrgencyBadge";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
+import OperatorOnboarding from "./OperatorOnboarding";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -91,6 +92,7 @@ interface OperatorWithProfile extends OperatorListing {
 export default function DashboardPage() {
   /* ---- Auth ---- */
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [token, setToken] = useState<string>("");
   const [authLoading, setAuthLoading] = useState(true);
   const [notLoggedIn, setNotLoggedIn] = useState(false);
 
@@ -132,6 +134,7 @@ export default function DashboardPage() {
           }
           const data = await res.json();
           setProfile(data);
+          setToken(session.access_token);
         } catch {
           setNotLoggedIn(true);
         } finally {
@@ -254,6 +257,30 @@ export default function DashboardPage() {
 
   const firstName = profile.full_name?.split(" ")[0] || "there";
   const isOperator = profile.role === "operator";
+
+  // Operators must provide a public service address before using the dashboard.
+  if (
+    isOperator &&
+    (!profile.address || !profile.city || !profile.state || !profile.zip)
+  ) {
+    return (
+      <OperatorOnboarding
+        token={token}
+        initial={{
+          address: profile.address || "",
+          city: profile.city || "",
+          state: profile.state || "",
+          zip: profile.zip || "",
+        }}
+        onComplete={async () => {
+          const res = await fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) setProfile(await res.json());
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-[calc(100vh-160px)] bg-light">

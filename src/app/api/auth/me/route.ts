@@ -93,7 +93,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const allowedFields = [
       "full_name", "company_name", "phone", "website", "bio",
-      "city", "state", "zip", "role",
+      "address", "city", "state", "zip", "role",
     ];
     // Privileged roles can ONLY be set by an admin via /api/admin/users.
     // Self-service signup must never grant admin/sales access.
