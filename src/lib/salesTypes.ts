@@ -7,6 +7,25 @@ export const ENTITY_TYPES: { value: EntityType; label: string }[] = [
   { value: "vending_maintenance", label: "Vending Maintenance" },
 ];
 
+export type ImmediateNeed =
+  | "location"
+  | "machine"
+  | "digital"
+  | "llc_compliance"
+  | "coffee"
+  | "financing"
+  | "total_operator_package";
+
+export const IMMEDIATE_NEEDS: { value: ImmediateNeed; label: string }[] = [
+  { value: "location", label: "Location" },
+  { value: "machine", label: "Machine" },
+  { value: "digital", label: "Digital" },
+  { value: "llc_compliance", label: "LLC and Compliance" },
+  { value: "coffee", label: "Coffee" },
+  { value: "financing", label: "Financing" },
+  { value: "total_operator_package", label: "Total Operator Package" },
+];
+
 export interface SalesLead {
   id: string;
   business_name: string;
@@ -24,6 +43,7 @@ export interface SalesLead {
   notes?: string | null;
   do_not_call?: boolean;
   entity_type?: EntityType | null;
+  immediate_need?: ImmediateNeed | null;
   last_contacted_at?: string | null;
   next_followup_at?: string | null;
   created_at: string;
