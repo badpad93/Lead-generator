@@ -1,4 +1,4 @@
-export const AGREEMENT_VERSION = "v1.1";
+export const AGREEMENT_VERSION = "v1.2";
 
 export const AGREEMENT_TEXT = `Lead Purchase Agreement
 
@@ -38,4 +38,7 @@ Eligible claims:
 
 If a review request is approved, Company will, at its sole discretion, provide either a replacement lead of comparable value or a refund of the original purchase price. Refunds, if issued, will be processed within 3-5 business days.
 
-This remedy does not apply to, and no refund or replacement will be issued for: non-response from the lead contact, failure to close a deal, dissatisfaction with lead quality or potential, or any reason not expressly listed above. Company retains sole and absolute discretion over all review decisions, and its determination shall be final.`;
+This remedy does not apply to, and no refund or replacement will be issued for: non-response from the lead contact, failure to close a deal, dissatisfaction with lead quality or potential, or any reason not expressly listed above. Company retains sole and absolute discretion over all review decisions, and its determination shall be final.
+
+9. Location Information Delivery Window
+Buyer acknowledges that complete location information may take up to four (4) days from the point of sale to be delivered. If the complete location information has not been received by Buyer within four (4) days of the point of sale, Buyer is entitled to a full refund of the original purchase price upon request. Refund requests under this Section must be submitted to Company within a reasonable time after the four-day window has elapsed and will be processed within 3-5 business days.`;
