@@ -197,6 +197,16 @@ export default function Navbar() {
 
         {/* Desktop Auth Buttons / User Menu */}
         <div className="hidden items-center gap-3 md:flex">
+          <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
+            <Link
+              href="/request-location"
+              className="rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+              aria-label={TOOLTIP_COPY["Request Location Services"]}
+              title={TOOLTIP_COPY["Request Location Services"]}
+            >
+              Request Location Services
+            </Link>
+          </Tooltip>
           {isLoggedIn ? (
             <div className="relative">
               <button
@@ -300,16 +310,6 @@ export default function Navbar() {
             </div>
           ) : (
             <>
-              <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
-                <Link
-                  href="/request-location"
-                  className="rounded-lg bg-green-50 px-4 py-2 text-sm font-semibold text-green-primary transition-colors hover:bg-green-100"
-                  aria-label={TOOLTIP_COPY["Request Location Services"]}
-                  title={TOOLTIP_COPY["Request Location Services"]}
-                >
-                  Request Location Services
-                </Link>
-              </Tooltip>
               <Tooltip content={TOOLTIP_COPY["Login"]}>
                 <Link
                   href="/login"
