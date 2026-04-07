@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { business_name, contact_name, phone, email, address, city, state, source, notes, do_not_call } = body;
+  const { business_name, contact_name, phone, email, address, city, state, source, notes, do_not_call, entity_type } = body;
   if (!business_name)
     return NextResponse.json({ error: "business_name required" }, { status: 400 });
 
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
       phone: phone || null,
       email: email || null,
       address: address || null,
+      entity_type: entity_type || null,
       assigned_to: user.id,
       created_by: user.id,
     })
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
       source: source || null,
       notes: notes || null,
       do_not_call: !!do_not_call,
+      entity_type: entity_type || null,
       created_by: user.id,
       assigned_to: user.id,
       account_id: account.id,

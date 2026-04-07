@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase";
 import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone } from "lucide-react";
-import type { SalesLead } from "@/lib/salesTypes";
+import { ENTITY_TYPES, type SalesLead, type EntityType } from "@/lib/salesTypes";
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<SalesLead[]>([]);
@@ -16,7 +16,7 @@ export default function LeadsPage() {
   const [salesUsers, setSalesUsers] = useState<{ id: string; full_name: string }[]>([]);
   const [stateFilter, setStateFilter] = useState("");
   const [hideDnc, setHideDnc] = useState(false);
-  const [addForm, setAddForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false });
+  const [addForm, setAddForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false, entity_type: "location" as EntityType });
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -59,7 +59,7 @@ export default function LeadsPage() {
       alert(err.error || "Failed to add lead");
       return;
     }
-    setAddForm({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false });
+    setAddForm({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false, entity_type: "location" });
     setShowAdd(false);
     fetchLeads();
   }
@@ -104,6 +104,15 @@ export default function LeadsPage() {
       alert(err.error || "Failed to delete");
       return;
     }
+    fetchLeads();
+  }
+
+  async function handleEntityType(id: string, entity_type: string) {
+    await fetch(`/api/sales/leads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ entity_type: entity_type || null }),
+    });
     fetchLeads();
   }
 
@@ -176,6 +185,11 @@ export default function LeadsPage() {
             <input placeholder="City" value={addForm.city} onChange={(e) => setAddForm((f) => ({ ...f, city: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <input placeholder="State (e.g. TX)" maxLength={2} value={addForm.state} onChange={(e) => setAddForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none uppercase" />
             <input placeholder="Source (referral, web, cold call...)" value={addForm.source} onChange={(e) => setAddForm((f) => ({ ...f, source: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+            <select value={addForm.entity_type} onChange={(e) => setAddForm((f) => ({ ...f, entity_type: e.target.value as EntityType }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
+              {ENTITY_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
           </div>
           <textarea placeholder="Notes" value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" rows={2} />
           <label className="mt-3 flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
@@ -242,6 +256,7 @@ export default function LeadsPage() {
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-gray-500">Business</th>
+                <th className="px-4 py-3 font-medium text-gray-500">Type</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Contact</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Phone</th>
                 <th className="px-4 py-3 font-medium text-gray-500">State</th>
@@ -254,6 +269,18 @@ export default function LeadsPage() {
               {filtered.map((lead) => (
                 <tr key={lead.id} className="hover:bg-gray-50/50">
                   <td className="px-4 py-3 font-medium text-gray-900">{lead.business_name}</td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={lead.entity_type || ""}
+                      onChange={(e) => handleEntityType(lead.id, e.target.value)}
+                      className="rounded border border-gray-200 px-2 py-1 text-xs cursor-pointer"
+                    >
+                      <option value="">—</option>
+                      {ENTITY_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{lead.contact_name || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">
                     {lead.do_not_call ? (
