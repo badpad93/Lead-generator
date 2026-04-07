@@ -1,3 +1,11 @@
+export type EntityType = "operator" | "location" | "machine_sales";
+
+export const ENTITY_TYPES: { value: EntityType; label: string }[] = [
+  { value: "location", label: "Location" },
+  { value: "operator", label: "Operator" },
+  { value: "machine_sales", label: "Machine Sales Company" },
+];
+
 export interface SalesLead {
   id: string;
   business_name: string;
@@ -14,6 +22,7 @@ export interface SalesLead {
   source?: string | null;
   notes?: string | null;
   do_not_call?: boolean;
+  entity_type?: EntityType | null;
   last_contacted_at?: string | null;
   next_followup_at?: string | null;
   created_at: string;
@@ -55,6 +64,7 @@ export interface SalesAccount {
   email: string | null;
   address: string | null;
   notes?: string | null;
+  entity_type?: EntityType | null;
   assigned_to?: string | null;
   created_by?: string | null;
   created_at: string;

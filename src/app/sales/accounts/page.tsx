@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { Loader2, Search, X, Building2, Plus, Trash2 } from "lucide-react";
-import type { SalesAccount } from "@/lib/salesTypes";
+import { ENTITY_TYPES, type SalesAccount, type EntityType } from "@/lib/salesTypes";
 
 export default function AccountsPage() {
   const router = useRouter();
@@ -13,7 +13,7 @@ export default function AccountsPage() {
   const [token, setToken] = useState("");
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", notes: "" });
+  const [form, setForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", notes: "", entity_type: "location" as EntityType });
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -44,8 +44,18 @@ export default function AccountsPage() {
       alert(err.error || "Failed to create account");
       return;
     }
-    setForm({ business_name: "", contact_name: "", phone: "", email: "", address: "", notes: "" });
+    setForm({ business_name: "", contact_name: "", phone: "", email: "", address: "", notes: "", entity_type: "location" as EntityType });
     setShowAdd(false);
+    fetchAccounts();
+  }
+
+  async function handleEntityType(e: React.MouseEvent | React.ChangeEvent, id: string, entity_type: string) {
+    e.stopPropagation();
+    await fetch(`/api/sales/accounts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ entity_type: entity_type || null }),
+    });
     fetchAccounts();
   }
 
@@ -91,6 +101,11 @@ export default function AccountsPage() {
             <input placeholder="Phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <input placeholder="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <input placeholder="Address" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+            <select value={form.entity_type} onChange={(e) => setForm((f) => ({ ...f, entity_type: e.target.value as EntityType }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
+              {ENTITY_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
           </div>
           <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" rows={2} />
           <div className="mt-3 flex gap-2">
@@ -128,6 +143,7 @@ export default function AccountsPage() {
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-gray-500">Business</th>
+                <th className="px-4 py-3 font-medium text-gray-500">Type</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Contact</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Phone</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Email</th>
@@ -143,6 +159,18 @@ export default function AccountsPage() {
                   onClick={() => router.push(`/sales/accounts/${acct.id}`)}
                 >
                   <td className="px-4 py-3 font-medium text-gray-900">{acct.business_name}</td>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={acct.entity_type || ""}
+                      onChange={(e) => handleEntityType(e, acct.id, e.target.value)}
+                      className="rounded border border-gray-200 px-2 py-1 text-xs cursor-pointer"
+                    >
+                      <option value="">—</option>
+                      {ENTITY_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{acct.contact_name || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{acct.phone || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{acct.email || "—"}</td>
