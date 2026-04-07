@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText, Heart } from "lucide-react";
+import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText, Heart, Briefcase } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import Tooltip from "@/app/components/Tooltip";
@@ -286,6 +286,16 @@ export default function Navbar() {
                     <Route className="h-4 w-4 text-black-primary/50" />
                     Routes for Sale
                   </Link>
+                  {(isAdmin || profile?.role === "sales") && (
+                    <Link
+                      href="/sales"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-green-primary transition-colors hover:bg-green-50"
+                    >
+                      <Briefcase className="h-4 w-4" />
+                      CRM
+                    </Link>
+                  )}
                   {isAdmin && (
                     <Link
                       href="/admin"
@@ -479,6 +489,21 @@ export default function Navbar() {
                     <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
                 </li>
+                {(isAdmin || profile?.role === "sales") && (
+                  <li>
+                    <Link
+                      href="/sales"
+                      onClick={() => setMobileOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-green-primary transition-colors hover:bg-green-50"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Briefcase className="h-4 w-4" />
+                        CRM
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                    </Link>
+                  </li>
+                )}
                 {isAdmin && (
                   <li>
                     <Link
