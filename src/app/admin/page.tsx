@@ -23,6 +23,7 @@ import {
   Briefcase,
   TrendingUp,
   Package,
+  ShoppingBag,
 } from "lucide-react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
@@ -38,7 +39,15 @@ import type { Profile, VendingRequest, OperatorListing } from "@/lib/types";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-type Tab = "users" | "operators" | "locations" | "routes" | "agreements" | "sales_results" | "machine_orders";
+type Tab =
+  | "users"
+  | "operators"
+  | "locations"
+  | "routes"
+  | "agreements"
+  | "sales_results"
+  | "machines"
+  | "machine_orders";
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary";
@@ -2948,6 +2957,696 @@ function SalesResultsManager({ token }: { token: string }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Machines Catalog Manager                                           */
+/* ------------------------------------------------------------------ */
+
+interface AdminMachine {
+  id: string;
+  slug: string;
+  name: string;
+  model: string | null;
+  short_description: string | null;
+  description: string | null;
+  image_url: string | null;
+  price_cents: number;
+  finance_estimate_monthly_cents: number | null;
+  finance_term_years: number;
+  finance_rate_label: string | null;
+  machine_type: string | null;
+  features: string[];
+  active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface MachineFormState {
+  slug: string;
+  name: string;
+  model: string;
+  short_description: string;
+  description: string;
+  image_url: string;
+  price_dollars: string;
+  finance_estimate_monthly_dollars: string;
+  finance_term_years: string;
+  finance_rate_label: string;
+  machine_type: string;
+  features: string;
+  active: boolean;
+  sort_order: string;
+}
+
+const emptyMachineForm: MachineFormState = {
+  slug: "",
+  name: "",
+  model: "",
+  short_description: "",
+  description: "",
+  image_url: "",
+  price_dollars: "",
+  finance_estimate_monthly_dollars: "",
+  finance_term_years: "10",
+  finance_rate_label: "8–14% APR",
+  machine_type: "",
+  features: "",
+  active: true,
+  sort_order: "0",
+};
+
+function machineToForm(m: AdminMachine): MachineFormState {
+  return {
+    slug: m.slug,
+    name: m.name,
+    model: m.model || "",
+    short_description: m.short_description || "",
+    description: m.description || "",
+    image_url: m.image_url || "",
+    price_dollars: (m.price_cents / 100).toFixed(2),
+    finance_estimate_monthly_dollars:
+      m.finance_estimate_monthly_cents != null
+        ? (m.finance_estimate_monthly_cents / 100).toFixed(2)
+        : "",
+    finance_term_years: String(m.finance_term_years ?? 10),
+    finance_rate_label: m.finance_rate_label || "",
+    machine_type: m.machine_type || "",
+    features: (m.features || []).join("\n"),
+    active: m.active,
+    sort_order: String(m.sort_order ?? 0),
+  };
+}
+
+function dollarsToCents(v: string): number | null {
+  if (!v.trim()) return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100);
+}
+
+type FormResult =
+  | { ok: true; payload: Record<string, unknown> }
+  | { ok: false; error: string };
+
+function formToPayload(form: MachineFormState): FormResult {
+  const priceCents = dollarsToCents(form.price_dollars);
+  if (priceCents == null) {
+    return { ok: false, error: "Price must be a non-negative number" };
+  }
+
+  const monthlyCents = form.finance_estimate_monthly_dollars.trim()
+    ? dollarsToCents(form.finance_estimate_monthly_dollars)
+    : null;
+  if (form.finance_estimate_monthly_dollars.trim() && monthlyCents == null) {
+    return { ok: false, error: "Monthly estimate must be a non-negative number" };
+  }
+
+  const termYears = Number(form.finance_term_years);
+  if (!Number.isFinite(termYears) || termYears <= 0 || termYears > 50) {
+    return { ok: false, error: "Finance term must be between 1 and 50 years" };
+  }
+
+  const sortOrder = Number(form.sort_order);
+  if (!Number.isFinite(sortOrder)) {
+    return { ok: false, error: "Sort order must be a number" };
+  }
+
+  return {
+    ok: true,
+    payload: {
+      slug: form.slug.trim(),
+      name: form.name.trim(),
+      model: form.model.trim() || null,
+      short_description: form.short_description.trim() || null,
+      description: form.description.trim() || null,
+      image_url: form.image_url.trim() || null,
+      price_cents: priceCents,
+      finance_estimate_monthly_cents: monthlyCents,
+      finance_term_years: Math.round(termYears),
+      finance_rate_label: form.finance_rate_label.trim() || null,
+      machine_type: form.machine_type.trim() || null,
+      features: form.features,
+      active: form.active,
+      sort_order: Math.round(sortOrder),
+    },
+  };
+}
+
+function MachinesManager({
+  token,
+  onSuccess,
+}: {
+  token: string;
+  onSuccess: (msg: string) => void;
+}) {
+  const [machines, setMachines] = useState<AdminMachine[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<AdminMachine | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState<MachineFormState>(emptyMachineForm);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminMachine | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const fetchMachines = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/machines", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setMachines(data.machines || []);
+    } catch {
+      /* noop */
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchMachines();
+  }, [fetchMachines]);
+
+  function openCreate() {
+    setEditing(null);
+    setCreating(true);
+    setForm(emptyMachineForm);
+    setFormError(null);
+  }
+
+  function openEdit(m: AdminMachine) {
+    setCreating(false);
+    setEditing(m);
+    setForm(machineToForm(m));
+    setFormError(null);
+  }
+
+  function closeForm() {
+    setCreating(false);
+    setEditing(null);
+    setForm(emptyMachineForm);
+    setFormError(null);
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+
+    const result = formToPayload(form);
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const isEdit = !!editing;
+      const url = isEdit
+        ? `/api/admin/machines/${editing!.id}`
+        : "/api/admin/machines";
+      const method = isEdit ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(result.payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormError(
+          typeof data.error === "string"
+            ? data.error
+            : "Failed to save machine"
+        );
+        return;
+      }
+      onSuccess(isEdit ? "Machine updated" : "Machine added");
+      closeForm();
+      fetchMachines();
+    } catch {
+      setFormError("Network error. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleActive(m: AdminMachine) {
+    setTogglingId(m.id);
+    try {
+      const res = await fetch(`/api/admin/machines/${m.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ active: !m.active }),
+      });
+      if (res.ok) {
+        onSuccess(m.active ? "Machine disapproved" : "Machine approved");
+        setMachines((prev) =>
+          prev.map((row) =>
+            row.id === m.id ? { ...row, active: !row.active } : row
+          )
+        );
+      }
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/machines/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        onSuccess("Machine removed");
+        setMachines((prev) => prev.filter((m) => m.id !== deleteTarget.id));
+        setDeleteTarget(null);
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-black-primary">Machines Catalog</h2>
+          <p className="mt-1 text-sm text-black-primary/50">
+            {machines.length} machine{machines.length !== 1 ? "s" : ""} ·{" "}
+            {machines.filter((m) => m.active).length} approved
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-green-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-primary/90 cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />
+          Add Machine
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-green-primary" />
+        </div>
+      ) : machines.length === 0 ? (
+        <div className="py-12 text-center text-sm text-black-primary/40">
+          No machines in the catalog yet. Click &ldquo;Add Machine&rdquo; to create one.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-gray-100 bg-gray-50/50">
+              <tr className="text-left">
+                <th className="px-3 py-3 font-medium text-black-primary/60">Machine</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60">Type</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60">Price</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60">Finance est.</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60">Order</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60">Status</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {machines.map((m) => (
+                <tr key={m.id} className="hover:bg-gray-50/50">
+                  <td className="px-3 py-3">
+                    <div className="font-medium text-black-primary">{m.name}</div>
+                    <div className="text-xs text-black-primary/50">
+                      {m.slug}
+                      {m.model ? ` · ${m.model}` : ""}
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-xs text-black-primary/70">
+                    {m.machine_type || "—"}
+                  </td>
+                  <td className="px-3 py-3 text-xs font-semibold text-black-primary">
+                    {formatMoney(m.price_cents)}
+                  </td>
+                  <td className="px-3 py-3 text-xs text-black-primary/70">
+                    {m.finance_estimate_monthly_cents != null
+                      ? `${formatMoney(m.finance_estimate_monthly_cents)}/mo`
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-3 text-xs text-black-primary/70">
+                    {m.sort_order}
+                  </td>
+                  <td className="px-3 py-3">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        m.active
+                          ? "bg-green-50 text-green-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {m.active ? (
+                        <>
+                          <BadgeCheck className="h-3 w-3" />
+                          Approved
+                        </>
+                      ) : (
+                        "Hidden"
+                      )}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleActive(m)}
+                        disabled={togglingId === m.id}
+                        className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                          m.active
+                            ? "border-amber-200 text-amber-700 hover:bg-amber-50"
+                            : "border-green-200 text-green-700 hover:bg-green-50"
+                        }`}
+                      >
+                        {togglingId === m.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : m.active ? (
+                          "Disapprove"
+                        ) : (
+                          "Approve"
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEdit(m)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-black-primary hover:bg-gray-50 cursor-pointer"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(m)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 cursor-pointer"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Remove
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Create / edit modal */}
+      {(creating || editing) && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={closeForm}
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={handleSave}
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <h3 className="text-lg font-bold text-black-primary">
+                {editing ? `Edit ${editing.name}` : "Add Machine"}
+              </h3>
+              <button
+                type="button"
+                onClick={closeForm}
+                className="rounded-lg p-1 text-black-primary/40 hover:bg-gray-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                    Name *
+                  </span>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    required
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                    Slug (auto-generated from name if blank)
+                  </span>
+                  <input
+                    type="text"
+                    value={form.slug}
+                    onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
+                    placeholder="apex-combo-3000"
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                    Model
+                  </span>
+                  <input
+                    type="text"
+                    value={form.model}
+                    onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                    Machine Type
+                  </span>
+                  <input
+                    type="text"
+                    value={form.machine_type}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, machine_type: e.target.value }))
+                    }
+                    placeholder="snack / beverage / combo / coffee"
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                  Short Description
+                </span>
+                <input
+                  type="text"
+                  value={form.short_description}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, short_description: e.target.value }))
+                  }
+                  placeholder="One-sentence summary shown on the catalog card"
+                  className={inputClass}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                  Full Description
+                </span>
+                <textarea
+                  rows={3}
+                  value={form.description}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, description: e.target.value }))
+                  }
+                  className={inputClass}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                  Image URL
+                </span>
+                <input
+                  type="url"
+                  value={form.image_url}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, image_url: e.target.value }))
+                  }
+                  placeholder="https://..."
+                  className={inputClass}
+                />
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                    Price (USD) *
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.price_dollars}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, price_dollars: e.target.value }))
+                    }
+                    required
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                    Monthly Est. (USD)
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.finance_estimate_monthly_dollars}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        finance_estimate_monthly_dollars: e.target.value,
+                      }))
+                    }
+                    placeholder="optional"
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                    Term (years)
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={form.finance_term_years}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        finance_term_years: e.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                  Finance Rate Label
+                </span>
+                <input
+                  type="text"
+                  value={form.finance_rate_label}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, finance_rate_label: e.target.value }))
+                  }
+                  placeholder="8–14% APR"
+                  className={inputClass}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                  Features (one per line)
+                </span>
+                <textarea
+                  rows={4}
+                  value={form.features}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, features: e.target.value }))
+                  }
+                  placeholder={"Cashless card reader\nRemote telemetry\nLED lighting"}
+                  className={inputClass}
+                />
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-black-primary/70">
+                    Sort Order
+                  </span>
+                  <input
+                    type="number"
+                    value={form.sort_order}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, sort_order: e.target.value }))
+                    }
+                    className={inputClass}
+                  />
+                </label>
+                <label className="flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.active}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, active: e.target.checked }))
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-green-primary focus:ring-green-primary"
+                  />
+                  <span className="text-black-primary">
+                    Approved (visible on marketplace)
+                  </span>
+                </label>
+              </div>
+
+              {formError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {formError}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeForm}
+                disabled={saving}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2 text-sm font-medium text-white hover:bg-green-primary/90 disabled:opacity-50 cursor-pointer"
+              >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                {editing ? "Save Changes" : "Add Machine"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {deleteTarget && (
+        <ConfirmModal
+          title="Remove Machine"
+          message={`Permanently remove "${deleteTarget.name}" from the catalog? This cannot be undone. Existing orders referencing this machine will be preserved.`}
+          loading={deleting}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Machine Orders Manager                                             */
 /* ------------------------------------------------------------------ */
 
@@ -3388,7 +4087,8 @@ export default function AdminPage() {
     { key: "routes", label: "Routes For Sale", icon: Route },
     { key: "agreements", label: "Signed Agreements", icon: ScrollText },
     { key: "sales_results", label: "Sales Results", icon: TrendingUp },
-    { key: "machine_orders", label: "Machine Orders", icon: Package },
+    { key: "machines", label: "Machines Catalog", icon: Package },
+    { key: "machine_orders", label: "Machine Orders", icon: ShoppingBag },
   ];
 
   return (
@@ -3462,6 +4162,9 @@ export default function AdminPage() {
           )}
           {activeTab === "sales_results" && (
             <SalesResultsManager token={token} />
+          )}
+          {activeTab === "machines" && (
+            <MachinesManager token={token} onSuccess={handleSuccess} />
           )}
           {activeTab === "machine_orders" && (
             <MachineOrdersManager token={token} />
