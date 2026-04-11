@@ -97,7 +97,19 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- updated_at trigger (touch_updated_at() exists from 024)
+-- updated_at trigger. Define the touch function idempotently so this
+-- migration can be applied standalone (e.g. if 024 was skipped or
+-- rolled back).
+CREATE OR REPLACE FUNCTION public.touch_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS machine_listings_touch ON public.machine_listings;
 CREATE TRIGGER machine_listings_touch
   BEFORE UPDATE ON public.machine_listings
