@@ -138,6 +138,37 @@ export interface RouteListing {
   profiles?: Profile;
 }
 
+export type MachineListingCondition = "new" | "like_new" | "good" | "fair" | "for_parts";
+export type MachineListingStatus = "pending" | "active" | "sold" | "rejected";
+
+export interface MachineListing {
+  id: string;
+  created_by: string;
+  title: string;
+  description: string | null;
+  city: string;
+  state: string;
+  machine_make: string | null;
+  machine_model: string | null;
+  machine_year: number | null;
+  machine_type: string | null;
+  condition: MachineListingCondition | null;
+  quantity: number;
+  asking_price: number | null;
+  includes_card_reader: boolean;
+  includes_install: boolean;
+  includes_delivery: boolean;
+  photos: string[];
+  contact_email: string | null;
+  contact_phone: string | null;
+  status: MachineListingStatus;
+  admin_notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  profiles?: Profile;
+}
+
 export interface SignedAgreement {
   id: string;
   user_id: string;

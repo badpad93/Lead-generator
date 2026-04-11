@@ -47,7 +47,8 @@ type Tab =
   | "agreements"
   | "sales_results"
   | "machines"
-  | "machine_orders";
+  | "machine_orders"
+  | "machine_listings";
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary";
@@ -3647,6 +3648,429 @@ function MachinesManager({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Machine Listings Manager (User-submitted used machines)            */
+/* ------------------------------------------------------------------ */
+
+interface MachineListingRow {
+  id: string;
+  title: string;
+  description: string | null;
+  city: string;
+  state: string;
+  machine_make: string | null;
+  machine_model: string | null;
+  machine_year: number | null;
+  machine_type: string | null;
+  condition: string | null;
+  quantity: number;
+  asking_price: number | null;
+  includes_card_reader: boolean;
+  includes_install: boolean;
+  includes_delivery: boolean;
+  photos: string[];
+  contact_email: string | null;
+  contact_phone: string | null;
+  status: string;
+  admin_notes: string | null;
+  created_at: string;
+  profiles?: { id: string; full_name: string; email: string } | null;
+}
+
+function MachineListingsManager({
+  token,
+  onSuccess,
+}: {
+  token: string;
+  onSuccess: (msg: string) => void;
+}) {
+  const [listings, setListings] = useState<MachineListingRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<MachineListingRow | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    status: "",
+    asking_price: "",
+    admin_notes: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MachineListingRow | null>(
+    null
+  );
+  const [deleting, setDeleting] = useState(false);
+
+  const fetchListings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/machine-listings", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setListings(data.listings || []);
+    } catch {
+      /* noop */
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchListings();
+  }, [fetchListings]);
+
+  function openEdit(listing: MachineListingRow) {
+    setEditing(listing);
+    setEditForm({
+      title: listing.title,
+      status: listing.status,
+      asking_price:
+        listing.asking_price != null ? String(listing.asking_price) : "",
+      admin_notes: listing.admin_notes || "",
+    });
+  }
+
+  async function handleSave() {
+    if (!editing) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/machine-listings/${editing.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: editForm.title,
+          status: editForm.status,
+          asking_price: editForm.asking_price
+            ? Number(editForm.asking_price)
+            : null,
+          admin_notes: editForm.admin_notes || null,
+        }),
+      });
+      if (res.ok) {
+        setEditing(null);
+        fetchListings();
+        onSuccess("Listing updated!");
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleApprove(listing: MachineListingRow) {
+    try {
+      const res = await fetch(`/api/admin/machine-listings/${listing.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: "active" }),
+      });
+      if (res.ok) {
+        fetchListings();
+        onSuccess("Listing approved and now visible to buyers!");
+      }
+    } catch {
+      /* noop */
+    }
+  }
+
+  async function handleReject(listing: MachineListingRow) {
+    try {
+      const res = await fetch(`/api/admin/machine-listings/${listing.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: "rejected" }),
+      });
+      if (res.ok) {
+        fetchListings();
+        onSuccess("Listing rejected.");
+      }
+    } catch {
+      /* noop */
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await fetch(`/api/admin/machine-listings/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setDeleteTarget(null);
+      fetchListings();
+      onSuccess("Listing deleted!");
+    } catch {
+      /* noop */
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const statusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      active: "bg-green-50 text-green-700 ring-green-200",
+      pending: "bg-amber-50 text-amber-700 ring-amber-200",
+      sold: "bg-gray-100 text-gray-500 ring-gray-200",
+      rejected: "bg-red-50 text-red-700 ring-red-200",
+    };
+    return (
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+          colors[status] || "bg-gray-100 text-gray-700 ring-gray-200"
+        }`}
+      >
+        {status}
+      </span>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-black-primary">
+          User-Submitted Machines
+        </h2>
+        <p className="text-xs text-black-primary/50">
+          Moderate operator-listed machines on /machines-for-sale
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-green-primary" />
+        </div>
+      ) : listings.length === 0 ? (
+        <p className="py-8 text-center text-sm text-black-primary/40">
+          No machine listings yet
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-gray-100">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-gray-100 bg-gray-50/50">
+              <tr>
+                <th className="px-4 py-3 font-medium text-black-primary/60">
+                  Title
+                </th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">
+                  Location
+                </th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">
+                  Submitted By
+                </th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">
+                  Price
+                </th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">
+                  Status
+                </th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {listings.map((listing) => (
+                <tr key={listing.id} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3 font-medium text-black-primary max-w-[200px] truncate">
+                    {listing.title}
+                    {listing.machine_make || listing.machine_model ? (
+                      <div className="text-xs font-normal text-black-primary/50 truncate">
+                        {[listing.machine_make, listing.machine_model]
+                          .filter(Boolean)
+                          .join(" ")}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3 text-black-primary/60 text-xs">
+                    {listing.city && listing.state
+                      ? `${listing.city}, ${listing.state}`
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-black-primary/60 text-xs">
+                    {listing.profiles?.full_name || "Unknown"}
+                  </td>
+                  <td className="px-4 py-3 text-black-primary/60 text-xs">
+                    {listing.asking_price
+                      ? `$${listing.asking_price.toLocaleString()}`
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3">{statusBadge(listing.status)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      {listing.status === "pending" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleApprove(listing)}
+                            className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-green-50 hover:text-green-600 cursor-pointer"
+                            title="Approve"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleReject(listing)}
+                            className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                            title="Reject"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openEdit(listing)}
+                        className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(listing)}
+                        className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-black-primary">
+                Edit Machine Listing
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="rounded-lg p-1 text-black-primary/40 hover:bg-gray-100 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, title: e.target.value }))
+                  }
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">
+                  Status
+                </label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, status: e.target.value }))
+                  }
+                  className={inputClass}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="active">Active (Approved)</option>
+                  <option value="sold">Sold</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">
+                  Asking Price ($)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editForm.asking_price}
+                  onChange={(e) =>
+                    setEditForm((f) => ({
+                      ...f,
+                      asking_price: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g. 2500"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">
+                  Admin Notes
+                </label>
+                <textarea
+                  rows={3}
+                  value={editForm.admin_notes}
+                  onChange={(e) =>
+                    setEditForm((f) => ({
+                      ...f,
+                      admin_notes: e.target.value,
+                    }))
+                  }
+                  placeholder="Internal notes (not visible to users)"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2 text-sm font-medium text-white hover:bg-green-hover disabled:opacity-50 cursor-pointer"
+              >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete Listing"
+          message={`Are you sure you want to delete "${deleteTarget.title}"?`}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteTarget(null)}
+          loading={deleting}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Machine Orders Manager                                             */
 /* ------------------------------------------------------------------ */
 
@@ -4088,6 +4512,7 @@ export default function AdminPage() {
     { key: "agreements", label: "Signed Agreements", icon: ScrollText },
     { key: "sales_results", label: "Sales Results", icon: TrendingUp },
     { key: "machines", label: "Machines Catalog", icon: Package },
+    { key: "machine_listings", label: "Machines For Sale", icon: Package },
     { key: "machine_orders", label: "Machine Orders", icon: ShoppingBag },
   ];
 
@@ -4165,6 +4590,9 @@ export default function AdminPage() {
           )}
           {activeTab === "machines" && (
             <MachinesManager token={token} onSuccess={handleSuccess} />
+          )}
+          {activeTab === "machine_listings" && (
+            <MachineListingsManager token={token} onSuccess={handleSuccess} />
           )}
           {activeTab === "machine_orders" && (
             <MachineOrdersManager token={token} />

@@ -43,4 +43,6 @@ export const TOOLTIP_COPY: Record<string, string> = {
     "We find high quality locations for your vending machines",
   Machines:
     "Shop new vending machines from Apex AI Vending — buy outright or finance, with optional location placement services.",
+  "Machines for Sale":
+    "Browse used and refurbished vending machines listed by operators across the country.",
 };
