@@ -22,6 +22,7 @@ import {
   ScrollText,
   Briefcase,
   TrendingUp,
+  Package,
 } from "lucide-react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
@@ -37,7 +38,7 @@ import type { Profile, VendingRequest, OperatorListing } from "@/lib/types";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-type Tab = "users" | "operators" | "locations" | "routes" | "agreements" | "sales_results";
+type Tab = "users" | "operators" | "locations" | "routes" | "agreements" | "sales_results" | "machine_orders";
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary";
@@ -2947,6 +2948,378 @@ function SalesResultsManager({ token }: { token: string }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Machine Orders Manager                                             */
+/* ------------------------------------------------------------------ */
+
+interface AdminMachineOrder {
+  id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string | null;
+  company_name: string | null;
+  billing_address: string | null;
+  billing_city: string | null;
+  billing_state: string | null;
+  billing_zip: string | null;
+  machine_name: string;
+  machine_slug: string | null;
+  quantity: number;
+  unit_price_cents: number;
+  subtotal_cents: number;
+  purchase_type: "cash" | "finance";
+  financing_requested: boolean;
+  estimated_monthly_cents: number | null;
+  location_services_selected: boolean;
+  location_services_quote_min_cents: number | null;
+  location_services_quote_max_cents: number | null;
+  bundle_type: string;
+  agreement_version: string | null;
+  agreement_text: string | null;
+  referring_rep_name: string | null;
+  status: string;
+  admin_notes: string | null;
+  created_at: string;
+  financing_requests?:
+    | {
+        id: string;
+        estimated_amount_cents: number;
+        estimated_monthly_cents: number;
+        term_years: number;
+        rate_range: string;
+        status: string;
+      }[]
+    | null;
+}
+
+const ORDER_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "pending_review", label: "Pending Review" },
+  { value: "under_review", label: "Under Review" },
+  { value: "approved", label: "Approved" },
+  { value: "in_fulfillment", label: "In Fulfillment" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+function formatMoney(cents: number | null | undefined): string {
+  if (cents == null) return "—";
+  return `$${(cents / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function MachineOrdersManager({ token }: { token: string }) {
+  const [orders, setOrders] = useState<AdminMachineOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [viewing, setViewing] = useState<AdminMachineOrder | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("");
+
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/machine-orders", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setOrders(data.orders || []);
+    } catch {
+      /* noop */
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  async function updateOrder(
+    id: string,
+    patch: { status?: string; admin_notes?: string }
+  ) {
+    setSavingId(id);
+    try {
+      const res = await fetch(`/api/admin/machine-orders/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(patch),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOrders((prev) =>
+          prev.map((o) => (o.id === id ? { ...o, ...data.order } : o))
+        );
+        if (viewing?.id === id) {
+          setViewing((v) => (v ? { ...v, ...data.order } : v));
+        }
+      }
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  const filtered = orders.filter(
+    (o) => !statusFilter || o.status === statusFilter
+  );
+
+  return (
+    <div>
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-black-primary">Machine Orders</h2>
+          <p className="mt-1 text-sm text-black-primary/50">
+            {orders.length} order{orders.length !== 1 ? "s" : ""} · Apex AI Vending
+          </p>
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className={inputClass + " max-w-[200px]"}
+        >
+          <option value="">All statuses</option>
+          {ORDER_STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-green-primary" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="py-12 text-center text-sm text-black-primary/40">
+          {statusFilter ? "No orders match this status." : "No machine orders yet."}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-gray-100 bg-gray-50/50">
+              <tr className="text-left">
+                <th className="px-3 py-3 font-medium text-black-primary/60">Date</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60">Customer</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60">Machine</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60">Qty</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60">Subtotal</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60">Bundle</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60">Status</th>
+                <th className="px-3 py-3 font-medium text-black-primary/60"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map((o) => (
+                <tr key={o.id} className="hover:bg-gray-50/50">
+                  <td className="px-3 py-3 text-xs text-black-primary/60 whitespace-nowrap">
+                    {new Date(o.created_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="font-medium text-black-primary">{o.customer_name}</div>
+                    <div className="text-xs text-black-primary/60">{o.customer_email}</div>
+                    {o.company_name && (
+                      <div className="text-xs text-black-primary/40">{o.company_name}</div>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 text-xs text-black-primary">{o.machine_name}</td>
+                  <td className="px-3 py-3 text-black-primary">{o.quantity}</td>
+                  <td className="px-3 py-3 text-xs font-semibold text-black-primary">
+                    {formatMoney(o.subtotal_cents)}
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="flex flex-col gap-1">
+                      <span
+                        className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          o.financing_requested
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {o.financing_requested ? "Finance" : "Cash"}
+                      </span>
+                      {o.location_services_selected && (
+                        <span className="inline-flex w-fit items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-primary">
+                          +Location
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-3">
+                    <select
+                      value={o.status}
+                      disabled={savingId === o.id}
+                      onChange={(e) => updateOrder(o.id, { status: e.target.value })}
+                      className="rounded-lg border border-gray-200 px-2 py-1 text-xs focus:border-green-primary focus:outline-none"
+                    >
+                      {ORDER_STATUS_OPTIONS.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-3 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setViewing(o)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-black-primary hover:bg-gray-50"
+                    >
+                      <Eye className="h-3 w-3" />
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Order detail drawer */}
+      {viewing && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setViewing(null)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-black-primary">
+                  {viewing.machine_name} × {viewing.quantity}
+                </h3>
+                <p className="text-xs text-black-primary/50">
+                  Order {viewing.id.slice(0, 8)} · Submitted{" "}
+                  {new Date(viewing.created_at).toLocaleString()}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewing(null)}
+                className="rounded-lg p-1 text-black-primary/40 hover:bg-gray-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-gray-100 p-4">
+                <p className="mb-2 text-xs font-semibold text-black-primary/60">Customer</p>
+                <DetailField label="Name" value={viewing.customer_name} />
+                <DetailField label="Email" value={viewing.customer_email} />
+                <DetailField label="Phone" value={viewing.customer_phone} />
+                <DetailField label="Company" value={viewing.company_name} />
+                <DetailField
+                  label="Billing"
+                  value={
+                    [
+                      viewing.billing_address,
+                      [viewing.billing_city, viewing.billing_state, viewing.billing_zip]
+                        .filter(Boolean)
+                        .join(", "),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || null
+                  }
+                />
+                {viewing.referring_rep_name && (
+                  <DetailField label="Referred By" value={viewing.referring_rep_name} />
+                )}
+              </div>
+
+              <div className="rounded-xl border border-gray-100 p-4">
+                <p className="mb-2 text-xs font-semibold text-black-primary/60">Order</p>
+                <DetailField label="Machine" value={viewing.machine_name} />
+                <DetailField label="Quantity" value={String(viewing.quantity)} />
+                <DetailField label="Unit Price" value={formatMoney(viewing.unit_price_cents)} />
+                <DetailField label="Subtotal" value={formatMoney(viewing.subtotal_cents)} />
+                <DetailField
+                  label="Payment"
+                  value={
+                    viewing.financing_requested
+                      ? `Finance — ~${formatMoney(viewing.estimated_monthly_cents)}/mo`
+                      : "Cash / wire / ACH"
+                  }
+                />
+                <DetailField
+                  label="Location Services"
+                  value={
+                    viewing.location_services_selected
+                      ? `Requested (${formatMoney(
+                          viewing.location_services_quote_min_cents
+                        )}–${formatMoney(viewing.location_services_quote_max_cents)})`
+                      : "Not requested"
+                  }
+                />
+                <DetailField label="Bundle" value={viewing.bundle_type.replace(/_/g, " ")} />
+              </div>
+            </div>
+
+            {viewing.financing_requests && viewing.financing_requests.length > 0 && (
+              <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+                <p className="mb-2 text-xs font-semibold text-amber-900">
+                  Financing Request
+                </p>
+                {viewing.financing_requests.map((f) => (
+                  <div key={f.id} className="text-xs text-amber-900/80 space-y-0.5">
+                    <div>
+                      Principal: <strong>{formatMoney(f.estimated_amount_cents)}</strong>
+                    </div>
+                    <div>
+                      Monthly est.: <strong>{formatMoney(f.estimated_monthly_cents)}</strong> × {f.term_years} yrs
+                    </div>
+                    <div>Rate range: {f.rate_range}</div>
+                    <div>Status: {f.status}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-4">
+              <label className="mb-1 block text-xs font-semibold text-black-primary/60">
+                Admin notes
+              </label>
+              <textarea
+                defaultValue={viewing.admin_notes || ""}
+                onBlur={(e) => {
+                  if (e.target.value !== (viewing.admin_notes || "")) {
+                    updateOrder(viewing.id, { admin_notes: e.target.value });
+                  }
+                }}
+                rows={3}
+                className={inputClass}
+                placeholder="Internal notes (auto-saved on blur)"
+              />
+            </div>
+
+            {viewing.agreement_text && (
+              <details className="mt-4 rounded-xl border border-gray-100 p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-black-primary">
+                  Agreement Snapshot ({viewing.agreement_version})
+                </summary>
+                <pre className="mt-3 max-h-80 overflow-y-auto whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-xs text-black-primary/70">
+                  {viewing.agreement_text}
+                </pre>
+              </details>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Admin Page                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -3015,6 +3388,7 @@ export default function AdminPage() {
     { key: "routes", label: "Routes For Sale", icon: Route },
     { key: "agreements", label: "Signed Agreements", icon: ScrollText },
     { key: "sales_results", label: "Sales Results", icon: TrendingUp },
+    { key: "machine_orders", label: "Machine Orders", icon: Package },
   ];
 
   return (
@@ -3088,6 +3462,9 @@ export default function AdminPage() {
           )}
           {activeTab === "sales_results" && (
             <SalesResultsManager token={token} />
+          )}
+          {activeTab === "machine_orders" && (
+            <MachineOrdersManager token={token} />
           )}
         </div>
       </div>

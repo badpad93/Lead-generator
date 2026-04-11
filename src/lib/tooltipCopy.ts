@@ -41,4 +41,6 @@ export const TOOLTIP_COPY: Record<string, string> = {
     "Browse available locations requesting services for vending, coffee, ATM, AI vending, and more.",
   "Request Location Services":
     "We find high quality locations for your vending machines",
+  Machines:
+    "Shop new vending machines from Apex AI Vending — buy outright or finance, with optional location placement services.",
 };
