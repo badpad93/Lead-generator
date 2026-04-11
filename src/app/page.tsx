@@ -8,6 +8,7 @@ import {
   MapPin,
   Truck,
   ClipboardList,
+  Package,
   Search,
   MessageSquare,
   CheckCircle2,
@@ -201,8 +202,8 @@ export default function HomePage() {
             </span>
           </div>
 
-          {/* Request Location Services CTA */}
-          <div className="animate-fade-in mb-6 flex justify-center">
+          {/* Request Location Services + Buy Machines CTAs */}
+          <div className="animate-fade-in mb-6 flex flex-wrap items-center justify-center gap-3">
             <Tooltip content={TOOLTIP_COPY["Request Location Services"]} position="top">
               <Link
                 href="/request-location"
@@ -215,6 +216,14 @@ export default function HomePage() {
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Tooltip>
+            <Link
+              href="/machines"
+              className="inline-flex items-center gap-2 rounded-xl border border-green-primary/40 bg-white px-6 py-3 text-sm font-semibold text-green-primary shadow-sm transition-all hover:-translate-y-0.5 hover:bg-green-50"
+            >
+              <Package className="h-4 w-4" />
+              Shop Machines
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
 
           {/* Headline */}
