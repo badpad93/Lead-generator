@@ -64,7 +64,8 @@ function SkeletonCard() {
 }
 
 function MachineCard({ listing }: { listing: MachineListing }) {
-  const photo = listing.photos && listing.photos.length > 0 ? listing.photos[0] : null;
+  const photo =
+    listing.photos?.find((p) => !p.toLowerCase().endsWith(".pdf")) ?? null;
   const conditionLabel = listing.condition
     ? CONDITION_LABELS[listing.condition] ?? listing.condition
     : null;
@@ -101,6 +102,13 @@ function MachineCard({ listing }: { listing: MachineListing }) {
             {listing.city}, {listing.state}
           </span>
         </div>
+      )}
+
+      {/* Description */}
+      {listing.description && (
+        <p className="mt-2 text-sm text-gray-600 line-clamp-2 group-hover:text-gray-700 transition-colors">
+          {listing.description}
+        </p>
       )}
 
       {/* Price + quantity */}

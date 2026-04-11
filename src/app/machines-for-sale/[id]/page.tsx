@@ -14,6 +14,8 @@ import {
   Mail,
   Package,
   Check,
+  FileText,
+  Download,
 } from "lucide-react";
 import type { MachineListing } from "@/lib/types";
 
@@ -244,8 +246,11 @@ export default function MachineDetailPage() {
   const conditionLabel = listing.condition
     ? CONDITION_LABELS[listing.condition] ?? listing.condition
     : null;
-  const photos = listing.photos || [];
-  const mainPhoto = photos[activePhoto] || null;
+  const allFiles = listing.photos || [];
+  const images = allFiles.filter((u) => !u.toLowerCase().endsWith(".pdf"));
+  const pdfs = allFiles.filter((u) => u.toLowerCase().endsWith(".pdf"));
+  const safeActivePhoto = Math.min(activePhoto, Math.max(images.length - 1, 0));
+  const mainPhoto = images[safeActivePhoto] || null;
 
   return (
     <div className="min-h-screen bg-light">
@@ -277,15 +282,15 @@ export default function MachineDetailPage() {
                 </div>
               )}
 
-              {photos.length > 1 && (
+              {images.length > 1 && (
                 <div className="mb-6 flex gap-2 overflow-x-auto">
-                  {photos.map((p, i) => (
+                  {images.map((p, i) => (
                     <button
                       key={i}
                       type="button"
                       onClick={() => setActivePhoto(i)}
                       className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
-                        i === activePhoto
+                        i === safeActivePhoto
                           ? "border-green-primary"
                           : "border-transparent opacity-60 hover:opacity-100"
                       }`}
@@ -298,6 +303,41 @@ export default function MachineDetailPage() {
                       />
                     </button>
                   ))}
+                </div>
+              )}
+
+              {/* PDF spec sheets */}
+              {pdfs.length > 0 && (
+                <div className="mb-6 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Spec Sheets & Documents
+                  </p>
+                  {pdfs.map((pdf, i) => {
+                    const raw = decodeURIComponent(
+                      pdf.split("/").pop() || `Document ${i + 1}`
+                    );
+                    const filename = raw.replace(/^\d+-/, "");
+                    return (
+                      <a
+                        key={i}
+                        href={pdf}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:border-green-primary hover:bg-green-50"
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
+                          <FileText className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-black-primary truncate">
+                            {filename}
+                          </p>
+                          <p className="text-xs text-gray-500">Click to view PDF</p>
+                        </div>
+                        <Download className="h-4 w-4 shrink-0 text-gray-400" />
+                      </a>
+                    );
+                  })}
                 </div>
               )}
 

@@ -7,8 +7,12 @@ import {
   ChevronLeft,
   AlertCircle,
   CheckCircle2,
+  Upload,
+  FileText,
+  X,
 } from "lucide-react";
 import { getAccessToken } from "@/lib/auth";
+import { createBrowserClient } from "@/lib/supabase";
 import { US_STATES, US_STATE_NAMES } from "@/lib/types";
 
 const MACHINE_TYPE_OPTIONS = [
@@ -32,6 +36,11 @@ const CONDITION_OPTIONS: { value: string; label: string }[] = [
   { value: "for_parts", label: "For Parts" },
 ];
 
+const MAX_FILES = 10;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+type UploadedFile = { url: string; name: string; isPdf: boolean };
+
 export default function PostMachinePage() {
   const [token, setToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -52,13 +61,92 @@ export default function PostMachinePage() {
   const [includesCardReader, setIncludesCardReader] = useState(false);
   const [includesInstall, setIncludesInstall] = useState(false);
   const [includesDelivery, setIncludesDelivery] = useState(false);
-  const [photosText, setPhotosText] = useState("");
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
 
   useEffect(() => {
     getAccessToken().then(setToken);
   }, []);
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files || []);
+    // Reset input so the same file can be re-picked after removal
+    e.target.value = "";
+    if (selected.length === 0) return;
+
+    setUploadError(null);
+
+    const remaining = MAX_FILES - files.length;
+    if (remaining <= 0) {
+      setUploadError(`Maximum ${MAX_FILES} files allowed`);
+      return;
+    }
+
+    const toUpload = selected.slice(0, remaining);
+    if (selected.length > remaining) {
+      setUploadError(
+        `Only uploading the first ${remaining} file(s) (max ${MAX_FILES} total).`
+      );
+    }
+
+    setUploading(true);
+    try {
+      const supabase = createBrowserClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setUploadError("You must be signed in to upload files.");
+        return;
+      }
+
+      const newFiles: UploadedFile[] = [];
+      for (const file of toUpload) {
+        if (file.size > MAX_FILE_SIZE) {
+          setUploadError(`${file.name} is larger than 10 MB and was skipped.`);
+          continue;
+        }
+        const isImage = file.type.startsWith("image/");
+        const isPdf = file.type === "application/pdf";
+        if (!isImage && !isPdf) {
+          setUploadError(`${file.name} is not an image or PDF.`);
+          continue;
+        }
+
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `machine-listings/${user.id}/${Date.now()}-${safeName}`;
+        const { error: uploadErr } = await supabase.storage
+          .from("documents")
+          .upload(path, file, {
+            upsert: false,
+            contentType: file.type || undefined,
+          });
+        if (uploadErr) {
+          setUploadError(
+            `Failed to upload ${file.name}: ${uploadErr.message}`
+          );
+          continue;
+        }
+        const { data: urlData } = supabase.storage
+          .from("documents")
+          .getPublicUrl(path);
+        newFiles.push({ url: urlData.publicUrl, name: file.name, isPdf });
+      }
+
+      if (newFiles.length > 0) {
+        setFiles((prev) => [...prev, ...newFiles]);
+      }
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -85,12 +173,7 @@ export default function PostMachinePage() {
         return;
       }
 
-      const photos = photosText
-        .split(/\r?\n/)
-        .map((p) => p.trim())
-        .filter(Boolean)
-        .filter((p) => /^https?:\/\//.test(p))
-        .slice(0, 10);
+      const photos = files.map((f) => f.url);
 
       const res = await fetch("/api/machine-listings", {
         method: "POST",
@@ -435,25 +518,93 @@ export default function PostMachinePage() {
             </div>
           </div>
 
-          {/* Photos */}
+          {/* Photos & PDFs */}
           <div>
-            <label
-              htmlFor="photos"
-              className="block text-sm font-medium text-black-primary mb-1.5"
-            >
-              Photo URLs{" "}
+            <label className="block text-sm font-medium text-black-primary mb-1.5">
+              Photos & Spec Sheets{" "}
               <span className="text-black-primary/30 font-normal">
-                (optional, one per line, max 10)
+                (optional, images or PDFs, max {MAX_FILES} files, 10 MB each)
               </span>
             </label>
-            <textarea
-              id="photos"
-              rows={3}
-              value={photosText}
-              onChange={(e) => setPhotosText(e.target.value)}
-              placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-black-primary focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
-            />
+
+            {uploadError && (
+              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{uploadError}</span>
+              </div>
+            )}
+
+            <label
+              htmlFor="fileUpload"
+              className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center transition-colors ${
+                uploading || files.length >= MAX_FILES
+                  ? "opacity-50 cursor-not-allowed"
+                  : "cursor-pointer hover:border-green-primary hover:bg-green-50"
+              }`}
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="h-6 w-6 text-green-primary animate-spin" />
+                  <span className="text-sm text-black-primary/60">
+                    Uploading...
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-6 w-6 text-green-primary" />
+                  <span className="text-sm font-medium text-black-primary">
+                    Click to upload photos or PDFs
+                  </span>
+                  <span className="text-xs text-black-primary/50">
+                    JPG, PNG, GIF, WebP, or PDF — up to 10 MB each
+                  </span>
+                </>
+              )}
+              <input
+                id="fileUpload"
+                type="file"
+                multiple
+                accept="image/*,application/pdf"
+                onChange={handleFileSelect}
+                disabled={uploading || files.length >= MAX_FILES}
+                className="hidden"
+              />
+            </label>
+
+            {files.length > 0 && (
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {files.map((file, i) => (
+                  <div
+                    key={`${file.url}-${i}`}
+                    className="relative rounded-lg border border-gray-200 bg-white overflow-hidden group"
+                  >
+                    {file.isPdf ? (
+                      <div className="flex flex-col items-center justify-center h-24 p-3 text-center bg-red-50">
+                        <FileText className="h-8 w-8 text-red-600 mb-1" />
+                        <span className="text-xs font-medium text-black-primary truncate w-full">
+                          {file.name}
+                        </span>
+                      </div>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={file.url}
+                        alt={file.name}
+                        className="h-24 w-full object-cover"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/90"
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Includes toggles */}
