@@ -217,19 +217,11 @@ export default function HomePage() {
               </Link>
             </Tooltip>
             <Link
-              href="/machines"
+              href="/machines-for-sale"
               className="inline-flex items-center gap-2 rounded-xl border border-green-primary/40 bg-white px-6 py-3 text-sm font-semibold text-green-primary shadow-sm transition-all hover:-translate-y-0.5 hover:bg-green-50"
             >
               <Package className="h-4 w-4" />
               Shop Machines
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/machines-for-sale"
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-black-primary shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary/40 hover:text-green-primary"
-            >
-              <Package className="h-4 w-4" />
-              Used Machines
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
