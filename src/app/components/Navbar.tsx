@@ -12,6 +12,7 @@ import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 const navLinks = [
   { label: "Browse Requests", href: "/browse-requests" },
   { label: "Machines", href: "/machines" },
+  { label: "Machines for Sale", href: "/machines-for-sale" },
   { label: "Routes for Sale", href: "/routes-for-sale" },
   { label: "Browse Operators", href: "/browse-operators" },
   { label: "How It Works", href: "/how-it-works" },
@@ -21,6 +22,7 @@ const authNavLinks = [
   { label: "Browse Requests", href: "/browse-requests" },
   { label: "Your Leads", href: "/your-leads" },
   { label: "Machines", href: "/machines" },
+  { label: "Machines for Sale", href: "/machines-for-sale" },
   { label: "Routes for Sale", href: "/routes-for-sale" },
   { label: "Browse Operators", href: "/browse-operators" },
   { label: "How It Works", href: "/how-it-works" },

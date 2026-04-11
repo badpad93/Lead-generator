@@ -64,8 +64,30 @@ export const createRouteSchema = z.object({
   status: z.enum(["active", "sold", "pending"]).default("pending"),
 });
 
+export const createMachineListingSchema = z.object({
+  title: z.string().min(5, "Title must be at least 5 characters").max(200),
+  description: z.string().max(5000).optional(),
+  city: z.string().min(1, "City is required").max(100),
+  state: z.string().min(2).max(2, "Use 2-letter state code"),
+  machine_make: z.string().max(100).optional(),
+  machine_model: z.string().max(100).optional(),
+  machine_year: z.number().int().min(1950).max(2100).optional(),
+  machine_type: z.string().max(50).optional(),
+  condition: z.enum(["new", "like_new", "good", "fair", "for_parts"]).optional(),
+  quantity: z.number().int().min(1).max(1000).default(1),
+  asking_price: z.number().min(0).max(10000000).optional(),
+  includes_card_reader: z.boolean().default(false),
+  includes_install: z.boolean().default(false),
+  includes_delivery: z.boolean().default(false),
+  photos: z.array(z.string().url()).max(10).default([]),
+  contact_email: z.string().email().optional().or(z.literal("")),
+  contact_phone: z.string().max(20).optional(),
+  status: z.enum(["pending", "active", "sold", "rejected"]).default("pending"),
+});
+
 export type SignupInput = z.infer<typeof signupSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateRequestInput = z.infer<typeof createRequestSchema>;
 export type CreateListingInput = z.infer<typeof createListingSchema>;
 export type CreateRouteInput = z.infer<typeof createRouteSchema>;
+export type CreateMachineListingInput = z.infer<typeof createMachineListingSchema>;
