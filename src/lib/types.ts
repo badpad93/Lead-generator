@@ -159,6 +159,12 @@ export interface MachineListing {
   includes_install: boolean;
   includes_delivery: boolean;
   photos: string[];
+  /** Optimized primary image — thumbnail (300w WebP). May be null for legacy listings. */
+  image_thumb_url: string | null;
+  /** Optimized primary image — medium (800w WebP). May be null for legacy listings. */
+  image_medium_url: string | null;
+  /** Optimized primary image — main display (1200w WebP). May be null for legacy listings. */
+  image_main_url: string | null;
   contact_email: string | null;
   contact_phone: string | null;
   status: MachineListingStatus;
