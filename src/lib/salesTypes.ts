@@ -88,6 +88,8 @@ export interface SalesAccount {
   entity_type?: EntityType | null;
   assigned_to?: string | null;
   created_by?: string | null;
+  /** Linked platform user. Set automatically by the signup trigger. */
+  user_id?: string | null;
   created_at: string;
 }
 
