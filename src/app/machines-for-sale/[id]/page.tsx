@@ -250,7 +250,12 @@ export default function MachineDetailPage() {
   const images = allFiles.filter((u) => !u.toLowerCase().endsWith(".pdf"));
   const pdfs = allFiles.filter((u) => u.toLowerCase().endsWith(".pdf"));
   const safeActivePhoto = Math.min(activePhoto, Math.max(images.length - 1, 0));
-  const mainPhoto = images[safeActivePhoto] || null;
+  // For the primary view (first photo), prefer the optimized 1200w WebP
+  // version. Legacy listings fall back to the raw photos[] entry.
+  const mainPhoto =
+    safeActivePhoto === 0
+      ? listing.image_main_url ?? images[0] ?? null
+      : images[safeActivePhoto] ?? null;
 
   return (
     <div className="min-h-screen bg-light">
@@ -274,6 +279,7 @@ export default function MachineDetailPage() {
                 <img
                   src={mainPhoto}
                   alt={listing.title}
+                  loading="lazy"
                   className="mb-4 h-80 w-full rounded-lg object-cover bg-gray-100"
                 />
               ) : (
@@ -299,6 +305,7 @@ export default function MachineDetailPage() {
                       <img
                         src={p}
                         alt={`Photo ${i + 1}`}
+                        loading="lazy"
                         className="h-full w-full object-cover"
                       />
                     </button>

@@ -64,8 +64,12 @@ function SkeletonCard() {
 }
 
 function MachineCard({ listing }: { listing: MachineListing }) {
+  // Prefer the optimized thumbnail (300w WebP) for cards; fall back to the
+  // first non-PDF in photos[] for legacy listings without structured URLs.
   const photo =
-    listing.photos?.find((p) => !p.toLowerCase().endsWith(".pdf")) ?? null;
+    listing.image_thumb_url ??
+    listing.photos?.find((p) => !p.toLowerCase().endsWith(".pdf")) ??
+    null;
   const conditionLabel = listing.condition
     ? CONDITION_LABELS[listing.condition] ?? listing.condition
     : null;
@@ -81,6 +85,7 @@ function MachineCard({ listing }: { listing: MachineListing }) {
         <img
           src={photo}
           alt={listing.title}
+          loading="lazy"
           className="mb-4 h-40 w-full rounded-lg object-cover bg-gray-100"
         />
       ) : (

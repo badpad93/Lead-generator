@@ -39,7 +39,17 @@ const CONDITION_OPTIONS: { value: string; label: string }[] = [
 const MAX_FILES = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
-type UploadedFile = { url: string; name: string; isPdf: boolean };
+type UploadedFile = {
+  /** Canonical URL stored in machine_listings.photos[]. For images this
+   *  is the 1200w WebP; for PDFs it's the raw PDF. */
+  url: string;
+  name: string;
+  isPdf: boolean;
+  /** Only populated for processed images. */
+  thumbUrl?: string;
+  mediumUrl?: string;
+  mainUrl?: string;
+};
 
 export default function PostMachinePage() {
   const [token, setToken] = useState<string | null>(null);
@@ -103,6 +113,12 @@ export default function PostMachinePage() {
         return;
       }
 
+      const currentToken = token || (await getAccessToken());
+      if (!currentToken) {
+        setUploadError("You must be signed in to upload files.");
+        return;
+      }
+
       const newFiles: UploadedFile[] = [];
       for (const file of toUpload) {
         if (file.size > MAX_FILE_SIZE) {
@@ -116,24 +132,106 @@ export default function PostMachinePage() {
           continue;
         }
 
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `machine-listings/${user.id}/${Date.now()}-${safeName}`;
-        const { error: uploadErr } = await supabase.storage
+        if (isPdf) {
+          // PDFs: direct upload, unchanged
+          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const path = `machine-listings/${user.id}/${Date.now()}-${safeName}`;
+          const { error: uploadErr } = await supabase.storage
+            .from("documents")
+            .upload(path, file, {
+              upsert: false,
+              contentType: file.type || undefined,
+            });
+          if (uploadErr) {
+            setUploadError(
+              `Failed to upload ${file.name}: ${uploadErr.message}`
+            );
+            continue;
+          }
+          const { data: urlData } = supabase.storage
+            .from("documents")
+            .getPublicUrl(path);
+          newFiles.push({
+            url: urlData.publicUrl,
+            name: file.name,
+            isPdf: true,
+          });
+          continue;
+        }
+
+        // Images: upload to staging, then let the server resize + convert
+        const rawExt = (file.name.split(".").pop() || "img")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, "");
+        const ext = rawExt || "img";
+        const stagingId =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const stagingPath = `machine-listings/${user.id}/_staging/${stagingId}.${ext}`;
+
+        const { error: stagingErr } = await supabase.storage
           .from("documents")
-          .upload(path, file, {
+          .upload(stagingPath, file, {
             upsert: false,
             contentType: file.type || undefined,
           });
-        if (uploadErr) {
+        if (stagingErr) {
           setUploadError(
-            `Failed to upload ${file.name}: ${uploadErr.message}`
+            `Failed to upload ${file.name}: ${stagingErr.message}`
           );
           continue;
         }
-        const { data: urlData } = supabase.storage
-          .from("documents")
-          .getPublicUrl(path);
-        newFiles.push({ url: urlData.publicUrl, name: file.name, isPdf });
+
+        let processRes: Response;
+        try {
+          processRes = await fetch("/api/machine-listings/process-image", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${currentToken}`,
+            },
+            body: JSON.stringify({ stagingPath }),
+          });
+        } catch {
+          await supabase.storage
+            .from("documents")
+            .remove([stagingPath]);
+          setUploadError(`${file.name}: network error while processing image`);
+          continue;
+        }
+
+        if (!processRes.ok) {
+          let msg = "image processing failed";
+          try {
+            const errBody = (await processRes.json()) as { error?: unknown };
+            if (typeof errBody.error === "string") msg = errBody.error;
+          } catch {
+            // ignore
+          }
+          // Best-effort cleanup in case the server exited before it could
+          await supabase.storage.from("documents").remove([stagingPath]);
+          setUploadError(`${file.name}: ${msg}`);
+          continue;
+        }
+
+        const processed = (await processRes.json()) as {
+          thumbUrl: string;
+          mediumUrl: string;
+          mainUrl: string;
+          originalUrl: string;
+        };
+
+        newFiles.push({
+          // Canonical URL in photos[] is the 1200w main WebP so any legacy
+          // renderer (or the detail page's gallery) gets a fast image.
+          url: processed.mainUrl,
+          name: file.name,
+          isPdf: false,
+          thumbUrl: processed.thumbUrl,
+          mediumUrl: processed.mediumUrl,
+          mainUrl: processed.mainUrl,
+        });
       }
 
       if (newFiles.length > 0) {
@@ -174,6 +272,9 @@ export default function PostMachinePage() {
       }
 
       const photos = files.map((f) => f.url);
+      // Auto-select the first image as the primary one for structured
+      // image fields. PDFs are skipped.
+      const primary = files.find((f) => !f.isPdf && f.mainUrl);
 
       const res = await fetch("/api/machine-listings", {
         method: "POST",
@@ -197,6 +298,9 @@ export default function PostMachinePage() {
           includes_install: includesInstall,
           includes_delivery: includesDelivery,
           photos,
+          image_thumb_url: primary?.thumbUrl ?? null,
+          image_medium_url: primary?.mediumUrl ?? null,
+          image_main_url: primary?.mainUrl ?? null,
           contact_email: contactEmail.trim() || undefined,
           contact_phone: contactPhone.trim() || undefined,
         }),
@@ -588,8 +692,9 @@ export default function PostMachinePage() {
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={file.url}
+                        src={file.thumbUrl ?? file.url}
                         alt={file.name}
+                        loading="lazy"
                         className="h-24 w-full object-cover"
                       />
                     )}
