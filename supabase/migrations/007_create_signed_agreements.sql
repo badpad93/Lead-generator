@@ -4,10 +4,7 @@
 -- Must be signed BEFORE a purchase can be completed.
 -- ============================================================
 
--- Drop and recreate if schema changed
-DROP TABLE IF EXISTS public.signed_agreements;
-
-CREATE TABLE public.signed_agreements (
+CREATE TABLE IF NOT EXISTS public.signed_agreements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   user_email text NOT NULL,
@@ -41,7 +38,17 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Service-role access (API uses supabaseAdmin which runs as service_role)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='signed_agreements' AND policyname='service_role_signed_agreements') THEN
+    CREATE POLICY service_role_signed_agreements
+      ON public.signed_agreements FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_signed_agreements_user ON public.signed_agreements(user_id);
 CREATE INDEX IF NOT EXISTS idx_signed_agreements_lead ON public.signed_agreements(lead_id);
 CREATE INDEX IF NOT EXISTS idx_signed_agreements_purchase ON public.signed_agreements(purchase_id);
+
+NOTIFY pgrst, 'reload schema';
