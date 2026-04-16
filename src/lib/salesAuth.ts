@@ -4,10 +4,16 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "./supabaseAdmin";
 
+export type SalesRole = "admin" | "sales_director" | "sales";
+
 export interface SalesUser {
   id: string;
   email: string;
-  role: "admin" | "sales";
+  role: SalesRole;
+}
+
+export function isCrmAdmin(user: SalesUser): boolean {
+  return user.role === "admin" || user.role === "sales_director";
 }
 
 /**
@@ -64,9 +70,10 @@ export async function getSalesUser(req: NextRequest): Promise<SalesUser | null> 
     .eq("id", userId)
     .single();
 
-  if (!profile || (profile.role !== "admin" && profile.role !== "sales")) {
+  const allowedRoles = new Set<string>(["admin", "sales_director", "sales"]);
+  if (!profile || !allowedRoles.has(profile.role)) {
     return null;
   }
 
-  return { id: userId, email, role: profile.role as "admin" | "sales" };
+  return { id: userId, email, role: profile.role as SalesRole };
 }

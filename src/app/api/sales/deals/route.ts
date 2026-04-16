@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isCrmAdmin } from "@/lib/salesAuth";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     .select("*, deal_services(*)")
     .order("created_at", { ascending: false });
 
-  if (user.role === "sales") {
+  if (!isCrmAdmin(user)) {
     query = query.eq("assigned_to", user.id);
   }
 

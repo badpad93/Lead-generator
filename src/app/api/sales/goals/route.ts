@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isCrmAdmin } from "@/lib/salesAuth";
 
 /** GET /api/sales/goals?user_id=<id> — list goals (sales rep sees own; admin sees any) */
 export async function GET(req: NextRequest) {
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const targetUserId = url.searchParams.get("user_id") || user.id;
 
-  if (user.role !== "admin" && targetUserId !== user.id) {
+  if (!isCrmAdmin(user) && targetUserId !== user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getSalesUser(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (user.role !== "admin") {
+  if (!isCrmAdmin(user)) {
     return NextResponse.json({ error: "Only admins can set goals" }, { status: 403 });
   }
 
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
 /** DELETE /api/sales/goals?id=<id> — admin only */
 export async function DELETE(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || user.role !== "admin") {
+  if (!user || !isCrmAdmin(user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

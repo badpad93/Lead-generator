@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isCrmAdmin } from "@/lib/salesAuth";
 
 /** PATCH — admin only (reassign, rename, update url) */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
-  if (!user || user.role !== "admin") {
+  if (!user || !isCrmAdmin(user)) {
     return NextResponse.json({ error: "Only admins can edit call lists" }, { status: 403 });
   }
   const { id } = await params;
@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 /** DELETE — admin only */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
-  if (!user || user.role !== "admin") {
+  if (!user || !isCrmAdmin(user)) {
     return NextResponse.json({ error: "Only admins can delete call lists" }, { status: 403 });
   }
   const { id } = await params;

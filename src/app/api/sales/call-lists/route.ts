@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isCrmAdmin } from "@/lib/salesAuth";
 
 /** GET /api/sales/call-lists?category=locations|operators */
 export async function GET(req: NextRequest) {
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   // Sales reps only see lists assigned to them (or unassigned).
   // Admins see everything.
-  if (user.role === "sales") {
+  if (!isCrmAdmin(user)) {
     query = query.or(`assigned_to.eq.${user.id},assigned_to.is.null`);
   }
 
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 /** POST /api/sales/call-lists — admin only */
 export async function POST(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || user.role !== "admin") {
+  if (!user || !isCrmAdmin(user)) {
     return NextResponse.json({ error: "Only admins can create call lists" }, { status: 403 });
   }
 

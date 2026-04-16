@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       full_name: fullName,
       // Never allow self-signup to grant admin/sales — those roles are admin-assigned only
       role:
-        meta.role && meta.role !== "admin" && meta.role !== "sales"
+        meta.role && meta.role !== "admin" && meta.role !== "sales_director" && meta.role !== "sales"
           ? meta.role
           : "requestor",
       country: "US",
@@ -97,7 +97,7 @@ export async function PATCH(req: NextRequest) {
     ];
     // Privileged roles can ONLY be set by an admin via /api/admin/users.
     // Self-service signup must never grant admin/sales access.
-    const PRIVILEGED_ROLES = new Set(["admin", "sales"]);
+    const PRIVILEGED_ROLES = new Set(["admin", "sales_director", "sales"]);
     if (
       "role" in body &&
       typeof body.role === "string" &&

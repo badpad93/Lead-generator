@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isCrmAdmin } from "@/lib/salesAuth";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false });
 
   // Sales users see leads assigned to them, unassigned leads, or leads they created
-  if (user.role === "sales") {
+  if (!isCrmAdmin(user)) {
     query = query.or(
       `assigned_to.eq.${user.id},assigned_to.is.null,created_by.eq.${user.id}`
     );

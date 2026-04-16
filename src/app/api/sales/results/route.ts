@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isCrmAdmin } from "@/lib/salesAuth";
 
 type Period = "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "ytd";
 
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   const period = (url.searchParams.get("period") || "monthly") as Period;
   const targetUserId = url.searchParams.get("user_id") || user.id;
 
-  if (user.role !== "admin" && targetUserId !== user.id) {
+  if (!isCrmAdmin(user) && targetUserId !== user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
