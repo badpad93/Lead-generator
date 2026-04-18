@@ -237,9 +237,17 @@ export default function HomePage() {
             </span>
           </h1>
 
+          {/* Catch phrase */}
+          <p
+            className="animate-fade-in mx-auto mt-4 max-w-2xl text-center text-base font-semibold tracking-wide text-green-primary/80 uppercase sm:text-lg"
+            style={{ animationDelay: "0.15s" }}
+          >
+            A World Class Vending Connection
+          </p>
+
           {/* Sub-headline */}
           <p
-            className="animate-fade-in mx-auto mt-5 max-w-2xl text-center text-lg leading-relaxed text-black-primary/70 sm:text-xl"
+            className="animate-fade-in mx-auto mt-3 max-w-2xl text-center text-lg leading-relaxed text-black-primary/70 sm:text-xl"
             style={{ animationDelay: "0.2s" }}
           >
             Connect locations that need machines with operators ready to serve
