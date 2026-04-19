@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Lock } from "lucide-react";
 import type { SalesDeal, DealStage } from "@/lib/salesTypes";
 import { DEAL_STAGES } from "@/lib/salesTypes";
 
@@ -25,6 +25,7 @@ export default function DealsPage() {
   const [dragging, setDragging] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
+  const [dragError, setDragError] = useState<string | null>(null);
 
   async function handleCreate() {
     if (!newName.trim()) return;
@@ -78,13 +79,30 @@ export default function DealsPage() {
   useEffect(() => { fetchDeals(); }, [fetchDeals]);
 
   async function handleDrop(dealId: string, newStage: DealStage) {
-    // Optimistic update
+    setDragError(null);
+    const deal = deals.find((d) => d.id === dealId);
+    if (deal?.locked_at) {
+      setDragError(`"${deal.business_name}" is locked and cannot be moved.`);
+      setTimeout(() => setDragError(null), 4000);
+      return;
+    }
+
     setDeals((prev) => prev.map((d) => d.id === dealId ? { ...d, stage: newStage } : d));
-    await fetch(`/api/sales/deals/${dealId}`, {
+    const res = await fetch(`/api/sales/deals/${dealId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ stage: newStage }),
     });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (err.validation_errors) {
+        setDragError(err.validation_errors.join(". "));
+      } else {
+        setDragError(err.error || "Failed to update stage");
+      }
+      setTimeout(() => setDragError(null), 5000);
+    }
     fetchDeals();
   }
 
@@ -104,6 +122,13 @@ export default function DealsPage() {
           New Deal
         </button>
       </div>
+
+      {dragError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-sm text-red-700">{dragError}</p>
+        </div>
+      )}
+
       {showAdd && (
         <div className="mb-4 flex gap-2 rounded-xl border border-gray-200 bg-white p-4">
           <input
@@ -143,8 +168,9 @@ export default function DealsPage() {
                 {stageDeals.map((deal) => (
                   <div
                     key={deal.id}
-                    draggable
+                    draggable={!deal.locked_at}
                     onDragStart={(e) => {
+                      if (deal.locked_at) { e.preventDefault(); return; }
                       e.dataTransfer.setData("dealId", deal.id);
                       setDragging(deal.id);
                     }}
@@ -152,17 +178,22 @@ export default function DealsPage() {
                     onClick={() => router.push(`/sales/deals/${deal.id}`)}
                     className={`cursor-pointer rounded-lg border border-gray-200 border-t-2 bg-white p-3 shadow-sm transition-all hover:shadow-md ${STAGE_COLORS[deal.stage]} ${
                       dragging === deal.id ? "opacity-50" : ""
-                    }`}
+                    } ${deal.locked_at ? "opacity-75" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-gray-900 truncate flex-1">{deal.business_name}</p>
-                      <button
-                        onClick={(e) => handleDeleteDeal(e, deal.id)}
-                        title="Delete"
-                        className="rounded p-0.5 text-gray-300 hover:bg-red-50 hover:text-red-600 cursor-pointer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        {deal.locked_at && <Lock className="h-3 w-3 text-amber-500 flex-shrink-0" />}
+                        <p className="text-sm font-medium text-gray-900 truncate">{deal.business_name}</p>
+                      </div>
+                      {!deal.locked_at && (
+                        <button
+                          onClick={(e) => handleDeleteDeal(e, deal.id)}
+                          title="Delete"
+                          className="rounded p-0.5 text-gray-300 hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                     <div className="mt-1.5 flex items-center justify-between">
                       <span className="text-xs text-gray-500 truncate">{deal.assigned_profile?.full_name || "Unassigned"}</span>

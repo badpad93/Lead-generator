@@ -62,6 +62,7 @@ export interface SalesDeal {
   stage: DealStage;
   value: number;
   business_name: string;
+  locked_at: string | null;
   created_at: string;
   // Joined
   assigned_profile?: { full_name: string; email: string } | null;
@@ -122,6 +123,32 @@ export interface SalesDocument {
   file_url: string;
   type: "order_pdf" | "contract" | "receipt";
   file_name: string | null;
+  created_at: string;
+}
+
+export interface SalesCommission {
+  id: string;
+  deal_id: string | null;
+  order_id: string | null;
+  user_id: string;
+  commission_rate: number;
+  deal_value: number;
+  commission_amount: number;
+  status: "pending" | "approved" | "paid";
+  paid_at: string | null;
+  notes: string | null;
+  created_at: string;
+  sales_deals?: { business_name: string } | null;
+}
+
+export interface FulfillmentItem {
+  id: string;
+  order_id: string;
+  label: string;
+  completed: boolean;
+  completed_at: string | null;
+  completed_by: string | null;
+  sort_order: number;
   created_at: string;
 }
 
