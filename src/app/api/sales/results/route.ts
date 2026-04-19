@@ -55,13 +55,13 @@ export async function GET(req: NextRequest) {
     .or(`assigned_to.eq.${targetUserId},created_by.eq.${targetUserId}`)
     .gte("created_at", since);
 
-  // All deals owned by user (no date filter — won deals may predate the period)
+  // All deals owned by user
   const { data: allDeals } = await supabaseAdmin
     .from("sales_deals")
     .select("id, stage, value, created_at, locked_at")
     .eq("assigned_to", targetUserId);
 
-  // Deals created in period (for period-specific counts)
+  // Deals created in period (for period-specific stage counts)
   const deals = (allDeals || []).filter(
     (d) => d.created_at >= since
   );
@@ -101,12 +101,11 @@ export async function GET(req: NextRequest) {
     pipelineValue += Number(d.value || 0);
   }
 
-  // Won metrics use ALL deals (won deals may have been created before this period)
+  // Won metrics: filter by when deal was actually won (locked_at), fall back to created_at
   let wonValue = 0;
   let wonCount = 0;
   for (const d of allDeals || []) {
     if (d.stage === "won") {
-      // If locked_at exists, use it to filter by period; otherwise count all won deals
       const wonDate = d.locked_at || d.created_at;
       if (wonDate >= since) {
         wonValue += Number(d.value || 0);
@@ -121,7 +120,7 @@ export async function GET(req: NextRequest) {
   );
   const completedOrders = (orders || []).filter((o) => o.status === "completed").length;
 
-  // Close rate = won deals / total deals (not leads)
+  // Close rate = won deals (period) / all deals
   const totalDeals = (allDeals || []).length;
   const closeRate = totalDeals > 0 ? wonCount / totalDeals : 0;
 
