@@ -2,8 +2,118 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone } from "lucide-react";
+import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
+
+const LEAD_FIELDS: { key: LeadFieldKey; label: string; required?: boolean }[] = [
+  { key: "business_name", label: "Business Name", required: true },
+  { key: "contact_name", label: "Contact Name" },
+  { key: "phone", label: "Phone" },
+  { key: "email", label: "Email" },
+  { key: "address", label: "Address" },
+  { key: "city", label: "City" },
+  { key: "state", label: "State" },
+  { key: "source", label: "Source" },
+  { key: "notes", label: "Notes" },
+  { key: "entity_type", label: "Entity Type" },
+  { key: "immediate_need", label: "Immediate Need" },
+];
+
+type LeadFieldKey = "business_name" | "contact_name" | "phone" | "email" | "address" | "city" | "state" | "source" | "notes" | "entity_type" | "immediate_need";
+
+const HEADER_ALIASES: Record<string, LeadFieldKey> = {
+  "business name": "business_name",
+  "business": "business_name",
+  "company": "business_name",
+  "company name": "business_name",
+  "name": "business_name",
+  "contact name": "contact_name",
+  "contact": "contact_name",
+  "contact person": "contact_name",
+  "first name": "contact_name",
+  "phone": "phone",
+  "phone number": "phone",
+  "telephone": "phone",
+  "cell": "phone",
+  "mobile": "phone",
+  "email": "email",
+  "email address": "email",
+  "e-mail": "email",
+  "address": "address",
+  "street": "address",
+  "street address": "address",
+  "city": "city",
+  "town": "city",
+  "state": "state",
+  "st": "state",
+  "province": "state",
+  "source": "source",
+  "lead source": "source",
+  "notes": "notes",
+  "note": "notes",
+  "comments": "notes",
+  "entity type": "entity_type",
+  "type": "entity_type",
+  "immediate need": "immediate_need",
+  "need": "immediate_need",
+};
+
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  let current = "";
+  let inQuotes = false;
+  let row: string[] = [];
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"' && text[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        row.push(current.trim());
+        current = "";
+      } else if (ch === "\n" || (ch === "\r" && text[i + 1] === "\n")) {
+        row.push(current.trim());
+        current = "";
+        if (row.some((c) => c)) rows.push(row);
+        row = [];
+        if (ch === "\r") i++;
+      } else {
+        current += ch;
+      }
+    }
+  }
+  row.push(current.trim());
+  if (row.some((c) => c)) rows.push(row);
+  return rows;
+}
+
+function autoMapColumns(headers: string[]): Record<number, LeadFieldKey | ""> {
+  const mapping: Record<number, LeadFieldKey | ""> = {};
+  const used = new Set<LeadFieldKey>();
+
+  headers.forEach((h, i) => {
+    const normalized = h.toLowerCase().replace(/[_\-]/g, " ").trim();
+    const match = HEADER_ALIASES[normalized];
+    if (match && !used.has(match)) {
+      mapping[i] = match;
+      used.add(match);
+    } else {
+      mapping[i] = "";
+    }
+  });
+
+  return mapping;
+}
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<SalesLead[]>([]);
@@ -17,6 +127,14 @@ export default function LeadsPage() {
   const [stateFilter, setStateFilter] = useState("");
   const [hideDnc, setHideDnc] = useState(false);
   const [addForm, setAddForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false, entity_type: "location" as EntityType, immediate_need: "" as ImmediateNeed | "" });
+
+  // CSV Import state
+  const [showImport, setShowImport] = useState(false);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRows, setCsvRows] = useState<string[][]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<number, LeadFieldKey | "">>({});
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -134,6 +252,72 @@ export default function LeadsPage() {
     fetchLeads();
   }
 
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const parsed = parseCSV(text);
+      if (parsed.length < 2) {
+        alert("File must have a header row and at least one data row.");
+        return;
+      }
+      const headers = parsed[0];
+      const data = parsed.slice(1);
+      setCsvHeaders(headers);
+      setCsvRows(data);
+      setColumnMapping(autoMapColumns(headers));
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  async function handleImport() {
+    const businessNameCol = Object.entries(columnMapping).find(([, v]) => v === "business_name");
+    if (!businessNameCol) {
+      alert("You must map at least the Business Name column.");
+      return;
+    }
+
+    setImporting(true);
+    const leads = csvRows.map((row) => {
+      const lead: Record<string, string | boolean> = {};
+      Object.entries(columnMapping).forEach(([colIdx, field]) => {
+        if (field && row[Number(colIdx)]) {
+          lead[field] = row[Number(colIdx)];
+        }
+      });
+      return lead;
+    }).filter((l) => l.business_name);
+
+    const res = await fetch("/api/sales/leads/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ leads }),
+    });
+
+    if (res.ok) {
+      const result = await res.json();
+      setImportResult(result);
+      if (result.imported > 0) fetchLeads();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Import failed");
+    }
+    setImporting(false);
+  }
+
+  function resetImport() {
+    setCsvHeaders([]);
+    setCsvRows([]);
+    setColumnMapping({});
+    setImportResult(null);
+    setShowImport(false);
+  }
+
   async function handleStatusChange(id: string, status: string) {
     await fetch(`/api/sales/leads/${id}`, {
       method: "PATCH",
@@ -172,13 +356,22 @@ export default function LeadsPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors cursor-pointer"
-        >
-          <Plus className="h-4 w-4" />
-          Add Lead
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setShowImport(!showImport); setShowAdd(false); }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+          >
+            <Upload className="h-4 w-4" />
+            Import CSV
+          </button>
+          <button
+            onClick={() => { setShowAdd(!showAdd); setShowImport(false); }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            Add Lead
+          </button>
+        </div>
       </div>
 
       {/* Add form */}
@@ -221,6 +414,163 @@ export default function LeadsPage() {
             <button onClick={handleAdd} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer">Save</button>
             <button onClick={() => setShowAdd(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
           </div>
+        </div>
+      )}
+
+      {/* CSV Import */}
+      {showImport && (
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-green-600" />
+              <h3 className="text-sm font-semibold text-gray-900">Import Leads from CSV</h3>
+            </div>
+            <button onClick={resetImport} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {csvHeaders.length === 0 ? (
+            <div className="flex flex-col items-center gap-4 py-8">
+              <div className="rounded-xl border-2 border-dashed border-gray-200 p-8 text-center w-full">
+                <Upload className="mx-auto h-8 w-8 text-gray-300 mb-3" />
+                <p className="text-sm text-gray-600 mb-1">Drop your CSV file here or click to browse</p>
+                <p className="text-xs text-gray-400">Supports .csv files with a header row</p>
+                <label className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer">
+                  <Upload className="h-4 w-4" />
+                  Choose File
+                  <input type="file" accept=".csv,text/csv" onChange={handleFileUpload} className="hidden" />
+                </label>
+              </div>
+            </div>
+          ) : importResult ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
+                <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-green-800">
+                    Import complete: {importResult.imported} lead{importResult.imported !== 1 ? "s" : ""} imported
+                  </p>
+                  {importResult.skipped > 0 && (
+                    <p className="text-xs text-green-700 mt-1">{importResult.skipped} row{importResult.skipped !== 1 ? "s" : ""} skipped</p>
+                  )}
+                </div>
+              </div>
+              {importResult.errors.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <p className="text-xs font-medium text-amber-800">Issues</p>
+                  </div>
+                  <ul className="space-y-1 text-xs text-amber-700 max-h-32 overflow-y-auto">
+                    {importResult.errors.slice(0, 20).map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                    {importResult.errors.length > 20 && (
+                      <li>...and {importResult.errors.length - 20} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+              <button onClick={resetImport} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer">
+                Done
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Column mapping */}
+              <div>
+                <p className="text-xs font-medium text-gray-700 mb-2">
+                  Map your spreadsheet columns to lead fields. We auto-detected what we could.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {csvHeaders.map((header, i) => (
+                    <div key={i} className="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+                      <p className="text-xs font-medium text-gray-900 truncate mb-1" title={header}>{header}</p>
+                      <select
+                        value={columnMapping[i] || ""}
+                        onChange={(e) => setColumnMapping((m) => ({ ...m, [i]: e.target.value as LeadFieldKey | "" }))}
+                        className={`w-full rounded border px-2 py-1 text-xs cursor-pointer ${
+                          columnMapping[i] ? "border-green-300 bg-green-50 text-green-800" : "border-gray-200 text-gray-500"
+                        }`}
+                      >
+                        <option value="">— Skip —</option>
+                        {LEAD_FIELDS.map((f) => (
+                          <option key={f.key} value={f.key}>
+                            {f.label}{f.required ? " *" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div>
+                <p className="text-xs font-medium text-gray-700 mb-2">
+                  Preview ({csvRows.length} row{csvRows.length !== 1 ? "s" : ""} — showing first {Math.min(5, csvRows.length)})
+                </p>
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-gray-400">#</th>
+                        {csvHeaders.map((h, i) => (
+                          <th key={i} className="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap">
+                            <div>{h}</div>
+                            {columnMapping[i] && (
+                              <div className="text-[10px] font-normal text-green-600 mt-0.5">
+                                → {LEAD_FIELDS.find((f) => f.key === columnMapping[i])?.label}
+                              </div>
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {csvRows.slice(0, 5).map((row, ri) => (
+                        <tr key={ri} className="hover:bg-gray-50/50">
+                          <td className="px-3 py-2 text-gray-400">{ri + 1}</td>
+                          {csvHeaders.map((_, ci) => (
+                            <td key={ci} className={`px-3 py-2 max-w-[200px] truncate ${columnMapping[ci] ? "text-gray-900" : "text-gray-300"}`}>
+                              {row[ci] || "—"}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {!Object.values(columnMapping).includes("business_name") && (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                  <p className="text-xs text-amber-700">Map at least the <strong>Business Name</strong> column to import leads.</p>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleImport}
+                  disabled={importing || !Object.values(columnMapping).includes("business_name")}
+                  className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+                >
+                  {importing ? <><Loader2 className="h-4 w-4 animate-spin" /> Importing...</> : <><Upload className="h-4 w-4" /> Import {csvRows.length} Lead{csvRows.length !== 1 ? "s" : ""}</>}
+                </button>
+                <button
+                  onClick={() => { setCsvHeaders([]); setCsvRows([]); setColumnMapping({}); }}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+                >
+                  Choose Different File
+                </button>
+                <button onClick={resetImport} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
