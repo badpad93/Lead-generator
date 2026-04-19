@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
   // Orders created by user in period
   const { data: orders } = await supabaseAdmin
     .from("sales_orders")
-    .select("id, status, total_value, created_at")
+    .select("id, status, total_value, deal_id, created_at")
     .eq("created_by", targetUserId)
     .gte("created_at", since);
 
@@ -101,16 +101,16 @@ export async function GET(req: NextRequest) {
     pipelineValue += Number(d.value || 0);
   }
 
-  // Won metrics: filter by when deal was actually won (locked_at), fall back to created_at
+  // Won metrics: use deal-linked orders created in period as the source of truth
+  // (orders are created at the moment a deal is finalized/won, so their date is accurate)
   let wonValue = 0;
   let wonCount = 0;
-  for (const d of allDeals || []) {
-    if (d.stage === "won") {
-      const wonDate = d.locked_at || d.created_at;
-      if (wonDate >= since) {
-        wonValue += Number(d.value || 0);
-        wonCount += 1;
-      }
+  const wonDealIds = new Set<string>();
+  for (const o of orders || []) {
+    if (o.deal_id && !wonDealIds.has(o.deal_id)) {
+      wonDealIds.add(o.deal_id);
+      wonValue += Number(o.total_value || 0);
+      wonCount += 1;
     }
   }
 
