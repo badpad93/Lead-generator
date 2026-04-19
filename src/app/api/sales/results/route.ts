@@ -55,12 +55,16 @@ export async function GET(req: NextRequest) {
     .or(`assigned_to.eq.${targetUserId},created_by.eq.${targetUserId}`)
     .gte("created_at", since);
 
-  // Deals owned by user touched in period
-  const { data: deals } = await supabaseAdmin
+  // All deals owned by user (no date filter — won deals may predate the period)
+  const { data: allDeals } = await supabaseAdmin
     .from("sales_deals")
-    .select("id, stage, value, created_at")
-    .eq("assigned_to", targetUserId)
-    .gte("created_at", since);
+    .select("id, stage, value, created_at, locked_at")
+    .eq("assigned_to", targetUserId);
+
+  // Deals created in period (for period-specific counts)
+  const deals = (allDeals || []).filter(
+    (d) => d.created_at >= since
+  );
 
   // Orders created by user in period
   const { data: orders } = await supabaseAdmin
@@ -89,16 +93,25 @@ export async function GET(req: NextRequest) {
     leadsByStatus[l.status] = (leadsByStatus[l.status] || 0) + 1;
   }
 
+  // Stage breakdown uses period-created deals
   const dealsByStage: Record<string, number> = {};
   let pipelineValue = 0;
-  let wonValue = 0;
-  let wonCount = 0;
   for (const d of deals || []) {
     dealsByStage[d.stage] = (dealsByStage[d.stage] || 0) + 1;
     pipelineValue += Number(d.value || 0);
+  }
+
+  // Won metrics use ALL deals (won deals may have been created before this period)
+  let wonValue = 0;
+  let wonCount = 0;
+  for (const d of allDeals || []) {
     if (d.stage === "won") {
-      wonValue += Number(d.value || 0);
-      wonCount += 1;
+      // If locked_at exists, use it to filter by period; otherwise count all won deals
+      const wonDate = d.locked_at || d.created_at;
+      if (wonDate >= since) {
+        wonValue += Number(d.value || 0);
+        wonCount += 1;
+      }
     }
   }
 
@@ -108,15 +121,16 @@ export async function GET(req: NextRequest) {
   );
   const completedOrders = (orders || []).filter((o) => o.status === "completed").length;
 
-  const totalLeads = (leads || []).length;
-  const conversionRate = totalLeads > 0 ? wonCount / totalLeads : 0;
+  // Close rate = won deals / total deals (not leads)
+  const totalDeals = (allDeals || []).length;
+  const closeRate = totalDeals > 0 ? wonCount / totalDeals : 0;
 
   return NextResponse.json({
     period,
     user_id: targetUserId,
     since,
     metrics: {
-      leads_total: totalLeads,
+      leads_total: (leads || []).length,
       leads_by_status: leadsByStatus,
       deals_total: (deals || []).length,
       deals_by_stage: dealsByStage,
@@ -126,7 +140,7 @@ export async function GET(req: NextRequest) {
       orders_total: (orders || []).length,
       orders_completed: completedOrders,
       order_revenue: orderRevenue,
-      conversion_rate: conversionRate,
+      conversion_rate: closeRate,
     },
     goal: goal || null,
   });
