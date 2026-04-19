@@ -55,13 +55,13 @@ export async function GET(req: NextRequest) {
     .or(`assigned_to.eq.${targetUserId},created_by.eq.${targetUserId}`)
     .gte("created_at", since);
 
-  // All deals owned by user (no date filter — won deals may predate the period)
+  // All deals owned by user (no date filter so won/pipeline totals are always accurate)
   const { data: allDeals } = await supabaseAdmin
     .from("sales_deals")
-    .select("id, stage, value, created_at, locked_at")
+    .select("id, stage, value, created_at")
     .eq("assigned_to", targetUserId);
 
-  // Deals created in period (for period-specific counts)
+  // Deals created in period (for period-specific stage counts)
   const deals = (allDeals || []).filter(
     (d) => d.created_at >= since
   );
@@ -101,17 +101,13 @@ export async function GET(req: NextRequest) {
     pipelineValue += Number(d.value || 0);
   }
 
-  // Won metrics use ALL deals (won deals may have been created before this period)
+  // Won metrics: count ALL won deals (no date filter — shows lifetime totals)
   let wonValue = 0;
   let wonCount = 0;
   for (const d of allDeals || []) {
     if (d.stage === "won") {
-      // If locked_at exists, use it to filter by period; otherwise count all won deals
-      const wonDate = d.locked_at || d.created_at;
-      if (wonDate >= since) {
-        wonValue += Number(d.value || 0);
-        wonCount += 1;
-      }
+      wonValue += Number(d.value || 0);
+      wonCount += 1;
     }
   }
 
