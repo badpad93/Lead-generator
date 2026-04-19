@@ -4,21 +4,17 @@ import { getSalesUser } from "@/lib/salesAuth";
 import { Resend } from "resend";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
+const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || "";
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
 }
 
-/**
- * POST /api/sales/orders/[id]/send
- * Generates PDF, uploads to storage, emails to recipient, marks order as sent.
- */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id: orderId } = await params;
 
-  // Fetch order with items and account
   const { data: order, error: orderErr } = await supabaseAdmin
     .from("sales_orders")
     .select("*, sales_accounts:account_id(*), order_items(*)")
@@ -31,10 +27,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const items = order.order_items || [];
   const recipientEmail = order.recipient_email || "james@apexaivending.com";
 
-  // Generate PDF HTML
+  // Build CC list: account notification emails + admin + assigned rep
+  const ccEmails: string[] = [];
+  if (account?.notification_emails) {
+    const extras = (account.notification_emails as string)
+      .split(",")
+      .map((e: string) => e.trim())
+      .filter(Boolean);
+    ccEmails.push(...extras);
+  }
+  if (ADMIN_EMAIL && !ccEmails.includes(ADMIN_EMAIL) && ADMIN_EMAIL !== recipientEmail) {
+    ccEmails.push(ADMIN_EMAIL);
+  }
+  // Look up assigned rep email from the deal
+  if (order.deal_id) {
+    const { data: deal } = await supabaseAdmin
+      .from("sales_deals")
+      .select("assigned_to")
+      .eq("id", order.deal_id)
+      .single();
+    if (deal?.assigned_to) {
+      const { data: repProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("email")
+        .eq("id", deal.assigned_to)
+        .single();
+      if (repProfile?.email && !ccEmails.includes(repProfile.email) && repProfile.email !== recipientEmail) {
+        ccEmails.push(repProfile.email);
+      }
+    }
+  }
+
   const pdfHtml = generateOrderPdfHtml(order, account, items);
 
-  // Upload HTML as PDF-ready document to Supabase storage
   const fileName = `order-${orderId.slice(0, 8)}-${Date.now()}.html`;
   const filePath = `orders/${fileName}`;
 
@@ -53,7 +78,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     fileUrl = urlData.publicUrl;
   }
 
-  // Save document record
   if (fileUrl && order.account_id) {
     await supabaseAdmin.from("sales_documents").insert({
       account_id: order.account_id,
@@ -64,7 +88,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
   }
 
-  // Send email via Resend
   let emailSent = false;
   let emailError: string | null = null;
 
@@ -73,12 +96,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } else {
     try {
       const businessName = account?.business_name || "Customer";
-      const result = await getResend().emails.send({
+      const emailPayload: {
+        from: string;
+        to: string;
+        cc?: string[];
+        subject: string;
+        html: string;
+      } = {
         from: FROM_EMAIL,
         to: recipientEmail,
         subject: `New Order – ${businessName}`,
         html: `<p>A new service order has been submitted for <strong>${businessName}</strong>.</p><p>Please see the attached order summary below.</p><hr/>${pdfHtml}`,
-      });
+      };
+      if (ccEmails.length > 0) {
+        emailPayload.cc = ccEmails;
+      }
+
+      const result = await getResend().emails.send(emailPayload);
       if (result.error) {
         emailError = result.error.message || String(result.error);
         console.error("Resend returned error:", result.error);
@@ -91,7 +125,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  // Mark order as sent only if the email actually went out
   if (emailSent) {
     await supabaseAdmin
       .from("sales_orders")
@@ -104,6 +137,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     emailSent,
     emailError,
     recipient: recipientEmail,
+    cc: ccEmails,
     from: FROM_EMAIL,
     fileUrl,
   });

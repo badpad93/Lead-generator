@@ -12,6 +12,7 @@ import {
   ClipboardList,
   FolderOpen,
   PhoneCall,
+  DollarSign,
   LogOut,
   Menu,
   X,
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/sales/deals", label: "Deals", icon: Kanban },
   { href: "/sales/accounts", label: "Accounts", icon: Building2 },
   { href: "/sales/orders", label: "Orders", icon: ClipboardList },
+  { href: "/sales/commissions", label: "Commissions", icon: DollarSign },
   { href: "/sales/call-lists", label: "Call Lists", icon: PhoneCall },
   { href: "/sales/resources", label: "Resources", icon: FolderOpen },
 ];

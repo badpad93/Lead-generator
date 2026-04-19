@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, Plus, Trash2, Send, X } from "lucide-react";
-import type { SalesDeal, DealService } from "@/lib/salesTypes";
+import { ArrowLeft, Loader2, Plus, Trash2, Send, X, Lock, DollarSign } from "lucide-react";
+import type { SalesDeal, DealService, SalesCommission } from "@/lib/salesTypes";
 import { DEAL_STAGES, SERVICE_OPTIONS } from "@/lib/salesTypes";
 
 export default function DealDetailPage() {
@@ -18,6 +18,8 @@ export default function DealDetailPage() {
   const [showFinalize, setShowFinalize] = useState(false);
   const [finalizeForm, setFinalizeForm] = useState({ recipient_email: "james@apexaivending.com", notes: "" });
   const [sending, setSending] = useState(false);
+  const [stageError, setStageError] = useState<string | null>(null);
+  const [commissions, setCommissions] = useState<SalesCommission[]>([]);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -36,15 +38,37 @@ export default function DealDetailPage() {
     setLoading(false);
   }, [token, id]);
 
-  useEffect(() => { fetchDeal(); }, [fetchDeal]);
+  const fetchCommissions = useCallback(async () => {
+    if (!token || !id) return;
+    const res = await fetch(`/api/sales/commissions`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) {
+      const all: SalesCommission[] = await res.json();
+      setCommissions(all.filter((c) => c.deal_id === id));
+    }
+  }, [token, id]);
+
+  useEffect(() => { fetchDeal(); fetchCommissions(); }, [fetchDeal, fetchCommissions]);
+
+  const isLocked = !!deal?.locked_at;
 
   async function handleStageChange(stage: string) {
-    await fetch(`/api/sales/deals/${id}`, {
+    setStageError(null);
+    const res = await fetch(`/api/sales/deals/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ stage }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (err.validation_errors) {
+        setStageError(err.validation_errors.join(". "));
+      } else {
+        setStageError(err.error || "Failed to change stage");
+      }
+      return;
+    }
     fetchDeal();
+    fetchCommissions();
   }
 
   async function handleAddService() {
@@ -78,7 +102,6 @@ export default function DealDetailPage() {
 
   async function handleFinalize() {
     setSending(true);
-    // Step 1: Create order from deal services
     const createRes = await fetch(`/api/sales/deals/${id}/finalize`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -93,7 +116,6 @@ export default function DealDetailPage() {
 
     const { orderId } = await createRes.json();
 
-    // Step 2: Send the order (generate PDF, email)
     const sendRes = await fetch(`/api/sales/orders/${orderId}/send`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -101,7 +123,8 @@ export default function DealDetailPage() {
 
     const result = await sendRes.json().catch(() => ({}));
     if (result.emailSent) {
-      alert(`Order sent to ${result.recipient}`);
+      const ccInfo = result.cc?.length ? `\nCC: ${result.cc.join(", ")}` : "";
+      alert(`Order sent to ${result.recipient}${ccInfo}`);
       setShowFinalize(false);
       fetchDeal();
     } else {
@@ -128,6 +151,12 @@ export default function DealDetailPage() {
   const services = deal.deal_services || [];
   const totalValue = services.reduce((s, svc) => s + Number(svc.price), 0);
 
+  const commissionStatusColor: Record<string, string> = {
+    pending: "bg-yellow-50 text-yellow-700 ring-yellow-200",
+    approved: "bg-blue-50 text-blue-700 ring-blue-200",
+    paid: "bg-green-50 text-green-700 ring-green-200",
+  };
+
   return (
     <div className="p-6 max-w-4xl">
       <button onClick={() => router.push("/sales/deals")} className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
@@ -137,7 +166,14 @@ export default function DealDetailPage() {
       <div className="rounded-xl border border-gray-200 bg-white p-6">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{deal.business_name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-gray-900">{deal.business_name}</h1>
+              {isLocked && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+                  <Lock className="h-3 w-3" /> Locked
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-500 mt-1">Assigned to: {deal.assigned_profile?.full_name || "Unassigned"}</p>
           </div>
           <div className="text-right">
@@ -152,24 +188,35 @@ export default function DealDetailPage() {
           <select
             value={deal.stage}
             onChange={(e) => handleStageChange(e.target.value)}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+            disabled={isLocked}
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {DEAL_STAGES.map((s) => (
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
+          {isLocked && (
+            <p className="mt-1 text-xs text-amber-600">This deal is locked. Only admins can modify won or lost deals.</p>
+          )}
+          {stageError && (
+            <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+              <p className="text-sm text-red-700">{stageError}</p>
+            </div>
+          )}
         </div>
 
         {/* Services */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-900">Services</h2>
-            <button
-              onClick={() => setShowAddService(!showAddService)}
-              className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 cursor-pointer"
-            >
-              <Plus className="h-4 w-4" /> Add Service
-            </button>
+            {!isLocked && (
+              <button
+                onClick={() => setShowAddService(!showAddService)}
+                className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 cursor-pointer"
+              >
+                <Plus className="h-4 w-4" /> Add Service
+              </button>
+            )}
           </div>
 
           {showAddService && (
@@ -227,7 +274,8 @@ export default function DealDetailPage() {
                         <select
                           value={svc.status}
                           onChange={(e) => handleServiceStatusChange(svc, e.target.value)}
-                          className="rounded border border-gray-200 px-2 py-1 text-xs cursor-pointer"
+                          disabled={isLocked}
+                          className="rounded border border-gray-200 px-2 py-1 text-xs cursor-pointer disabled:opacity-50"
                         >
                           <option value="pending">Pending</option>
                           <option value="sold">Sold</option>
@@ -235,12 +283,14 @@ export default function DealDetailPage() {
                         </select>
                       </td>
                       <td className="px-4 py-2.5">
-                        <button
-                          onClick={() => handleDeleteService(svc.id)}
-                          className="rounded-lg p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 cursor-pointer"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {!isLocked && (
+                          <button
+                            onClick={() => handleDeleteService(svc.id)}
+                            className="rounded-lg p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 cursor-pointer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -257,8 +307,34 @@ export default function DealDetailPage() {
           )}
         </div>
 
+        {/* Commission Info */}
+        {commissions.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
+              <DollarSign className="h-4 w-4 text-green-600" /> Commission
+            </h2>
+            <div className="space-y-2">
+              {commissions.map((c) => (
+                <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50/50 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      ${Number(c.commission_amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {(Number(c.commission_rate) * 100).toFixed(0)}% of ${Number(c.deal_value).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset capitalize ${commissionStatusColor[c.status] || ""}`}>
+                    {c.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Finalize button */}
-        {services.length > 0 && (
+        {services.length > 0 && !isLocked && (
           <button
             onClick={() => setShowFinalize(true)}
             className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer"

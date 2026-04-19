@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { Loader2, ClipboardList, Plus, Trash2, X } from "lucide-react";
 import type { SalesOrder, SalesAccount } from "@/lib/salesTypes";
@@ -11,6 +12,7 @@ interface NewOrderItem {
 }
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [accounts, setAccounts] = useState<SalesAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -217,7 +219,7 @@ export default function OrdersPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {orders.map((order) => (
-                <tr key={order.id} className="hover:bg-gray-50/50">
+                <tr key={order.id} className="hover:bg-gray-50/50 cursor-pointer" onClick={() => router.push(`/sales/orders/${order.id}`)}>
                   <td className="px-4 py-3 font-mono text-xs text-gray-600">{order.id.slice(0, 8).toUpperCase()}</td>
                   <td className="px-4 py-3 text-gray-900">
                     {(order.sales_accounts as { business_name: string } | null)?.business_name || "—"}
