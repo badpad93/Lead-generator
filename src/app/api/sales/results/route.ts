@@ -55,11 +55,16 @@ export async function GET(req: NextRequest) {
     .or(`assigned_to.eq.${targetUserId},created_by.eq.${targetUserId}`)
     .gte("created_at", since);
 
-  // All deals owned by user
-  const { data: allDeals } = await supabaseAdmin
+  // All deals: admins see all, sales users see their own
+  let dealsQuery = supabaseAdmin
     .from("sales_deals")
-    .select("id, stage, value, created_at, locked_at")
-    .eq("assigned_to", targetUserId);
+    .select("id, stage, value, created_at, locked_at");
+  if (user.role === "sales") {
+    dealsQuery = dealsQuery.eq("assigned_to", targetUserId);
+  } else if (targetUserId !== user.id) {
+    dealsQuery = dealsQuery.eq("assigned_to", targetUserId);
+  }
+  const { data: allDeals } = await dealsQuery;
 
   // Deals created in period (for period-specific stage counts)
   const deals = (allDeals || []).filter(
