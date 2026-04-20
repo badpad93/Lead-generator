@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
@@ -55,9 +55,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (key in body) updates[key] = body[key];
   }
 
-  // Assign/reassign — admin only
   if ("assigned_to" in body) {
-    if (user.role !== "admin") {
+    if (!isElevatedRole(user.role)) {
       return NextResponse.json({ error: "Only admin can assign leads" }, { status: 403 });
     }
     updates.assigned_to = body.assigned_to;
@@ -140,8 +139,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
 
-  // Sales reps can delete leads they own or created; admins can delete any.
-  if (user.role !== "admin") {
+  if (!isElevatedRole(user.role)) {
     const { data: lead } = await supabaseAdmin
       .from("sales_leads")
       .select("assigned_to, created_by")

@@ -4,10 +4,16 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "./supabaseAdmin";
 
+export type SalesRole = "admin" | "director_of_sales" | "market_leader" | "sales";
+
+export function isElevatedRole(role: SalesRole): boolean {
+  return role === "admin" || role === "director_of_sales";
+}
+
 export interface SalesUser {
   id: string;
   email: string;
-  role: "admin" | "sales";
+  role: SalesRole;
 }
 
 /**
@@ -64,9 +70,10 @@ export async function getSalesUser(req: NextRequest): Promise<SalesUser | null> 
     .eq("id", userId)
     .single();
 
-  if (!profile || (profile.role !== "admin" && profile.role !== "sales")) {
+  const allowedRoles = ["admin", "director_of_sales", "market_leader", "sales"];
+  if (!profile || !allowedRoles.includes(profile.role)) {
     return null;
   }
 
-  return { id: userId, email, role: profile.role as "admin" | "sales" };
+  return { id: userId, email, role: profile.role as SalesRole };
 }

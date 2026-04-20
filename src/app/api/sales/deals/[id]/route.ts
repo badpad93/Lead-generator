@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 import { validateStageTransition } from "@/lib/dealValidation";
 import type { DealStage } from "@/lib/salesTypes";
 
@@ -48,7 +48,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   // Deal locking: reject edits to won/lost deals (admin can unlock)
-  if (deal.locked_at && user.role !== "admin") {
+  if (deal.locked_at && !isElevatedRole(user.role)) {
     return NextResponse.json(
       { error: "This deal is locked. Only admins can modify won or lost deals." },
       { status: 403 }
@@ -173,7 +173,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
 
-  if (user.role !== "admin") {
+  if (!isElevatedRole(user.role)) {
     const { data: deal } = await supabaseAdmin
       .from("sales_deals")
       .select("assigned_to")

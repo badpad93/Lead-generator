@@ -13,6 +13,7 @@ import {
   FolderOpen,
   PhoneCall,
   DollarSign,
+  TrendingUp,
   LogOut,
   Menu,
   X,
@@ -21,6 +22,7 @@ import {
 
 const NAV_ITEMS = [
   { href: "/sales", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/sales/results", label: "Results", icon: TrendingUp },
   { href: "/sales/leads", label: "Leads", icon: Users },
   { href: "/sales/deals", label: "Deals", icon: Kanban },
   { href: "/sales/accounts", label: "Accounts", icon: Building2 },
