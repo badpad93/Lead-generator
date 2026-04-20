@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { getGuidance, GuidanceItem } from "@/lib/sopGuidance";
 import {
@@ -92,7 +92,7 @@ function GuidanceSidebar({ items }: { items: GuidanceItem[] }) {
   );
 }
 
-export default function LocationIntakePage() {
+function LocationIntakeContent() {
   const searchParams = useSearchParams();
   const [currentSection, setCurrentSection] = useState(0);
   const [values, setValues] = useState<FormValues>({
@@ -664,5 +664,13 @@ export default function LocationIntakePage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+export default function LocationIntakePage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>}>
+      <LocationIntakeContent />
+    </Suspense>
   );
 }
