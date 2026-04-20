@@ -32,9 +32,10 @@ function periodStart(period: Period): Date {
 }
 
 /**
- * GET /api/sales/results?period=<period>&user_id=<id>&start_date=<iso>&end_date=<iso>
+ * GET /api/sales/results?period=<period>&user_id=<id>&start_date=<iso>&end_date=<iso>&market_id=<id>
  *
  * Admin / director_of_sales: see all deals, leads, orders across the org.
+ * Market leader: see results for reps in their market(s).
  * Optionally pass user_id to filter to one rep.
  * Custom date range: period=custom&start_date=2025-01-01&end_date=2025-12-31
  */
@@ -45,10 +46,55 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const period = (url.searchParams.get("period") || "monthly") as Period;
   const filterUserId = url.searchParams.get("user_id") || null;
+  const marketId = url.searchParams.get("market_id") || null;
   const elevated = isElevatedRole(user.role);
 
-  if (!elevated && filterUserId && filterUserId !== user.id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Determine which user IDs this requester can see
+  let allowedUserIds: string[] | null = null; // null = no filter (see all)
+
+  if (elevated) {
+    // Admin/DOS can see everything, optionally filtered
+    if (marketId) {
+      const { data: members } = await supabaseAdmin
+        .from("market_members")
+        .select("user_id")
+        .eq("market_id", marketId);
+      allowedUserIds = (members || []).map((m) => m.user_id);
+    }
+  } else if (user.role === "market_leader") {
+    // Market leaders see reps in their market(s)
+    const { data: leaderOf } = await supabaseAdmin
+      .from("market_leaders")
+      .select("market_id")
+      .eq("user_id", user.id);
+    const leaderMarketIds = (leaderOf || []).map((m) => m.market_id);
+
+    if (leaderMarketIds.length === 0) {
+      allowedUserIds = [user.id];
+    } else {
+      let membersQuery = supabaseAdmin
+        .from("market_members")
+        .select("user_id");
+      if (marketId && leaderMarketIds.includes(marketId)) {
+        membersQuery = membersQuery.eq("market_id", marketId);
+      } else {
+        membersQuery = membersQuery.in("market_id", leaderMarketIds);
+      }
+      const { data: members } = await membersQuery;
+      allowedUserIds = (members || []).map((m) => m.user_id);
+      if (!allowedUserIds.includes(user.id)) allowedUserIds.push(user.id);
+    }
+
+    // If filtering to a specific user, verify they're in the allowed set
+    if (filterUserId && !allowedUserIds.includes(filterUserId)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } else {
+    // Regular sales rep sees only own data
+    if (filterUserId && filterUserId !== user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    allowedUserIds = [user.id];
   }
 
   // Determine date range
@@ -71,6 +117,9 @@ export async function GET(req: NextRequest) {
     since = periodStart(period).toISOString();
   }
 
+  // Effective filter: specific user or set of allowed users
+  const targetUserId = filterUserId || null;
+
   // --- Leads ---
   let leadsQuery = supabaseAdmin
     .from("sales_leads")
@@ -78,10 +127,11 @@ export async function GET(req: NextRequest) {
     .gte("created_at", since);
   if (until) leadsQuery = leadsQuery.lte("created_at", until);
 
-  if (!elevated) {
-    leadsQuery = leadsQuery.or(`assigned_to.eq.${user.id},created_by.eq.${user.id}`);
-  } else if (filterUserId) {
-    leadsQuery = leadsQuery.or(`assigned_to.eq.${filterUserId},created_by.eq.${filterUserId}`);
+  if (targetUserId) {
+    leadsQuery = leadsQuery.or(`assigned_to.eq.${targetUserId},created_by.eq.${targetUserId}`);
+  } else if (allowedUserIds) {
+    const orClauses = allowedUserIds.map((uid) => `assigned_to.eq.${uid},created_by.eq.${uid}`).join(",");
+    leadsQuery = leadsQuery.or(orClauses);
   }
 
   const { data: leads } = await leadsQuery;
@@ -91,10 +141,10 @@ export async function GET(req: NextRequest) {
     .from("sales_deals")
     .select("id, stage, value, created_at, locked_at");
 
-  if (!elevated) {
-    dealsQuery = dealsQuery.eq("assigned_to", user.id);
-  } else if (filterUserId) {
-    dealsQuery = dealsQuery.eq("assigned_to", filterUserId);
+  if (targetUserId) {
+    dealsQuery = dealsQuery.eq("assigned_to", targetUserId);
+  } else if (allowedUserIds) {
+    dealsQuery = dealsQuery.in("assigned_to", allowedUserIds);
   }
 
   const { data: allDeals } = await dealsQuery;
@@ -112,10 +162,10 @@ export async function GET(req: NextRequest) {
     .gte("created_at", since);
   if (until) ordersQuery = ordersQuery.lte("created_at", until);
 
-  if (!elevated) {
-    ordersQuery = ordersQuery.eq("created_by", user.id);
-  } else if (filterUserId) {
-    ordersQuery = ordersQuery.eq("created_by", filterUserId);
+  if (targetUserId) {
+    ordersQuery = ordersQuery.eq("created_by", targetUserId);
+  } else if (allowedUserIds) {
+    ordersQuery = ordersQuery.in("created_by", allowedUserIds);
   }
 
   const { data: orders } = await ordersQuery;
@@ -167,7 +217,8 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     period,
-    user_id: filterUserId || (elevated ? "all" : user.id),
+    user_id: filterUserId || (elevated || user.role === "market_leader" ? "all" : user.id),
+    market_id: marketId || null,
     since,
     until: until || null,
     metrics: {

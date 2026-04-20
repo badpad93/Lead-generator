@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "./supabaseAdmin";
 
-export type SalesRole = "admin" | "director_of_sales" | "sales";
+export type SalesRole = "admin" | "director_of_sales" | "market_leader" | "sales";
 
 export function isElevatedRole(role: SalesRole): boolean {
   return role === "admin" || role === "director_of_sales";
@@ -70,7 +70,7 @@ export async function getSalesUser(req: NextRequest): Promise<SalesUser | null> 
     .eq("id", userId)
     .single();
 
-  const allowedRoles = ["admin", "director_of_sales", "sales"];
+  const allowedRoles = ["admin", "director_of_sales", "market_leader", "sales"];
   if (!profile || !allowedRoles.includes(profile.role)) {
     return null;
   }
