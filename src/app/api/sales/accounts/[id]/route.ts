@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
@@ -56,7 +56,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { id } = await params;
 
   // Sales reps can only delete accounts they own; admins can delete any.
-  if (user.role !== "admin") {
+  if (!isElevatedRole(user.role)) {
     const { data: acct } = await supabaseAdmin
       .from("sales_accounts")
       .select("assigned_to, created_by")

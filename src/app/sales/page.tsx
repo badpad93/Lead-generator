@@ -14,10 +14,11 @@ import {
   Link2,
   Copy,
   Check,
+  Calendar,
 } from "lucide-react";
 import Link from "next/link";
 
-type Period = "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "ytd";
+type Period = "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "ytd" | "custom";
 
 interface ResultsResponse {
   period: string;
@@ -42,6 +43,13 @@ interface ResultsResponse {
   } | null;
 }
 
+interface SalesUserOption {
+  id: string;
+  full_name: string | null;
+  email: string;
+  role: string;
+}
+
 const PERIODS: { value: Period; label: string }[] = [
   { value: "daily", label: "Today" },
   { value: "weekly", label: "This Week" },
@@ -49,6 +57,7 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: "quarterly", label: "This Quarter" },
   { value: "ytd", label: "YTD" },
   { value: "yearly", label: "Year" },
+  { value: "custom", label: "Custom Range" },
 ];
 
 function fmt(n: number) {
@@ -76,11 +85,18 @@ function ProgressBar({ value, target, label }: { value: number; target: number; 
 export default function SalesDashboard() {
   const [token, setToken] = useState("");
   const [userId, setUserId] = useState("");
+  const [userRole, setUserRole] = useState("");
   const [copied, setCopied] = useState(false);
   const [period, setPeriod] = useState<Period>("monthly");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [filterUserId, setFilterUserId] = useState<string>("");
+  const [salesUsers, setSalesUsers] = useState<SalesUserOption[]>([]);
   const [results, setResults] = useState<ResultsResponse | null>(null);
   const [counts, setCounts] = useState({ leads: 0, deals: 0, accounts: 0, orders: 0 });
   const [loading, setLoading] = useState(true);
+
+  const isElevated = userRole === "admin" || userRole === "director_of_sales";
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -92,12 +108,33 @@ export default function SalesDashboard() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!token) return;
+    const headers = { Authorization: `Bearer ${token}` };
+    fetch("/api/sales/users", { headers })
+      .then((r) => r.ok ? r.json() : [])
+      .then((users: SalesUserOption[]) => {
+        setSalesUsers(users);
+        const me = users.find((u: SalesUserOption) => u.id === userId);
+        if (me) setUserRole(me.role);
+      });
+  }, [token, userId]);
+
   const load = useCallback(async () => {
     if (!token) return;
+    if (period === "custom" && !startDate) return;
     setLoading(true);
     const headers = { Authorization: `Bearer ${token}` };
+
+    let resultsUrl = `/api/sales/results?period=${period}`;
+    if (period === "custom" && startDate) {
+      resultsUrl += `&start_date=${startDate}`;
+      if (endDate) resultsUrl += `&end_date=${endDate}`;
+    }
+    if (filterUserId) resultsUrl += `&user_id=${filterUserId}`;
+
     const [resultsRes, leadsRes, dealsRes, accountsRes, ordersRes] = await Promise.all([
-      fetch(`/api/sales/results?period=${period}`, { headers }),
+      fetch(resultsUrl, { headers }),
       fetch("/api/sales/leads", { headers }),
       fetch("/api/sales/deals", { headers }),
       fetch("/api/sales/accounts", { headers }),
@@ -117,7 +154,7 @@ export default function SalesDashboard() {
       orders: orders.length,
     });
     setLoading(false);
-  }, [token, period]);
+  }, [token, period, startDate, endDate, filterUserId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -130,17 +167,56 @@ export default function SalesDashboard() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value as Period)}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
-        >
-          {PERIODS.map((p) => (
-            <option key={p.value} value={p.value}>{p.label}</option>
-          ))}
-        </select>
+      <div className="flex flex-col gap-3 mb-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <div className="flex items-center gap-2">
+            {isElevated && (
+              <select
+                value={filterUserId}
+                onChange={(e) => setFilterUserId(e.target.value)}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+              >
+                <option value="">All Reps</option>
+                {salesUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.full_name || u.email}
+                  </option>
+                ))}
+              </select>
+            )}
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as Period)}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+            >
+              {PERIODS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {period === "custom" && (
+          <div className="flex items-center gap-2 self-end">
+            <Calendar className="h-4 w-4 text-gray-400" />
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+              placeholder="Start date"
+            />
+            <span className="text-sm text-gray-400">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+              placeholder="End date"
+            />
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -214,7 +290,12 @@ export default function SalesDashboard() {
                 <div className="flex items-center gap-2 mb-4">
                   <TrendingUp className="h-5 w-5 text-green-600" />
                   <h2 className="text-base font-semibold text-gray-900">
-                    Results — {PERIODS.find((p) => p.value === period)?.label}
+                    Results — {period === "custom" ? `${startDate || "..."} to ${endDate || "now"}` : PERIODS.find((p) => p.value === period)?.label}
+                    {isElevated && (
+                      <span className="ml-2 text-sm font-normal text-gray-500">
+                        {filterUserId ? salesUsers.find((u) => u.id === filterUserId)?.full_name || "Rep" : "All Reps"}
+                      </span>
+                    )}
                   </h2>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

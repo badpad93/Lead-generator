@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
 /** GET /api/sales/resources — any sales/admin user can list */
 export async function GET(req: NextRequest) {
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 /** POST /api/sales/resources — admin only */
 export async function POST(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || user.role !== "admin") {
+  if (!user || !isElevatedRole(user.role)) {
     return NextResponse.json({ error: "Only admins can upload resources" }, { status: 403 });
   }
 
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 /** DELETE /api/sales/resources?id=<id> — admin only */
 export async function DELETE(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || user.role !== "admin") {
+  if (!user || !isElevatedRole(user.role)) {
     return NextResponse.json({ error: "Only admins can delete resources" }, { status: 403 });
   }
 

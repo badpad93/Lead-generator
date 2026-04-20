@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
-type Period = "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "ytd";
+type Period = "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "ytd" | "custom";
 
 function periodStart(period: Period): Date {
   const now = new Date();
@@ -12,7 +12,7 @@ function periodStart(period: Period): Date {
       d.setHours(0, 0, 0, 0);
       return d;
     case "weekly": {
-      const day = d.getDay(); // 0 = Sunday
+      const day = d.getDay();
       d.setDate(d.getDate() - day);
       d.setHours(0, 0, 0, 0);
       return d;
@@ -26,13 +26,17 @@ function periodStart(period: Period): Date {
     case "yearly":
     case "ytd":
       return new Date(d.getFullYear(), 0, 1);
+    case "custom":
+      return new Date(d.getFullYear(), 0, 1);
   }
 }
 
 /**
- * GET /api/sales/results?user_id=<id>&period=<period>
- * Returns computed sales metrics for a given user + period.
- * Sales reps can only query their own results; admins can query any user.
+ * GET /api/sales/results?period=<period>&user_id=<id>&start_date=<iso>&end_date=<iso>
+ *
+ * Admin / director_of_sales: see all deals, leads, orders across the org.
+ * Optionally pass user_id to filter to one rep.
+ * Custom date range: period=custom&start_date=2025-01-01&end_date=2025-12-31
  */
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
@@ -40,74 +44,108 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const period = (url.searchParams.get("period") || "monthly") as Period;
-  const targetUserId = url.searchParams.get("user_id") || user.id;
+  const filterUserId = url.searchParams.get("user_id") || null;
+  const elevated = isElevatedRole(user.role);
 
-  if (user.role !== "admin" && targetUserId !== user.id) {
+  if (!elevated && filterUserId && filterUserId !== user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const since = periodStart(period).toISOString();
+  // Determine date range
+  let since: string;
+  let until: string | null = null;
 
-  // Leads created/assigned in period
-  const { data: leads } = await supabaseAdmin
+  if (period === "custom") {
+    const startDate = url.searchParams.get("start_date");
+    const endDate = url.searchParams.get("end_date");
+    if (!startDate) {
+      return NextResponse.json({ error: "start_date required for custom period" }, { status: 400 });
+    }
+    since = new Date(startDate).toISOString();
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      until = end.toISOString();
+    }
+  } else {
+    since = periodStart(period).toISOString();
+  }
+
+  // --- Leads ---
+  let leadsQuery = supabaseAdmin
     .from("sales_leads")
     .select("id, status, created_at")
-    .or(`assigned_to.eq.${targetUserId},created_by.eq.${targetUserId}`)
     .gte("created_at", since);
+  if (until) leadsQuery = leadsQuery.lte("created_at", until);
 
-  // All deals: admins see all, sales users see their own
+  if (!elevated) {
+    leadsQuery = leadsQuery.or(`assigned_to.eq.${user.id},created_by.eq.${user.id}`);
+  } else if (filterUserId) {
+    leadsQuery = leadsQuery.or(`assigned_to.eq.${filterUserId},created_by.eq.${filterUserId}`);
+  }
+
+  const { data: leads } = await leadsQuery;
+
+  // --- Deals ---
   let dealsQuery = supabaseAdmin
     .from("sales_deals")
     .select("id, stage, value, created_at, locked_at");
-  if (user.role === "sales") {
-    dealsQuery = dealsQuery.eq("assigned_to", targetUserId);
-  } else if (targetUserId !== user.id) {
-    dealsQuery = dealsQuery.eq("assigned_to", targetUserId);
+
+  if (!elevated) {
+    dealsQuery = dealsQuery.eq("assigned_to", user.id);
+  } else if (filterUserId) {
+    dealsQuery = dealsQuery.eq("assigned_to", filterUserId);
   }
+
   const { data: allDeals } = await dealsQuery;
 
-  // Deals created in period (for period-specific stage counts)
-  const deals = (allDeals || []).filter(
-    (d) => d.created_at >= since
-  );
+  const deals = (allDeals || []).filter((d) => {
+    if (d.created_at < since) return false;
+    if (until && d.created_at > until) return false;
+    return true;
+  });
 
-  // Orders created by user in period
-  const { data: orders } = await supabaseAdmin
+  // --- Orders ---
+  let ordersQuery = supabaseAdmin
     .from("sales_orders")
     .select("id, status, total_value, deal_id, created_at")
-    .eq("created_by", targetUserId)
     .gte("created_at", since);
+  if (until) ordersQuery = ordersQuery.lte("created_at", until);
 
-  // Goal for this period (if any)
-  const goalPeriod = period === "ytd" ? "yearly" : period;
+  if (!elevated) {
+    ordersQuery = ordersQuery.eq("created_by", user.id);
+  } else if (filterUserId) {
+    ordersQuery = ordersQuery.eq("created_by", filterUserId);
+  }
+
+  const { data: orders } = await ordersQuery;
+
+  // --- Goal ---
+  const goalPeriod = period === "ytd" ? "yearly" : period === "custom" ? "yearly" : period;
+  const goalUserId = filterUserId || user.id;
   const { data: goal } = await supabaseAdmin
     .from("sales_goals")
     .select("*")
-    .eq("user_id", targetUserId)
+    .eq("user_id", goalUserId)
     .eq("period", goalPeriod)
     .maybeSingle();
 
+  // --- Compute metrics ---
   const leadsByStatus: Record<string, number> = {
-    new: 0,
-    contacted: 0,
-    qualified: 0,
-    unqualified: 0,
-    lost: 0,
+    new: 0, contacted: 0, qualified: 0, unqualified: 0, lost: 0,
   };
   for (const l of leads || []) {
     leadsByStatus[l.status] = (leadsByStatus[l.status] || 0) + 1;
   }
 
-  // Stage breakdown uses period-created deals
   const dealsByStage: Record<string, number> = {};
   let pipelineValue = 0;
-  for (const d of deals || []) {
+  for (const d of deals) {
     dealsByStage[d.stage] = (dealsByStage[d.stage] || 0) + 1;
     pipelineValue += Number(d.value || 0);
   }
 
-  // Won metrics: use deal-linked orders created in period as the source of truth
-  // (orders are created at the moment a deal is finalized/won, so their date is accurate)
+  // Won metrics: orders linked to deals in the period
   let wonValue = 0;
   let wonCount = 0;
   const wonDealIds = new Set<string>();
@@ -120,23 +158,22 @@ export async function GET(req: NextRequest) {
   }
 
   const orderRevenue = (orders || []).reduce(
-    (sum, o) => sum + Number(o.total_value || 0),
-    0
+    (sum, o) => sum + Number(o.total_value || 0), 0
   );
   const completedOrders = (orders || []).filter((o) => o.status === "completed").length;
 
-  // Close rate = won deals (period) / all deals
   const totalDeals = (allDeals || []).length;
   const closeRate = totalDeals > 0 ? wonCount / totalDeals : 0;
 
   return NextResponse.json({
     period,
-    user_id: targetUserId,
+    user_id: filterUserId || (elevated ? "all" : user.id),
     since,
+    until: until || null,
     metrics: {
       leads_total: (leads || []).length,
       leads_by_status: leadsByStatus,
-      deals_total: (deals || []).length,
+      deals_total: deals.length,
       deals_by_stage: dealsByStage,
       deals_won: wonCount,
       pipeline_value: pipelineValue,
