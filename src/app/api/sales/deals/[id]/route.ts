@@ -77,6 +77,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (newStage === "won" || newStage === "lost") {
       updates.locked_at = new Date().toISOString();
     }
+
+    // Admin claw back: unlock when moving away from won/lost
+    if (
+      isElevatedRole(user.role) &&
+      (deal.stage === "won" || deal.stage === "lost") &&
+      newStage !== "won" &&
+      newStage !== "lost"
+    ) {
+      updates.locked_at = null;
+    }
   }
 
   // If stage → won, auto-create account + order + commission

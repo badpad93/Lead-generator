@@ -20,12 +20,21 @@ export default function DealDetailPage() {
   const [sending, setSending] = useState(false);
   const [stageError, setStageError] = useState<string | null>(null);
   const [commissions, setCommissions] = useState<SalesCommission[]>([]);
+  const [userRole, setUserRole] = useState("");
 
   useEffect(() => {
     const supabase = createBrowserClient();
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) setToken(session.access_token);
+      if (session?.access_token) {
+        setToken(session.access_token);
+        const res = await fetch("/api/sales/users", { headers: { Authorization: `Bearer ${session.access_token}` } });
+        if (res.ok) {
+          const users = await res.json();
+          const me = users.find((u: { id: string }) => u.id === session.user.id);
+          if (me) setUserRole(me.role);
+        }
+      }
     }
     init();
   }, []);
@@ -49,7 +58,8 @@ export default function DealDetailPage() {
 
   useEffect(() => { fetchDeal(); fetchCommissions(); }, [fetchDeal, fetchCommissions]);
 
-  const isLocked = !!deal?.locked_at;
+  const isAdmin = userRole === "admin" || userRole === "director_of_sales";
+  const isLocked = !!deal?.locked_at && !isAdmin;
 
   async function handleStageChange(stage: string) {
     setStageError(null);
@@ -195,8 +205,11 @@ export default function DealDetailPage() {
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
-          {isLocked && (
+          {!!deal.locked_at && !isAdmin && (
             <p className="mt-1 text-xs text-amber-600">This deal is locked. Only admins can modify won or lost deals.</p>
+          )}
+          {!!deal.locked_at && isAdmin && (
+            <p className="mt-1 text-xs text-blue-600">Admin override: you can change the stage for claw backs.</p>
           )}
           {stageError && (
             <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
