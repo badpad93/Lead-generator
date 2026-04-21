@@ -14,6 +14,7 @@ import {
   PhoneCall,
   DollarSign,
   TrendingUp,
+  Zap,
   LogOut,
   Menu,
   X,
@@ -91,7 +92,7 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
       {/* Sidebar — desktop */}
       <aside className="hidden w-56 flex-col border-r border-gray-200 bg-white lg:flex">
         <div className="flex h-14 items-center gap-2 border-b border-gray-100 px-4">
-          <span className="text-lg font-bold text-green-600">Sales CRM</span>
+          <span className="flex items-center gap-1.5 text-lg font-bold text-green-600"><Zap className="h-5 w-5 fill-green-600" />Sales CRM</span>
         </div>
         <nav className="flex-1 space-y-0.5 px-2 py-3">
           {NAV_ITEMS.map((item) => {
@@ -127,7 +128,7 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
       {/* Mobile header */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 lg:hidden">
-          <span className="text-lg font-bold text-green-600">Sales CRM</span>
+          <span className="flex items-center gap-1.5 text-lg font-bold text-green-600"><Zap className="h-5 w-5 fill-green-600" />Sales CRM</span>
           <button onClick={() => setSidebarOpen(true)} className="rounded-lg p-2 text-gray-600 hover:bg-gray-100">
             <Menu className="h-5 w-5" />
           </button>
@@ -139,7 +140,7 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
             <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)} />
             <div className="fixed right-0 top-0 z-50 flex h-full w-64 flex-col bg-white shadow-2xl lg:hidden">
               <div className="flex items-center justify-between border-b border-gray-100 px-4 py-4">
-                <span className="text-lg font-bold text-green-600">Sales CRM</span>
+                <span className="flex items-center gap-1.5 text-lg font-bold text-green-600"><Zap className="h-5 w-5 fill-green-600" />Sales CRM</span>
                 <button onClick={() => setSidebarOpen(false)} className="rounded-lg p-2 text-gray-600 hover:bg-gray-100">
                   <X className="h-5 w-5" />
                 </button>
