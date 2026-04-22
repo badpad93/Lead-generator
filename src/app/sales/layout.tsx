@@ -21,6 +21,10 @@ import {
   Menu,
   X,
   Loader2,
+  BarChart3,
+  FileText,
+  Mail,
+  Link2,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -35,6 +39,10 @@ const NAV_ITEMS = [
   { href: "/sales/commissions", label: "Commissions", icon: DollarSign },
   { href: "/sales/call-lists", label: "Call Lists", icon: PhoneCall },
   { href: "/sales/resources", label: "Resources", icon: FolderOpen },
+  { href: "/sales/hiring-dashboard", label: "Hiring", icon: BarChart3 },
+  { href: "/sales/admin/documents", label: "Doc Templates", icon: FileText },
+  { href: "/sales/admin/email-templates", label: "Email Templates", icon: Mail },
+  { href: "/sales/admin/pipeline-doc-mapping", label: "Doc Mapping", icon: Link2 },
 ];
 
 export default function SalesLayout({ children }: { children: React.ReactNode }) {
