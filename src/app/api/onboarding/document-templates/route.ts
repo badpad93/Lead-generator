@@ -4,7 +4,7 @@ import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user || !isElevatedRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const url = new URL(req.url);
   const pipeline_type = url.searchParams.get("pipeline_type");

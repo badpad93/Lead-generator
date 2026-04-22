@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle } from "lucide-react";
 
@@ -39,18 +40,31 @@ const FILTERS = [
 ];
 
 export default function TeamPage() {
+  const router = useRouter();
   const [token, setToken] = useState("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) setToken(session.access_token);
+      if (!session?.access_token) { router.push("/sales"); return; }
+      setToken(session.access_token);
+      fetch("/api/sales/users", { headers: { Authorization: `Bearer ${session.access_token}` } })
+        .then((r) => r.ok ? r.json() : [])
+        .then((users: { id: string; role: string }[]) => {
+          const me = users.find((u) => u.id === session.user.id);
+          if (!me || (me.role !== "admin" && me.role !== "director_of_sales")) {
+            router.push("/sales");
+          } else {
+            setAuthorized(true);
+          }
+        });
     });
-  }, []);
+  }, [router]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -62,6 +76,8 @@ export default function TeamPage() {
   }, [token, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  if (!authorized) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
 
   const filtered = candidates.filter((c) =>
     c.full_name.toLowerCase().includes(search.toLowerCase()) ||
