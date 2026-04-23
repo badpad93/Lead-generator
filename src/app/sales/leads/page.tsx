@@ -575,8 +575,8 @@ export default function LeadsPage() {
       )}
 
       {/* Search + state filter */}
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-        <div className="relative flex-1">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative flex-1 min-w-0 sm:min-w-[260px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             value={search}
@@ -593,14 +593,14 @@ export default function LeadsPage() {
         <select
           value={stateFilter}
           onChange={(e) => setStateFilter(e.target.value)}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+          className="shrink-0 w-auto rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
         >
           <option value="">All States</option>
           {availableStates.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-        <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 cursor-pointer">
+        <label className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 cursor-pointer whitespace-nowrap">
           <input
             type="checkbox"
             checked={hideDnc}
