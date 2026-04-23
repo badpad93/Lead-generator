@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare } from "lucide-react";
+import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
 
 const LEAD_FIELDS: { key: LeadFieldKey; label: string; required?: boolean }[] = [
@@ -131,6 +131,9 @@ export default function LeadsPage() {
   const [addForm, setAddForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false, entity_type: "location" as EntityType, immediate_need: "" as ImmediateNeed | "" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [editingLead, setEditingLead] = useState<SalesLead | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   // CSV Import state
   const [showImport, setShowImport] = useState(false);
@@ -373,6 +376,39 @@ export default function LeadsPage() {
       body: JSON.stringify({ status }),
     });
     fetchLeads();
+  }
+
+  function openEdit(lead: SalesLead) {
+    setEditForm({
+      business_name: lead.business_name || "",
+      contact_name: lead.contact_name || "",
+      phone: lead.phone || "",
+      email: lead.email || "",
+      address: lead.address || "",
+      city: lead.city || "",
+      state: lead.state || "",
+      source: lead.source || "",
+      notes: lead.notes || "",
+    });
+    setEditingLead(lead);
+  }
+
+  async function handleSaveEdit() {
+    if (!editingLead) return;
+    setSaving(true);
+    const res = await fetch(`/api/sales/leads/${editingLead.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(editForm),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to save changes");
+    } else {
+      setEditingLead(null);
+      fetchLeads();
+    }
+    setSaving(false);
   }
 
   const availableStates = Array.from(
@@ -761,7 +797,9 @@ export default function LeadsPage() {
                   <td className="px-4 py-3 font-medium text-gray-900">
                     <div className="flex items-center gap-1.5">
                       {lead.urgent && <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />}
-                      {lead.business_name}
+                      <button onClick={() => openEdit(lead)} className="text-left hover:text-green-700 hover:underline cursor-pointer">
+                        {lead.business_name}
+                      </button>
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -839,6 +877,13 @@ export default function LeadsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEdit(lead)}
+                        title="Edit"
+                        className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
                       {!lead.assigned_to && (
                         <button
                           onClick={() => handleClaim(lead.id)}
@@ -882,6 +927,68 @@ export default function LeadsPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Edit Lead Modal */}
+      {editingLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-900">Edit Lead</h2>
+              <button onClick={() => setEditingLead(null)} className="rounded-lg p-1 text-gray-400 hover:text-gray-600 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {[
+                { key: "business_name", label: "Business Name" },
+                { key: "contact_name", label: "Contact Name" },
+                { key: "phone", label: "Phone" },
+                { key: "email", label: "Email" },
+                { key: "address", label: "Address" },
+                { key: "city", label: "City" },
+                { key: "state", label: "State" },
+                { key: "source", label: "Source" },
+              ].map(({ key, label }) => (
+                <label key={key} className="block">
+                  <span className="mb-1 block text-xs font-medium text-gray-500">{label}</span>
+                  <input
+                    value={editForm[key] || ""}
+                    onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+                  />
+                </label>
+              ))}
+            </div>
+            <label className="mt-3 block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">Notes</span>
+              <textarea
+                value={editForm.notes || ""}
+                onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                rows={3}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+              />
+            </label>
+            {editingLead.account_id && (
+              <p className="mt-3 text-xs text-gray-400">
+                Changes to business name, contact, phone, email, address, and entity type will also update the linked account.
+              </p>
+            )}
+            <div className="mt-5 flex gap-2 justify-end">
+              <button onClick={() => setEditingLead(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+              >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save Changes
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

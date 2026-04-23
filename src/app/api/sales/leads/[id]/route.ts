@@ -71,6 +71,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Sync shared fields to the linked account
+  const ACCOUNT_SYNC_FIELDS = ["business_name", "contact_name", "phone", "email", "address", "entity_type"];
+  const accountUpdates: Record<string, unknown> = {};
+  for (const key of ACCOUNT_SYNC_FIELDS) {
+    if (key in updates) accountUpdates[key] = updates[key];
+  }
+  if (data.account_id && Object.keys(accountUpdates).length > 0) {
+    await supabaseAdmin
+      .from("sales_accounts")
+      .update(accountUpdates)
+      .eq("id", data.account_id);
+  }
+
   return NextResponse.json(data);
 }
 
