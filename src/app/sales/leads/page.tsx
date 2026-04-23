@@ -582,7 +582,7 @@ export default function LeadsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by business, contact, city, or state..."
-            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-9 text-sm placeholder:text-gray-400 focus:border-green-500 focus:outline-none"
+            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-9 pr-9 text-sm placeholder:text-gray-400 focus:border-green-500 focus:outline-none"
           />
           {search && (
             <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
