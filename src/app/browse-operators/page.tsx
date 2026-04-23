@@ -669,8 +669,7 @@ export default function BrowseOperatorsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search operators by name, city, state..."
-                style={{ paddingLeft: '2.25rem' }}
-                className="w-full rounded-xl border border-gray-200 bg-white py-3 pr-10 text-sm shadow-sm placeholder:text-gray-400 focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
+                className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-10 text-sm shadow-sm placeholder:text-gray-400 focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
               />
               {search && (
                 <button

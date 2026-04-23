@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
 
 const LEAD_FIELDS: { key: LeadFieldKey; label: string; required?: boolean }[] = [
@@ -125,6 +125,8 @@ export default function LeadsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [salesUsers, setSalesUsers] = useState<{ id: string; full_name: string }[]>([]);
   const [stateFilter, setStateFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "urgent" | "type">("newest");
   const [hideDnc, setHideDnc] = useState(false);
   const [addForm, setAddForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false, entity_type: "location" as EntityType, immediate_need: "" as ImmediateNeed | "" });
 
@@ -243,6 +245,15 @@ export default function LeadsPage() {
     fetchLeads();
   }
 
+  async function handleToggleUrgent(id: string, current: boolean) {
+    await fetch(`/api/sales/leads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ urgent: !current }),
+    });
+    fetchLeads();
+  }
+
   async function handleToggleDnc(id: string, current: boolean) {
     await fetch(`/api/sales/leads/${id}`, {
       method: "PATCH",
@@ -334,6 +345,7 @@ export default function LeadsPage() {
   const filtered = leads.filter((l) => {
     if (hideDnc && l.do_not_call) return false;
     if (stateFilter && (l.state || "").toUpperCase() !== stateFilter) return false;
+    if (typeFilter && (l.entity_type || "") !== typeFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -342,6 +354,20 @@ export default function LeadsPage() {
       (l.state || "").toLowerCase().includes(q) ||
       (l.city || "").toLowerCase().includes(q)
     );
+  }).sort((a, b) => {
+    if (sortBy === "urgent") {
+      if (a.urgent && !b.urgent) return -1;
+      if (!a.urgent && b.urgent) return 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+    if (sortBy === "type") {
+      const aType = a.entity_type || "";
+      const bType = b.entity_type || "";
+      if (aType !== bType) return aType.localeCompare(bType);
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+    if (sortBy === "oldest") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
   const statusColor: Record<string, string> = {
@@ -582,7 +608,7 @@ export default function LeadsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by business, contact, city, or state..."
-            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-9 pr-9 text-sm placeholder:text-gray-400 focus:border-green-500 focus:outline-none"
+            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-9 text-sm placeholder:text-gray-400 focus:border-green-500 focus:outline-none"
           />
           {search && (
             <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -590,6 +616,16 @@ export default function LeadsPage() {
             </button>
           )}
         </div>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          className="shrink-0 w-auto rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+        >
+          <option value="">All Types</option>
+          {ENTITY_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
         <select
           value={stateFilter}
           onChange={(e) => setStateFilter(e.target.value)}
@@ -599,6 +635,16 @@ export default function LeadsPage() {
           {availableStates.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
+        </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as "newest" | "oldest" | "urgent" | "type")}
+          className="shrink-0 w-auto rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+        >
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="urgent">Urgent First</option>
+          <option value="type">Sort by Type</option>
         </select>
         <label className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 cursor-pointer whitespace-nowrap">
           <input
@@ -633,8 +679,13 @@ export default function LeadsPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.map((lead) => (
-                <tr key={lead.id} className="hover:bg-gray-50/50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{lead.business_name}</td>
+                <tr key={lead.id} className={lead.urgent ? "bg-orange-50/50 hover:bg-orange-50" : "hover:bg-gray-50/50"}>
+                  <td className="px-4 py-3 font-medium text-gray-900">
+                    <div className="flex items-center gap-1.5">
+                      {lead.urgent && <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />}
+                      {lead.business_name}
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <select
                       value={lead.entity_type || ""}
@@ -719,6 +770,13 @@ export default function LeadsPage() {
                           <UserPlus className="h-4 w-4" />
                         </button>
                       )}
+                      <button
+                        onClick={() => handleToggleUrgent(lead.id, !!lead.urgent)}
+                        title={lead.urgent ? "Remove Urgent" : "Mark Urgent"}
+                        className={`rounded-lg p-1.5 cursor-pointer ${lead.urgent ? "bg-orange-50 text-orange-600 hover:bg-orange-100" : "text-gray-400 hover:bg-orange-50 hover:text-orange-600"}`}
+                      >
+                        <AlertTriangle className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => handleToggleDnc(lead.id, !!lead.do_not_call)}
                         title={lead.do_not_call ? "Remove Do Not Call" : "Mark Do Not Call"}

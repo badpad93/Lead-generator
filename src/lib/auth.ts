@@ -103,6 +103,34 @@ export async function signUpWithGoogle(): Promise<void> {
   });
 }
 
+/** Sign in with Microsoft OAuth for LOGIN flow */
+export async function signInWithMicrosoft(): Promise<void> {
+  const supabase = createBrowserClient();
+  storeAuthFlow("login");
+  await supabase.auth.signInWithOAuth({
+    provider: "azure",
+    options: {
+      redirectTo: `${getSiteUrl()}/auth/callback?flow=login`,
+      skipBrowserRedirect: false,
+      scopes: "email",
+    },
+  });
+}
+
+/** Sign in with Microsoft OAuth for SIGNUP flow */
+export async function signUpWithMicrosoft(): Promise<void> {
+  const supabase = createBrowserClient();
+  storeAuthFlow("signup");
+  await supabase.auth.signInWithOAuth({
+    provider: "azure",
+    options: {
+      redirectTo: `${getSiteUrl()}/auth/callback?flow=signup`,
+      skipBrowserRedirect: false,
+      scopes: "email",
+    },
+  });
+}
+
 /** Sign out */
 export async function signOut(): Promise<void> {
   const supabase = createBrowserClient();
