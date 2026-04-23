@@ -1,15 +1,29 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { signInWithGoogle, signInWithMicrosoft, storeRedirectAfterLogin } from "@/lib/auth";
+import { createBrowserClient } from "@/lib/supabase";
 
 function LoginContent() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState<"google" | "microsoft" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const supabase = createBrowserClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        const redirect = searchParams.get("redirect") || "/dashboard";
+        window.location.href = redirect;
+      } else {
+        setChecking(false);
+      }
+    });
+  }, [searchParams]);
 
   async function handleGoogleLogin() {
     setLoading("google");
@@ -35,6 +49,14 @@ function LoginContent() {
       setError("Failed to start Microsoft login. Please try again.");
       setLoading(null);
     }
+  }
+
+  if (checking) {
+    return (
+      <div className="min-h-[calc(100vh-160px)] flex items-center justify-center px-4">
+        <Loader2 className="w-8 h-8 animate-spin text-green-primary" />
+      </div>
+    );
   }
 
   return (
