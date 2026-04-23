@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendLocationIntakeNotification } from "@/lib/intakeEmail";
+import { sendLocationIntakeNotification, sendLocationRequestConfirmation } from "@/lib/intakeEmail";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -91,6 +91,13 @@ export async function POST(req: NextRequest) {
     targetAreas,
     dealId: deal_id || "",
   }).catch(() => {});
+
+  if (client_email) {
+    sendLocationRequestConfirmation({
+      to: client_email,
+      name: client_name,
+    }).catch(() => {});
+  }
 
   return NextResponse.json({
     success: true,
