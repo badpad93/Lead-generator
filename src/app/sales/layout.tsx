@@ -28,21 +28,21 @@ import {
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/sales", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/sales/results", label: "Results", icon: TrendingUp },
-  { href: "/sales/leads", label: "Leads", icon: Users },
-  { href: "/sales/pipelines", label: "Pipelines", icon: GitBranch },
-  { href: "/sales/deals", label: "Deals", icon: Kanban },
-  { href: "/sales/accounts", label: "Accounts", icon: Building2 },
-  { href: "/sales/orders", label: "Orders", icon: ClipboardList },
-  { href: "/sales/team", label: "Team", icon: UserCog },
-  { href: "/sales/commissions", label: "Commissions", icon: DollarSign },
-  { href: "/sales/call-lists", label: "Call Lists", icon: PhoneCall },
-  { href: "/sales/resources", label: "Resources", icon: FolderOpen },
-  { href: "/sales/hiring-dashboard", label: "Hiring", icon: BarChart3 },
-  { href: "/sales/admin/documents", label: "Doc Templates", icon: FileText },
-  { href: "/sales/admin/email-templates", label: "Email Templates", icon: Mail },
-  { href: "/sales/admin/pipeline-doc-mapping", label: "Doc Mapping", icon: Link2 },
+  { href: "/sales", label: "Dashboard", icon: LayoutDashboard, elevated: false },
+  { href: "/sales/results", label: "Results", icon: TrendingUp, elevated: false },
+  { href: "/sales/leads", label: "Leads", icon: Users, elevated: false },
+  { href: "/sales/pipelines", label: "Pipelines", icon: GitBranch, elevated: false },
+  { href: "/sales/deals", label: "Deals", icon: Kanban, elevated: false },
+  { href: "/sales/accounts", label: "Accounts", icon: Building2, elevated: false },
+  { href: "/sales/orders", label: "Orders", icon: ClipboardList, elevated: false },
+  { href: "/sales/team", label: "Team", icon: UserCog, elevated: true },
+  { href: "/sales/commissions", label: "Commissions", icon: DollarSign, elevated: false },
+  { href: "/sales/call-lists", label: "Call Lists", icon: PhoneCall, elevated: false },
+  { href: "/sales/resources", label: "Resources", icon: FolderOpen, elevated: false },
+  { href: "/sales/hiring-dashboard", label: "Hiring", icon: BarChart3, elevated: true },
+  { href: "/sales/admin/documents", label: "Doc Templates", icon: FileText, elevated: true },
+  { href: "/sales/admin/email-templates", label: "Email Templates", icon: Mail, elevated: true },
+  { href: "/sales/admin/pipeline-doc-mapping", label: "Doc Mapping", icon: Link2, elevated: true },
 ];
 
 export default function SalesLayout({ children }: { children: React.ReactNode }) {
@@ -52,6 +52,7 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
   const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("");
+  const [userRole, setUserRole] = useState("");
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -77,6 +78,7 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
         return;
       }
       setUserName(me.full_name || me.email);
+      setUserRole(me.role || "");
       setAuthorized(true);
       setLoading(false);
     }
@@ -99,6 +101,9 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
 
   if (!authorized) return null;
 
+  const isElevated = userRole === "admin" || userRole === "director_of_sales";
+  const visibleNav = NAV_ITEMS.filter((item) => !item.elevated || isElevated);
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar — desktop */}
@@ -107,7 +112,7 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
           <span className="flex items-center gap-1.5 text-lg font-bold text-green-600"><Zap className="h-5 w-5 fill-green-600" />Sales CRM</span>
         </div>
         <nav className="flex-1 space-y-0.5 px-2 py-3">
-          {NAV_ITEMS.map((item) => {
+          {visibleNav.map((item) => {
             const active = pathname === item.href || (item.href !== "/sales" && pathname.startsWith(item.href));
             return (
               <Link
@@ -158,7 +163,7 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
                 </button>
               </div>
               <nav className="flex-1 space-y-0.5 px-2 py-3">
-                {NAV_ITEMS.map((item) => {
+                {visibleNav.map((item) => {
                   const active = pathname === item.href || (item.href !== "/sales" && pathname.startsWith(item.href));
                   return (
                     <Link

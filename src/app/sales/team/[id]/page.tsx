@@ -94,13 +94,25 @@ export default function CandidateDetailPage() {
   const [showTerminate, setShowTerminate] = useState(false);
   const [terminateReason, setTerminateReason] = useState("");
   const [terminating, setTerminating] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) setToken(session.access_token);
+      if (!session?.access_token) { router.push("/sales"); return; }
+      setToken(session.access_token);
+      fetch("/api/sales/users", { headers: { Authorization: `Bearer ${session.access_token}` } })
+        .then((r) => r.ok ? r.json() : [])
+        .then((users: { id: string; role: string }[]) => {
+          const me = users.find((u) => u.id === session.user.id);
+          if (!me || (me.role !== "admin" && me.role !== "director_of_sales")) {
+            router.push("/sales");
+          } else {
+            setAuthorized(true);
+          }
+        });
     });
-  }, []);
+  }, [router]);
 
   const load = useCallback(async () => {
     if (!token || !id) return;
@@ -228,7 +240,7 @@ export default function CandidateDetailPage() {
     setTerminating(false);
   }
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
+  if (!authorized || loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
   if (!candidate) return <p className="p-6 text-gray-400">Candidate not found.</p>;
 
   const currentStepIdx = candidate.all_steps.findIndex((s) => s.id === candidate.current_step_id);

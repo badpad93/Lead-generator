@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 import { sendOnboardingDocsEmail } from "@/lib/onboardingPipelineEmail";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
-  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user || !isElevatedRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
 
   const { data: candidate, error: cErr } = await supabaseAdmin

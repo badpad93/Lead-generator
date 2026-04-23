@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { Loader2, Link2, Plus, Trash2, ChevronUp, ChevronDown, CheckCircle2, XCircle } from "lucide-react";
 
@@ -31,6 +32,7 @@ interface Pipeline {
 }
 
 export default function PipelineDocMappingPage() {
+  const router = useRouter();
   const [token, setToken] = useState("");
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [allTemplates, setAllTemplates] = useState<DocTemplate[]>([]);
@@ -39,13 +41,25 @@ export default function PipelineDocMappingPage() {
   const [selectedPipeline, setSelectedPipeline] = useState("");
   const [selectedStep, setSelectedStep] = useState("interview");
   const [saving, setSaving] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) setToken(session.access_token);
+      if (!session?.access_token) { router.push("/sales"); return; }
+      setToken(session.access_token);
+      fetch("/api/sales/users", { headers: { Authorization: `Bearer ${session.access_token}` } })
+        .then((r) => r.ok ? r.json() : [])
+        .then((users: { id: string; role: string }[]) => {
+          const me = users.find((u) => u.id === session.user.id);
+          if (!me || (me.role !== "admin" && me.role !== "director_of_sales")) {
+            router.push("/sales");
+          } else {
+            setAuthorized(true);
+          }
+        });
     });
-  }, []);
+  }, [router]);
 
   const loadPipelines = useCallback(async () => {
     if (!token) return;
@@ -131,6 +145,8 @@ export default function PipelineDocMappingPage() {
   }
 
   const sortedAssignments = [...assignments].sort((a, b) => a.order_index - b.order_index);
+
+  if (!authorized) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">

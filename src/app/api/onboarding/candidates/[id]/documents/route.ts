@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
 const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/jpg",
   "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
@@ -8,7 +8,7 @@ const MAX_SIZE = 10 * 1024 * 1024;
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
-  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user || !isElevatedRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
 
   const { data, error } = await supabaseAdmin
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
-  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user || !isElevatedRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
 
   const formData = await req.formData();

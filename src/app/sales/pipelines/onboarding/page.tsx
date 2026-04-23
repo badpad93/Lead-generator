@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { Loader2, Plus, Users, Briefcase, ChevronRight, CheckCircle2, Clock, AlertTriangle, UserX } from "lucide-react";
 
@@ -36,6 +37,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 export default function OnboardingPipelinePage() {
+  const router = useRouter();
   const [token, setToken] = useState("");
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -44,13 +46,25 @@ export default function OnboardingPipelinePage() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ full_name: "", email: "", phone: "", role_type: "BDP" });
   const [saving, setSaving] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) setToken(session.access_token);
+      if (!session?.access_token) { router.push("/sales"); return; }
+      setToken(session.access_token);
+      fetch("/api/sales/users", { headers: { Authorization: `Bearer ${session.access_token}` } })
+        .then((r) => r.ok ? r.json() : [])
+        .then((users: { id: string; role: string }[]) => {
+          const me = users.find((u) => u.id === session.user.id);
+          if (!me || (me.role !== "admin" && me.role !== "director_of_sales")) {
+            router.push("/sales");
+          } else {
+            setAuthorized(true);
+          }
+        });
     });
-  }, []);
+  }, [router]);
 
   const loadPipelines = useCallback(async () => {
     if (!token) return;
@@ -120,6 +134,8 @@ export default function OnboardingPipelinePage() {
     else if (c.status === "completed" || c.status === "assigned_to_training") groupedByStep["completed"].push(c);
     else if (c.status === "terminated") groupedByStep["terminated"].push(c);
   }
+
+  if (!authorized) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
