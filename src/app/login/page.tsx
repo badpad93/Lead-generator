@@ -4,24 +4,36 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { signInWithGoogle, storeRedirectAfterLogin } from "@/lib/auth";
+import { signInWithGoogle, signInWithMicrosoft, storeRedirectAfterLogin } from "@/lib/auth";
 
 function LoginContent() {
   const searchParams = useSearchParams();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"google" | "microsoft" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleGoogleLogin() {
-    setLoading(true);
+    setLoading("google");
     setError(null);
-    // Store the intended destination so the callback can redirect there
     const redirect = searchParams.get("redirect") || "/dashboard";
     storeRedirectAfterLogin(redirect);
     try {
       await signInWithGoogle();
     } catch {
       setError("Failed to start Google login. Please try again.");
-      setLoading(false);
+      setLoading(null);
+    }
+  }
+
+  async function handleMicrosoftLogin() {
+    setLoading("microsoft");
+    setError(null);
+    const redirect = searchParams.get("redirect") || "/dashboard";
+    storeRedirectAfterLogin(redirect);
+    try {
+      await signInWithMicrosoft();
+    } catch {
+      setError("Failed to start Microsoft login. Please try again.");
+      setLoading(null);
     }
   }
 
@@ -47,13 +59,13 @@ function LoginContent() {
           <button
             type="button"
             onClick={handleGoogleLogin}
-            disabled={loading}
+            disabled={!!loading}
             className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700
               font-semibold rounded-xl transition-colors disabled:opacity-50
               disabled:cursor-not-allowed flex items-center justify-center gap-3
               cursor-pointer border border-gray-300 shadow-sm"
           >
-            {loading ? (
+            {loading === "google" ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
                 Connecting to Google...
@@ -67,6 +79,39 @@ function LoginContent() {
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
                 Continue with Google
+              </>
+            )}
+          </button>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+            <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or</span></div>
+          </div>
+
+          {/* Microsoft OAuth Button */}
+          <button
+            type="button"
+            onClick={handleMicrosoftLogin}
+            disabled={!!loading}
+            className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700
+              font-semibold rounded-xl transition-colors disabled:opacity-50
+              disabled:cursor-not-allowed flex items-center justify-center gap-3
+              cursor-pointer border border-gray-300 shadow-sm"
+          >
+            {loading === "microsoft" ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Connecting to Microsoft...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" viewBox="0 0 21 21">
+                  <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+                  <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+                  <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+                  <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+                </svg>
+                Continue with Microsoft
               </>
             )}
           </button>

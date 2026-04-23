@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Truck, Building2, UserPlus, ArrowLeft, Loader2, LogOut } from "lucide-react";
-import { signUpWithGoogle, storeSignupRole, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
+import { signUpWithGoogle, signUpWithMicrosoft, storeSignupRole, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
 
 type Role = "operator" | "location_manager" | "requestor";
@@ -33,7 +33,7 @@ export default function SignupPage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [role, setRole] = useState<Role | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"google" | "microsoft" | null>(null);
   const [existingEmail, setExistingEmail] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -80,26 +80,47 @@ export default function SignupPage() {
 
   async function handleGoogleSignup() {
     if (!role) return;
-    setLoading(true);
+    setLoading("google");
     setError(null);
 
     try {
-      // Clear any existing session and verify it's gone before starting OAuth
       const cleared = await ensureSignedOut();
       if (!cleared) {
         setError("Could not clear existing session. Please refresh and try again.");
-        setLoading(false);
+        setLoading(null);
         return;
       }
       setExistingEmail(null);
 
-      // Store the selected role and default redirect before going to Google
       storeSignupRole(role);
       storeRedirectAfterLogin("/dashboard");
       await signUpWithGoogle();
     } catch {
       setError("Failed to connect to Google. Please try again.");
-      setLoading(false);
+      setLoading(null);
+    }
+  }
+
+  async function handleMicrosoftSignup() {
+    if (!role) return;
+    setLoading("microsoft");
+    setError(null);
+
+    try {
+      const cleared = await ensureSignedOut();
+      if (!cleared) {
+        setError("Could not clear existing session. Please refresh and try again.");
+        setLoading(null);
+        return;
+      }
+      setExistingEmail(null);
+
+      storeSignupRole(role);
+      storeRedirectAfterLogin("/dashboard");
+      await signUpWithMicrosoft();
+    } catch {
+      setError("Failed to connect to Microsoft. Please try again.");
+      setLoading(null);
     }
   }
 
@@ -112,7 +133,7 @@ export default function SignupPage() {
           <p className="text-black-primary/60 mt-2">
             {step === 1
               ? "Select your role to get started"
-              : "Connect your Google account to continue"}
+              : "Connect your account to continue"}
           </p>
         </div>
 
@@ -223,13 +244,13 @@ export default function SignupPage() {
               <button
                 type="button"
                 onClick={handleGoogleSignup}
-                disabled={loading}
+                disabled={!!loading}
                 className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700
                   font-semibold rounded-xl transition-colors disabled:opacity-50
                   disabled:cursor-not-allowed flex items-center justify-center gap-3
                   cursor-pointer border border-gray-300 shadow-sm"
               >
-                {loading ? (
+                {loading === "google" ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
                     Connecting to Google...
@@ -243,6 +264,39 @@ export default function SignupPage() {
                       <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                     </svg>
                     Sign up with Google
+                  </>
+                )}
+              </button>
+
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+                <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or</span></div>
+              </div>
+
+              {/* Microsoft OAuth Button */}
+              <button
+                type="button"
+                onClick={handleMicrosoftSignup}
+                disabled={!!loading}
+                className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700
+                  font-semibold rounded-xl transition-colors disabled:opacity-50
+                  disabled:cursor-not-allowed flex items-center justify-center gap-3
+                  cursor-pointer border border-gray-300 shadow-sm"
+              >
+                {loading === "microsoft" ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Connecting to Microsoft...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" viewBox="0 0 21 21">
+                      <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+                      <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+                      <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+                      <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+                    </svg>
+                    Sign up with Microsoft
                   </>
                 )}
               </button>
