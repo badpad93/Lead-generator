@@ -37,11 +37,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
-  // Only check protected paths
+  // Redirect authenticated users away from auth pages
+  const isAuthPage = pathname === "/login" || pathname === "/signup";
+
+  // Only check protected paths (and auth pages for reverse redirect)
   const isProtected = PROTECTED_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
   );
-  if (!isProtected) return NextResponse.next();
+  if (!isProtected && !isAuthPage) return NextResponse.next();
 
   // Create a Supabase server client that reads/writes cookies on the request/response
   let response = NextResponse.next({ request: req });
@@ -74,8 +77,14 @@ export async function middleware(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    // Redirect to login with a return-to URL so they come back after auth
+  if (isAuthPage && user) {
+    const dashboardUrl = req.nextUrl.clone();
+    dashboardUrl.pathname = "/dashboard";
+    dashboardUrl.search = "";
+    return NextResponse.redirect(dashboardUrl);
+  }
+
+  if (!user && isProtected) {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirect", pathname);
