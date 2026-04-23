@@ -133,7 +133,7 @@ export default function PipelinesPage() {
 
               <div className="flex gap-2">
                 <Link
-                  href={`/sales/pipelines/${p.id}/items`}
+                  href={p.type === "hiring" ? "/sales/pipelines/onboarding" : `/sales/pipelines/${p.id}/items`}
                   className="flex-1 text-center rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                 >
                   View Items
