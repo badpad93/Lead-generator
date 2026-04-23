@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const { error: dbError } = await supabaseAdmin.from("sales_leads").insert({
+  const { data: lead, error: dbError } = await supabaseAdmin.from("sales_leads").insert({
     business_name,
     contact_name,
     phone,
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
     notes: `Location services request — ${machine_count} machine(s) requested for ZIP ${zip_code}${referringRepName ? ` (referred by ${referringRepName})` : ""}`,
     created_by: referringRep,
     assigned_to: referringRep,
-  });
+  }).select("id").single();
 
   if (dbError) {
     console.error("[request-location] db error", dbError);
@@ -93,6 +93,21 @@ export async function POST(req: Request) {
       { error: "Failed to save request" },
       { status: 500 }
     );
+  }
+
+  const { error: accountError } = await supabaseAdmin.from("sales_accounts").insert({
+    business_name,
+    contact_name,
+    phone,
+    email,
+    address,
+    notes: `Auto-created from location services request — ${machine_count} machine(s), ZIP ${zip_code}`,
+    assigned_to: referringRep,
+    created_by: referringRep,
+  });
+
+  if (accountError) {
+    console.error("[request-location] account creation error", accountError);
   }
 
   // Fire email — log but do not fail the request if email errors.
