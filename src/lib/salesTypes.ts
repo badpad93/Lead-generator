@@ -42,6 +42,7 @@ export interface SalesLead {
   source?: string | null;
   notes?: string | null;
   do_not_call?: boolean;
+  urgent?: boolean;
   entity_type?: EntityType | null;
   immediate_need?: ImmediateNeed | null;
   last_contacted_at?: string | null;
