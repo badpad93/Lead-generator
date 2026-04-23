@@ -140,7 +140,7 @@ export default function PipelinesPage() {
                 </Link>
                 {isAdmin && (
                   <Link
-                    href={`/sales/pipelines/${p.id}/edit`}
+                    href={p.type === "hiring" ? "/sales/pipelines/onboarding/edit" : `/sales/pipelines/${p.id}/edit`}
                     className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                   >
                     <Settings className="h-3 w-3" /> Edit
