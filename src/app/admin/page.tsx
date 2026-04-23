@@ -1060,7 +1060,7 @@ function RequestsManager({
             value={adminSearch}
             onChange={(e) => setAdminSearch(e.target.value)}
             placeholder="Search by title, city, state, or business name..."
-            className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-10 text-sm placeholder:text-gray-400 focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
+            className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-10 text-sm placeholder:text-gray-400 focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
           />
           {adminSearch && (
             <button
