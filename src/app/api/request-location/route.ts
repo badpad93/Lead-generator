@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { sendLocationRequestConfirmation } from "@/lib/intakeEmail";
 
 const TO_EMAIL = "james@apexaivending.com";
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
@@ -120,6 +121,11 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error("[request-location] email error", e);
   }
+
+  sendLocationRequestConfirmation({
+    to: email,
+    name: contact_name,
+  }).catch((e) => console.error("[request-location] confirmation email error", e));
 
   return NextResponse.json({ ok: true });
 }

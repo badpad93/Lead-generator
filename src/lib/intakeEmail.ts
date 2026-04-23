@@ -98,6 +98,41 @@ export async function sendAdminIntakeNotification(params: AdminNotificationParam
   });
 }
 
+interface LocationRequestConfirmationParams {
+  to: string;
+  name: string;
+}
+
+export async function sendLocationRequestConfirmation(params: LocationRequestConfirmationParams) {
+  const { to, name } = params;
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <div style="text-align: center; margin-bottom: 32px;">
+        <h1 style="color: #111827; font-size: 24px; margin: 0;">Vending Connector</h1>
+      </div>
+
+      <div style="background: #f0fdf4; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+        <h2 style="margin: 0 0 12px; font-size: 18px; color: #166534;">Thank You, ${name}!</h2>
+        <p style="margin: 0; font-size: 15px; color: #374151; line-height: 1.7;">
+          Thank you for your location request. We're on it! A representative will be reaching out to you shortly.
+        </p>
+      </div>
+
+      <p style="font-size: 14px; color: #374151; text-align: center; margin: 0;">
+        Thank you for choosing Vending Connector.
+      </p>
+    </div>
+  `;
+
+  return getResend().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject: "We received your location request — Vending Connector",
+    html,
+  });
+}
+
 interface LocationIntakeNotificationParams {
   clientName: string;
   machineCount: number;
