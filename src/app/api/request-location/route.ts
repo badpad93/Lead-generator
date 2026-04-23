@@ -23,8 +23,12 @@ export async function POST(req: Request) {
   const phone = clean(body.phone);
   const email = clean(body.email);
   const address = clean(body.address);
-  const zip_code = clean(body.zip_code);
+  const state = clean(body.state);
   const machine_count_raw = body.machine_count;
+
+  const rawZips = Array.isArray(body.zip_codes) ? body.zip_codes : body.zip_code ? [body.zip_code] : [];
+  const zip_codes: string[] = rawZips.map((z: unknown) => (typeof z === "string" ? z.trim() : "")).filter(Boolean);
+  const zip_code = zip_codes.join(", ");
 
   if (
     !business_name ||
@@ -32,7 +36,8 @@ export async function POST(req: Request) {
     !phone ||
     !email ||
     !address ||
-    !zip_code ||
+    !state ||
+    zip_codes.length === 0 ||
     machine_count_raw === undefined ||
     machine_count_raw === null ||
     machine_count_raw === ""
@@ -79,10 +84,11 @@ export async function POST(req: Request) {
     email,
     address,
     zip_code,
+    state,
     machine_count,
     status: "new",
     source: referringRep ? "request-location-referral" : "request-location",
-    notes: `Location services request — ${machine_count} machine(s) requested for ZIP ${zip_code}${referringRepName ? ` (referred by ${referringRepName})` : ""}`,
+    notes: `Location services request — ${machine_count} machine(s) requested for ZIP(s) ${zip_code} in ${state}${referringRepName ? ` (referred by ${referringRepName})` : ""}`,
     created_by: referringRep,
     assigned_to: referringRep,
   }).select("id").single();
@@ -101,7 +107,7 @@ export async function POST(req: Request) {
     phone,
     email,
     address,
-    notes: `Auto-created from location services request — ${machine_count} machine(s), ZIP ${zip_code}`,
+    notes: `Auto-created from location services request — ${machine_count} machine(s), ZIP(s) ${zip_code}, ${state}`,
     assigned_to: referringRep,
     created_by: referringRep,
   });
@@ -122,7 +128,8 @@ export async function POST(req: Request) {
           <tr><td style="padding:6px 0;color:#6b7280;">Phone</td><td style="padding:6px 0;color:#111827;">${phone}</td></tr>
           <tr><td style="padding:6px 0;color:#6b7280;">Email</td><td style="padding:6px 0;color:#111827;">${email}</td></tr>
           <tr><td style="padding:6px 0;color:#6b7280;">Address</td><td style="padding:6px 0;color:#111827;">${address}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280;">ZIP Code</td><td style="padding:6px 0;color:#111827;">${zip_code}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280;">State</td><td style="padding:6px 0;color:#111827;">${state}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280;">ZIP Code(s)</td><td style="padding:6px 0;color:#111827;">${zip_code}</td></tr>
           <tr><td style="padding:6px 0;color:#6b7280;">Machines Requested</td><td style="padding:6px 0;color:#111827;font-weight:600;">${machine_count}</td></tr>
         </table>
       </div>
