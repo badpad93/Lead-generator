@@ -107,8 +107,8 @@ export default function TeamPage() {
         </Link>
       </div>
 
-      <div className="flex gap-3 mb-4">
-        <div className="relative flex-1">
+      <div className="flex gap-3 mb-4 items-center">
+        <div className="relative flex-1 min-w-0 sm:min-w-[260px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
@@ -121,7 +121,7 @@ export default function TeamPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+          className="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
         >
           {FILTERS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
         </select>
