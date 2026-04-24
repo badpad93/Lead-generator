@@ -49,9 +49,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const filePath = `candidates/${id}/${stepKey}/${timestamp}_${safeName}`;
 
+  const buffer = Buffer.from(await file.arrayBuffer());
   const { error: uploadErr } = await supabaseAdmin.storage
     .from("sales-documents")
-    .upload(filePath, file, { contentType: file.type, upsert: false });
+    .upload(filePath, buffer, { contentType: file.type, upsert: false });
 
   if (uploadErr) return NextResponse.json({ error: `Upload failed: ${uploadErr.message}` }, { status: 500 });
 
