@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from("sales_deals")
-    .select("*, deal_services(*)")
+    .select("*, deal_services(*), pipelines(id, name)")
     .order("created_at", { ascending: false });
 
   if (user.role === "sales") {
@@ -42,21 +42,55 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { lead_id, business_name, stage } = body;
+  const { lead_id, business_name, stage, pipeline_id, account_id } = body;
   if (!business_name) return NextResponse.json({ error: "business_name required" }, { status: 400 });
 
   const { data, error } = await supabaseAdmin
     .from("sales_deals")
     .insert({
       lead_id: lead_id || null,
+      account_id: account_id || null,
       assigned_to: user.id,
       stage: stage || "new",
       value: 0,
       business_name,
+      pipeline_id: pipeline_id || null,
     })
     .select("id")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Auto-create pipeline item if a pipeline was selected
+  if (pipeline_id && data) {
+    const { data: firstStep } = await supabaseAdmin
+      .from("pipeline_steps")
+      .select("id")
+      .eq("pipeline_id", pipeline_id)
+      .order("order_index")
+      .limit(1)
+      .maybeSingle();
+
+    const { data: pipelineItem } = await supabaseAdmin
+      .from("pipeline_items")
+      .insert({
+        pipeline_id,
+        name: business_name,
+        status: "active",
+        current_step_id: firstStep?.id || null,
+        value: 0,
+        assigned_to: user.id,
+        account_id: account_id || null,
+        lead_id: lead_id || null,
+        deal_id: data.id,
+      })
+      .select("id")
+      .single();
+
+    if (pipelineItem) {
+      await supabaseAdmin.from("sales_deals").update({ pipeline_item_id: pipelineItem.id }).eq("id", data.id);
+    }
+  }
+
   return NextResponse.json(data, { status: 201 });
 }

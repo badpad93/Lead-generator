@@ -34,7 +34,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "pipeline_id and name required" }, { status: 400 });
   }
 
-  // Get first step of pipeline
+  const { data: pipeline } = await supabaseAdmin
+    .from("pipelines")
+    .select("id, type")
+    .eq("id", pipeline_id)
+    .single();
+
   const { data: firstStep } = await supabaseAdmin
     .from("pipeline_steps")
     .select("id")
@@ -42,6 +47,25 @@ export async function POST(req: NextRequest) {
     .order("order_index")
     .limit(1)
     .maybeSingle();
+
+  // Auto-create a deal for sales-type pipelines
+  let dealId: string | null = null;
+  if (pipeline?.type === "sales") {
+    const { data: deal } = await supabaseAdmin
+      .from("sales_deals")
+      .insert({
+        business_name: name,
+        assigned_to: assigned_to || user.id,
+        stage: "new",
+        value: value || 0,
+        lead_id: lead_id || null,
+        account_id: account_id || null,
+        pipeline_id: pipeline_id,
+      })
+      .select("id")
+      .single();
+    if (deal) dealId = deal.id;
+  }
 
   const { data, error } = await supabaseAdmin
     .from("pipeline_items")
@@ -56,10 +80,17 @@ export async function POST(req: NextRequest) {
       value: value || 0,
       notes: notes || null,
       assigned_to: assigned_to || user.id,
+      deal_id: dealId,
     })
     .select("*")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Link the deal back to the pipeline item
+  if (dealId && data) {
+    await supabaseAdmin.from("sales_deals").update({ pipeline_item_id: data.id }).eq("id", dealId);
+  }
+
   return NextResponse.json(data, { status: 201 });
 }
