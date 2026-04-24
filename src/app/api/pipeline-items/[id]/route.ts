@@ -9,7 +9,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data, error } = await supabaseAdmin
     .from("pipeline_items")
-    .select("*, pipelines(id, name, type), pipeline_steps!pipeline_items_current_step_id_fkey(id, name, order_index), sales_accounts(business_name, email), employees(full_name, email), pipeline_item_documents(*, step_documents(*))")
+    .select("*, pipelines(id, name, type), pipeline_steps!pipeline_items_current_step_id_fkey(id, name, order_index), sales_accounts(id, business_name, contact_name, phone, email, address, entity_type), employees(full_name, email), pipeline_item_documents(*, step_documents(*))")
     .eq("id", id)
     .single();
 
