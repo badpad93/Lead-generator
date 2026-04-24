@@ -4,7 +4,16 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
-import { Loader2, Plus, ChevronRight } from "lucide-react";
+import { Loader2, Plus, ChevronRight, Search, Building2, X } from "lucide-react";
+
+interface Account {
+  id: string;
+  business_name: string;
+  contact_name: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+}
 
 interface PipelineItem {
   id: string;
@@ -28,6 +37,10 @@ export default function PipelineItemsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: "", value: "" });
   const [saving, setSaving] = useState(false);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountSearch, setAccountSearch] = useState("");
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -39,12 +52,14 @@ export default function PipelineItemsPage() {
   const load = useCallback(async () => {
     if (!token || !pipelineId) return;
     setLoading(true);
-    const [pRes, iRes] = await Promise.all([
+    const [pRes, iRes, aRes] = await Promise.all([
       fetch(`/api/pipelines/${pipelineId}`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`/api/pipeline-items?pipeline_id=${pipelineId}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch("/api/sales/accounts", { headers: { Authorization: `Bearer ${token}` } }),
     ]);
     if (pRes.ok) setPipeline(await pRes.json());
     if (iRes.ok) setItems(await iRes.json());
+    if (aRes.ok) setAccounts(await aRes.json());
     setLoading(false);
   }, [token, pipelineId]);
 
@@ -56,13 +71,35 @@ export default function PipelineItemsPage() {
     await fetch("/api/pipeline-items", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ pipeline_id: pipelineId, name: form.name, value: Number(form.value) || 0 }),
+      body: JSON.stringify({
+        pipeline_id: pipelineId,
+        name: form.name,
+        value: Number(form.value) || 0,
+        account_id: selectedAccount?.id || null,
+      }),
     });
     setForm({ name: "", value: "" });
+    setSelectedAccount(null);
+    setAccountSearch("");
     setShowAdd(false);
     setSaving(false);
     load();
   }
+
+  function selectAccount(account: Account) {
+    setSelectedAccount(account);
+    setAccountSearch("");
+    setShowAccountDropdown(false);
+    if (!form.name) setForm((f) => ({ ...f, name: account.business_name }));
+  }
+
+  const filteredAccounts = accountSearch.length > 0
+    ? accounts.filter((a) =>
+        a.business_name.toLowerCase().includes(accountSearch.toLowerCase()) ||
+        (a.contact_name || "").toLowerCase().includes(accountSearch.toLowerCase()) ||
+        (a.email || "").toLowerCase().includes(accountSearch.toLowerCase())
+      ).slice(0, 8)
+    : [];
 
   const statusColor = (s: string) => {
     if (s === "won") return "bg-green-50 text-green-700";
@@ -89,11 +126,60 @@ export default function PipelineItemsPage() {
 
       {showAdd && (
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">New Pipeline Item</h3>
+          {/* Account Search */}
+          <div className="mb-3">
+            <label className="mb-1 block text-xs font-medium text-gray-500">Link Account (optional)</label>
+            {selectedAccount ? (
+              <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-green-600" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">{selectedAccount.business_name}</span>
+                    {selectedAccount.contact_name && <span className="text-xs text-gray-500 ml-2">{selectedAccount.contact_name}</span>}
+                  </div>
+                </div>
+                <button onClick={() => { setSelectedAccount(null); setForm((f) => ({ ...f, name: "" })); }} className="text-gray-400 hover:text-red-500 cursor-pointer">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={accountSearch}
+                  onChange={(e) => { setAccountSearch(e.target.value); setShowAccountDropdown(true); }}
+                  onFocus={() => { if (accountSearch) setShowAccountDropdown(true); }}
+                  placeholder="Search accounts by name, contact, or email..."
+                  className="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-3 text-sm focus:border-green-500 focus:outline-none"
+                />
+                {showAccountDropdown && filteredAccounts.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                    {filteredAccounts.map((a) => (
+                      <button
+                        key={a.id}
+                        onClick={() => selectAccount(a)}
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 cursor-pointer"
+                      >
+                        <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{a.business_name}</p>
+                          <p className="text-xs text-gray-400 truncate">
+                            {[a.contact_name, a.email, a.phone].filter(Boolean).join(" · ") || "No contact info"}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <div className="flex gap-3">
-            <input placeholder="Name / Business" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+            <input placeholder="Name / Business *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <input placeholder="Value ($)" type="number" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))} className="w-32 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <button onClick={handleAdd} disabled={saving} className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer">{saving ? "Adding..." : "Add"}</button>
-            <button onClick={() => setShowAdd(false)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+            <button onClick={() => { setShowAdd(false); setSelectedAccount(null); setAccountSearch(""); }} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
           </div>
         </div>
       )}
