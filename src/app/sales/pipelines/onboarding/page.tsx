@@ -114,12 +114,14 @@ export default function OnboardingPipelinePage() {
   };
 
   const groupedByStep: Record<string, Candidate[]> = {};
-  const stepKeys = ["interview", "pending_review_1", "welcome_docs", "pending_review_2", "completed", "terminated"];
+  const hiringSteps = ["interview", "pending_review_1"];
+  const onboardingSteps = ["welcome_docs", "pending_review_2", "completed"];
+  const stepKeys = [...hiringSteps, ...onboardingSteps, "terminated"];
   const stepLabels: Record<string, string> = {
     interview: "Interview",
-    pending_review_1: "Admin Review 1",
+    pending_review_1: "Admin Review",
     welcome_docs: "Welcome Docs",
-    pending_review_2: "Admin Review 2",
+    pending_review_2: "Admin Review",
     completed: "Completed / Training",
     terminated: "Terminated",
   };
@@ -142,7 +144,7 @@ export default function OnboardingPipelinePage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <Link href="/sales/pipelines" className="text-xs text-gray-400 hover:text-gray-600">Pipelines</Link>
-          <h1 className="text-2xl font-bold text-gray-900">Onboarding Pipelines</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Hiring & Onboarding Pipeline</h1>
         </div>
         <button
           onClick={() => { setShowAdd(true); setForm((f) => ({ ...f, role_type: currentPipeline?.role_type || "BDP" })); }}
@@ -193,14 +195,23 @@ export default function OnboardingPipelinePage() {
       {/* Pipeline progress steps */}
       {currentPipeline && (
         <div className="flex items-center gap-1 mb-6 overflow-x-auto pb-2">
-          {currentPipeline.onboarding_steps.map((step, i) => (
-            <div key={step.id} className="flex items-center gap-1 flex-shrink-0">
-              {i > 0 && <ChevronRight className="h-4 w-4 text-gray-300" />}
-              <div className="rounded-full bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700">
-                {step.name}
+          <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-bold text-blue-700 uppercase mr-1 flex-shrink-0">Hiring</span>
+          {currentPipeline.onboarding_steps.map((step, i) => {
+            const isOnboardingStart = step.step_key === "welcome_docs";
+            return (
+              <div key={step.id} className="flex items-center gap-1 flex-shrink-0">
+                {isOnboardingStart && (
+                  <span className="rounded-full bg-green-100 px-2 py-1 text-[10px] font-bold text-green-700 uppercase mx-1">Onboarding</span>
+                )}
+                {i > 0 && !isOnboardingStart && <ChevronRight className="h-4 w-4 text-gray-300" />}
+                <div className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                  isOnboardingStart || step.step_key === "completion" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"
+                }`}>
+                  {step.name}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -208,40 +219,126 @@ export default function OnboardingPipelinePage() {
         <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {stepKeys.map((key) => {
-            const items = groupedByStep[key];
-            if (key === "terminated" && items.length === 0) return null;
-            return (
-              <div key={key} className="min-w-[260px] flex-shrink-0">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase">{stepLabels[key]}</h3>
-                  <span className="text-xs text-gray-300">{items.length}</span>
-                </div>
-                <div className="space-y-2">
-                  {items.map((c) => (
-                    <Link
-                      key={c.id}
-                      href={`/sales/team/${c.id}`}
-                      className="block rounded-lg border border-gray-200 bg-white p-3 hover:border-green-200 transition-colors"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        {statusIcon(c.status)}
-                        <p className="text-sm font-medium text-gray-900">{c.full_name}</p>
+          {/* HIRING PHASE */}
+          <div className="flex gap-4 flex-shrink-0">
+            <div className="flex flex-col gap-2">
+              <div className="rounded-lg bg-blue-50 px-3 py-1.5 text-center">
+                <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">Hiring</span>
+              </div>
+              <div className="flex gap-4">
+                {hiringSteps.map((key) => {
+                  const items = groupedByStep[key];
+                  return (
+                    <div key={key} className="min-w-[260px] flex-shrink-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase">{stepLabels[key]}</h3>
+                        <span className="text-xs text-gray-300">{items.length}</span>
                       </div>
-                      {c.email && <p className="text-xs text-gray-400 mb-1">{c.email}</p>}
-                      <div className="flex items-center justify-between">
+                      <div className="space-y-2">
+                        {items.map((c) => (
+                          <Link key={c.id} href={`/sales/team/${c.id}`} className="block rounded-lg border border-gray-200 bg-white p-3 hover:border-blue-200 transition-colors">
+                            <div className="flex items-center gap-2 mb-1">
+                              {statusIcon(c.status)}
+                              <p className="text-sm font-medium text-gray-900">{c.full_name}</p>
+                            </div>
+                            {c.email && <p className="text-xs text-gray-400 mb-1">{c.email}</p>}
+                            <div className="flex items-center justify-between">
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CONFIG[c.status]?.color || "bg-gray-100 text-gray-500"}`}>
+                                {STATUS_CONFIG[c.status]?.label || c.status}
+                              </span>
+                              {c.interview_date && <span className="text-xs text-gray-400">{c.interview_date}</span>}
+                            </div>
+                          </Link>
+                        ))}
+                        {items.length === 0 && <p className="text-xs text-gray-300 text-center py-4">Empty</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Phase divider */}
+          <div className="flex flex-col items-center justify-center flex-shrink-0 px-1">
+            <div className="w-px flex-1 bg-gray-200" />
+            <ChevronRight className="h-5 w-5 text-gray-300 my-2" />
+            <div className="w-px flex-1 bg-gray-200" />
+          </div>
+
+          {/* ONBOARDING PHASE */}
+          <div className="flex gap-4 flex-shrink-0">
+            <div className="flex flex-col gap-2">
+              <div className="rounded-lg bg-green-50 px-3 py-1.5 text-center">
+                <span className="text-xs font-bold text-green-700 uppercase tracking-wide">Onboarding</span>
+              </div>
+              <div className="flex gap-4">
+                {onboardingSteps.map((key) => {
+                  const items = groupedByStep[key];
+                  return (
+                    <div key={key} className="min-w-[260px] flex-shrink-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase">{stepLabels[key]}</h3>
+                        <span className="text-xs text-gray-300">{items.length}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {items.map((c) => (
+                          <Link key={c.id} href={`/sales/team/${c.id}`} className="block rounded-lg border border-gray-200 bg-white p-3 hover:border-green-200 transition-colors">
+                            <div className="flex items-center gap-2 mb-1">
+                              {statusIcon(c.status)}
+                              <p className="text-sm font-medium text-gray-900">{c.full_name}</p>
+                            </div>
+                            {c.email && <p className="text-xs text-gray-400 mb-1">{c.email}</p>}
+                            <div className="flex items-center justify-between">
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CONFIG[c.status]?.color || "bg-gray-100 text-gray-500"}`}>
+                                {STATUS_CONFIG[c.status]?.label || c.status}
+                              </span>
+                              {c.interview_date && <span className="text-xs text-gray-400">{c.interview_date}</span>}
+                            </div>
+                          </Link>
+                        ))}
+                        {items.length === 0 && <p className="text-xs text-gray-300 text-center py-4">Empty</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* TERMINATED */}
+          {groupedByStep["terminated"].length > 0 && (
+            <>
+              <div className="flex flex-col items-center justify-center flex-shrink-0 px-1">
+                <div className="w-px flex-1 bg-gray-200" />
+              </div>
+              <div className="flex flex-col gap-2 flex-shrink-0">
+                <div className="rounded-lg bg-red-50 px-3 py-1.5 text-center">
+                  <span className="text-xs font-bold text-red-600 uppercase tracking-wide">Terminated</span>
+                </div>
+                <div className="min-w-[260px]">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase">Terminated</h3>
+                    <span className="text-xs text-gray-300">{groupedByStep["terminated"].length}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {groupedByStep["terminated"].map((c) => (
+                      <Link key={c.id} href={`/sales/team/${c.id}`} className="block rounded-lg border border-red-100 bg-white p-3 hover:border-red-200 transition-colors">
+                        <div className="flex items-center gap-2 mb-1">
+                          {statusIcon(c.status)}
+                          <p className="text-sm font-medium text-gray-900">{c.full_name}</p>
+                        </div>
+                        {c.email && <p className="text-xs text-gray-400 mb-1">{c.email}</p>}
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CONFIG[c.status]?.color || "bg-gray-100 text-gray-500"}`}>
                           {STATUS_CONFIG[c.status]?.label || c.status}
                         </span>
-                        {c.interview_date && <span className="text-xs text-gray-400">{c.interview_date}</span>}
-                      </div>
-                    </Link>
-                  ))}
-                  {items.length === 0 && <p className="text-xs text-gray-300 text-center py-4">Empty</p>}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
-            );
-          })}
+            </>
+          )}
         </div>
       )}
     </div>
