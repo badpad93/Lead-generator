@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       .select("id, full_name, role")
       .eq("id", ref)
       .single();
-    if (profile && (profile.role === "sales" || profile.role === "admin")) {
+    if (profile && (profile.role === "sales" || profile.role === "admin" || profile.role === "director_of_sales" || profile.role === "market_leader")) {
       referringRep = profile.id;
       referringRepName = profile.full_name;
     }

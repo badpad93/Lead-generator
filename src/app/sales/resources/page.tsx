@@ -75,7 +75,7 @@ export default function ResourcesPage() {
       if (res.ok) {
         const users = await res.json();
         const me = users.find((u: { id: string }) => u.id === session.user.id);
-        if (me?.role === "admin") setIsAdmin(true);
+        if (me?.role === "admin" || me?.role === "director_of_sales") setIsAdmin(true);
       }
     });
   }, []);

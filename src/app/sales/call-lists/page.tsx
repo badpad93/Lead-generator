@@ -64,7 +64,7 @@ export default function CallListsPage() {
         const users: SalesUserRow[] = await res.json();
         setSalesUsers(users);
         const me = users.find((u) => u.id === session.user.id);
-        if (me?.role === "admin") setIsAdmin(true);
+        if (me?.role === "admin" || me?.role === "director_of_sales") setIsAdmin(true);
       }
     });
   }, []);
@@ -170,7 +170,7 @@ export default function CallListsPage() {
     { value: "operators", label: "Vending Machine Operators", icon: UsersIcon },
   ];
 
-  const salesOnly = salesUsers.filter((u) => u.role === "sales" || u.role === "admin");
+  const salesOnly = salesUsers.filter((u) => u.role === "sales" || u.role === "admin" || u.role === "director_of_sales");
 
   return (
     <div className="p-6">
