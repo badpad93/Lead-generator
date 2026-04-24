@@ -156,7 +156,7 @@ export default function LeadsPage() {
         const users = await usersRes.json();
         setSalesUsers(users);
         const me = users.find((u: { id: string }) => u.id === session.user.id);
-        if (me?.role === "admin") setUserRole("admin");
+        if (me?.role === "admin" || me?.role === "director_of_sales") setUserRole("admin");
       }
     }
     init();

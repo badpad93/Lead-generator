@@ -22,7 +22,7 @@ export default function CommissionsPage() {
         });
         if (res.ok) {
           const me = await res.json();
-          setIsAdmin(me.role === "admin");
+          setIsAdmin(me.role === "admin" || me.role === "director_of_sales");
         }
       }
     }
