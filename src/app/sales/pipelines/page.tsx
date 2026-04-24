@@ -110,14 +110,56 @@ export default function PipelinesPage() {
         <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {pipelines.map((p) => (
+          {/* Combined Hiring & Onboarding card — replaces individual hiring-type pipeline cards */}
+          {pipelines.some((p) => p.type === "hiring") && (
+            <div className="rounded-xl border border-gray-200 bg-white p-5 hover:border-blue-200 transition-colors">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-blue-500" />
+                  <h3 className="font-semibold text-gray-900">Hiring & Onboarding Pipeline</h3>
+                </div>
+                <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-600">
+                  hiring
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-1 mb-4">
+                {["Interview", "Admin Review", "Welcome Docs", "Admin Review", "Completed"].map((step, i) => (
+                  <span key={i} className="flex items-center gap-0.5 text-xs text-gray-500">
+                    {i > 0 && <ChevronRight className="h-3 w-3 text-gray-300" />}
+                    {step}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <Link
+                  href="/sales/pipelines/onboarding"
+                  className="flex-1 text-center rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  View Pipeline
+                </Link>
+                {isAdmin && (
+                  <Link
+                    href="/sales/pipelines/onboarding/edit"
+                    className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    <Settings className="h-3 w-3" /> Edit
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Sales pipelines */}
+          {pipelines.filter((p) => p.type !== "hiring").map((p) => (
             <div key={p.id} className="rounded-xl border border-gray-200 bg-white p-5 hover:border-green-200 transition-colors">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  {p.type === "hiring" ? <Users className="h-4 w-4 text-blue-500" /> : <Briefcase className="h-4 w-4 text-green-600" />}
+                  <Briefcase className="h-4 w-4 text-green-600" />
                   <h3 className="font-semibold text-gray-900">{p.name}</h3>
                 </div>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.type === "hiring" ? "bg-blue-50 text-blue-600" : "bg-green-50 text-green-600"}`}>
+                <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-green-50 text-green-600">
                   {p.type}
                 </span>
               </div>
@@ -133,14 +175,14 @@ export default function PipelinesPage() {
 
               <div className="flex gap-2">
                 <Link
-                  href={p.type === "hiring" ? "/sales/pipelines/onboarding" : `/sales/pipelines/${p.id}/items`}
+                  href={`/sales/pipelines/${p.id}/items`}
                   className="flex-1 text-center rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                 >
                   View Items
                 </Link>
                 {isAdmin && (
                   <Link
-                    href={p.type === "hiring" ? "/sales/pipelines/onboarding/edit" : `/sales/pipelines/${p.id}/edit`}
+                    href={`/sales/pipelines/${p.id}/edit`}
                     className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                   >
                     <Settings className="h-3 w-3" /> Edit
