@@ -4,7 +4,7 @@ import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
@@ -20,6 +20,11 @@ export async function GET(req: NextRequest) {
   if (role_type) query = query.eq("role_type", role_type);
   if (pipeline_id) query = query.eq("current_pipeline_id", pipeline_id);
 
+  // Non-elevated users only see candidates assigned to them
+  if (!isElevatedRole(user.role)) {
+    query = query.eq("assigned_to", user.id);
+  }
+
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -28,13 +33,41 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { full_name, phone, email, role_type, application_date, interview_date, interview_time } = body;
+  const { full_name, phone, email, role_type, application_date, interview_date, interview_time, assigned_to, notes, pre_pipeline } = body;
 
   if (!full_name || !role_type) {
     return NextResponse.json({ error: "full_name and role_type required" }, { status: 400 });
+  }
+
+  // Pre-pipeline candidate — no pipeline assignment yet
+  if (pre_pipeline) {
+    const { data, error } = await supabaseAdmin
+      .from("candidates")
+      .insert({
+        full_name,
+        phone: phone || null,
+        email: email || null,
+        role_type,
+        application_date: application_date || new Date().toISOString().split("T")[0],
+        interview_date: interview_date || null,
+        interview_time: interview_time || null,
+        status: "application",
+        assigned_to: assigned_to || null,
+        notes: notes || null,
+      })
+      .select("*")
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data, { status: 201 });
+  }
+
+  // Direct pipeline entry (existing flow)
+  if (!isElevatedRole(user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { data: pipeline } = await supabaseAdmin
