@@ -2,7 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { Plus, Loader2, Search, X, Upload, UserPlus, ArrowRight, Trash2, FileText, Pencil } from "lucide-react";
+import { Plus, Loader2, Search, X, Upload, UserPlus, ArrowRight, Trash2, FileText, Pencil, Download, Eye } from "lucide-react";
+
+interface CandidateDoc {
+  id: string;
+  step_key: string;
+  file_name: string;
+  file_url?: string;
+  file_type?: string;
+}
 
 interface Candidate {
   id: string;
@@ -15,7 +23,7 @@ interface Candidate {
   notes: string | null;
   application_date: string | null;
   created_at: string;
-  candidate_documents: { id: string; step_key: string; file_name: string }[];
+  candidate_documents: CandidateDoc[];
 }
 
 interface SalesUser {
@@ -39,6 +47,7 @@ export default function CandidatesPage() {
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [editSaving, setEditSaving] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [expandedDocsId, setExpandedDocsId] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -133,6 +142,15 @@ export default function CandidatesPage() {
       body: formData,
     });
     setUploadingId(null);
+    fetchCandidates();
+  }
+
+  async function handleDeleteDoc(candidateId: string, docId: string) {
+    if (!confirm("Delete this document?")) return;
+    await fetch(`/api/onboarding/candidates/${candidateId}/documents/${docId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
     fetchCandidates();
   }
 
@@ -267,20 +285,41 @@ export default function CandidatesPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {appDocs.length > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                            <FileText className="h-3.5 w-3.5" />
-                            {appDocs.length} file{appDocs.length > 1 ? "s" : ""}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-300">None</span>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          {appDocs.length > 0 ? (
+                            <button onClick={() => setExpandedDocsId(expandedDocsId === c.id ? null : c.id)} className="inline-flex items-center gap-1 text-xs text-green-600 hover:text-green-700 cursor-pointer">
+                              <FileText className="h-3.5 w-3.5" />
+                              {appDocs.length} file{appDocs.length > 1 ? "s" : ""}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-300">None</span>
+                          )}
+                          <label className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 cursor-pointer">
+                            {uploadingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                            Upload
+                            <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={(e) => { if (e.target.files?.[0]) handleUploadDoc(c.id, e.target.files[0]); e.target.value = ""; }} />
+                          </label>
+                        </div>
+                        {expandedDocsId === c.id && appDocs.length > 0 && (
+                          <div className="space-y-1 rounded-lg border border-gray-100 bg-gray-50 p-2">
+                            {appDocs.map((doc) => (
+                              <div key={doc.id} className="flex items-center justify-between gap-2 text-xs">
+                                <span className="truncate max-w-[140px] text-gray-700" title={doc.file_name}>{doc.file_name}</span>
+                                <div className="flex items-center gap-1">
+                                  {doc.file_url && (
+                                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer" title="View" className="rounded p-0.5 text-gray-400 hover:text-blue-600">
+                                      <Eye className="h-3 w-3" />
+                                    </a>
+                                  )}
+                                  <button onClick={() => handleDeleteDoc(c.id, doc.id)} title="Delete" className="rounded p-0.5 text-gray-400 hover:text-red-600 cursor-pointer">
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
-                        <label className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 cursor-pointer">
-                          {uploadingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                          Upload
-                          <input type="file" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleUploadDoc(c.id, e.target.files[0]); }} />
-                        </label>
                       </div>
                     </td>
                     <td className="px-4 py-3">
