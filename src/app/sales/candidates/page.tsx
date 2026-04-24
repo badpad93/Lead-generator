@@ -42,6 +42,7 @@ export default function CandidatesPage() {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ full_name: "", email: "", phone: "", role_type: "BDP", assigned_to: "", notes: "" });
+  const [addFiles, setAddFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
@@ -90,7 +91,21 @@ export default function CandidatesPage() {
       const err = await res.json().catch(() => ({}));
       alert(err.error || "Failed to add candidate");
     } else {
+      const candidate = await res.json();
+      if (addFiles.length > 0) {
+        for (const file of addFiles) {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("step_key", "application");
+          await fetch(`/api/onboarding/candidates/${candidate.id}/documents`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+          });
+        }
+      }
       setForm({ full_name: "", email: "", phone: "", role_type: "BDP", assigned_to: "", notes: "" });
+      setAddFiles([]);
       setShowAdd(false);
       fetchCandidates();
     }
@@ -215,9 +230,33 @@ export default function CandidatesPage() {
             </select>
           </div>
           <textarea placeholder="Notes (optional)" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" rows={2} />
+          <div className="mt-3">
+            <label className="mb-1 block text-xs font-medium text-gray-500">Application Documents</label>
+            <label className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm text-gray-500 hover:border-green-400 hover:text-green-600 hover:bg-green-50/30 cursor-pointer transition-colors">
+              <Upload className="h-4 w-4" />
+              Choose Files
+              <input type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={(e) => { if (e.target.files) setAddFiles((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ""; }} />
+            </label>
+            {addFiles.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {addFiles.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5 text-xs">
+                    <span className="flex items-center gap-1.5 text-gray-700 truncate">
+                      <FileText className="h-3.5 w-3.5 text-gray-400" />
+                      {f.name}
+                      <span className="text-gray-400">({(f.size / 1024).toFixed(0)} KB)</span>
+                    </span>
+                    <button onClick={() => setAddFiles((prev) => prev.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500 cursor-pointer">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="mt-3 flex gap-2">
             <button onClick={handleAdd} disabled={saving} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer">{saving ? "Saving..." : "Save"}</button>
-            <button onClick={() => setShowAdd(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+            <button onClick={() => { setShowAdd(false); setAddFiles([]); }} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
           </div>
         </div>
       )}
