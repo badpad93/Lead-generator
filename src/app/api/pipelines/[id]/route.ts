@@ -52,6 +52,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
   const { id } = await params;
 
+  // Clear current_step_id references before cascade delete
+  await supabaseAdmin.from("pipeline_items").update({ current_step_id: null }).eq("pipeline_id", id);
+
   const { error } = await supabaseAdmin.from("pipelines").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
