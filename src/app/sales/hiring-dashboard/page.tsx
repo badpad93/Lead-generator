@@ -86,7 +86,7 @@ export default function HiringDashboardPage() {
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-2 mb-6">
         <BarChart3 className="h-6 w-6 text-green-600" />
-        <h1 className="text-2xl font-bold text-gray-900">Hiring Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Hiring & Onboarding</h1>
       </div>
 
       {/* KPIs */}

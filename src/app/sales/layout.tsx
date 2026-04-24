@@ -39,7 +39,7 @@ const NAV_ITEMS = [
   { href: "/sales/commissions", label: "Commissions", icon: DollarSign, elevated: false },
   { href: "/sales/call-lists", label: "Call Lists", icon: PhoneCall, elevated: false },
   { href: "/sales/resources", label: "Resources", icon: FolderOpen, elevated: false },
-  { href: "/sales/hiring-dashboard", label: "Hiring", icon: BarChart3, elevated: true },
+  { href: "/sales/hiring-dashboard", label: "Hiring & Onboarding", icon: BarChart3, elevated: true },
   { href: "/sales/admin/documents", label: "Doc Templates", icon: FileText, elevated: true },
   { href: "/sales/admin/email-templates", label: "Email Templates", icon: Mail, elevated: true },
   { href: "/sales/admin/pipeline-doc-mapping", label: "Doc Mapping", icon: Link2, elevated: true },
