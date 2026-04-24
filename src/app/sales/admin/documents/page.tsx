@@ -18,6 +18,13 @@ interface DocTemplate {
   created_at: string;
 }
 
+interface GenericPipeline {
+  id: string;
+  name: string;
+  type: string;
+  pipeline_steps: { id: string; name: string; order_index: number }[];
+}
+
 export default function AdminDocumentsPage() {
   const router = useRouter();
   const [token, setToken] = useState("");
@@ -30,6 +37,7 @@ export default function AdminDocumentsPage() {
   const [filterType, setFilterType] = useState("");
   const [filterStep, setFilterStep] = useState("");
   const [authorized, setAuthorized] = useState(false);
+  const [allPipelines, setAllPipelines] = useState<GenericPipeline[]>([]);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -44,6 +52,9 @@ export default function AdminDocumentsPage() {
             router.push("/sales");
           } else {
             setAuthorized(true);
+            fetch("/api/pipelines", { headers: { Authorization: `Bearer ${session.access_token}` } })
+              .then((r) => r.ok ? r.json() : [])
+              .then((data) => setAllPipelines(data));
           }
         });
     });
@@ -61,6 +72,21 @@ export default function AdminDocumentsPage() {
   }, [token, filterType, filterStep]);
 
   useEffect(() => { load(); }, [load]);
+
+  const allStepOptions = [
+    { value: "interview", label: "Interview" },
+    { value: "welcome_docs", label: "Welcome Docs" },
+    ...allPipelines.flatMap((p) =>
+      p.pipeline_steps.map((s) => ({ value: `pipeline_${p.id}_${s.id}`, label: `${p.name} — ${s.name}` }))
+    ),
+  ];
+
+  const pipelineTypeOptions = [
+    { value: "ALL", label: "All Pipelines" },
+    { value: "BDP", label: "BDP Only" },
+    { value: "MARKET_LEADER", label: "Market Leader Only" },
+    ...allPipelines.map((p) => ({ value: `pipeline_${p.id}`, label: p.name })),
+  ];
 
   async function handleUpload() {
     if (!file || !form.name) return;
@@ -113,13 +139,14 @@ export default function AdminDocumentsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input placeholder="Document Name *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <select value={form.pipeline_type} onChange={(e) => setForm((f) => ({ ...f, pipeline_type: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
-              <option value="ALL">All Pipelines</option>
-              <option value="BDP">BDP Only</option>
-              <option value="MARKET_LEADER">Market Leader Only</option>
+              {pipelineTypeOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
             <select value={form.step_key} onChange={(e) => setForm((f) => ({ ...f, step_key: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
-              <option value="interview">Interview</option>
-              <option value="welcome_docs">Welcome Docs</option>
+              {allStepOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
             <input placeholder="Version" type="number" value={form.version} onChange={(e) => setForm((f) => ({ ...f, version: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <label className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-3 cursor-pointer hover:border-green-400">
@@ -141,14 +168,15 @@ export default function AdminDocumentsPage() {
       <div className="flex gap-3 mb-4">
         <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
           <option value="">All Types</option>
-          <option value="ALL">ALL</option>
-          <option value="BDP">BDP</option>
-          <option value="MARKET_LEADER">Market Leader</option>
+          {pipelineTypeOptions.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
         </select>
         <select value={filterStep} onChange={(e) => setFilterStep(e.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
           <option value="">All Steps</option>
-          <option value="interview">Interview</option>
-          <option value="welcome_docs">Welcome Docs</option>
+          {allStepOptions.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
         </select>
       </div>
 

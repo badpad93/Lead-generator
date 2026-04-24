@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Loader2, Mail, Save, Eye } from "lucide-react";
+import { Loader2, Mail, Save, Eye, Plus } from "lucide-react";
 
 interface EmailTemplate {
   id: string;
@@ -12,6 +12,13 @@ interface EmailTemplate {
   subject: string;
   body_html: string;
   updated_at: string;
+}
+
+interface GenericPipeline {
+  id: string;
+  name: string;
+  type: string;
+  pipeline_steps: { id: string; name: string; order_index: number }[];
 }
 
 export default function AdminEmailTemplatesPage() {
@@ -25,6 +32,10 @@ export default function AdminEmailTemplatesPage() {
   const [saving, setSaving] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [authorized, setAuthorized] = useState(false);
+  const [allPipelines, setAllPipelines] = useState<GenericPipeline[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState({ pipeline_type: "BDP", step_key: "interview", subject: "", body_html: "" });
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -39,6 +50,9 @@ export default function AdminEmailTemplatesPage() {
             router.push("/sales");
           } else {
             setAuthorized(true);
+            fetch("/api/pipelines", { headers: { Authorization: `Bearer ${session.access_token}` } })
+              .then((r) => r.ok ? r.json() : [])
+              .then((data) => setAllPipelines(data));
           }
         });
     });
@@ -72,12 +86,83 @@ export default function AdminEmailTemplatesPage() {
     load();
   }
 
+  async function handleCreate() {
+    if (!addForm.subject || !addForm.body_html) return;
+    setCreating(true);
+    await fetch("/api/onboarding/email-templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(addForm),
+    });
+    setAddForm({ pipeline_type: "BDP", step_key: "interview", subject: "", body_html: "" });
+    setShowAdd(false);
+    setCreating(false);
+    load();
+  }
+
+  const pipelineTypeOptions = [
+    { value: "BDP", label: "BDP" },
+    { value: "MARKET_LEADER", label: "Market Leader" },
+    ...allPipelines.map((p) => ({ value: `pipeline_${p.id}`, label: p.name })),
+  ];
+
+  const stepOptions = [
+    { value: "interview", label: "Interview" },
+    { value: "welcome_docs", label: "Welcome Docs" },
+    ...allPipelines.flatMap((p) =>
+      (p.pipeline_steps || []).map((s) => ({ value: `pipeline_${p.id}_${s.id}`, label: `${p.name} — ${s.name}` }))
+    ),
+  ];
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <div className="flex items-center gap-2 mb-6">
-        <Mail className="h-6 w-6 text-green-600" />
-        <h1 className="text-2xl font-bold text-gray-900">Email Templates</h1>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Mail className="h-6 w-6 text-green-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Email Templates</h1>
+        </div>
+        <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer">
+          <Plus className="h-4 w-4" /> New Template
+        </button>
       </div>
+
+      {showAdd && (
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">New Email Template</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Pipeline Type</label>
+              <select value={addForm.pipeline_type} onChange={(e) => setAddForm((f) => ({ ...f, pipeline_type: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
+                {pipelineTypeOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Step</label>
+              <select value={addForm.step_key} onChange={(e) => setAddForm((f) => ({ ...f, step_key: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
+                {stepOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className="text-xs text-gray-500 mb-1 block">Subject</label>
+            <input value={addForm.subject} onChange={(e) => setAddForm((f) => ({ ...f, subject: e.target.value }))} placeholder="Email subject line" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+          </div>
+          <div className="mt-3">
+            <label className="text-xs text-gray-500 mb-1 block">Body HTML</label>
+            <textarea value={addForm.body_html} onChange={(e) => setAddForm((f) => ({ ...f, body_html: e.target.value }))} rows={6} placeholder="Use {{candidate_name}} for name placeholder" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono focus:border-green-500 focus:outline-none" />
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={handleCreate} disabled={creating || !addForm.subject || !addForm.body_html} className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer">
+              {creating ? "Creating..." : "Create"}
+            </button>
+            <button onClick={() => setShowAdd(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {!authorized || loading ? (
         <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>
@@ -88,8 +173,14 @@ export default function AdminEmailTemplatesPage() {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                    t.pipeline_type === "BDP" ? "bg-blue-50 text-blue-600" : "bg-purple-50 text-purple-600"
-                  }`}>{t.pipeline_type}</span>
+                    t.pipeline_type === "BDP" ? "bg-blue-50 text-blue-600" :
+                    t.pipeline_type === "MARKET_LEADER" ? "bg-purple-50 text-purple-600" :
+                    "bg-green-50 text-green-600"
+                  }`}>{
+                    t.pipeline_type.startsWith("pipeline_")
+                      ? allPipelines.find((p) => `pipeline_${p.id}` === t.pipeline_type)?.name || t.pipeline_type
+                      : t.pipeline_type
+                  }</span>
                   <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 capitalize">{t.step_key.replace(/_/g, " ")}</span>
                 </div>
                 <div className="flex items-center gap-2">

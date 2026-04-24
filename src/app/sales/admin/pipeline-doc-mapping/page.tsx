@@ -29,6 +29,8 @@ interface Pipeline {
   id: string;
   name: string;
   role_type: string;
+  source: "onboarding" | "generic";
+  steps: { key: string; label: string }[];
 }
 
 export default function PipelineDocMappingPage() {
@@ -63,11 +65,45 @@ export default function PipelineDocMappingPage() {
 
   const loadPipelines = useCallback(async () => {
     if (!token) return;
-    const res = await fetch("/api/onboarding/ob-pipelines", { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) {
-      const data = await res.json();
-      setPipelines(data);
-      if (data.length > 0 && !selectedPipeline) setSelectedPipeline(data[0].id);
+    const [obRes, genRes] = await Promise.all([
+      fetch("/api/onboarding/ob-pipelines", { headers: { Authorization: `Bearer ${token}` } }),
+      fetch("/api/pipelines", { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    const all: Pipeline[] = [];
+    if (obRes.ok) {
+      const obData = await obRes.json();
+      for (const p of obData) {
+        all.push({
+          id: p.id,
+          name: p.name,
+          role_type: p.role_type,
+          source: "onboarding",
+          steps: [
+            { key: "interview", label: "Interview" },
+            { key: "welcome_docs", label: "Welcome Docs" },
+          ],
+        });
+      }
+    }
+    if (genRes.ok) {
+      const genData = await genRes.json();
+      for (const p of genData) {
+        if (p.type === "hiring") continue;
+        all.push({
+          id: p.id,
+          name: p.name,
+          role_type: p.type,
+          source: "generic",
+          steps: (p.pipeline_steps || [])
+            .sort((a: { order_index: number }, b: { order_index: number }) => a.order_index - b.order_index)
+            .map((s: { id: string; name: string }) => ({ key: s.id, label: s.name })),
+        });
+      }
+    }
+    setPipelines(all);
+    if (all.length > 0 && !selectedPipeline) {
+      setSelectedPipeline(all[0].id);
+      if (all[0].steps.length > 0) setSelectedStep(all[0].steps[0].key);
     }
   }, [token, selectedPipeline]);
 
@@ -92,12 +128,13 @@ export default function PipelineDocMappingPage() {
 
   const assignedIds = new Set(assignments.map((a) => a.document_template_id));
   const currentPipeline = pipelines.find((p) => p.id === selectedPipeline);
-  const availableTemplates = allTemplates.filter((t) =>
-    !assignedIds.has(t.id) &&
-    t.active &&
-    (t.pipeline_type === currentPipeline?.role_type || t.pipeline_type === "ALL") &&
-    t.step_key === selectedStep
-  );
+  const availableTemplates = allTemplates.filter((t) => {
+    if (assignedIds.has(t.id) || !t.active) return false;
+    if (t.step_key !== selectedStep) return false;
+    if (t.pipeline_type === "ALL") return true;
+    if (currentPipeline?.source === "onboarding") return t.pipeline_type === currentPipeline.role_type;
+    return t.pipeline_type === `pipeline_${currentPipeline?.id}` || t.pipeline_type === "ALL";
+  });
 
   async function handleAssign(templateId: string) {
     setSaving(true);
@@ -165,10 +202,19 @@ export default function PipelineDocMappingPage() {
           <label className="text-xs text-gray-500 mb-1 block">Pipeline</label>
           <select
             value={selectedPipeline}
-            onChange={(e) => setSelectedPipeline(e.target.value)}
+            onChange={(e) => {
+              const pid = e.target.value;
+              setSelectedPipeline(pid);
+              const p = pipelines.find((pp) => pp.id === pid);
+              if (p && p.steps.length > 0) setSelectedStep(p.steps[0].key);
+            }}
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
           >
-            {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.role_type})</option>)}
+            {pipelines.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({p.source === "onboarding" ? p.role_type : p.role_type})
+              </option>
+            ))}
           </select>
         </div>
         <div>
@@ -178,8 +224,9 @@ export default function PipelineDocMappingPage() {
             onChange={(e) => setSelectedStep(e.target.value)}
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
           >
-            <option value="interview">Interview</option>
-            <option value="welcome_docs">Welcome Docs</option>
+            {(currentPipeline?.steps || []).map((s) => (
+              <option key={s.key} value={s.key}>{s.label}</option>
+            ))}
           </select>
         </div>
       </div>
