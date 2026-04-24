@@ -8,8 +8,13 @@ const MAX_SIZE = 10 * 1024 * 1024;
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
+
+  if (!isElevatedRole(user.role)) {
+    const { data: candidate } = await supabaseAdmin.from("candidates").select("assigned_to").eq("id", id).single();
+    if (!candidate || candidate.assigned_to !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { data, error } = await supabaseAdmin
     .from("candidate_documents")
@@ -23,8 +28,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
+
+  if (!isElevatedRole(user.role)) {
+    const { data: candidate } = await supabaseAdmin.from("candidates").select("assigned_to").eq("id", id).single();
+    if (!candidate || candidate.assigned_to !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;

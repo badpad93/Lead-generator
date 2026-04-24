@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from("candidates")
-    .select("*, candidate_documents(id, step_key, file_name), onboarding_pipelines(id, name, role_type), onboarding_steps(id, name, step_key)")
+    .select("*, candidate_documents(id, step_key, file_name, file_url, file_type), onboarding_pipelines(id, name, role_type), onboarding_steps(id, name, step_key)")
     .order("created_at", { ascending: false });
 
   if (status) query = query.eq("status", status);
