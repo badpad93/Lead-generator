@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil } from "lucide-react";
+import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2 } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
 
 const LEAD_FIELDS: { key: LeadFieldKey; label: string; required?: boolean }[] = [
@@ -229,6 +229,39 @@ export default function LeadsPage() {
       alert(err.error || "Failed to delete");
       return;
     }
+    fetchLeads();
+  }
+
+  async function handleCreateAccount(lead: SalesLead) {
+    if (lead.account_id) {
+      alert("This lead already has an account linked.");
+      return;
+    }
+    if (!confirm(`Create an account from "${lead.business_name}" and link it to this lead?`)) return;
+    const res = await fetch("/api/sales/accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        business_name: lead.business_name,
+        contact_name: lead.contact_name || null,
+        phone: lead.phone || null,
+        email: lead.email || null,
+        address: [lead.address, lead.city, lead.state].filter(Boolean).join(", ") || null,
+        entity_type: lead.entity_type || null,
+        notes: lead.notes || null,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to create account");
+      return;
+    }
+    const account = await res.json();
+    await fetch(`/api/sales/leads/${lead.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ account_id: account.id }),
+    });
     fetchLeads();
   }
 
@@ -907,6 +940,15 @@ export default function LeadsPage() {
                       >
                         {lead.do_not_call ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
                       </button>
+                      {!lead.account_id && (
+                        <button
+                          onClick={() => handleCreateAccount(lead)}
+                          title="Create Account"
+                          className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
+                        >
+                          <Building2 className="h-4 w-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleConvert(lead.id)}
                         title="Convert to Deal"
