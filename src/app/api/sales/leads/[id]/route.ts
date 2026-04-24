@@ -50,6 +50,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     "immediate_need",
     "last_contacted_at",
     "next_followup_at",
+    "account_id",
   ];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
