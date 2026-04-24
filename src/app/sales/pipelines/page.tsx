@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
-import { GitBranch, Plus, Loader2, Settings, ChevronRight, Users, Briefcase } from "lucide-react";
+import { GitBranch, Plus, Loader2, Settings, ChevronRight, Users, Briefcase, Trash2 } from "lucide-react";
 
 interface Pipeline {
   id: string;
@@ -61,6 +61,20 @@ export default function PipelinesPage() {
     setShowAdd(false);
     setSaving(false);
     load();
+  }
+
+  async function handleDelete(id: string, name: string) {
+    if (!confirm(`Delete pipeline "${name}"? All items, steps, and documents in this pipeline will be permanently deleted.`)) return;
+    const res = await fetch(`/api/pipelines/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to delete pipeline");
+    } else {
+      load();
+    }
   }
 
   return (
@@ -181,12 +195,20 @@ export default function PipelinesPage() {
                   View Items
                 </Link>
                 {isAdmin && (
-                  <Link
-                    href={`/sales/pipelines/${p.id}/edit`}
-                    className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    <Settings className="h-3 w-3" /> Edit
-                  </Link>
+                  <>
+                    <Link
+                      href={`/sales/pipelines/${p.id}/edit`}
+                      className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      <Settings className="h-3 w-3" /> Edit
+                    </Link>
+                    <button
+                      onClick={() => handleDelete(p.id, p.name)}
+                      className="flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 cursor-pointer"
+                    >
+                      <Trash2 className="h-3 w-3" /> Delete
+                    </button>
+                  </>
                 )}
               </div>
             </div>
