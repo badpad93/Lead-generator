@@ -218,30 +218,6 @@ export default function PipelineItemsPage() {
           );
         })}
 
-        {/* Won/Lost columns */}
-        {["won", "lost"].map((status) => {
-          const statusItems = items.filter((i) => i.status === status);
-          if (statusItems.length === 0) return null;
-          return (
-            <div key={status} className="min-w-[260px] flex-shrink-0">
-              <h3 className={`text-xs font-semibold uppercase mb-2 ${status === "won" ? "text-green-600" : "text-red-500"}`}>
-                {status} ({statusItems.length})
-              </h3>
-              <div className="space-y-2">
-                {statusItems.map((item) => (
-                  <Link
-                    key={item.id}
-                    href={`/sales/pipelines/${pipelineId}/items/${item.id}`}
-                    className="block rounded-lg border border-gray-200 bg-white p-3 opacity-60"
-                  >
-                    <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                    {item.value > 0 && <p className="text-xs text-green-600">${Number(item.value).toLocaleString()}</p>}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
