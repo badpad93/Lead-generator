@@ -47,7 +47,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  // Get first step of pipeline
+  // Get pipeline + first step
+  const { data: pipeline } = await supabaseAdmin
+    .from("pipelines")
+    .select("id, type")
+    .eq("id", pipeline_id)
+    .single();
+
   const { data: firstStep } = await supabaseAdmin
     .from("pipeline_steps")
     .select("id")
@@ -55,6 +61,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .order("order_index")
     .limit(1)
     .maybeSingle();
+
+  // Auto-create a deal for sales-type pipelines so the converted lead
+  // shows up on the Deals page.
+  let dealId: string | null = null;
+  if (pipeline?.type === "sales") {
+    const { data: deal } = await supabaseAdmin
+      .from("sales_deals")
+      .insert({
+        business_name: lead.business_name || lead.contact_name || "Converted Lead",
+        assigned_to: lead.assigned_to || user.id,
+        stage: "new",
+        value: 0,
+        lead_id: leadId,
+        account_id: accountId,
+        pipeline_id,
+      })
+      .select("id")
+      .single();
+    if (deal) dealId = deal.id;
+  }
 
   // Create pipeline item
   const { data: pipelineItem, error: piErr } = await supabaseAdmin
@@ -67,11 +93,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       status: "active",
       current_step_id: firstStep?.id || null,
       assigned_to: lead.assigned_to || user.id,
+      deal_id: dealId,
     })
     .select("id")
     .single();
 
   if (piErr) return NextResponse.json({ error: piErr.message }, { status: 500 });
+
+  // Link the deal back to the pipeline item
+  if (dealId) {
+    await supabaseAdmin.from("sales_deals").update({ pipeline_item_id: pipelineItem.id }).eq("id", dealId);
+  }
 
   // Archive lead (mark as qualified)
   await supabaseAdmin
@@ -83,5 +115,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     success: true,
     pipeline_item_id: pipelineItem.id,
     account_id: accountId,
+    deal_id: dealId,
   }, { status: 201 });
 }
