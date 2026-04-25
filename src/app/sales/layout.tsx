@@ -33,7 +33,7 @@ const NAV_ITEMS = [
   { href: "/sales/results", label: "Results", icon: TrendingUp, elevated: false },
   { href: "/sales/leads", label: "Leads", icon: Users, elevated: false },
   { href: "/sales/pipelines", label: "Pipelines", icon: GitBranch, elevated: false },
-  { href: "/sales/deals", label: "Deals", icon: Kanban, elevated: false },
+  { href: "/sales/deals", label: "Deal Dashboard", icon: Kanban, elevated: false },
   { href: "/sales/accounts", label: "Accounts", icon: Building2, elevated: false },
   { href: "/sales/orders", label: "Orders", icon: ClipboardList, elevated: false },
   { href: "/sales/team", label: "Team", icon: UserCog, elevated: true },
