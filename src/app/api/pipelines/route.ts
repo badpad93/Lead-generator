@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from("pipelines")
-    .select("*, pipeline_steps(id, name, order_index, requires_document)")
+    .select("*, pipeline_steps(id, name, order_index, requires_document, requires_signature, requires_payment, requires_admin_approval, payment_amount, payment_description)")
     .order("name");
 
   if (type) query = query.eq("type", type);

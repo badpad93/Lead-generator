@@ -33,6 +33,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const updates: Record<string, unknown> = {};
     if (body.name !== undefined) updates.name = body.name;
     if (body.requires_document !== undefined) updates.requires_document = body.requires_document;
+    if (body.requires_signature !== undefined) updates.requires_signature = body.requires_signature;
+    if (body.requires_payment !== undefined) updates.requires_payment = body.requires_payment;
+    if (body.requires_admin_approval !== undefined) updates.requires_admin_approval = body.requires_admin_approval;
+    if (body.payment_amount !== undefined) updates.payment_amount = body.payment_amount;
+    if (body.payment_description !== undefined) updates.payment_description = body.payment_description;
     const { data, error } = await supabaseAdmin
       .from("pipeline_steps")
       .update(updates)

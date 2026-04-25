@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, Plus, Trash2, FileText, ChevronUp, ChevronDown, Mail, Link2, ExternalLink } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, FileText, ChevronUp, ChevronDown, Mail, Link2, ExternalLink, PenTool, CreditCard, ShieldCheck } from "lucide-react";
 
 interface StepDoc {
   id: string;
@@ -18,6 +18,11 @@ interface Step {
   name: string;
   order_index: number;
   requires_document: boolean;
+  requires_signature: boolean;
+  requires_payment: boolean;
+  requires_admin_approval: boolean;
+  payment_amount: number | null;
+  payment_description: string | null;
   step_documents: StepDoc[];
 }
 
@@ -133,6 +138,16 @@ export default function PipelineEditPage() {
     load();
   }
 
+  async function toggleStepGating(stepId: string, field: string, val: boolean) {
+    await fetch(`/api/pipelines/${id}/steps`, { method: "POST", headers: headers(), body: JSON.stringify({ action: "update", step_id: stepId, [field]: val }) });
+    load();
+  }
+
+  async function updatePaymentConfig(stepId: string, amount: number, description: string) {
+    await fetch(`/api/pipelines/${id}/steps`, { method: "POST", headers: headers(), body: JSON.stringify({ action: "update", step_id: stepId, payment_amount: amount, payment_description: description }) });
+    load();
+  }
+
   async function moveStep(stepId: string, dir: "up" | "down") {
     if (!pipeline) return;
     const steps = [...pipeline.pipeline_steps];
@@ -203,15 +218,24 @@ export default function PipelineEditPage() {
                 <span className="font-medium text-gray-900">{step.name}</span>
               </div>
               <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={step.requires_document}
-                    onChange={(e) => toggleDocRequired(step.id, e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-gray-300"
-                  />
-                  Requires docs
-                </label>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                    <input type="checkbox" checked={step.requires_document} onChange={(e) => toggleDocRequired(step.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300" />
+                    <FileText className="h-3 w-3" /> Docs
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                    <input type="checkbox" checked={step.requires_signature} onChange={(e) => toggleStepGating(step.id, "requires_signature", e.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300" />
+                    <PenTool className="h-3 w-3" /> E-Sign
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                    <input type="checkbox" checked={step.requires_payment} onChange={(e) => toggleStepGating(step.id, "requires_payment", e.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300" />
+                    <CreditCard className="h-3 w-3" /> Payment
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                    <input type="checkbox" checked={step.requires_admin_approval} onChange={(e) => toggleStepGating(step.id, "requires_admin_approval", e.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300" />
+                    <ShieldCheck className="h-3 w-3" /> Approval
+                  </label>
+                </div>
                 <button onClick={() => deleteStep(step.id)} className="text-gray-300 hover:text-red-500 cursor-pointer"><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>
@@ -240,6 +264,29 @@ export default function PipelineEditPage() {
                     <Plus className="h-3 w-3" /> Add required document
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* Payment Configuration */}
+            {step.requires_payment && (
+              <div className="ml-12 mt-3 space-y-2">
+                <p className="text-xs font-medium text-gray-500 uppercase flex items-center gap-1"><CreditCard className="h-3 w-3" /> Payment Config</p>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    defaultValue={step.payment_amount || ""}
+                    onBlur={(e) => updatePaymentConfig(step.id, Number(e.target.value) || 0, step.payment_description || "")}
+                    placeholder="Amount ($)"
+                    className="w-28 rounded-lg border border-gray-200 px-2 py-1 text-xs focus:border-green-500 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    defaultValue={step.payment_description || ""}
+                    onBlur={(e) => updatePaymentConfig(step.id, step.payment_amount || 0, e.target.value)}
+                    placeholder="Payment description"
+                    className="flex-1 rounded-lg border border-gray-200 px-2 py-1 text-xs focus:border-green-500 focus:outline-none"
+                  />
+                </div>
               </div>
             )}
 
