@@ -248,7 +248,7 @@ export default function CandidateDetailPage() {
 
   const interviewDocs = candidate.candidate_documents.filter((d) => d.step_key === "interview");
   const welcomeDocs = candidate.candidate_documents.filter((d) => d.step_key === "welcome_docs");
-  const resumeDocs = candidate.candidate_documents.filter((d) => d.step_key === "resume");
+  const resumeDocs = candidate.candidate_documents.filter((d) => d.step_key === "resume" || d.step_key === "application");
 
   return (
     <div className="p-6 max-w-4xl mx-auto">

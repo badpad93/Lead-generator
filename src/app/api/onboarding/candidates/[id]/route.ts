@@ -86,6 +86,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .single();
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
+
+    await supabaseAdmin
+      .from("candidate_documents")
+      .update({ step_key: "resume" })
+      .eq("candidate_id", id)
+      .eq("step_key", "application");
+
     return NextResponse.json(updated);
   }
 
