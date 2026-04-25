@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, Plus, Trash2, GripVertical, FileText, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, FileText, ChevronUp, ChevronDown, Mail, Link2, ExternalLink } from "lucide-react";
 
 interface StepDoc {
   id: string;
@@ -27,6 +28,29 @@ interface Pipeline {
   pipeline_steps: Step[];
 }
 
+interface DocTemplate {
+  id: string;
+  name: string;
+  file_name: string;
+  version: number;
+  active: boolean;
+}
+
+interface DocAssignment {
+  id: string;
+  step_key: string;
+  document_template_id: string;
+  document_templates: DocTemplate | null;
+}
+
+interface EmailTemplate {
+  id: string;
+  pipeline_type: string;
+  step_key: string;
+  subject: string;
+  updated_at: string;
+}
+
 export default function PipelineEditPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -39,6 +63,8 @@ export default function PipelineEditPage() {
   const [newStepName, setNewStepName] = useState("");
   const [addingDocTo, setAddingDocTo] = useState<string | null>(null);
   const [newDocName, setNewDocName] = useState("");
+  const [docAssignments, setDocAssignments] = useState<DocAssignment[]>([]);
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -52,11 +78,31 @@ export default function PipelineEditPage() {
   const load = useCallback(async () => {
     if (!token || !id) return;
     setLoading(true);
-    const res = await fetch(`/api/pipelines/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) {
-      const data = await res.json();
+    const pipelineType = `pipeline_${id}`;
+    const [pRes, eRes] = await Promise.all([
+      fetch(`/api/pipelines/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`/api/onboarding/email-templates`, { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    if (pRes.ok) {
+      const data = await pRes.json();
       setPipeline(data);
       setNameValue(data.name);
+
+      // Fetch doc assignments for each step in parallel
+      const stepAssignments = await Promise.all(
+        (data.pipeline_steps || []).map(async (s: Step) => {
+          const r = await fetch(
+            `/api/onboarding/step-doc-assignments?pipeline_id=${id}&step_key=${s.id}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          return r.ok ? await r.json() : [];
+        })
+      );
+      setDocAssignments(stepAssignments.flat());
+    }
+    if (eRes.ok) {
+      const allEmails: EmailTemplate[] = await eRes.json();
+      setEmailTemplates(allEmails.filter((t) => t.pipeline_type === pipelineType));
     }
     setLoading(false);
   }, [token, id]);
@@ -170,7 +216,7 @@ export default function PipelineEditPage() {
               </div>
             </div>
 
-            {/* Step documents */}
+            {/* Step documents (requirement checklist) */}
             {step.requires_document && (
               <div className="ml-12 mt-3 space-y-1.5">
                 {step.step_documents.map((doc) => (
@@ -196,6 +242,66 @@ export default function PipelineEditPage() {
                 )}
               </div>
             )}
+
+            {/* Linked Templates (doc + email) */}
+            {(() => {
+              const stepDocAssignments = docAssignments.filter((a) => a.step_key === step.id);
+              const stepEmail = emailTemplates.find((t) => t.step_key === step.id);
+              return (
+                <div className="ml-12 mt-3 border-t border-dashed border-gray-100 pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-gray-500 uppercase">Linked Templates</p>
+                    <Link href="/sales/admin/pipeline-doc-mapping" className="flex items-center gap-1 text-xs text-green-600 hover:underline cursor-pointer">
+                      <Link2 className="h-3 w-3" /> Manage
+                    </Link>
+                  </div>
+
+                  <div className="space-y-2">
+                    {/* Document templates */}
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs text-gray-600 mb-1">
+                        <FileText className="h-3 w-3 text-gray-400" />
+                        <span className="font-medium">Documents ({stepDocAssignments.length})</span>
+                      </div>
+                      {stepDocAssignments.length === 0 ? (
+                        <p className="ml-4 text-xs text-gray-300">None linked. Use Doc Mapping to attach templates.</p>
+                      ) : (
+                        <div className="ml-4 space-y-1">
+                          {stepDocAssignments.map((a) => (
+                            <div key={a.id} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-700">
+                                {a.document_templates?.name || "Unknown"}
+                                {a.document_templates && (
+                                  <span className="ml-1 text-gray-400">({a.document_templates.file_name} · v{a.document_templates.version})</span>
+                                )}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Email template */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <Mail className="h-3 w-3 text-gray-400" />
+                          <span className="font-medium">Email Template</span>
+                        </div>
+                        <Link href="/sales/admin/email-templates" className="flex items-center gap-1 text-xs text-green-600 hover:underline cursor-pointer">
+                          <ExternalLink className="h-3 w-3" /> {stepEmail ? "Edit" : "Create"}
+                        </Link>
+                      </div>
+                      {stepEmail ? (
+                        <p className="ml-4 text-xs text-gray-700 truncate">{stepEmail.subject}</p>
+                      ) : (
+                        <p className="ml-4 text-xs text-gray-300">None linked. Use Email Templates to add one.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         ))}
       </div>

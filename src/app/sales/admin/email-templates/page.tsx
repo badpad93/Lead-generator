@@ -110,9 +110,19 @@ export default function AdminEmailTemplatesPage() {
     { value: "interview", label: "Interview" },
     { value: "welcome_docs", label: "Welcome Docs" },
     ...allPipelines.flatMap((p) =>
-      (p.pipeline_steps || []).map((s) => ({ value: `pipeline_${p.id}_${s.id}`, label: `${p.name} — ${s.name}` }))
+      (p.pipeline_steps || []).map((s) => ({ value: s.id, label: `${p.name} — ${s.name}` }))
     ),
   ];
+
+  function stepLabel(stepKey: string): string {
+    if (stepKey === "interview") return "Interview";
+    if (stepKey === "welcome_docs") return "Welcome Docs";
+    for (const p of allPipelines) {
+      const s = (p.pipeline_steps || []).find((s) => s.id === stepKey);
+      if (s) return s.name;
+    }
+    return stepKey.replace(/_/g, " ");
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -181,7 +191,7 @@ export default function AdminEmailTemplatesPage() {
                       ? allPipelines.find((p) => `pipeline_${p.id}` === t.pipeline_type)?.name || t.pipeline_type
                       : t.pipeline_type
                   }</span>
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 capitalize">{t.step_key.replace(/_/g, " ")}</span>
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 capitalize">{stepLabel(t.step_key)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {editingId !== t.id && (
