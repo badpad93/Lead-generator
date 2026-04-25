@@ -25,6 +25,13 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data || []);
 }
 
+const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".gif", ".txt", ".csv", ".xls", ".xlsx", ".rtf"];
+
+function isAllowedFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return ALLOWED_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
+
 export async function POST(req: NextRequest) {
   const user = await getSalesUser(req);
   if (!user || !isElevatedRole(user.role)) {
@@ -42,17 +49,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "file, name, pipeline_type, and step_key required" }, { status: 400 });
   }
 
-  if (file.type !== "application/pdf") {
-    return NextResponse.json({ error: "Only PDF files allowed" }, { status: 400 });
+  if (!isAllowedFile(file)) {
+    return NextResponse.json({ error: `File type not allowed: ${file.name}` }, { status: 400 });
   }
 
   const timestamp = Date.now();
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const filePath = `${pipeline_type}/${step_key}/${timestamp}_${safeName}`;
 
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const contentType = file.type || "application/octet-stream";
+
   const { error: uploadErr } = await supabaseAdmin.storage
     .from("document-templates")
-    .upload(filePath, file, { contentType: file.type, upsert: false });
+    .upload(filePath, buffer, { contentType, upsert: false });
 
   if (uploadErr) return NextResponse.json({ error: `Upload failed: ${uploadErr.message}` }, { status: 500 });
 
@@ -64,7 +74,7 @@ export async function POST(req: NextRequest) {
       step_key,
       file_path: filePath,
       file_name: file.name,
-      mime_type: file.type,
+      mime_type: contentType,
       version: version ? parseInt(version) : 1,
       active: true,
     })
