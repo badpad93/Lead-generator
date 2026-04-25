@@ -121,6 +121,41 @@ export async function PATCH(req: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    if (
+      data.role === "operator" &&
+      data.address &&
+      data.city &&
+      data.state &&
+      data.zip
+    ) {
+      const { count } = await supabaseAdmin
+        .from("operator_listings")
+        .select("id", { count: "exact", head: true })
+        .eq("operator_id", user.id);
+
+      if (count === 0) {
+        const title = data.company_name
+          ? `${data.company_name} — Vending Operator`
+          : `${data.full_name} — Vending Operator`;
+
+        await supabaseAdmin.from("operator_listings").insert({
+          operator_id: user.id,
+          title,
+          description: null,
+          machine_types: ["snack", "beverage", "combo"],
+          service_radius_miles: 50,
+          cities_served: [data.city],
+          states_served: [data.state],
+          accepts_commission: true,
+          min_daily_traffic: 0,
+          machine_count_available: 1,
+          status: "available",
+          featured: false,
+        });
+      }
+    }
+
     return NextResponse.json(data);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
