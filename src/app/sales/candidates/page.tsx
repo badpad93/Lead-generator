@@ -93,15 +93,23 @@ export default function CandidatesPage() {
     } else {
       const candidate = await res.json();
       if (addFiles.length > 0) {
+        const failures: string[] = [];
         for (const file of addFiles) {
           const fd = new FormData();
           fd.append("file", file);
           fd.append("step_key", "application");
-          await fetch(`/api/onboarding/candidates/${candidate.id}/documents`, {
+          const upRes = await fetch(`/api/onboarding/candidates/${candidate.id}/documents`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
             body: fd,
           });
+          if (!upRes.ok) {
+            const upErr = await upRes.json().catch(() => ({}));
+            failures.push(`${file.name}: ${upErr.error || `HTTP ${upRes.status}`}`);
+          }
+        }
+        if (failures.length > 0) {
+          alert(`Some uploads failed:\n${failures.join("\n")}`);
         }
       }
       setForm({ full_name: "", email: "", phone: "", role_type: "BDP", assigned_to: "", notes: "" });
@@ -151,11 +159,15 @@ export default function CandidatesPage() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("step_key", "application");
-    await fetch(`/api/onboarding/candidates/${candidateId}/documents`, {
+    const res = await fetch(`/api/onboarding/candidates/${candidateId}/documents`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || `Upload failed (${res.status})`);
+    }
     setUploadingId(null);
     fetchCandidates();
   }
@@ -235,7 +247,7 @@ export default function CandidatesPage() {
             <label className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm text-gray-500 hover:border-green-400 hover:text-green-600 hover:bg-green-50/30 cursor-pointer transition-colors">
               <Upload className="h-4 w-4" />
               Choose Files
-              <input type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={(e) => { if (e.target.files) setAddFiles((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ""; }} />
+              <input type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp,.gif,.txt,.csv,.xls,.xlsx,.rtf" className="hidden" onChange={(e) => { if (e.target.files) setAddFiles((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ""; }} />
             </label>
             {addFiles.length > 0 && (
               <div className="mt-2 space-y-1">
@@ -337,7 +349,7 @@ export default function CandidatesPage() {
                           <label className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 cursor-pointer">
                             {uploadingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
                             Upload
-                            <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={(e) => { if (e.target.files?.[0]) handleUploadDoc(c.id, e.target.files[0]); e.target.value = ""; }} />
+                            <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp,.gif,.txt,.csv,.xls,.xlsx,.rtf" onChange={(e) => { if (e.target.files?.[0]) handleUploadDoc(c.id, e.target.files[0]); e.target.value = ""; }} />
                           </label>
                         </div>
                         {expandedDocsId === c.id && appDocs.length > 0 && (

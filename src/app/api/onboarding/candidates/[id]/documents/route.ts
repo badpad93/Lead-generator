@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
-const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/jpg",
-  "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".gif", ".txt", ".csv", ".xls", ".xlsx", ".rtf"];
 const MAX_SIZE = 10 * 1024 * 1024;
+
+function isAllowedFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return ALLOWED_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
@@ -43,16 +47,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!file) return NextResponse.json({ error: "file required" }, { status: 400 });
   if (!stepKey) return NextResponse.json({ error: "step_key required" }, { status: 400 });
   if (file.size > MAX_SIZE) return NextResponse.json({ error: "File too large (max 10MB)" }, { status: 400 });
-  if (!ALLOWED_TYPES.includes(file.type)) return NextResponse.json({ error: "File type not allowed" }, { status: 400 });
+  if (!isAllowedFile(file)) return NextResponse.json({ error: `File type not allowed: ${file.name}` }, { status: 400 });
 
   const timestamp = Date.now();
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const filePath = `candidates/${id}/${stepKey}/${timestamp}_${safeName}`;
 
   const buffer = Buffer.from(await file.arrayBuffer());
+  const contentType = file.type || "application/octet-stream";
   const { error: uploadErr } = await supabaseAdmin.storage
     .from("sales-documents")
-    .upload(filePath, buffer, { contentType: file.type, upsert: false });
+    .upload(filePath, buffer, { contentType, upsert: false });
 
   if (uploadErr) return NextResponse.json({ error: `Upload failed: ${uploadErr.message}` }, { status: 500 });
 
@@ -64,7 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       candidate_id: id,
       step_key: stepKey,
       file_name: file.name,
-      file_type: file.type,
+      file_type: contentType,
       file_url: urlData.publicUrl || filePath,
       uploaded_by: user.id,
     })
