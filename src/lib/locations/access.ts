@@ -54,19 +54,24 @@ export async function getLocationForUser(
     return data as LocationFull;
   }
 
-  const safe: Record<string, unknown> = { ...data };
-  for (const field of SENSITIVE_FIELDS) {
-    delete safe[field];
-  }
-  return safe as LocationPreliminary;
+  return pickPreliminaryFields(data);
+}
+
+function pickPreliminaryFields(data: Record<string, unknown>): LocationPreliminary {
+  return {
+    id: data.id as string,
+    industry: (data.industry as string | null) ?? null,
+    zip: (data.zip as string | null) ?? null,
+    employee_count: (data.employee_count as number | null) ?? null,
+    traffic_count: (data.traffic_count as number | null) ?? null,
+    is_revealed: (data.is_revealed as boolean) ?? false,
+    created_at: data.created_at as string,
+    updated_at: data.updated_at as string,
+  };
 }
 
 export function stripSensitiveFields(
   location: Record<string, unknown>
 ): LocationPreliminary {
-  const safe = { ...location };
-  for (const field of SENSITIVE_FIELDS) {
-    delete safe[field];
-  }
-  return safe as unknown as LocationPreliminary;
+  return pickPreliminaryFields(location);
 }
