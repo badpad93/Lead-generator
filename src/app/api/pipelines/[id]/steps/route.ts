@@ -38,6 +38,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (body.requires_admin_approval !== undefined) updates.requires_admin_approval = body.requires_admin_approval;
     if (body.payment_amount !== undefined) updates.payment_amount = body.payment_amount;
     if (body.payment_description !== undefined) updates.payment_description = body.payment_description;
+    if (body.pandadoc_preliminary_template_id !== undefined) updates.pandadoc_preliminary_template_id = body.pandadoc_preliminary_template_id;
+    if (body.pandadoc_full_template_id !== undefined) updates.pandadoc_full_template_id = body.pandadoc_full_template_id;
+    if (body.payment_provider !== undefined) updates.payment_provider = body.payment_provider;
     const { data, error } = await supabaseAdmin
       .from("pipeline_steps")
       .update(updates)
