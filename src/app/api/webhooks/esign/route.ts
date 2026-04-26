@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { downloadSignedPdf, verifyWebhookSignature } from "@/lib/pandadoc";
+import {
+  createDocumentFromTemplate,
+  downloadSignedPdf,
+  sendDocument,
+  verifyWebhookSignature,
+} from "@/lib/pandadoc";
+import { checkStepGating } from "@/lib/stepGating";
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -125,6 +131,16 @@ export async function POST(req: NextRequest) {
       } catch {
         // PDF download failure shouldn't block status update
       }
+
+      // Phase 2: If this is a preliminary proposal with PandaDoc+Stripe payment,
+      // handle location reveal and full document generation
+      const metadata = esignDoc.metadata as Record<string, unknown> | null;
+      if (metadata?.type === "preliminary_proposal" && metadata?.location_id) {
+        await handleProposalPaymentCompletion(
+          esignDoc,
+          metadata.location_id as string
+        );
+      }
     }
 
     await supabaseAdmin
@@ -134,4 +150,168 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+async function handleProposalPaymentCompletion(
+  esignDoc: Record<string, unknown>,
+  locationId: string
+) {
+  const itemId = esignDoc.pipeline_item_id as string;
+  const stepId = esignDoc.step_id as string;
+
+  // Mark the pipeline payment as completed
+  await supabaseAdmin
+    .from("pipeline_payments")
+    .update({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("pipeline_item_id", itemId)
+    .eq("step_id", stepId)
+    .eq("status", "pending");
+
+  // Reveal the location
+  await supabaseAdmin
+    .from("locations")
+    .update({
+      is_revealed: true,
+      revealed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", locationId);
+
+  // Fetch step for full template ID
+  const { data: step } = await supabaseAdmin
+    .from("pipeline_steps")
+    .select("*")
+    .eq("id", stepId)
+    .single();
+
+  if (!step?.pandadoc_full_template_id) {
+    // No full template configured — just update status
+    await supabaseAdmin
+      .from("pipeline_items")
+      .update({
+        proposal_status: "paid",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", itemId);
+    return;
+  }
+
+  // Fetch full location data + pipeline item for recipient info
+  const { data: location } = await supabaseAdmin
+    .from("locations")
+    .select("*")
+    .eq("id", locationId)
+    .single();
+
+  const { data: item } = await supabaseAdmin
+    .from("pipeline_items")
+    .select("*, sales_accounts(id, business_name, contact_name, email)")
+    .eq("id", itemId)
+    .single();
+
+  if (!location || !item) return;
+
+  const recipientEmail = item.sales_accounts?.email;
+  const recipientName =
+    item.sales_accounts?.contact_name ||
+    item.sales_accounts?.business_name ||
+    item.name;
+
+  if (!recipientEmail) return;
+
+  try {
+    // Generate full PandaDoc document with all location details
+    const fields: Record<string, string> = {
+      industry: location.industry || "",
+      zip: location.zip || "",
+      employee_count: String(location.employee_count || ""),
+      traffic_count: String(location.traffic_count || ""),
+      location_name: location.location_name || "",
+      address: location.address || "",
+      phone: location.phone || "",
+      decision_maker_name: location.decision_maker_name || "",
+      decision_maker_email: location.decision_maker_email || "",
+      customer_name: recipientName,
+      customer_email: recipientEmail,
+      business_name: item.sales_accounts?.business_name || "",
+    };
+
+    if (step.payment_amount) {
+      fields.payment_amount = String(step.payment_amount);
+    }
+
+    const doc = await createDocumentFromTemplate({
+      templateId: step.pandadoc_full_template_id,
+      documentName: `Full Location Details — ${item.name}`,
+      recipientEmail,
+      recipientName,
+      fields,
+    });
+
+    await new Promise((r) => setTimeout(r, 3000));
+    await sendDocument(doc.id, "Your payment has been received. Here are the full location details.");
+
+    // Record the full document
+    await supabaseAdmin.from("esign_documents").insert({
+      pipeline_item_id: itemId,
+      step_id: stepId,
+      provider: "pandadoc",
+      external_document_id: doc.id,
+      template_id: step.pandadoc_full_template_id,
+      document_name: `Full Location Details — ${item.name}`,
+      recipient_email: recipientEmail,
+      recipient_name: recipientName,
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      metadata: { type: "full_proposal", location_id: locationId },
+    });
+  } catch {
+    // Full doc send failure shouldn't block payment processing
+  }
+
+  // Update proposal status
+  await supabaseAdmin
+    .from("pipeline_items")
+    .update({
+      proposal_status: "paid",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", itemId);
+
+  // Auto-advance if all step requirements are met and no admin approval needed
+  if (!step.requires_admin_approval) {
+    const gating = await checkStepGating(itemId, stepId);
+    if (gating.canAdvance) {
+      const { data: steps } = await supabaseAdmin
+        .from("pipeline_steps")
+        .select("id")
+        .eq("pipeline_id", item.pipeline_id)
+        .order("order_index");
+
+      if (steps) {
+        const currentIdx = steps.findIndex((s) => s.id === stepId);
+        if (currentIdx === steps.length - 1) {
+          await supabaseAdmin
+            .from("pipeline_items")
+            .update({
+              status: "won",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", itemId);
+        } else if (currentIdx >= 0 && currentIdx < steps.length - 1) {
+          await supabaseAdmin
+            .from("pipeline_items")
+            .update({
+              current_step_id: steps[currentIdx + 1].id,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", itemId);
+        }
+      }
+    }
+  }
 }

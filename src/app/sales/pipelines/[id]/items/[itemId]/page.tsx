@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, ChevronRight, Upload, CheckCircle2, Circle, AlertTriangle, FileText, Lock, Building2, Search, X, Link2, Unlink, Send, DollarSign, ShieldCheck, PenTool, CreditCard, Clock, ExternalLink } from "lucide-react";
+import { ArrowLeft, Loader2, ChevronRight, Upload, CheckCircle2, Circle, AlertTriangle, FileText, Lock, Building2, Search, X, Link2, Unlink, Send, DollarSign, ShieldCheck, PenTool, CreditCard, Clock, ExternalLink, MapPin } from "lucide-react";
 
 interface StepDoc {
   id: string;
@@ -22,6 +22,9 @@ interface Step {
   requires_admin_approval: boolean;
   payment_amount: number | null;
   payment_description: string | null;
+  pandadoc_preliminary_template_id: string | null;
+  pandadoc_full_template_id: string | null;
+  payment_provider: string;
   step_documents: StepDoc[];
 }
 
@@ -91,6 +94,8 @@ interface PipelineItem {
   current_step_id: string | null;
   pipeline_id: string;
   account_id: string | null;
+  location_id: string | null;
+  proposal_status: string;
   pipeline_steps: { id: string; name: string; order_index: number } | null;
   sales_accounts: Account | null;
   employees: { full_name: string; email: string | null } | null;
@@ -121,6 +126,7 @@ export default function PipelineItemDetailPage() {
   const [creatingPayment, setCreatingPayment] = useState(false);
   const [approvingStep, setApprovingStep] = useState(false);
   const [esignForm, setEsignForm] = useState({ document_name: "", recipient_email: "", template_id: "" });
+  const [sendingProposal, setSendingProposal] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -281,6 +287,20 @@ export default function PipelineItemDetailPage() {
     });
     setApprovingStep(false);
     loadGatingData();
+  }
+
+  async function handleSendProposal() {
+    if (!item?.current_step_id) return;
+    setSendingProposal(true);
+    const res = await fetch(`/api/pipeline-items/${itemId}/send-proposal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    });
+    setSendingProposal(false);
+    if (res.ok) {
+      load();
+      loadGatingData();
+    }
   }
 
   const filteredAccounts = accountSearch.length > 0
@@ -463,6 +483,50 @@ export default function PipelineItemDetailPage() {
           })}
         </div>
       </div>
+
+      {/* Location Proposal */}
+      {currentStep && item.location_id && currentStep.pandadoc_preliminary_template_id && !isCompleted && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-gray-400" />
+              Location Proposal
+            </h2>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              item.proposal_status === "paid" ? "bg-green-100 text-green-700" :
+              item.proposal_status === "proposal_sent" ? "bg-blue-100 text-blue-600" :
+              "bg-gray-100 text-gray-500"
+            }`}>
+              {item.proposal_status === "paid" ? "Paid & Revealed" :
+               item.proposal_status === "proposal_sent" ? "Proposal Sent" :
+               "Not Sent"}
+            </span>
+          </div>
+          {item.proposal_status === "not_sent" ? (
+            <button
+              onClick={handleSendProposal}
+              disabled={sendingProposal || !item.sales_accounts?.email}
+              className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+            >
+              {sendingProposal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              {sendingProposal ? "Sending Proposal..." : "Send Preliminary Proposal"}
+            </button>
+          ) : item.proposal_status === "proposal_sent" ? (
+            <p className="text-sm text-blue-600 flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5" />
+              Proposal sent — awaiting customer payment via PandaDoc
+            </p>
+          ) : (
+            <p className="text-sm text-green-600 flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Payment received — full location details sent to customer
+            </p>
+          )}
+          {!item.sales_accounts?.email && item.proposal_status === "not_sent" && (
+            <p className="mt-2 text-xs text-red-500">Link an account with an email address to send proposals.</p>
+          )}
+        </div>
+      )}
 
       {/* Current Step Documents */}
       {currentStep && currentStep.requires_document && currentStep.step_documents.length > 0 && !isCompleted && (

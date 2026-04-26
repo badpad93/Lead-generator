@@ -137,6 +137,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Pipeline payment reconciliation (backup for PandaDoc+Stripe flow)
+  if (event.type === "payment_intent.succeeded") {
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+    const pipelineItemId = paymentIntent.metadata?.pipeline_item_id;
+    const stepId = paymentIntent.metadata?.step_id;
+
+    if (pipelineItemId && stepId) {
+      await supabaseAdmin
+        .from("pipeline_payments")
+        .update({
+          status: "completed",
+          stripe_payment_intent_id: paymentIntent.id,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("pipeline_item_id", pipelineItemId)
+        .eq("step_id", stepId)
+        .in("status", ["pending", "created"]);
+    }
+  }
+
   if (event.type === "checkout.session.expired") {
     const session = event.data.object as Stripe.Checkout.Session;
     await supabaseAdmin

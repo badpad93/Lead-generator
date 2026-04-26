@@ -23,6 +23,9 @@ interface Step {
   requires_admin_approval: boolean;
   payment_amount: number | null;
   payment_description: string | null;
+  pandadoc_preliminary_template_id: string | null;
+  pandadoc_full_template_id: string | null;
+  payment_provider: string;
   step_documents: StepDoc[];
 }
 
@@ -145,6 +148,11 @@ export default function PipelineEditPage() {
 
   async function updatePaymentConfig(stepId: string, amount: number, description: string) {
     await fetch(`/api/pipelines/${id}/steps`, { method: "POST", headers: headers(), body: JSON.stringify({ action: "update", step_id: stepId, payment_amount: amount, payment_description: description }) });
+    load();
+  }
+
+  async function updateStepField(stepId: string, field: string, value: string) {
+    await fetch(`/api/pipelines/${id}/steps`, { method: "POST", headers: headers(), body: JSON.stringify({ action: "update", step_id: stepId, [field]: value || null }) });
     load();
   }
 
@@ -287,6 +295,42 @@ export default function PipelineEditPage() {
                     className="flex-1 rounded-lg border border-gray-200 px-2 py-1 text-xs focus:border-green-500 focus:outline-none"
                   />
                 </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Provider:</span>
+                  <select
+                    value={step.payment_provider || "none"}
+                    onChange={(e) => updateStepField(step.id, "payment_provider", e.target.value)}
+                    className="rounded-lg border border-gray-200 px-2 py-1 text-xs focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="none">None</option>
+                    <option value="pandadoc_stripe">PandaDoc + Stripe</option>
+                    <option value="paypal">PayPal</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* PandaDoc Template IDs (for proposal flow) */}
+            {step.requires_signature && (
+              <div className="ml-12 mt-3 space-y-2">
+                <p className="text-xs font-medium text-gray-500 uppercase flex items-center gap-1"><PenTool className="h-3 w-3" /> PandaDoc Templates</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    defaultValue={step.pandadoc_preliminary_template_id || ""}
+                    onBlur={(e) => updateStepField(step.id, "pandadoc_preliminary_template_id", e.target.value)}
+                    placeholder="Preliminary Template ID"
+                    className="flex-1 rounded-lg border border-gray-200 px-2 py-1 text-xs focus:border-green-500 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    defaultValue={step.pandadoc_full_template_id || ""}
+                    onBlur={(e) => updateStepField(step.id, "pandadoc_full_template_id", e.target.value)}
+                    placeholder="Full Template ID"
+                    className="flex-1 rounded-lg border border-gray-200 px-2 py-1 text-xs focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+                <p className="text-xs text-gray-400">Preliminary = before payment · Full = after payment (includes sensitive location details)</p>
               </div>
             )}
 
