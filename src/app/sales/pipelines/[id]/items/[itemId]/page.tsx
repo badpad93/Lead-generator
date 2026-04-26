@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, ChevronRight, Upload, CheckCircle2, Circle, AlertTriangle, FileText, Lock, Building2, Search, X, Link2, Unlink } from "lucide-react";
+import { ArrowLeft, Loader2, ChevronRight, Upload, CheckCircle2, Circle, AlertTriangle, FileText, Lock, Building2, Search, X, Link2, Unlink, Send, DollarSign, ShieldCheck, PenTool, CreditCard, Clock, ExternalLink } from "lucide-react";
 
 interface StepDoc {
   id: string;
@@ -17,7 +17,50 @@ interface Step {
   name: string;
   order_index: number;
   requires_document: boolean;
+  requires_signature: boolean;
+  requires_payment: boolean;
+  requires_admin_approval: boolean;
+  payment_amount: number | null;
+  payment_description: string | null;
   step_documents: StepDoc[];
+}
+
+interface EsignDoc {
+  id: string;
+  pipeline_item_id: string;
+  step_id: string;
+  document_name: string;
+  recipient_email: string;
+  recipient_name: string | null;
+  status: string;
+  signed_pdf_url: string | null;
+  sent_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+interface Payment {
+  id: string;
+  pipeline_item_id: string;
+  step_id: string;
+  amount: number;
+  currency: string;
+  description: string | null;
+  status: string;
+  payment_url: string | null;
+  paid_at: string | null;
+  created_at: string;
+}
+
+interface GatingStatus {
+  canAdvance: boolean;
+  requirements: {
+    documents: { required: boolean; completed: boolean };
+    signature: { required: boolean; completed: boolean; pending: boolean };
+    payment: { required: boolean; completed: boolean; pending: boolean };
+    adminApproval: { required: boolean; completed: boolean };
+  };
+  blockers: string[];
 }
 
 interface ItemDoc {
@@ -71,6 +114,13 @@ export default function PipelineItemDetailPage() {
   const [showAccountSearch, setShowAccountSearch] = useState(false);
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [linkingAccount, setLinkingAccount] = useState(false);
+  const [esignDocs, setEsignDocs] = useState<EsignDoc[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [gating, setGating] = useState<GatingStatus | null>(null);
+  const [sendingEsign, setSendingEsign] = useState(false);
+  const [creatingPayment, setCreatingPayment] = useState(false);
+  const [approvingStep, setApprovingStep] = useState(false);
+  const [esignForm, setEsignForm] = useState({ document_name: "", recipient_email: "", template_id: "" });
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -158,6 +208,79 @@ export default function PipelineItemDetailPage() {
       body: JSON.stringify({ account_id: null }),
     });
     load();
+  }
+
+  const loadGatingData = useCallback(async () => {
+    if (!token || !itemId || !item?.current_step_id) return;
+    const [gRes, eRes, pRes] = await Promise.all([
+      fetch(`/api/pipeline-items/${itemId}/gating-status?step_id=${item.current_step_id}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`/api/pipeline-items/${itemId}/esign?step_id=${item.current_step_id}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`/api/pipeline-items/${itemId}/payments?step_id=${item.current_step_id}`, { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    if (gRes.ok) setGating(await gRes.json());
+    if (eRes.ok) setEsignDocs(await eRes.json());
+    if (pRes.ok) setPayments(await pRes.json());
+  }, [token, itemId, item?.current_step_id]);
+
+  useEffect(() => { loadGatingData(); }, [loadGatingData]);
+
+  async function handleSendEsign() {
+    if (!esignForm.document_name || !esignForm.recipient_email) return;
+    setSendingEsign(true);
+    await fetch(`/api/pipeline-items/${itemId}/esign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        step_id: item?.current_step_id,
+        document_name: esignForm.document_name,
+        recipient_email: esignForm.recipient_email,
+        recipient_name: item?.name || "",
+        template_id: esignForm.template_id || undefined,
+        send_immediately: true,
+      }),
+    });
+    setEsignForm({ document_name: "", recipient_email: "", template_id: "" });
+    setSendingEsign(false);
+    loadGatingData();
+  }
+
+  async function handleMarkEsignComplete(esignId: string) {
+    await fetch(`/api/pipeline-items/${itemId}/esign`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ esign_id: esignId, action: "mark_completed" }),
+    });
+    loadGatingData();
+    load();
+  }
+
+  async function handleCreatePayment() {
+    if (!item?.current_step_id) return;
+    setCreatingPayment(true);
+    const step = item.all_steps.find((s) => s.id === item.current_step_id);
+    await fetch(`/api/pipeline-items/${itemId}/payments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        step_id: item.current_step_id,
+        amount: step?.payment_amount || 0,
+        description: step?.payment_description || `Payment for ${step?.name || "step"}`,
+      }),
+    });
+    setCreatingPayment(false);
+    loadGatingData();
+  }
+
+  async function handleApproveStep() {
+    if (!item?.current_step_id) return;
+    setApprovingStep(true);
+    await fetch(`/api/pipeline-items/${itemId}/approve-step`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ step_id: item.current_step_id }),
+    });
+    setApprovingStep(false);
+    loadGatingData();
   }
 
   const filteredAccounts = accountSearch.length > 0
@@ -331,6 +454,9 @@ export default function PipelineItemDetailPage() {
                   {isPast ? <CheckCircle2 className="h-3 w-3" /> : isCurrent ? <Circle className="h-3 w-3 fill-white" /> : <Circle className="h-3 w-3" />}
                   {step.name}
                   {step.requires_document && <Lock className="h-3 w-3 opacity-50" />}
+                  {step.requires_signature && <PenTool className="h-3 w-3 opacity-50" />}
+                  {step.requires_payment && <CreditCard className="h-3 w-3 opacity-50" />}
+                  {step.requires_admin_approval && <ShieldCheck className="h-3 w-3 opacity-50" />}
                 </div>
               </div>
             );
@@ -378,6 +504,174 @@ export default function PipelineItemDetailPage() {
         </div>
       )}
 
+      {/* E-Signature Section */}
+      {currentStep?.requires_signature && !isCompleted && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <PenTool className="h-4 w-4 text-gray-400" />
+            E-Signature — {currentStep.name}
+          </h2>
+          {esignDocs.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {esignDocs.map((doc) => (
+                <div key={doc.id} className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+                  doc.status === "completed" ? "border-green-200 bg-green-50" :
+                  doc.status === "sent" || doc.status === "viewed" ? "border-blue-200 bg-blue-50" :
+                  "border-gray-200"
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {doc.status === "completed" ? <CheckCircle2 className="h-4 w-4 text-green-600" /> :
+                     doc.status === "sent" || doc.status === "viewed" ? <Clock className="h-4 w-4 text-blue-500" /> :
+                     <FileText className="h-4 w-4 text-gray-400" />}
+                    <div>
+                      <span className="text-sm text-gray-900">{doc.document_name}</span>
+                      <span className="text-xs text-gray-400 ml-2">{doc.recipient_email}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      doc.status === "completed" ? "bg-green-100 text-green-700" :
+                      doc.status === "sent" ? "bg-blue-100 text-blue-600" :
+                      doc.status === "viewed" ? "bg-yellow-100 text-yellow-700" :
+                      doc.status === "declined" ? "bg-red-100 text-red-600" :
+                      "bg-gray-100 text-gray-600"
+                    }`}>{doc.status}</span>
+                    {doc.signed_pdf_url && (
+                      <a href={doc.signed_pdf_url} target="_blank" rel="noreferrer" className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1">
+                        <ExternalLink className="h-3 w-3" /> PDF
+                      </a>
+                    )}
+                    {doc.status !== "completed" && (
+                      <button onClick={() => handleMarkEsignComplete(doc.id)} className="text-xs text-gray-500 hover:text-green-600 cursor-pointer">Mark Complete</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {gating && !gating.requirements.signature.completed && (
+            <div className="rounded-lg border border-dashed border-gray-300 p-4">
+              <p className="text-xs text-gray-500 mb-3">Send a document for e-signature:</p>
+              <div className="flex gap-2 flex-wrap">
+                <input value={esignForm.document_name} onChange={(e) => setEsignForm((f) => ({ ...f, document_name: e.target.value }))} placeholder="Document name *" className="flex-1 min-w-[180px] rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input value={esignForm.recipient_email} onChange={(e) => setEsignForm((f) => ({ ...f, recipient_email: e.target.value }))} placeholder="Recipient email *" className="flex-1 min-w-[200px] rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input value={esignForm.template_id} onChange={(e) => setEsignForm((f) => ({ ...f, template_id: e.target.value }))} placeholder="PandaDoc Template ID" className="flex-1 min-w-[180px] rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+              </div>
+              <button onClick={handleSendEsign} disabled={sendingEsign || !esignForm.document_name || !esignForm.recipient_email} className="mt-3 flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer">
+                {sendingEsign ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                {sendingEsign ? "Sending..." : "Send for Signature"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Payment Section */}
+      {currentStep?.requires_payment && !isCompleted && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-gray-400" />
+            Payment — {currentStep.name}
+            {currentStep.payment_amount && (
+              <span className="text-xs text-green-600 font-medium">${Number(currentStep.payment_amount).toLocaleString()}</span>
+            )}
+          </h2>
+          {payments.length > 0 ? (
+            <div className="space-y-2">
+              {payments.map((p) => (
+                <div key={p.id} className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+                  p.status === "completed" ? "border-green-200 bg-green-50" :
+                  p.status === "created" || p.status === "approved" ? "border-blue-200 bg-blue-50" :
+                  p.status === "failed" ? "border-red-200 bg-red-50" :
+                  "border-gray-200"
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {p.status === "completed" ? <CheckCircle2 className="h-4 w-4 text-green-600" /> :
+                     p.status === "failed" ? <AlertTriangle className="h-4 w-4 text-red-500" /> :
+                     <DollarSign className="h-4 w-4 text-gray-400" />}
+                    <span className="text-sm text-gray-900">${Number(p.amount).toLocaleString()} {p.currency}</span>
+                    {p.description && <span className="text-xs text-gray-400">— {p.description}</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      p.status === "completed" ? "bg-green-100 text-green-700" :
+                      p.status === "created" ? "bg-blue-100 text-blue-600" :
+                      p.status === "failed" ? "bg-red-100 text-red-600" :
+                      "bg-gray-100 text-gray-600"
+                    }`}>{p.status}</span>
+                    {p.payment_url && p.status !== "completed" && (
+                      <a href={p.payment_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700">
+                        <ExternalLink className="h-3 w-3" /> Pay Link
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <button onClick={handleCreatePayment} disabled={creatingPayment} className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer">
+              {creatingPayment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}
+              {creatingPayment ? "Creating..." : "Generate Payment Link"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Admin Approval Section */}
+      {currentStep?.requires_admin_approval && !isCompleted && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-gray-400" />
+            Admin Approval — {currentStep.name}
+          </h2>
+          {gating?.requirements.adminApproval.completed ? (
+            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-green-700 font-medium">Approved</span>
+            </div>
+          ) : (
+            <button onClick={handleApproveStep} disabled={approvingStep} className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer">
+              {approvingStep ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+              {approvingStep ? "Approving..." : "Approve Step"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Step Gating Summary */}
+      {gating && !isCompleted && currentStep && (gating.requirements.signature.required || gating.requirements.payment.required || gating.requirements.adminApproval.required) && (
+        <div className={`rounded-xl border p-4 mb-6 ${gating.canAdvance ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}`}>
+          <div className="flex items-center gap-2 mb-2">
+            {gating.canAdvance ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Lock className="h-4 w-4 text-amber-600" />}
+            <span className={`text-sm font-medium ${gating.canAdvance ? "text-green-700" : "text-amber-800"}`}>
+              {gating.canAdvance ? "All requirements met — ready to advance" : "Step locked — requirements incomplete"}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-3 text-xs">
+            {gating.requirements.documents.required && (
+              <span className={`flex items-center gap-1 ${gating.requirements.documents.completed ? "text-green-600" : "text-amber-700"}`}>
+                {gating.requirements.documents.completed ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />} Documents
+              </span>
+            )}
+            {gating.requirements.signature.required && (
+              <span className={`flex items-center gap-1 ${gating.requirements.signature.completed ? "text-green-600" : "text-amber-700"}`}>
+                {gating.requirements.signature.completed ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />} E-Signature
+              </span>
+            )}
+            {gating.requirements.payment.required && (
+              <span className={`flex items-center gap-1 ${gating.requirements.payment.completed ? "text-green-600" : "text-amber-700"}`}>
+                {gating.requirements.payment.completed ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />} Payment
+              </span>
+            )}
+            {gating.requirements.adminApproval.required && (
+              <span className={`flex items-center gap-1 ${gating.requirements.adminApproval.completed ? "text-green-600" : "text-amber-700"}`}>
+                {gating.requirements.adminApproval.completed ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />} Admin Approval
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Move error */}
       {moveError && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-6">
@@ -388,6 +682,11 @@ export default function PipelineItemDetailPage() {
           {missingDocs.length > 0 && (
             <ul className="mt-2 ml-6 list-disc text-xs text-amber-700">
               {missingDocs.map((d) => <li key={d.id}>{d.name}</li>)}
+            </ul>
+          )}
+          {gating && gating.blockers.length > 0 && missingDocs.length === 0 && (
+            <ul className="mt-2 ml-6 list-disc text-xs text-amber-700">
+              {gating.blockers.map((b, i) => <li key={i}>{b}</li>)}
             </ul>
           )}
         </div>

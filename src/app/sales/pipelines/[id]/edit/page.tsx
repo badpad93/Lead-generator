@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, Plus, Trash2, GripVertical, FileText, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2, FileText, ChevronUp, ChevronDown, Mail, Link2, ExternalLink, PenTool, CreditCard, ShieldCheck } from "lucide-react";
 
 interface StepDoc {
   id: string;
@@ -17,6 +18,11 @@ interface Step {
   name: string;
   order_index: number;
   requires_document: boolean;
+  requires_signature: boolean;
+  requires_payment: boolean;
+  requires_admin_approval: boolean;
+  payment_amount: number | null;
+  payment_description: string | null;
   step_documents: StepDoc[];
 }
 
@@ -25,6 +31,29 @@ interface Pipeline {
   name: string;
   type: string;
   pipeline_steps: Step[];
+}
+
+interface DocTemplate {
+  id: string;
+  name: string;
+  file_name: string;
+  version: number;
+  active: boolean;
+}
+
+interface DocAssignment {
+  id: string;
+  step_key: string;
+  document_template_id: string;
+  document_templates: DocTemplate | null;
+}
+
+interface EmailTemplate {
+  id: string;
+  pipeline_type: string;
+  step_key: string;
+  subject: string;
+  updated_at: string;
 }
 
 export default function PipelineEditPage() {
@@ -39,6 +68,8 @@ export default function PipelineEditPage() {
   const [newStepName, setNewStepName] = useState("");
   const [addingDocTo, setAddingDocTo] = useState<string | null>(null);
   const [newDocName, setNewDocName] = useState("");
+  const [docAssignments, setDocAssignments] = useState<DocAssignment[]>([]);
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -52,11 +83,31 @@ export default function PipelineEditPage() {
   const load = useCallback(async () => {
     if (!token || !id) return;
     setLoading(true);
-    const res = await fetch(`/api/pipelines/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) {
-      const data = await res.json();
+    const pipelineType = `pipeline_${id}`;
+    const [pRes, eRes] = await Promise.all([
+      fetch(`/api/pipelines/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`/api/onboarding/email-templates`, { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    if (pRes.ok) {
+      const data = await pRes.json();
       setPipeline(data);
       setNameValue(data.name);
+
+      // Fetch doc assignments for each step in parallel
+      const stepAssignments = await Promise.all(
+        (data.pipeline_steps || []).map(async (s: Step) => {
+          const r = await fetch(
+            `/api/onboarding/step-doc-assignments?pipeline_id=${id}&step_key=${s.id}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          return r.ok ? await r.json() : [];
+        })
+      );
+      setDocAssignments(stepAssignments.flat());
+    }
+    if (eRes.ok) {
+      const allEmails: EmailTemplate[] = await eRes.json();
+      setEmailTemplates(allEmails.filter((t) => t.pipeline_type === pipelineType));
     }
     setLoading(false);
   }, [token, id]);
@@ -84,6 +135,16 @@ export default function PipelineEditPage() {
 
   async function toggleDocRequired(stepId: string, val: boolean) {
     await fetch(`/api/pipelines/${id}/steps`, { method: "POST", headers: headers(), body: JSON.stringify({ action: "update", step_id: stepId, requires_document: val }) });
+    load();
+  }
+
+  async function toggleStepGating(stepId: string, field: string, val: boolean) {
+    await fetch(`/api/pipelines/${id}/steps`, { method: "POST", headers: headers(), body: JSON.stringify({ action: "update", step_id: stepId, [field]: val }) });
+    load();
+  }
+
+  async function updatePaymentConfig(stepId: string, amount: number, description: string) {
+    await fetch(`/api/pipelines/${id}/steps`, { method: "POST", headers: headers(), body: JSON.stringify({ action: "update", step_id: stepId, payment_amount: amount, payment_description: description }) });
     load();
   }
 
@@ -157,20 +218,29 @@ export default function PipelineEditPage() {
                 <span className="font-medium text-gray-900">{step.name}</span>
               </div>
               <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={step.requires_document}
-                    onChange={(e) => toggleDocRequired(step.id, e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-gray-300"
-                  />
-                  Requires docs
-                </label>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                    <input type="checkbox" checked={step.requires_document} onChange={(e) => toggleDocRequired(step.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300" />
+                    <FileText className="h-3 w-3" /> Docs
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                    <input type="checkbox" checked={step.requires_signature} onChange={(e) => toggleStepGating(step.id, "requires_signature", e.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300" />
+                    <PenTool className="h-3 w-3" /> E-Sign
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                    <input type="checkbox" checked={step.requires_payment} onChange={(e) => toggleStepGating(step.id, "requires_payment", e.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300" />
+                    <CreditCard className="h-3 w-3" /> Payment
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                    <input type="checkbox" checked={step.requires_admin_approval} onChange={(e) => toggleStepGating(step.id, "requires_admin_approval", e.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300" />
+                    <ShieldCheck className="h-3 w-3" /> Approval
+                  </label>
+                </div>
                 <button onClick={() => deleteStep(step.id)} className="text-gray-300 hover:text-red-500 cursor-pointer"><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>
 
-            {/* Step documents */}
+            {/* Step documents (requirement checklist) */}
             {step.requires_document && (
               <div className="ml-12 mt-3 space-y-1.5">
                 {step.step_documents.map((doc) => (
@@ -196,6 +266,89 @@ export default function PipelineEditPage() {
                 )}
               </div>
             )}
+
+            {/* Payment Configuration */}
+            {step.requires_payment && (
+              <div className="ml-12 mt-3 space-y-2">
+                <p className="text-xs font-medium text-gray-500 uppercase flex items-center gap-1"><CreditCard className="h-3 w-3" /> Payment Config</p>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    defaultValue={step.payment_amount || ""}
+                    onBlur={(e) => updatePaymentConfig(step.id, Number(e.target.value) || 0, step.payment_description || "")}
+                    placeholder="Amount ($)"
+                    className="w-28 rounded-lg border border-gray-200 px-2 py-1 text-xs focus:border-green-500 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    defaultValue={step.payment_description || ""}
+                    onBlur={(e) => updatePaymentConfig(step.id, step.payment_amount || 0, e.target.value)}
+                    placeholder="Payment description"
+                    className="flex-1 rounded-lg border border-gray-200 px-2 py-1 text-xs focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Linked Templates (doc + email) */}
+            {(() => {
+              const stepDocAssignments = docAssignments.filter((a) => a.step_key === step.id);
+              const stepEmail = emailTemplates.find((t) => t.step_key === step.id);
+              return (
+                <div className="ml-12 mt-3 border-t border-dashed border-gray-100 pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-gray-500 uppercase">Linked Templates</p>
+                    <Link href="/sales/admin/pipeline-doc-mapping" className="flex items-center gap-1 text-xs text-green-600 hover:underline cursor-pointer">
+                      <Link2 className="h-3 w-3" /> Manage
+                    </Link>
+                  </div>
+
+                  <div className="space-y-2">
+                    {/* Document templates */}
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs text-gray-600 mb-1">
+                        <FileText className="h-3 w-3 text-gray-400" />
+                        <span className="font-medium">Documents ({stepDocAssignments.length})</span>
+                      </div>
+                      {stepDocAssignments.length === 0 ? (
+                        <p className="ml-4 text-xs text-gray-300">None linked. Use Doc Mapping to attach templates.</p>
+                      ) : (
+                        <div className="ml-4 space-y-1">
+                          {stepDocAssignments.map((a) => (
+                            <div key={a.id} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-700">
+                                {a.document_templates?.name || "Unknown"}
+                                {a.document_templates && (
+                                  <span className="ml-1 text-gray-400">({a.document_templates.file_name} · v{a.document_templates.version})</span>
+                                )}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Email template */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <Mail className="h-3 w-3 text-gray-400" />
+                          <span className="font-medium">Email Template</span>
+                        </div>
+                        <Link href="/sales/admin/email-templates" className="flex items-center gap-1 text-xs text-green-600 hover:underline cursor-pointer">
+                          <ExternalLink className="h-3 w-3" /> {stepEmail ? "Edit" : "Create"}
+                        </Link>
+                      </div>
+                      {stepEmail ? (
+                        <p className="ml-4 text-xs text-gray-700 truncate">{stepEmail.subject}</p>
+                      ) : (
+                        <p className="ml-4 text-xs text-gray-300">None linked. Use Email Templates to add one.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         ))}
       </div>
