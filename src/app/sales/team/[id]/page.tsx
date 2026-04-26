@@ -191,14 +191,19 @@ export default function CandidateDetailPage() {
 
   async function handleUploadDoc(stepKey: string, file: File) {
     setUploadingStep(stepKey);
+    setActionError(null);
     const formData = new FormData();
     formData.append("file", file);
     formData.append("step_key", stepKey);
-    await fetch(`/api/onboarding/candidates/${id}/documents`, {
+    const res = await fetch(`/api/onboarding/candidates/${id}/documents`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setActionError(err.error || `Upload failed (${res.status})`);
+    }
     setUploadingStep(null);
     load();
   }

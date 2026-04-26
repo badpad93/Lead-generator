@@ -693,7 +693,19 @@ export default function PipelineItemDetailPage() {
                       <input type="file" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleUploadDoc(doc.id, e.target.files[0]); }} />
                     </label>
                   ) : (
-                    <span className="text-xs text-green-600 font-medium">Completed</span>
+                    <div className="flex items-center gap-2">
+                      {uploadedDoc?.file_url && (
+                        <a
+                          href={uploadedDoc.file_url.startsWith("http") ? uploadedDoc.file_url : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/sales-documents/${uploadedDoc.file_url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                        >
+                          <ExternalLink className="h-3 w-3" /> View
+                        </a>
+                      )}
+                      <span className="text-xs text-green-600 font-medium">Completed</span>
+                    </div>
                   )}
                 </div>
               );
