@@ -40,7 +40,7 @@ export default function PipelineItemsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountSearch, setAccountSearch] = useState("");
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const [showAccountList, setShowAccountList] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -88,17 +88,17 @@ export default function PipelineItemsPage() {
   function selectAccount(account: Account) {
     setSelectedAccount(account);
     setAccountSearch("");
-    setShowAccountDropdown(false);
+    setShowAccountList(false);
     if (!form.name) setForm((f) => ({ ...f, name: account.business_name }));
   }
 
-  const filteredAccounts = accountSearch.length > 0
+  const displayedAccounts = accountSearch.length > 0
     ? accounts.filter((a) =>
         a.business_name.toLowerCase().includes(accountSearch.toLowerCase()) ||
         (a.contact_name || "").toLowerCase().includes(accountSearch.toLowerCase()) ||
         (a.email || "").toLowerCase().includes(accountSearch.toLowerCase())
-      ).slice(0, 8)
-    : [];
+      )
+    : accounts;
 
   const statusColor = (s: string) => {
     if (s === "won") return "bg-green-50 text-green-700";
@@ -126,9 +126,8 @@ export default function PipelineItemsPage() {
       {showAdd && (
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-gray-900 mb-3">New Pipeline Item</h3>
-          {/* Account Search */}
+          {/* Link Account */}
           <div className="mb-3">
-            <label className="mb-1 block text-xs font-medium text-gray-500">Link Account (optional)</label>
             {selectedAccount ? (
               <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-3 py-2">
                 <div className="flex items-center gap-2">
@@ -136,29 +135,48 @@ export default function PipelineItemsPage() {
                   <div>
                     <span className="text-sm font-medium text-gray-900">{selectedAccount.business_name}</span>
                     {selectedAccount.contact_name && <span className="text-xs text-gray-500 ml-2">{selectedAccount.contact_name}</span>}
+                    {selectedAccount.email && <span className="text-xs text-gray-400 ml-2">{selectedAccount.email}</span>}
                   </div>
                 </div>
                 <button onClick={() => { setSelectedAccount(null); setForm((f) => ({ ...f, name: "" })); }} className="text-gray-400 hover:text-red-500 cursor-pointer">
                   <X className="h-4 w-4" />
                 </button>
               </div>
+            ) : !showAccountList ? (
+              <button
+                onClick={() => setShowAccountList(true)}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-green-300 cursor-pointer"
+              >
+                <Building2 className="h-4 w-4 text-gray-400" />
+                Link Account
+              </button>
             ) : (
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={accountSearch}
-                  onChange={(e) => { setAccountSearch(e.target.value); setShowAccountDropdown(true); }}
-                  onFocus={() => { if (accountSearch) setShowAccountDropdown(true); }}
-                  placeholder="Search accounts by name, contact, or email..."
-                  className="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-3 text-sm focus:border-green-500 focus:outline-none"
-                />
-                {showAccountDropdown && filteredAccounts.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto">
-                    {filteredAccounts.map((a) => (
+              <div className="rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
+                  <span className="text-xs font-medium text-gray-500">Select an account</span>
+                  <button onClick={() => { setShowAccountList(false); setAccountSearch(""); }} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="px-3 py-2 border-b border-gray-100">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={accountSearch}
+                      onChange={(e) => setAccountSearch(e.target.value)}
+                      placeholder="Filter accounts..."
+                      className="w-full rounded-md border border-gray-200 py-1.5 pl-8 pr-3 text-sm focus:border-green-500 focus:outline-none"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="max-h-56 overflow-y-auto">
+                  {displayedAccounts.length > 0 ? (
+                    displayedAccounts.map((a) => (
                       <button
                         key={a.id}
                         onClick={() => selectAccount(a)}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 cursor-pointer"
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0 cursor-pointer"
                       >
                         <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
                         <div className="min-w-0">
@@ -168,16 +186,18 @@ export default function PipelineItemsPage() {
                           </p>
                         </div>
                       </button>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  ) : (
+                    <p className="px-3 py-4 text-sm text-gray-400 text-center">No accounts found</p>
+                  )}
+                </div>
               </div>
             )}
           </div>
           <div className="flex gap-3">
             <input placeholder="Name / Business *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <button onClick={handleAdd} disabled={saving} className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer">{saving ? "Adding..." : "Add"}</button>
-            <button onClick={() => { setShowAdd(false); setSelectedAccount(null); setAccountSearch(""); }} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+            <button onClick={() => { setShowAdd(false); setSelectedAccount(null); setAccountSearch(""); setShowAccountList(false); }} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
           </div>
         </div>
       )}
