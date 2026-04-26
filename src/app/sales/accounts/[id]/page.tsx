@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, FileText, Upload, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, Upload, Trash2, X } from "lucide-react";
 import type { SalesAccount, SalesDeal, SalesOrder, SalesDocument, SalesLead } from "@/lib/salesTypes";
 
 interface AccountDetail extends SalesAccount {
@@ -20,6 +20,7 @@ export default function AccountDetailPage() {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -44,6 +45,7 @@ export default function AccountDetailPage() {
     const file = e.target.files?.[0];
     if (!file || !token) return;
     setUploading(true);
+    setUploadError(null);
 
     try {
       const supabase = (await import("@/lib/supabase")).createBrowserClient();
@@ -54,7 +56,7 @@ export default function AccountDetailPage() {
         .upload(filePath, file, { upsert: false, contentType: file.type || undefined });
 
       if (uploadErr) {
-        alert(`Upload failed: ${uploadErr.message}`);
+        setUploadError(`Upload failed: ${uploadErr.message}`);
         return;
       }
 
@@ -72,7 +74,7 @@ export default function AccountDetailPage() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(`Saved file but could not record document: ${err.error || res.statusText}`);
+        setUploadError(`Saved file but could not record document: ${err.error || res.statusText}`);
       }
     } finally {
       setUploading(false);
@@ -181,6 +183,12 @@ export default function AccountDetailPage() {
             <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
           </label>
         </div>
+        {uploadError && (
+          <div className="mb-3 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+            <span>{uploadError}</span>
+            <button onClick={() => setUploadError(null)} className="ml-3 text-red-400 hover:text-red-600 cursor-pointer"><X className="h-4 w-4" /></button>
+          </div>
+        )}
         {account.documents.length === 0 ? (
           <p className="text-sm text-gray-400">No documents yet</p>
         ) : (

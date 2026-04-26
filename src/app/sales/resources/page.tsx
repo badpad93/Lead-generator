@@ -15,6 +15,7 @@ import {
   DollarSign,
   GraduationCap,
   File,
+  X,
 } from "lucide-react";
 
 interface Resource {
@@ -57,6 +58,7 @@ export default function ResourcesPage() {
   const [filter, setFilter] = useState("all");
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -96,10 +98,11 @@ export default function ResourcesPage() {
 
   async function handleUpload() {
     if (!form.file || !form.title.trim()) {
-      alert("Title and file are required");
+      setUploadError("Title and file are required");
       return;
     }
     setUploading(true);
+    setUploadError(null);
     try {
       const supabase = (await import("@/lib/supabase")).createBrowserClient();
       const safeName = form.file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -111,7 +114,7 @@ export default function ResourcesPage() {
           contentType: form.file.type || undefined,
         });
       if (upErr) {
-        alert(`Upload failed: ${upErr.message}`);
+        setUploadError(`Upload failed: ${upErr.message}`);
         return;
       }
       const { data: urlData } = supabase.storage
@@ -135,7 +138,7 @@ export default function ResourcesPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Failed to save resource");
+        setUploadError(err.error || "Failed to save resource");
         return;
       }
       setForm({ title: "", description: "", category: "marketing", file: null });
@@ -214,6 +217,12 @@ export default function ResourcesPage() {
             onChange={(e) => setForm((f) => ({ ...f, file: e.target.files?.[0] || null }))}
             className="mt-3 block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-medium hover:file:bg-gray-200"
           />
+          {uploadError && (
+            <div className="mt-3 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+              <span>{uploadError}</span>
+              <button onClick={() => setUploadError(null)} className="ml-3 text-red-400 hover:text-red-600 cursor-pointer"><X className="h-4 w-4" /></button>
+            </div>
+          )}
           <div className="mt-4 flex gap-2">
             <button
               onClick={handleUpload}
@@ -223,7 +232,7 @@ export default function ResourcesPage() {
               {uploading ? "Uploading..." : "Upload"}
             </button>
             <button
-              onClick={() => setShowUpload(false)}
+              onClick={() => { setShowUpload(false); setUploadError(null); }}
               className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
             >
               Cancel

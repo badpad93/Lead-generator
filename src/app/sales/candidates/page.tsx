@@ -49,6 +49,7 @@ export default function CandidatesPage() {
   const [editSaving, setEditSaving] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [expandedDocsId, setExpandedDocsId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -109,7 +110,7 @@ export default function CandidatesPage() {
           }
         }
         if (failures.length > 0) {
-          alert(`Some uploads failed:\n${failures.join("\n")}`);
+          setUploadError(`Some uploads failed: ${failures.join("; ")}`);
         }
       }
       setForm({ full_name: "", email: "", phone: "", role_type: "BDP", assigned_to: "", notes: "" });
@@ -156,6 +157,7 @@ export default function CandidatesPage() {
 
   async function handleUploadDoc(candidateId: string, file: File) {
     setUploadingId(candidateId);
+    setUploadError(null);
     const formData = new FormData();
     formData.append("file", file);
     formData.append("step_key", "application");
@@ -166,7 +168,7 @@ export default function CandidatesPage() {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || `Upload failed (${res.status})`);
+      setUploadError(err.error || `Upload failed (${res.status})`);
     }
     setUploadingId(null);
     fetchCandidates();
@@ -287,6 +289,13 @@ export default function CandidatesPage() {
           </button>
         )}
       </div>
+
+      {uploadError && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          <span>{uploadError}</span>
+          <button onClick={() => setUploadError(null)} className="ml-3 text-red-400 hover:text-red-600 cursor-pointer"><X className="h-4 w-4" /></button>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-green-600" /></div>
