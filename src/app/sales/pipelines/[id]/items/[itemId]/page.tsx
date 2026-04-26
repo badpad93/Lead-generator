@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, ChevronRight, Upload, CheckCircle2, Circle, AlertTriangle, FileText, Lock, Building2, Search, X, Link2, Unlink, Send, DollarSign, ShieldCheck, PenTool, CreditCard, Clock, ExternalLink, MapPin } from "lucide-react";
+import { ArrowLeft, Loader2, ChevronRight, Upload, CheckCircle2, Circle, AlertTriangle, FileText, Lock, Building2, Search, X, Link2, Unlink, Send, DollarSign, ShieldCheck, PenTool, CreditCard, Clock, ExternalLink, MapPin, Calculator } from "lucide-react";
 
 interface StepDoc {
   id: string;
@@ -64,6 +64,16 @@ interface GatingStatus {
     adminApproval: { required: boolean; completed: boolean };
   };
   blockers: string[];
+}
+
+interface PricingData {
+  total_score: number;
+  traffic_score: number;
+  hours_score: number;
+  machine_score: number;
+  tier: number;
+  tier_label: string;
+  price: number;
 }
 
 interface ItemDoc {
@@ -127,6 +137,9 @@ export default function PipelineItemDetailPage() {
   const [approvingStep, setApprovingStep] = useState(false);
   const [esignForm, setEsignForm] = useState({ document_name: "", recipient_email: "", template_id: "" });
   const [sendingProposal, setSendingProposal] = useState(false);
+  const [pricingData, setPricingData] = useState<PricingData | null>(null);
+  const [pricingInputs, setPricingInputs] = useState({ employees: 0, foot_traffic: 0, business_hours: "low" as string, machines_requested: 1 });
+  const [calculatingPricing, setCalculatingPricing] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -300,7 +313,38 @@ export default function PipelineItemDetailPage() {
     if (res.ok) {
       load();
       loadGatingData();
+      loadLocationPricing();
     }
+  }
+
+  const loadLocationPricing = useCallback(async () => {
+    if (!token || !item?.location_id) return;
+    const res = await fetch(`/api/locations/${item.location_id}/calculate-pricing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({}),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setPricingData(data);
+    }
+  }, [token, item?.location_id]);
+
+  useEffect(() => { loadLocationPricing(); }, [loadLocationPricing]);
+
+  async function handleRecalculatePricing() {
+    if (!item?.location_id) return;
+    setCalculatingPricing(true);
+    const res = await fetch(`/api/locations/${item.location_id}/calculate-pricing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(pricingInputs),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setPricingData(data);
+    }
+    setCalculatingPricing(false);
   }
 
   const filteredAccounts = accountSearch.length > 0
@@ -483,6 +527,96 @@ export default function PipelineItemDetailPage() {
           })}
         </div>
       </div>
+
+      {/* Pricing Engine */}
+      {item.location_id && !isCompleted && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <Calculator className="h-4 w-4 text-gray-400" />
+              Pricing Engine
+            </h2>
+            {pricingData && (
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-green-100 text-green-700 px-2.5 py-0.5 text-xs font-bold">
+                  ${pricingData.price.toLocaleString()}
+                </span>
+                <span className="rounded-full bg-gray-100 text-gray-600 px-2 py-0.5 text-xs font-medium">
+                  {pricingData.tier_label}
+                </span>
+                <span className="text-xs text-gray-400">Score: {pricingData.total_score}/100</span>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Employees</label>
+              <input
+                type="number"
+                min="0"
+                value={pricingInputs.employees}
+                onChange={(e) => setPricingInputs((p) => ({ ...p, employees: Number(e.target.value) || 0 }))}
+                className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-green-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Foot Traffic</label>
+              <input
+                type="number"
+                min="0"
+                value={pricingInputs.foot_traffic}
+                onChange={(e) => setPricingInputs((p) => ({ ...p, foot_traffic: Number(e.target.value) || 0 }))}
+                className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-green-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Business Hours</label>
+              <select
+                value={pricingInputs.business_hours}
+                onChange={(e) => setPricingInputs((p) => ({ ...p, business_hours: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-green-500 focus:outline-none"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="24/7">24/7</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Machines</label>
+              <select
+                value={pricingInputs.machines_requested}
+                onChange={(e) => setPricingInputs((p) => ({ ...p, machines_requested: Number(e.target.value) }))}
+                className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-green-500 focus:outline-none"
+              >
+                <option value={1}>1</option>
+                <option value={2}>2</option>
+                <option value={3}>3</option>
+                <option value={4}>4</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleRecalculatePricing}
+              disabled={calculatingPricing}
+              className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+            >
+              {calculatingPricing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Calculator className="h-3.5 w-3.5" />}
+              {calculatingPricing ? "Calculating..." : "Recalculate"}
+            </button>
+            {pricingData && (
+              <div className="flex gap-4 text-xs text-gray-500">
+                <span>Traffic: {pricingData.traffic_score}</span>
+                <span>Hours: {pricingData.hours_score}</span>
+                <span>Machines: {pricingData.machine_score}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Location Proposal */}
       {currentStep && item.location_id && currentStep.pandadoc_preliminary_template_id && !isCompleted && (

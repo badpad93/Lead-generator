@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 import { createDocumentFromTemplate, sendDocument } from "@/lib/pandadoc";
+import {
+  calculateLocationPrice,
+  BusinessHours,
+  MachinesRequested,
+  PricingResult,
+} from "@/lib/pricing/locationPricing";
 
 export async function POST(
   req: NextRequest,
@@ -52,6 +58,45 @@ export async function POST(
     return NextResponse.json({ error: "Location not found" }, { status: 404 });
   }
 
+  // Auto-calculate pricing if missing or stale
+  let pricing: PricingResult | null = null;
+  const pricingStale =
+    !location.pricing_calculated_at ||
+    !location.pricing_score ||
+    (location.updated_at && new Date(location.pricing_calculated_at) < new Date(location.updated_at));
+
+  if (pricingStale && location.business_hours && location.machines_requested) {
+    try {
+      pricing = calculateLocationPrice({
+        employees: location.employee_count ?? 0,
+        foot_traffic: location.traffic_count ?? 0,
+        business_hours: location.business_hours as BusinessHours,
+        machines_requested: location.machines_requested as MachinesRequested,
+      });
+      await supabaseAdmin
+        .from("locations")
+        .update({
+          pricing_score: pricing.total_score,
+          pricing_tier: pricing.tier,
+          pricing_price: pricing.price,
+          pricing_calculated_at: new Date().toISOString(),
+        })
+        .eq("id", location.id);
+    } catch {
+      // Pricing calculation failed — continue without it
+    }
+  } else if (location.pricing_score != null) {
+    pricing = {
+      total_score: location.pricing_score,
+      traffic_score: Math.min(((location.employee_count ?? 0) + (location.traffic_count ?? 0)) / 500 * 70, 70),
+      hours_score: ({ low: 5, medium: 10, high: 15, "24/7": 20 } as Record<string, number>)[location.business_hours ?? "low"] ?? 5,
+      machine_score: ({ 1: 3, 2: 6, 3: 8, 4: 10 } as Record<number, number>)[location.machines_requested ?? 1] ?? 3,
+      tier: location.pricing_tier as 1 | 2 | 3 | 4 | 5,
+      tier_label: `Tier ${location.pricing_tier}`,
+      price: Number(location.pricing_price),
+    };
+  }
+
   const recipientEmail = item.sales_accounts?.email;
   const recipientName = item.sales_accounts?.contact_name || item.sales_accounts?.business_name || item.name;
 
@@ -61,6 +106,9 @@ export async function POST(
       { status: 422 }
     );
   }
+
+  // Use pricing_price when available, otherwise fall back to step.payment_amount
+  const effectivePrice = pricing?.price ?? step.payment_amount;
 
   try {
     const fields: Record<string, string> = {
@@ -73,8 +121,17 @@ export async function POST(
       business_name: item.sales_accounts?.business_name || "",
     };
 
-    if (step.payment_amount) {
-      fields.payment_amount = String(step.payment_amount);
+    if (pricing) {
+      fields.ProposalPrice = String(pricing.price);
+      fields.ProposalTier = pricing.tier_label;
+      fields.ProposalScore = String(pricing.total_score);
+      fields.TrafficScore = String(pricing.traffic_score);
+      fields.HoursScore = String(pricing.hours_score);
+      fields.MachineScore = String(pricing.machine_score);
+    }
+
+    if (effectivePrice) {
+      fields.payment_amount = String(effectivePrice);
     }
 
     const doc = await createDocumentFromTemplate({
@@ -105,12 +162,12 @@ export async function POST(
     });
 
     // Create pending payment record if payment is required via PandaDoc+Stripe
-    if (step.requires_payment && step.payment_provider === "pandadoc_stripe" && step.payment_amount) {
+    if (step.requires_payment && step.payment_provider === "pandadoc_stripe" && effectivePrice) {
       await supabaseAdmin.from("pipeline_payments").insert({
         pipeline_item_id: itemId,
         step_id: item.current_step_id,
         provider: "stripe",
-        amount: step.payment_amount,
+        amount: effectivePrice,
         currency: "USD",
         description: step.payment_description || `Proposal payment — ${item.name}`,
         status: "pending",
