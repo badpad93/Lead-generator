@@ -135,6 +135,13 @@ export default function LeadsPage() {
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
+  // Convert-to-deal state
+  const [convertingLeadId, setConvertingLeadId] = useState<string | null>(null);
+  const [convertPipelineId, setConvertPipelineId] = useState("");
+  const [convertError, setConvertError] = useState<string | null>(null);
+  const [convertSaving, setConvertSaving] = useState(false);
+  const [salesPipelines, setSalesPipelines] = useState<{ id: string; name: string }[]>([]);
+
   // CSV Import state
   const [showImport, setShowImport] = useState(false);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -151,13 +158,17 @@ export default function LeadsPage() {
       setToken(session.access_token);
       setUserId(session.user.id);
 
-      const usersRes = await fetch("/api/sales/users", { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const [usersRes, pipRes] = await Promise.all([
+        fetch("/api/sales/users", { headers: { Authorization: `Bearer ${session.access_token}` } }),
+        fetch("/api/pipelines?type=sales", { headers: { Authorization: `Bearer ${session.access_token}` } }),
+      ]);
       if (usersRes.ok) {
         const users = await usersRes.json();
         setSalesUsers(users);
         const me = users.find((u: { id: string }) => u.id === session.user.id);
         if (me?.role === "admin" || me?.role === "director_of_sales") setUserRole("admin");
       }
+      if (pipRes.ok) setSalesPipelines(await pipRes.json());
     }
     init();
   }, []);
@@ -207,15 +218,33 @@ export default function LeadsPage() {
     fetchLeads();
   }
 
-  async function handleConvert(id: string) {
-    const res = await fetch(`/api/sales/leads/${id}`, {
+  function openConvertDialog(id: string) {
+    setConvertingLeadId(id);
+    setConvertError(null);
+    if (salesPipelines.length === 1) {
+      setConvertPipelineId(salesPipelines[0].id);
+    } else {
+      setConvertPipelineId("");
+    }
+  }
+
+  async function handleConvert() {
+    if (!convertingLeadId || !convertPipelineId) return;
+    setConvertSaving(true);
+    setConvertError(null);
+    const res = await fetch(`/api/sales/leads/${convertingLeadId}/convert`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action: "convert" }),
+      body: JSON.stringify({ pipeline_id: convertPipelineId }),
     });
     if (res.ok) {
+      setConvertingLeadId(null);
       fetchLeads();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      setConvertError(err.error || `Conversion failed (${res.status})`);
     }
+    setConvertSaving(false);
   }
 
   async function handleDelete(id: string) {
@@ -950,7 +979,7 @@ export default function LeadsPage() {
                         </button>
                       )}
                       <button
-                        onClick={() => handleConvert(lead.id)}
+                        onClick={() => openConvertDialog(lead.id)}
                         title="Convert to Deal"
                         className="rounded-lg p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 cursor-pointer"
                       >
@@ -1028,6 +1057,49 @@ export default function LeadsPage() {
               >
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Convert to Deal Modal */}
+      {convertingLeadId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Convert to Deal</h2>
+              <button onClick={() => setConvertingLeadId(null)} className="rounded-lg p-1 text-gray-400 hover:text-gray-600 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">Select a pipeline for this deal:</p>
+            {salesPipelines.length === 0 ? (
+              <p className="text-sm text-red-600 mb-4">No sales pipelines found. Create a pipeline first.</p>
+            ) : (
+              <select
+                value={convertPipelineId}
+                onChange={(e) => setConvertPipelineId(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none mb-4 cursor-pointer"
+              >
+                {salesPipelines.length > 1 && <option value="">Select pipeline...</option>}
+                {salesPipelines.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
+            {convertError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{convertError}</div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setConvertingLeadId(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+              <button
+                onClick={handleConvert}
+                disabled={convertSaving || !convertPipelineId}
+                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+              >
+                {convertSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Convert
               </button>
             </div>
           </div>
