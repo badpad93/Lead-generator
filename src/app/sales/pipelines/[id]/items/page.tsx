@@ -35,7 +35,7 @@ export default function PipelineItemsPage() {
   const [items, setItems] = useState<PipelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: "", value: "" });
+  const [form, setForm] = useState({ name: "" });
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountSearch, setAccountSearch] = useState("");
@@ -74,11 +74,10 @@ export default function PipelineItemsPage() {
       body: JSON.stringify({
         pipeline_id: pipelineId,
         name: form.name,
-        value: Number(form.value) || 0,
         account_id: selectedAccount?.id || null,
       }),
     });
-    setForm({ name: "", value: "" });
+    setForm({ name: "" });
     setSelectedAccount(null);
     setAccountSearch("");
     setShowAdd(false);
@@ -177,7 +176,6 @@ export default function PipelineItemsPage() {
           </div>
           <div className="flex gap-3">
             <input placeholder="Name / Business *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-            <input placeholder="Value ($)" type="number" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))} className="w-32 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <button onClick={handleAdd} disabled={saving} className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer">{saving ? "Adding..." : "Add"}</button>
             <button onClick={() => { setShowAdd(false); setSelectedAccount(null); setAccountSearch(""); }} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
           </div>
