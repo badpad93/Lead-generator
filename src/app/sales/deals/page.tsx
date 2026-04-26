@@ -14,7 +14,6 @@ import {
   Search,
   Building2,
   X,
-  DollarSign,
   TrendingUp,
   ChevronRight,
 } from "lucide-react";
@@ -83,7 +82,6 @@ export default function DealDashboardPage() {
   const [accountSearch, setAccountSearch] = useState("");
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
-  const [formValue, setFormValue] = useState("");
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -143,7 +141,6 @@ export default function DealDashboardPage() {
         business_name: newName.trim(),
         pipeline_id: pipelineId,
         account_id: selectedAccount?.id || null,
-        value: Number(formValue) || 0,
       }),
     });
     if (!res.ok) {
@@ -153,7 +150,6 @@ export default function DealDashboardPage() {
     }
     setNewName("");
     setFormPipeline("");
-    setFormValue("");
     setSelectedAccount(null);
     setAccountSearch("");
     setShowAdd(false);
@@ -224,7 +220,6 @@ export default function DealDashboardPage() {
 
   // Summary stats
   const totalDeals = deals.length;
-  const totalValue = deals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
   const openDeals = deals.filter((d) => d.stage !== "won" && d.stage !== "lost").length;
   const wonDeals = deals.filter((d) => d.stage === "won").length;
 
@@ -250,7 +245,7 @@ export default function DealDashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
           <p className="text-xs text-gray-400">Total Deals</p>
           <p className="text-lg font-bold text-gray-900">{totalDeals}</p>
@@ -262,10 +257,6 @@ export default function DealDashboardPage() {
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
           <p className="text-xs text-gray-400">Won</p>
           <p className="text-lg font-bold text-green-600">{wonDeals}</p>
-        </div>
-        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-          <p className="text-xs text-gray-400 flex items-center gap-1"><DollarSign className="h-3 w-3" />Total Value</p>
-          <p className="text-lg font-bold text-green-600">${totalValue.toLocaleString()}</p>
         </div>
       </div>
 
@@ -362,13 +353,6 @@ export default function DealDashboardPage() {
               placeholder="Business name *"
               className="flex-1 min-w-[180px] rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
             />
-            <input
-              type="number"
-              value={formValue}
-              onChange={(e) => setFormValue(e.target.value)}
-              placeholder="Value ($)"
-              className="w-28 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
-            />
             {activeTab === "all" && (
               <div className="relative">
                 <GitBranch className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
@@ -385,7 +369,7 @@ export default function DealDashboardPage() {
               </div>
             )}
             <button onClick={handleCreate} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer">Create</button>
-            <button onClick={() => { setShowAdd(false); setNewName(""); setFormPipeline(""); setFormValue(""); setSelectedAccount(null); setAccountSearch(""); }} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+            <button onClick={() => { setShowAdd(false); setNewName(""); setFormPipeline(""); setSelectedAccount(null); setAccountSearch(""); }} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
           </div>
           {(activeTab !== "all" || formPipeline) && (
             <p className="mt-2 text-xs text-gray-400">This deal will also be added to the {activeTab !== "all" ? activePipeline?.name : "selected"} pipeline automatically.</p>
@@ -455,9 +439,8 @@ export default function DealDashboardPage() {
                           </span>
                         </div>
                       )}
-                      <div className="mt-1.5 flex items-center justify-between">
+                      <div className="mt-1.5">
                         <span className="text-xs text-gray-500 truncate">{deal.assigned_profile?.full_name || "Unassigned"}</span>
-                        <span className="text-xs font-semibold text-green-600">${Number(deal.value).toLocaleString()}</span>
                       </div>
                     </div>
                   ))}
@@ -509,7 +492,6 @@ export default function DealDashboardPage() {
                           <p className="text-sm font-medium text-gray-900">{item.name}</p>
                           {item.sales_accounts && <p className="text-xs text-gray-400 mt-0.5">{item.sales_accounts.business_name}</p>}
                           <div className="flex items-center justify-between mt-2">
-                            {item.value > 0 && <span className="text-xs font-medium text-green-600">${Number(item.value).toLocaleString()}</span>}
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(item.status)}`}>{item.status}</span>
                           </div>
                         </Link>
