@@ -137,12 +137,42 @@ export async function POST(
       fields.payment_amount = String(effectivePrice);
     }
 
+    const pricingTables = effectivePrice
+      ? [
+          {
+            name: "Quote 1",
+            data_merge: true,
+            options: { currency: "USD", discount: { type: "absolute", value: 0 } },
+            sections: [
+              {
+                title: "",
+                default: true,
+                rows: [
+                  {
+                    options: { optional: false, optional_selected: true, qty_editable: false },
+                    data: {
+                      name: "Location Placement",
+                      description: location.machine_type
+                        ? `${location.machine_type} — ${location.machines_requested || 1} machine(s)`
+                        : `${location.machines_requested || 1} machine(s)`,
+                      price: Number(effectivePrice),
+                      qty: 1,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ]
+      : undefined;
+
     const doc = await createDocumentFromTemplate({
       templateId: step.pandadoc_preliminary_template_id,
       documentName: `Location Proposal — ${item.name}`,
       recipientEmail,
       recipientName,
       fields,
+      pricing_tables: pricingTables,
     });
 
     // Wait for PandaDoc to process the document before sending
