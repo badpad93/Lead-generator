@@ -4,6 +4,11 @@ const colorMap: Record<
   MachineType,
   { bg: string; text: string; ring: string }
 > = {
+  ai: {
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    ring: "ring-emerald-200",
+  },
   snack: {
     bg: "bg-amber-50",
     text: "text-amber-700",
@@ -57,6 +62,7 @@ const colorMap: Record<
 };
 
 const labelMap: Record<MachineType, string> = {
+  ai: "AI Vending Machine",
   snack: "Snack",
   beverage: "Beverage",
   combo: "Combo",

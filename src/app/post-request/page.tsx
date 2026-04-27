@@ -13,6 +13,7 @@ import {
   Loader2,
   CheckCircle2,
   Edit3,
+  Bot,
   Cookie,
   Coffee,
   Snowflake,
@@ -58,6 +59,7 @@ const LOCATION_TYPES = [
 ] as const;
 
 const MACHINE_TYPES = [
+  { label: "AI Vending Machine", icon: Bot },
   { label: "Snack", icon: Cookie },
   { label: "Beverage/Soda", icon: GlassWater },
   { label: "Combo", icon: Package },
