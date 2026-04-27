@@ -76,6 +76,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         lead_id: leadId,
         account_id: accountId,
         pipeline_id,
+        immediate_need: lead.immediate_need || null,
       })
       .select("id")
       .single();

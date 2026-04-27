@@ -63,6 +63,7 @@ export interface SalesDeal {
   stage: DealStage;
   value: number;
   business_name: string;
+  immediate_need?: ImmediateNeed | null;
   locked_at: string | null;
   created_at: string;
   // Joined
