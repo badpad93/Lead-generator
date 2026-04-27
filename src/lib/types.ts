@@ -13,6 +13,7 @@ export type LocationType =
   | "other";
 
 export type MachineType =
+  | "ai"
   | "snack"
   | "beverage"
   | "combo"
@@ -223,6 +224,7 @@ export interface Database {
 
 // Constants
 export const MACHINE_TYPES: { value: MachineType; label: string }[] = [
+  { value: "ai", label: "AI Vending Machine" },
   { value: "snack", label: "Snack" },
   { value: "beverage", label: "Beverage / Soda" },
   { value: "combo", label: "Combo (Snack + Drink)" },

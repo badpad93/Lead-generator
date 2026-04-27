@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 const MACHINE_TYPES = [
+  { value: "ai", label: "AI Vending Machine" },
   { value: "snack", label: "Snack" },
   { value: "beverage", label: "Beverage" },
   { value: "combo", label: "Combo" },
