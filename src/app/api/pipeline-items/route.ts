@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from("pipeline_items")
-    .select("*, pipeline_steps!pipeline_items_current_step_id_fkey(id, name, order_index), sales_accounts(business_name), employees(full_name)")
+    .select("*, pipelines(id, name), pipeline_steps!pipeline_items_current_step_id_fkey(id, name, order_index), sales_accounts(business_name), employees(full_name)")
     .order("created_at", { ascending: false });
 
   if (pipelineId) query = query.eq("pipeline_id", pipelineId);
