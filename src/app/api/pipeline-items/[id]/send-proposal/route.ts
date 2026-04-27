@@ -116,6 +116,8 @@ export async function POST(
       zip: location.zip || "",
       employee_count: String(location.employee_count || ""),
       traffic_count: String(location.traffic_count || ""),
+      machine_type: location.machine_type || "",
+      machines_requested: String(location.machines_requested || ""),
       customer_name: recipientName,
       customer_email: recipientEmail,
       customer_phone: item.sales_accounts?.phone || "",
