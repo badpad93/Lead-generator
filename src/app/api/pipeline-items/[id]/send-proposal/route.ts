@@ -21,7 +21,7 @@ export async function POST(
 
   const { data: item } = await supabaseAdmin
     .from("pipeline_items")
-    .select("*, sales_accounts(id, business_name, contact_name, email, phone), pipelines(id, name)")
+    .select("*, sales_accounts(id, business_name, contact_name, email, phone, address), pipelines(id, name)")
     .eq("id", itemId)
     .single();
 
@@ -118,10 +118,17 @@ export async function POST(
       traffic_count: String(location.traffic_count || ""),
       machine_type: location.machine_type || "",
       machines_requested: String(location.machines_requested || ""),
+      business_hours: location.business_hours || "",
       customer_name: recipientName,
       customer_email: recipientEmail,
       customer_phone: item.sales_accounts?.phone || "",
+      customer_address: item.sales_accounts?.address || "",
       business_name: item.sales_accounts?.business_name || "",
+      location_name: location.location_name || "",
+      location_address: location.address || "",
+      location_phone: location.phone || "",
+      decision_maker_name: location.decision_maker_name || "",
+      decision_maker_email: location.decision_maker_email || "",
     };
 
     if (pricing) {

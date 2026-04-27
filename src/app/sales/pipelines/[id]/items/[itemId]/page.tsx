@@ -846,46 +846,75 @@ export default function PipelineItemDetailPage() {
         </div>
       )}
 
-      {/* Location Proposal */}
+      {/* Send Sales Agreement (PandaDoc-automated steps) */}
       {currentStep && item.location_id && currentStep.pandadoc_preliminary_template_id && !isCompleted && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-gray-400" />
-              Location Proposal
+              <Send className="h-4 w-4 text-gray-400" />
+              Sales Agreement
             </h2>
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
               item.proposal_status === "paid" ? "bg-green-100 text-green-700" :
               item.proposal_status === "proposal_sent" ? "bg-blue-100 text-blue-600" :
               "bg-gray-100 text-gray-500"
             }`}>
-              {item.proposal_status === "paid" ? "Paid & Revealed" :
-               item.proposal_status === "proposal_sent" ? "Proposal Sent" :
+              {item.proposal_status === "paid" ? "Signed & Paid" :
+               item.proposal_status === "proposal_sent" ? "Sent" :
                "Not Sent"}
             </span>
           </div>
-          {item.proposal_status === "not_sent" ? (
-            <button
-              onClick={handleSendProposal}
-              disabled={sendingProposal || !item.sales_accounts?.email}
-              className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
-            >
-              {sendingProposal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-              {sendingProposal ? "Sending Proposal..." : "Send Preliminary Proposal"}
-            </button>
+          {esignDocs.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {esignDocs.map((doc) => (
+                <div key={doc.id} className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+                  doc.status === "completed" ? "border-green-200 bg-green-50" :
+                  doc.status === "sent" || doc.status === "viewed" ? "border-blue-200 bg-blue-50" :
+                  "border-gray-200"
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {doc.status === "completed" ? <CheckCircle2 className="h-4 w-4 text-green-600" /> :
+                     doc.status === "sent" || doc.status === "viewed" ? <Clock className="h-4 w-4 text-blue-500" /> :
+                     <FileText className="h-4 w-4 text-gray-400" />}
+                    <div>
+                      <span className="text-sm text-gray-900">{doc.document_name}</span>
+                      <span className="text-xs text-gray-400 ml-2">{doc.recipient_email}</span>
+                    </div>
+                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    doc.status === "completed" ? "bg-green-100 text-green-700" :
+                    doc.status === "sent" ? "bg-blue-100 text-blue-600" :
+                    doc.status === "viewed" ? "bg-yellow-100 text-yellow-700" :
+                    "bg-gray-100 text-gray-600"
+                  }`}>{doc.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {item.proposal_status === "not_sent" || (!esignDocs.length && item.proposal_status !== "paid") ? (
+            <>
+              <button
+                onClick={handleSendProposal}
+                disabled={sendingProposal || !item.sales_accounts?.email || item.proposal_status === "proposal_sent"}
+                className="flex items-center gap-1.5 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+              >
+                {sendingProposal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {sendingProposal ? "Sending..." : "Send Sales Agreement"}
+              </button>
+              {!item.sales_accounts?.email && (
+                <p className="mt-2 text-xs text-red-500">Link an account with an email address to send the agreement.</p>
+              )}
+            </>
           ) : item.proposal_status === "proposal_sent" ? (
             <p className="text-sm text-blue-600 flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5" />
-              Proposal sent — awaiting customer payment via PandaDoc
+              Agreement sent — waiting for customer signature &amp; payment
             </p>
           ) : (
             <p className="text-sm text-green-600 flex items-center gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5" />
               Payment received — full location details sent to customer
             </p>
-          )}
-          {!item.sales_accounts?.email && item.proposal_status === "not_sent" && (
-            <p className="mt-2 text-xs text-red-500">Link an account with an email address to send proposals.</p>
           )}
         </div>
       )}
@@ -942,8 +971,8 @@ export default function PipelineItemDetailPage() {
         </div>
       )}
 
-      {/* E-Signature Section */}
-      {currentStep?.requires_signature && !isCompleted && (
+      {/* E-Signature Section (hidden for PandaDoc-automated steps) */}
+      {currentStep?.requires_signature && !isCompleted && !currentStep.pandadoc_preliminary_template_id && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <PenTool className="h-4 w-4 text-gray-400" />
@@ -1004,8 +1033,8 @@ export default function PipelineItemDetailPage() {
         </div>
       )}
 
-      {/* Payment Section */}
-      {currentStep?.requires_payment && !isCompleted && (
+      {/* Payment Section (hidden for PandaDoc-automated steps — payment is inline via PandaDoc+Stripe) */}
+      {currentStep?.requires_payment && !isCompleted && !currentStep?.pandadoc_preliminary_template_id && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-gray-400" />

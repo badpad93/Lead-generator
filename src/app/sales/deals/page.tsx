@@ -8,7 +8,6 @@ import {
   Loader2,
   Plus,
   Trash2,
-  Lock,
   GitBranch,
   LayoutDashboard,
   Search,
@@ -17,8 +16,6 @@ import {
   TrendingUp,
   ChevronRight,
 } from "lucide-react";
-import type { DealStage } from "@/lib/salesTypes";
-import { DEAL_STAGES } from "@/lib/salesTypes";
 import type { SalesDeal } from "@/lib/salesTypes";
 
 type DealWithPipeline = SalesDeal & { pipelines?: { id: string; name: string } | null };
@@ -35,6 +32,8 @@ interface PipelineItem {
   name: string;
   status: string;
   value: number;
+  pipeline_id: string;
+  pipelines: { id: string; name: string } | null;
   pipeline_steps: { id: string; name: string; order_index: number } | null;
   sales_accounts: { business_name: string } | null;
   employees: { full_name: string } | null;
@@ -51,29 +50,18 @@ interface Account {
   address: string | null;
 }
 
-const STAGE_COLORS: Record<DealStage, string> = {
-  new: "border-t-blue-400",
-  contacted: "border-t-yellow-400",
-  qualified: "border-t-cyan-400",
-  proposal: "border-t-purple-400",
-  closing: "border-t-orange-400",
-  won: "border-t-green-500",
-  lost: "border-t-red-400",
-};
-
 export default function DealDashboardPage() {
   const router = useRouter();
   const [deals, setDeals] = useState<DealWithPipeline[]>([]);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState("");
-  const [dragging, setDragging] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [formPipeline, setFormPipeline] = useState("");
   const [pipelines, setPipelines] = useState<SalesPipeline[]>([]);
-  const [dragError, setDragError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState("all");
+  const [allItems, setAllItems] = useState<PipelineItem[]>([]);
   const [pipelineItems, setPipelineItems] = useState<PipelineItem[]>([]);
   const [pipelineSteps, setPipelineSteps] = useState<{ id: string; name: string; order_index: number }[]>([]);
   const [pipelineLoading, setPipelineLoading] = useState(false);
@@ -105,8 +93,12 @@ export default function DealDashboardPage() {
   const fetchDeals = useCallback(async () => {
     if (!token) return;
     setLoading(true);
-    const res = await fetch("/api/sales/deals", { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) setDeals(await res.json());
+    const [dealRes, itemRes] = await Promise.all([
+      fetch("/api/sales/deals", { headers: { Authorization: `Bearer ${token}` } }),
+      fetch("/api/pipeline-items", { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    if (dealRes.ok) setDeals(await dealRes.json());
+    if (itemRes.ok) setAllItems(await itemRes.json());
     setLoading(false);
   }, [token]);
 
@@ -173,28 +165,6 @@ export default function DealDashboardPage() {
     if (activeTab !== "all") fetchPipelineItems(activeTab);
   }
 
-  async function handleDrop(dealId: string, newStage: DealStage) {
-    setDragError(null);
-    const deal = deals.find((d) => d.id === dealId);
-    if (deal?.locked_at) {
-      setDragError(`"${deal.business_name}" is locked and cannot be moved.`);
-      setTimeout(() => setDragError(null), 4000);
-      return;
-    }
-    setDeals((prev) => prev.map((d) => d.id === dealId ? { ...d, stage: newStage } : d));
-    const res = await fetch(`/api/sales/deals/${dealId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ stage: newStage }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      setDragError(err.validation_errors ? err.validation_errors.join(". ") : (err.error || "Failed to update stage"));
-      setTimeout(() => setDragError(null), 5000);
-    }
-    fetchDeals();
-  }
-
   function selectAccount(account: Account) {
     setSelectedAccount(account);
     setAccountSearch("");
@@ -218,10 +188,10 @@ export default function DealDashboardPage() {
 
   const activePipeline = pipelines.find((p) => p.id === activeTab);
 
-  // Summary stats
-  const totalDeals = deals.length;
-  const openDeals = deals.filter((d) => d.stage !== "won" && d.stage !== "lost").length;
-  const wonDeals = deals.filter((d) => d.stage === "won").length;
+  // Summary stats — use pipeline items as source of truth
+  const totalDeals = allItems.length;
+  const openDeals = allItems.filter((d) => d.status === "active").length;
+  const wonDeals = allItems.filter((d) => d.status === "won").length;
 
   if (loading && !deals.length) {
     return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
@@ -274,7 +244,7 @@ export default function DealDashboardPage() {
           All Deals
         </button>
         {pipelines.map((p) => {
-          const pipelineDeals = deals.filter((d) => d.pipelines?.id === p.id);
+          const pipelineCount = allItems.filter((d) => d.pipeline_id === p.id).length;
           return (
             <button
               key={p.id}
@@ -288,19 +258,12 @@ export default function DealDashboardPage() {
               <GitBranch className="h-3.5 w-3.5" />
               {p.name}
               <span className={`ml-0.5 rounded-full px-1.5 py-0.5 text-xs ${activeTab === p.id ? "bg-green-700 text-green-100" : "bg-gray-100 text-gray-500"}`}>
-                {pipelineDeals.length}
+                {pipelineCount}
               </span>
             </button>
           );
         })}
       </div>
-
-      {/* Error Banner */}
-      {dragError && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-          <p className="text-sm text-red-700">{dragError}</p>
-        </div>
-      )}
 
       {/* Add Deal Form */}
       {showAdd && (
@@ -379,76 +342,45 @@ export default function DealDashboardPage() {
 
       {/* ============ ALL DEALS VIEW ============ */}
       {activeTab === "all" && (
-        <div className="flex gap-3 overflow-x-auto pb-4">
-          {DEAL_STAGES.map((stage) => {
-            const stageDeals = deals.filter((d) => d.stage === stage.value);
-            return (
-              <div
-                key={stage.value}
-                className="min-w-[220px] flex-shrink-0 rounded-xl bg-gray-100/60 p-3"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const dealId = e.dataTransfer.getData("dealId");
-                  if (dealId) handleDrop(dealId, stage.value);
-                  setDragging(null);
-                }}
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-700">{stage.label}</h3>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-500 shadow-sm">
-                    {stageDeals.length}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {stageDeals.map((deal) => (
-                    <div
-                      key={deal.id}
-                      draggable={!deal.locked_at}
-                      onDragStart={(e) => {
-                        if (deal.locked_at) { e.preventDefault(); return; }
-                        e.dataTransfer.setData("dealId", deal.id);
-                        setDragging(deal.id);
-                      }}
-                      onDragEnd={() => setDragging(null)}
-                      onClick={() => router.push(`/sales/deals/${deal.id}`)}
-                      className={`cursor-pointer rounded-lg border border-gray-200 border-t-2 bg-white p-3 shadow-sm transition-all hover:shadow-md ${STAGE_COLORS[deal.stage]} ${
-                        dragging === deal.id ? "opacity-50" : ""
-                      } ${deal.locked_at ? "opacity-75" : ""}`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                          {deal.locked_at && <Lock className="h-3 w-3 text-amber-500 flex-shrink-0" />}
-                          <p className="text-sm font-medium text-gray-900 truncate">{deal.business_name}</p>
-                        </div>
-                        {!deal.locked_at && (
-                          <button
-                            onClick={(e) => handleDeleteDeal(e, deal.id)}
-                            title="Delete"
-                            className="rounded p-0.5 text-gray-300 hover:bg-red-50 hover:text-red-600 cursor-pointer"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                      {deal.pipelines && (
-                        <div className="mt-1.5">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
-                            <GitBranch className="h-2.5 w-2.5" />
-                            {deal.pipelines.name}
-                          </span>
-                        </div>
-                      )}
-                      <div className="mt-1.5">
-                        <span className="text-xs text-gray-500 truncate">{deal.assigned_profile?.full_name || "Unassigned"}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {stageDeals.length === 0 && <p className="py-6 text-center text-xs text-gray-400">No deals</p>}
-                </div>
-              </div>
-            );
-          })}
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/60">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Pipeline</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Current Step</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Account</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allItems.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No deals found</td></tr>
+              )}
+              {allItems.map((item) => (
+                <tr
+                  key={item.id}
+                  onClick={() => router.push(`/sales/pipelines/${item.pipeline_id}/items/${item.id}`)}
+                  className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3 font-medium text-gray-900">{item.name}</td>
+                  <td className="px-4 py-3">
+                    {item.pipelines ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
+                        <GitBranch className="h-2.5 w-2.5" />
+                        {item.pipelines.name}
+                      </span>
+                    ) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">{item.pipeline_steps?.name || "—"}</td>
+                  <td className="px-4 py-3 text-gray-600">{item.sales_accounts?.business_name || "—"}</td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(item.status)}`}>{item.status}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
