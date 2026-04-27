@@ -209,7 +209,7 @@ async function handleProposalPaymentCompletion(
 
   const { data: item } = await supabaseAdmin
     .from("pipeline_items")
-    .select("*, sales_accounts(id, business_name, contact_name, email)")
+    .select("*, sales_accounts(id, business_name, contact_name, email, phone)")
     .eq("id", itemId)
     .single();
 
@@ -230,6 +230,8 @@ async function handleProposalPaymentCompletion(
       zip: location.zip || "",
       employee_count: String(location.employee_count || ""),
       traffic_count: String(location.traffic_count || ""),
+      machine_type: location.machine_type || "",
+      machines_requested: String(location.machines_requested || ""),
       location_name: location.location_name || "",
       address: location.address || "",
       phone: location.phone || "",
@@ -237,12 +239,43 @@ async function handleProposalPaymentCompletion(
       decision_maker_email: location.decision_maker_email || "",
       customer_name: recipientName,
       customer_email: recipientEmail,
+      customer_phone: item.sales_accounts?.phone || "",
       business_name: item.sales_accounts?.business_name || "",
     };
 
-    if (step.payment_amount) {
-      fields.payment_amount = String(step.payment_amount);
+    const fullPrice = step.payment_amount ? Number(step.payment_amount) : null;
+    if (fullPrice) {
+      fields.payment_amount = String(fullPrice);
     }
+
+    const pricingTables = fullPrice
+      ? [
+          {
+            name: "Quote 1",
+            data_merge: true,
+            options: { currency: "USD", discount: { type: "absolute", value: 0 } },
+            sections: [
+              {
+                title: "",
+                default: true,
+                rows: [
+                  {
+                    options: { optional: false, optional_selected: true, qty_editable: false },
+                    data: {
+                      name: "Location Placement",
+                      description: location.machine_type
+                        ? `${location.machine_type} — ${location.machines_requested || 1} machine(s)`
+                        : `${location.machines_requested || 1} machine(s)`,
+                      price: fullPrice,
+                      qty: 1,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ]
+      : undefined;
 
     const doc = await createDocumentFromTemplate({
       templateId: step.pandadoc_full_template_id,
@@ -250,6 +283,7 @@ async function handleProposalPaymentCompletion(
       recipientEmail,
       recipientName,
       fields,
+      pricing_tables: pricingTables,
     });
 
     await new Promise((r) => setTimeout(r, 3000));

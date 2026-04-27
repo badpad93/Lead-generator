@@ -20,18 +20,47 @@ async function pandadocFetch(
   });
 }
 
+interface PricingTableRow {
+  options?: {
+    optional?: boolean;
+    optional_selected?: boolean;
+    qty_editable?: boolean;
+  };
+  data: {
+    name: string;
+    description?: string;
+    price: number;
+    qty: number;
+  };
+}
+
+interface PricingTable {
+  name: string;
+  data_merge?: boolean;
+  options?: {
+    currency?: string;
+    discount?: { type: string; value: number };
+  };
+  sections: {
+    title?: string;
+    default: boolean;
+    rows: PricingTableRow[];
+  }[];
+}
+
 interface CreateDocumentParams {
   templateId: string;
   documentName: string;
   recipientEmail: string;
   recipientName: string;
   fields?: Record<string, string>;
+  pricing_tables?: PricingTable[];
 }
 
 export async function createDocumentFromTemplate(
   params: CreateDocumentParams
 ): Promise<{ id: string; status: string }> {
-  const body = {
+  const body: Record<string, unknown> = {
     name: params.documentName,
     template_uuid: params.templateId,
     recipients: [
@@ -45,6 +74,10 @@ export async function createDocumentFromTemplate(
     fields: params.fields || {},
     parse_form_fields: false,
   };
+
+  if (params.pricing_tables?.length) {
+    body.pricing_tables = params.pricing_tables;
+  }
 
   const res = await pandadocFetch("/documents", {
     method: "POST",
