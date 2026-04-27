@@ -128,6 +128,7 @@ export default function LeadsPage() {
   const [typeFilter, setTypeFilter] = useState("");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "urgent" | "type">("newest");
   const [hideDnc, setHideDnc] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
   const [addForm, setAddForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false, entity_type: "location" as EntityType, immediate_need: "" as ImmediateNeed | "" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -479,6 +480,7 @@ export default function LeadsPage() {
 
   const filtered = leads.filter((l) => {
     if (hideDnc && l.do_not_call) return false;
+    if (statusFilter && l.status !== statusFilter) return false;
     if (stateFilter && (l.state || "").toUpperCase() !== stateFilter) return false;
     if (typeFilter && (l.entity_type || "") !== typeFilter) return false;
     if (!search) return true;
@@ -752,6 +754,18 @@ export default function LeadsPage() {
           )}
         </div>
         <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="shrink-0 w-auto rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+        >
+          <option value="">All Statuses</option>
+          <option value="new">New</option>
+          <option value="contacted">Contacted</option>
+          <option value="qualified">Qualified</option>
+          <option value="unqualified">Unqualified</option>
+          <option value="lost">Lost</option>
+        </select>
+        <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
           className="shrink-0 w-auto rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
@@ -978,13 +992,19 @@ export default function LeadsPage() {
                           <Building2 className="h-4 w-4" />
                         </button>
                       )}
-                      <button
-                        onClick={() => openConvertDialog(lead.id)}
-                        title="Convert to Deal"
-                        className="rounded-lg p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 cursor-pointer"
-                      >
-                        <ArrowRight className="h-4 w-4" />
-                      </button>
+                      {lead.status === "qualified" ? (
+                        <span title="Converted to Deal" className="rounded-lg p-1.5 text-green-600">
+                          <CheckCircle2 className="h-4 w-4" />
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => openConvertDialog(lead.id)}
+                          title="Convert to Deal"
+                          className="rounded-lg p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 cursor-pointer"
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDelete(lead.id)}
                         title="Delete"
