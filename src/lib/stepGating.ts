@@ -36,34 +36,63 @@ export async function checkStepGating(
     };
   }
 
-  // 1. Document requirements (existing logic)
+  // 1. Document requirements
   let docsRequired = false;
   let docsCompleted = true;
   if (step.requires_document) {
-    const requiredDocs = (step.step_documents || []).filter(
-      (d: { required: boolean }) => d.required
-    );
-    docsRequired = requiredDocs.length > 0;
-    if (docsRequired) {
-      const { data: uploadedDocs } = await supabaseAdmin
-        .from("pipeline_item_documents")
-        .select("step_document_id, completed")
-        .eq("pipeline_item_id", pipelineItemId);
+    const hasPandadocTemplate =
+      !!step.pandadoc_preliminary_template_id || !!step.pandadoc_full_template_id;
 
-      const completedSet = new Set(
-        (uploadedDocs || [])
-          .filter((d: { completed: boolean }) => d.completed)
-          .map((d: { step_document_id: string }) => d.step_document_id)
-      );
+    if (hasPandadocTemplate) {
+      // For PandaDoc-automated steps, a completed esign_document satisfies the doc gate
+      const { data: esignDocsForStep } = await supabaseAdmin
+        .from("esign_documents")
+        .select("status")
+        .eq("pipeline_item_id", pipelineItemId)
+        .eq("step_id", stepId);
 
-      const missing = requiredDocs.filter(
-        (d: { id: string }) => !completedSet.has(d.id)
+      const hasCompletedEsign = (esignDocsForStep || []).some(
+        (d: { status: string }) => d.status === "completed"
       );
-      if (missing.length > 0) {
+      docsRequired = true;
+      if (!hasCompletedEsign) {
         docsCompleted = false;
-        blockers.push(
-          `${missing.length} required document(s) not uploaded`
+        const hasPending = (esignDocsForStep || []).some(
+          (d: { status: string }) => d.status === "sent" || d.status === "viewed"
         );
+        blockers.push(
+          hasPending
+            ? "Waiting for PandaDoc document completion"
+            : "PandaDoc document not sent yet"
+        );
+      }
+    } else {
+      // Non-automated steps: require manual uploads
+      const requiredDocs = (step.step_documents || []).filter(
+        (d: { required: boolean }) => d.required
+      );
+      docsRequired = requiredDocs.length > 0;
+      if (docsRequired) {
+        const { data: uploadedDocs } = await supabaseAdmin
+          .from("pipeline_item_documents")
+          .select("step_document_id, completed")
+          .eq("pipeline_item_id", pipelineItemId);
+
+        const completedSet = new Set(
+          (uploadedDocs || [])
+            .filter((d: { completed: boolean }) => d.completed)
+            .map((d: { step_document_id: string }) => d.step_document_id)
+        );
+
+        const missing = requiredDocs.filter(
+          (d: { id: string }) => !completedSet.has(d.id)
+        );
+        if (missing.length > 0) {
+          docsCompleted = false;
+          blockers.push(
+            `${missing.length} required document(s) not uploaded`
+          );
+        }
       }
     }
   }

@@ -662,8 +662,8 @@ export default function PipelineItemDetailPage() {
         </div>
       )}
 
-      {/* Current Step Documents */}
-      {currentStep && currentStep.requires_document && currentStep.step_documents.length > 0 && !isCompleted && (
+      {/* Current Step Documents (manual upload — hidden for PandaDoc-automated steps) */}
+      {currentStep && currentStep.requires_document && currentStep.step_documents.length > 0 && !isCompleted && !currentStep.pandadoc_preliminary_template_id && !currentStep.pandadoc_full_template_id && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-3">
             Required Documents — {currentStep.name}
