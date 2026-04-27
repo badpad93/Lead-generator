@@ -3,6 +3,7 @@ import { supabaseAdmin } from "./supabaseAdmin";
 export interface GatingStatus {
   canAdvance: boolean;
   requirements: {
+    order: { required: boolean; completed: boolean };
     documents: { required: boolean; completed: boolean };
     signature: { required: boolean; completed: boolean; pending: boolean };
     payment: { required: boolean; completed: boolean; pending: boolean };
@@ -27,6 +28,7 @@ export async function checkStepGating(
     return {
       canAdvance: false,
       requirements: {
+        order: { required: false, completed: false },
         documents: { required: false, completed: false },
         signature: { required: false, completed: false, pending: false },
         payment: { required: false, completed: false, pending: false },
@@ -34,6 +36,25 @@ export async function checkStepGating(
       },
       blockers: ["Step not found"],
     };
+  }
+
+  // 0. Order requirement (operator account + location attached)
+  const orderRequired = step.requires_order === true;
+  let orderCompleted = true;
+  if (orderRequired) {
+    const { data: pipelineItem } = await supabaseAdmin
+      .from("pipeline_items")
+      .select("account_id, location_id")
+      .eq("id", pipelineItemId)
+      .single();
+
+    if (!pipelineItem?.account_id || !pipelineItem?.location_id) {
+      orderCompleted = false;
+      const missing: string[] = [];
+      if (!pipelineItem?.account_id) missing.push("operator account");
+      if (!pipelineItem?.location_id) missing.push("location");
+      blockers.push(`Attach ${missing.join(" and ")} to create order`);
+    }
   }
 
   // 1. Document requirements
@@ -44,7 +65,6 @@ export async function checkStepGating(
       !!step.pandadoc_preliminary_template_id || !!step.pandadoc_full_template_id;
 
     if (hasPandadocTemplate) {
-      // For PandaDoc-automated steps, a completed esign_document satisfies the doc gate
       const { data: esignDocsForStep } = await supabaseAdmin
         .from("esign_documents")
         .select("status")
@@ -67,7 +87,6 @@ export async function checkStepGating(
         );
       }
     } else {
-      // Non-automated steps: require manual uploads
       const requiredDocs = (step.step_documents || []).filter(
         (d: { required: boolean }) => d.required
       );
@@ -186,6 +205,7 @@ export async function checkStepGating(
   return {
     canAdvance: blockers.length === 0,
     requirements: {
+      order: { required: orderRequired, completed: orderCompleted },
       documents: { required: docsRequired, completed: docsCompleted },
       signature: {
         required: sigRequired,

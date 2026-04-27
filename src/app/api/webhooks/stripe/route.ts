@@ -8,11 +8,35 @@ import {
   isLeadInfoComplete,
 } from "@/lib/email";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+function getStripeClient(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    console.error("[stripe-webhook] STRIPE_SECRET_KEY is not configured");
+    throw new Error("Stripe not configured");
+  }
+  return new Stripe(key);
+}
+
+function getWebhookSecret(): string {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error("[stripe-webhook] STRIPE_WEBHOOK_SECRET is not configured");
+    throw new Error("Stripe webhook secret not configured");
+  }
+  return secret;
+}
 
 /** POST /api/webhooks/stripe — handle Stripe webhook events */
 export async function POST(req: NextRequest) {
+  let stripe: Stripe;
+  let webhookSecret: string;
+  try {
+    stripe = getStripeClient();
+    webhookSecret = getWebhookSecret();
+  } catch {
+    return NextResponse.json({ error: "Stripe not configured" }, { status: 500 });
+  }
+
   const body = await req.text();
   const signature = req.headers.get("stripe-signature");
 
@@ -25,6 +49,7 @@ export async function POST(req: NextRequest) {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Invalid signature";
+    console.error("[stripe-webhook] Signature verification failed:", message);
     return NextResponse.json({ error: message }, { status: 400 });
   }
 

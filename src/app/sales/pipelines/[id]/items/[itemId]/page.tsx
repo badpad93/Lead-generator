@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, ChevronRight, Upload, CheckCircle2, Circle, AlertTriangle, FileText, Lock, Building2, Search, X, Link2, Unlink, Send, DollarSign, ShieldCheck, PenTool, CreditCard, Clock, ExternalLink, MapPin, Calculator } from "lucide-react";
+import { ArrowLeft, Loader2, ChevronRight, Upload, CheckCircle2, Circle, AlertTriangle, FileText, Lock, Building2, Search, X, Link2, Unlink, Send, DollarSign, ShieldCheck, PenTool, CreditCard, Clock, ExternalLink, MapPin, Calculator, Plus, ClipboardList } from "lucide-react";
 
 interface StepDoc {
   id: string;
@@ -20,6 +20,7 @@ interface Step {
   requires_signature: boolean;
   requires_payment: boolean;
   requires_admin_approval: boolean;
+  requires_order: boolean;
   payment_amount: number | null;
   payment_description: string | null;
   pandadoc_preliminary_template_id: string | null;
@@ -58,12 +59,30 @@ interface Payment {
 interface GatingStatus {
   canAdvance: boolean;
   requirements: {
+    order: { required: boolean; completed: boolean };
     documents: { required: boolean; completed: boolean };
     signature: { required: boolean; completed: boolean; pending: boolean };
     payment: { required: boolean; completed: boolean; pending: boolean };
     adminApproval: { required: boolean; completed: boolean };
   };
   blockers: string[];
+}
+
+interface Location {
+  id: string;
+  location_name: string | null;
+  address: string | null;
+  phone: string | null;
+  decision_maker_name: string | null;
+  decision_maker_email: string | null;
+  industry: string | null;
+  zip: string | null;
+  employee_count: number | null;
+  traffic_count: number | null;
+  machine_type: string | null;
+  business_hours: string | null;
+  machines_requested: number | null;
+  is_revealed: boolean;
 }
 
 interface PricingData {
@@ -109,6 +128,7 @@ interface PipelineItem {
   pipeline_steps: { id: string; name: string; order_index: number } | null;
   sales_accounts: Account | null;
   employees: { full_name: string; email: string | null } | null;
+  locations: Location | null;
   pipeline_item_documents: ItemDoc[];
   all_steps: Step[];
   created_at: string;
@@ -140,6 +160,18 @@ export default function PipelineItemDetailPage() {
   const [pricingData, setPricingData] = useState<PricingData | null>(null);
   const [pricingInputs, setPricingInputs] = useState({ employees: 0, foot_traffic: 0, business_hours: "low" as string, machines_requested: 1 });
   const [calculatingPricing, setCalculatingPricing] = useState(false);
+  const [showCreateOrder, setShowCreateOrder] = useState(false);
+  const [orderSaving, setOrderSaving] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [orderOperatorId, setOrderOperatorId] = useState<string | null>(null);
+  const [orderOperatorSearch, setOrderOperatorSearch] = useState("");
+  const [orderLocationSearch, setOrderLocationSearch] = useState("");
+  const [orderLocationAccounts, setOrderLocationAccounts] = useState<Account[]>([]);
+  const [orderSelectedLocationAcct, setOrderSelectedLocationAcct] = useState<Account | null>(null);
+  const [orderLocationForm, setOrderLocationForm] = useState({
+    location_name: "", address: "", phone: "", decision_maker_name: "", decision_maker_email: "",
+    industry: "", zip: "", employee_count: "", traffic_count: "", machine_type: "", business_hours: "low", machines_requested: "1",
+  });
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -147,7 +179,11 @@ export default function PipelineItemDetailPage() {
       if (!session?.access_token) return;
       setToken(session.access_token);
       const res = await fetch("/api/sales/accounts", { headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (res.ok) setAccounts(await res.json());
+      if (res.ok) {
+        const all: Account[] = await res.json();
+        setAccounts(all);
+        setOrderLocationAccounts(all.filter((a) => a.entity_type === "location"));
+      }
     });
   }, []);
 
@@ -301,6 +337,98 @@ export default function PipelineItemDetailPage() {
     setApprovingStep(false);
     loadGatingData();
   }
+
+  function openCreateOrderModal() {
+    setOrderError(null);
+    setOrderOperatorId(item?.account_id || null);
+    setOrderOperatorSearch("");
+    setOrderLocationSearch("");
+    setOrderSelectedLocationAcct(null);
+    setOrderLocationForm({
+      location_name: "", address: "", phone: "", decision_maker_name: "", decision_maker_email: "",
+      industry: "", zip: "", employee_count: "", traffic_count: "", machine_type: "", business_hours: "low", machines_requested: "1",
+    });
+    setShowCreateOrder(true);
+  }
+
+  function handleSelectLocationAccount(acct: Account) {
+    setOrderSelectedLocationAcct(acct);
+    setOrderLocationForm((f) => ({
+      ...f,
+      location_name: acct.business_name || "",
+      decision_maker_name: acct.contact_name || "",
+      decision_maker_email: acct.email || "",
+      phone: acct.phone || "",
+      address: acct.address || "",
+    }));
+    setOrderLocationSearch("");
+  }
+
+  async function handleCreateOrder() {
+    if (!orderOperatorId) { setOrderError("Select an operator account"); return; }
+    if (!orderLocationForm.location_name) { setOrderError("Enter a location name"); return; }
+    setOrderSaving(true);
+    setOrderError(null);
+    try {
+      const locRes = await fetch("/api/locations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          location_name: orderLocationForm.location_name,
+          address: orderLocationForm.address || null,
+          phone: orderLocationForm.phone || null,
+          decision_maker_name: orderLocationForm.decision_maker_name || null,
+          decision_maker_email: orderLocationForm.decision_maker_email || null,
+          industry: orderLocationForm.industry || null,
+          zip: orderLocationForm.zip || null,
+          employee_count: orderLocationForm.employee_count ? Number(orderLocationForm.employee_count) : null,
+          traffic_count: orderLocationForm.traffic_count ? Number(orderLocationForm.traffic_count) : null,
+          machine_type: orderLocationForm.machine_type || null,
+          business_hours: orderLocationForm.business_hours || null,
+          machines_requested: orderLocationForm.machines_requested ? Number(orderLocationForm.machines_requested) : null,
+        }),
+      });
+      if (!locRes.ok) {
+        const err = await locRes.json();
+        throw new Error(err.error || "Failed to create location");
+      }
+      const newLocation = await locRes.json();
+
+      const patchRes = await fetch(`/api/pipeline-items/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ account_id: orderOperatorId, location_id: newLocation.id }),
+      });
+      if (!patchRes.ok) {
+        const err = await patchRes.json();
+        throw new Error(err.error || "Failed to update pipeline item");
+      }
+
+      setShowCreateOrder(false);
+      load();
+      loadGatingData();
+    } catch (err) {
+      setOrderError(err instanceof Error ? err.message : "Unknown error");
+    }
+    setOrderSaving(false);
+  }
+
+  const filteredOperatorAccounts = orderOperatorSearch.length > 0
+    ? accounts.filter((a) => a.entity_type === "operator" &&
+        (a.business_name.toLowerCase().includes(orderOperatorSearch.toLowerCase()) ||
+        (a.contact_name || "").toLowerCase().includes(orderOperatorSearch.toLowerCase())))
+      .slice(0, 8)
+    : [];
+
+  const filteredLocationAccounts = orderLocationSearch.length > 0
+    ? orderLocationAccounts.filter((a) =>
+        a.business_name.toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
+        (a.contact_name || "").toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
+        (a.address || "").toLowerCase().includes(orderLocationSearch.toLowerCase()))
+      .slice(0, 8)
+    : [];
+
+  const selectedOperator = accounts.find((a) => a.id === orderOperatorId) || null;
 
   async function handleSendProposal() {
     if (!item?.current_step_id) return;
@@ -500,6 +628,105 @@ export default function PipelineItemDetailPage() {
         )}
       </div>
 
+      {/* Create Order */}
+      {(!item.account_id || !item.location_id) && !isCompleted && (
+        <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-amber-600" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">Order not created</p>
+                <p className="text-xs text-amber-600">Attach an operator account and location to create the order.</p>
+              </div>
+            </div>
+            <button
+              onClick={openCreateOrderModal}
+              className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer"
+            >
+              <Plus className="h-4 w-4" /> Create Order
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Location Details */}
+      {item.locations && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-gray-400" />
+            Location
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {item.locations.location_name && (
+              <div>
+                <p className="text-xs text-gray-400">Location Name</p>
+                <p className="text-sm font-medium text-gray-900">{item.locations.location_name}</p>
+              </div>
+            )}
+            {item.locations.address && (
+              <div className="sm:col-span-2">
+                <p className="text-xs text-gray-400">Address</p>
+                <p className="text-sm text-gray-700">{item.locations.address}</p>
+              </div>
+            )}
+            {item.locations.industry && (
+              <div>
+                <p className="text-xs text-gray-400">Industry</p>
+                <p className="text-sm text-gray-700">{item.locations.industry}</p>
+              </div>
+            )}
+            {item.locations.zip && (
+              <div>
+                <p className="text-xs text-gray-400">ZIP</p>
+                <p className="text-sm text-gray-700">{item.locations.zip}</p>
+              </div>
+            )}
+            {item.locations.employee_count != null && (
+              <div>
+                <p className="text-xs text-gray-400">Employees</p>
+                <p className="text-sm text-gray-700">{item.locations.employee_count}</p>
+              </div>
+            )}
+            {item.locations.traffic_count != null && (
+              <div>
+                <p className="text-xs text-gray-400">Foot Traffic</p>
+                <p className="text-sm text-gray-700">{item.locations.traffic_count}</p>
+              </div>
+            )}
+            {item.locations.machine_type && (
+              <div>
+                <p className="text-xs text-gray-400">Machine Type</p>
+                <p className="text-sm text-gray-700">{item.locations.machine_type}</p>
+              </div>
+            )}
+            {item.locations.machines_requested != null && (
+              <div>
+                <p className="text-xs text-gray-400">Machines Requested</p>
+                <p className="text-sm text-gray-700">{item.locations.machines_requested}</p>
+              </div>
+            )}
+            {item.locations.decision_maker_name && (
+              <div>
+                <p className="text-xs text-gray-400">Decision Maker</p>
+                <p className="text-sm text-gray-700">{item.locations.decision_maker_name}</p>
+              </div>
+            )}
+            {item.locations.decision_maker_email && (
+              <div>
+                <p className="text-xs text-gray-400">DM Email</p>
+                <p className="text-sm text-gray-700">{item.locations.decision_maker_email}</p>
+              </div>
+            )}
+            {item.locations.phone && (
+              <div>
+                <p className="text-xs text-gray-400">Phone</p>
+                <p className="text-sm text-gray-700">{item.locations.phone}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Step Progress */}
       <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
         <h2 className="text-sm font-semibold text-gray-900 mb-4">Pipeline Progress</h2>
@@ -517,6 +744,7 @@ export default function PipelineItemDetailPage() {
                 }`}>
                   {isPast ? <CheckCircle2 className="h-3 w-3" /> : isCurrent ? <Circle className="h-3 w-3 fill-white" /> : <Circle className="h-3 w-3" />}
                   {step.name}
+                  {step.requires_order && <ClipboardList className="h-3 w-3 opacity-50" />}
                   {step.requires_document && <Lock className="h-3 w-3 opacity-50" />}
                   {step.requires_signature && <PenTool className="h-3 w-3 opacity-50" />}
                   {step.requires_payment && <CreditCard className="h-3 w-3 opacity-50" />}
@@ -849,7 +1077,7 @@ export default function PipelineItemDetailPage() {
       )}
 
       {/* Step Gating Summary */}
-      {gating && !isCompleted && currentStep && (gating.requirements.signature.required || gating.requirements.payment.required || gating.requirements.adminApproval.required) && (
+      {gating && !isCompleted && currentStep && (gating.requirements.order?.required || gating.requirements.signature.required || gating.requirements.payment.required || gating.requirements.adminApproval.required) && (
         <div className={`rounded-xl border p-4 mb-6 ${gating.canAdvance ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}`}>
           <div className="flex items-center gap-2 mb-2">
             {gating.canAdvance ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Lock className="h-4 w-4 text-amber-600" />}
@@ -858,6 +1086,11 @@ export default function PipelineItemDetailPage() {
             </span>
           </div>
           <div className="flex flex-wrap gap-3 text-xs">
+            {gating.requirements.order?.required && (
+              <span className={`flex items-center gap-1 ${gating.requirements.order.completed ? "text-green-600" : "text-amber-700"}`}>
+                {gating.requirements.order.completed ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />} Order
+              </span>
+            )}
             {gating.requirements.documents.required && (
               <span className={`flex items-center gap-1 ${gating.requirements.documents.completed ? "text-green-600" : "text-amber-700"}`}>
                 {gating.requirements.documents.completed ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />} Documents
@@ -923,6 +1156,159 @@ export default function PipelineItemDetailPage() {
           <div className="ml-auto flex gap-2">
             <button onClick={() => handleMarkStatus("won")} className="rounded-lg border border-green-200 px-3 py-2 text-xs font-medium text-green-600 hover:bg-green-50 cursor-pointer">Mark Won</button>
             <button onClick={() => handleMarkStatus("lost")} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 cursor-pointer">Mark Lost</button>
+          </div>
+        </div>
+      )}
+
+      {/* Create Order Modal */}
+      {showCreateOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">Create Order</h2>
+              <button onClick={() => setShowCreateOrder(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* Operator Account */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">Operator Account</label>
+                {selectedOperator ? (
+                  <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-green-600" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{selectedOperator.business_name}</p>
+                        <p className="text-xs text-gray-500">{[selectedOperator.contact_name, selectedOperator.email].filter(Boolean).join(" · ")}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setOrderOperatorId(null)} className="text-xs text-red-500 hover:text-red-600 cursor-pointer">Change</button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={orderOperatorSearch}
+                      onChange={(e) => setOrderOperatorSearch(e.target.value)}
+                      placeholder="Search operator accounts..."
+                      className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-4 text-sm focus:border-green-500 focus:outline-none"
+                      autoFocus
+                    />
+                    {filteredOperatorAccounts.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-40 overflow-y-auto">
+                        {filteredOperatorAccounts.map((a) => (
+                          <button key={a.id} onClick={() => { setOrderOperatorId(a.id); setOrderOperatorSearch(""); }} className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 cursor-pointer">
+                            <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-medium text-gray-900 truncate">{a.business_name}</p>
+                              <p className="text-xs text-gray-400 truncate">{[a.contact_name, a.email].filter(Boolean).join(" · ")}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {orderOperatorSearch.length > 0 && filteredOperatorAccounts.length === 0 && (
+                      <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg p-3 text-sm text-gray-400 text-center">No operator accounts found</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Location Account */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">Location</label>
+                {orderSelectedLocationAcct ? (
+                  <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3 mb-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-green-600" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{orderSelectedLocationAcct.business_name}</p>
+                        <p className="text-xs text-gray-500">{[orderSelectedLocationAcct.contact_name, orderSelectedLocationAcct.address].filter(Boolean).join(" · ")}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => { setOrderSelectedLocationAcct(null); setOrderLocationForm((f) => ({ ...f, location_name: "", decision_maker_name: "", decision_maker_email: "", phone: "", address: "" })); }} className="text-xs text-red-500 hover:text-red-600 cursor-pointer">Change</button>
+                  </div>
+                ) : (
+                  <div className="relative mb-3">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={orderLocationSearch}
+                      onChange={(e) => setOrderLocationSearch(e.target.value)}
+                      placeholder="Search location accounts or enter details below..."
+                      className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-4 text-sm focus:border-green-500 focus:outline-none"
+                    />
+                    {filteredLocationAccounts.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-40 overflow-y-auto">
+                        {filteredLocationAccounts.map((a) => (
+                          <button key={a.id} onClick={() => handleSelectLocationAccount(a)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 cursor-pointer">
+                            <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-medium text-gray-900 truncate">{a.business_name}</p>
+                              <p className="text-xs text-gray-400 truncate">{[a.contact_name, a.address].filter(Boolean).join(" · ")}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Location Details Form */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">Location Details</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <input value={orderLocationForm.location_name} onChange={(e) => setOrderLocationForm((f) => ({ ...f, location_name: e.target.value }))} placeholder="Location Name *" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  </div>
+                  <div className="col-span-2">
+                    <input value={orderLocationForm.address} onChange={(e) => setOrderLocationForm((f) => ({ ...f, address: e.target.value }))} placeholder="Address" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  </div>
+                  <input value={orderLocationForm.industry} onChange={(e) => setOrderLocationForm((f) => ({ ...f, industry: e.target.value }))} placeholder="Industry" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  <input value={orderLocationForm.zip} onChange={(e) => setOrderLocationForm((f) => ({ ...f, zip: e.target.value }))} placeholder="ZIP Code" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  <input value={orderLocationForm.employee_count} onChange={(e) => setOrderLocationForm((f) => ({ ...f, employee_count: e.target.value }))} placeholder="Employee Count" type="number" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  <input value={orderLocationForm.traffic_count} onChange={(e) => setOrderLocationForm((f) => ({ ...f, traffic_count: e.target.value }))} placeholder="Foot Traffic" type="number" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  <input value={orderLocationForm.decision_maker_name} onChange={(e) => setOrderLocationForm((f) => ({ ...f, decision_maker_name: e.target.value }))} placeholder="Decision Maker Name" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  <input value={orderLocationForm.decision_maker_email} onChange={(e) => setOrderLocationForm((f) => ({ ...f, decision_maker_email: e.target.value }))} placeholder="Decision Maker Email" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  <input value={orderLocationForm.phone} onChange={(e) => setOrderLocationForm((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  <select value={orderLocationForm.machine_type} onChange={(e) => setOrderLocationForm((f) => ({ ...f, machine_type: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none">
+                    <option value="">Machine Type</option>
+                    <option value="ai">AI Vending Machine</option>
+                    <option value="snack">Snack</option>
+                    <option value="beverage">Beverage</option>
+                    <option value="combo">Combo</option>
+                    <option value="healthy">Healthy</option>
+                    <option value="coffee">Coffee</option>
+                    <option value="frozen">Frozen</option>
+                    <option value="fresh_food">Fresh Food</option>
+                  </select>
+                  <select value={orderLocationForm.machines_requested} onChange={(e) => setOrderLocationForm((f) => ({ ...f, machines_requested: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none">
+                    <option value="1">1 Machine</option>
+                    <option value="2">2 Machines</option>
+                    <option value="3">3 Machines</option>
+                    <option value="4">4 Machines</option>
+                  </select>
+                  <select value={orderLocationForm.business_hours} onChange={(e) => setOrderLocationForm((f) => ({ ...f, business_hours: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none">
+                    <option value="low">Business Hours: Low</option>
+                    <option value="medium">Business Hours: Medium</option>
+                    <option value="high">Business Hours: High</option>
+                    <option value="24/7">Business Hours: 24/7</option>
+                  </select>
+                </div>
+              </div>
+
+              {orderError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">{orderError}</div>
+              )}
+
+              <button
+                onClick={handleCreateOrder}
+                disabled={orderSaving || !orderOperatorId || !orderLocationForm.location_name}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+              >
+                {orderSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {orderSaving ? "Creating Order..." : "Create Order"}
+              </button>
+            </div>
           </div>
         </div>
       )}
