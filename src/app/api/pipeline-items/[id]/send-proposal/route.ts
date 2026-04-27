@@ -21,7 +21,7 @@ export async function POST(
 
   const { data: item } = await supabaseAdmin
     .from("pipeline_items")
-    .select("*, sales_accounts(id, business_name, contact_name, email), pipelines(id, name)")
+    .select("*, sales_accounts(id, business_name, contact_name, email, phone), pipelines(id, name)")
     .eq("id", itemId)
     .single();
 
@@ -118,6 +118,7 @@ export async function POST(
       traffic_count: String(location.traffic_count || ""),
       customer_name: recipientName,
       customer_email: recipientEmail,
+      customer_phone: item.sales_accounts?.phone || "",
       business_name: item.sales_accounts?.business_name || "",
     };
 
