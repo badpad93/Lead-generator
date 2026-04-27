@@ -316,36 +316,36 @@ async function handleProposalPaymentCompletion(
     })
     .eq("id", itemId);
 
-  // Auto-advance if all step requirements are met and no admin approval needed
-  if (!step.requires_admin_approval) {
-    const gating = await checkStepGating(itemId, stepId);
-    if (gating.canAdvance) {
-      const { data: steps } = await supabaseAdmin
-        .from("pipeline_steps")
-        .select("id")
-        .eq("pipeline_id", item.pipeline_id)
-        .order("order_index");
+  // Auto-advance through steps while gating allows
+  const { data: allSteps } = await supabaseAdmin
+    .from("pipeline_steps")
+    .select("id, requires_admin_approval")
+    .eq("pipeline_id", item.pipeline_id)
+    .order("order_index");
 
-      if (steps) {
-        const currentIdx = steps.findIndex((s) => s.id === stepId);
-        if (currentIdx === steps.length - 1) {
-          await supabaseAdmin
-            .from("pipeline_items")
-            .update({
-              status: "won",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", itemId);
-        } else if (currentIdx >= 0 && currentIdx < steps.length - 1) {
-          await supabaseAdmin
-            .from("pipeline_items")
-            .update({
-              current_step_id: steps[currentIdx + 1].id,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", itemId);
-        }
+  if (allSteps) {
+    let idx = allSteps.findIndex((s) => s.id === stepId);
+    while (idx >= 0) {
+      if (allSteps[idx].requires_admin_approval) break;
+      const gResult = await checkStepGating(itemId, allSteps[idx].id);
+      if (!gResult.canAdvance) break;
+
+      if (idx === allSteps.length - 1) {
+        await supabaseAdmin
+          .from("pipeline_items")
+          .update({ status: "won", updated_at: new Date().toISOString() })
+          .eq("id", itemId);
+        break;
       }
+
+      idx++;
+      await supabaseAdmin
+        .from("pipeline_items")
+        .update({
+          current_step_id: allSteps[idx].id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", itemId);
     }
   }
 }

@@ -9,7 +9,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data, error } = await supabaseAdmin
     .from("pipeline_items")
-    .select("*, pipelines(id, name, type), pipeline_steps!pipeline_items_current_step_id_fkey(id, name, order_index), sales_accounts(id, business_name, contact_name, phone, email, address, entity_type), employees(full_name, email), pipeline_item_documents(*, step_documents(*))")
+    .select("*, pipelines(id, name, type), pipeline_steps!pipeline_items_current_step_id_fkey(id, name, order_index), sales_accounts(id, business_name, contact_name, phone, email, address, entity_type), employees(full_name, email), pipeline_item_documents(*, step_documents(*)), locations(*)")
     .eq("id", id)
     .single();
 
@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await req.json();
 
-  const allowed = ["name", "status", "value", "notes", "account_id", "employee_id", "assigned_to"];
+  const allowed = ["name", "status", "value", "notes", "account_id", "employee_id", "assigned_to", "location_id"];
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const key of allowed) {
     if (key in body) updates[key] = body[key];
