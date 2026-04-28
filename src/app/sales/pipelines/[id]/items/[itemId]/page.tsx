@@ -157,6 +157,7 @@ export default function PipelineItemDetailPage() {
   const [approvingStep, setApprovingStep] = useState(false);
   const [esignForm, setEsignForm] = useState({ document_name: "", recipient_email: "", template_id: "" });
   const [sendingProposal, setSendingProposal] = useState(false);
+  const [proposalError, setProposalError] = useState<string | null>(null);
   const [pricingData, setPricingData] = useState<PricingData | null>(null);
   const [pricingInputs, setPricingInputs] = useState({ employees: 0, foot_traffic: 0, business_hours: "low" as string, machines_requested: 1 });
   const [calculatingPricing, setCalculatingPricing] = useState(false);
@@ -433,15 +434,25 @@ export default function PipelineItemDetailPage() {
   async function handleSendProposal() {
     if (!item?.current_step_id) return;
     setSendingProposal(true);
-    const res = await fetch(`/api/pipeline-items/${itemId}/send-proposal`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    });
-    setSendingProposal(false);
-    if (res.ok) {
-      load();
-      loadGatingData();
-      loadLocationPricing();
+    setProposalError(null);
+    try {
+      const res = await fetch(`/api/pipeline-items/${itemId}/send-proposal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setItem((prev) => prev ? { ...prev, proposal_status: "proposal_sent" } : prev);
+        load();
+        loadGatingData();
+        loadLocationPricing();
+      } else {
+        const data = await res.json().catch(() => ({ error: `Request failed (${res.status})` }));
+        setProposalError(data.error || `Request failed (${res.status})`);
+      }
+    } catch (err) {
+      setProposalError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setSendingProposal(false);
     }
   }
 
@@ -891,11 +902,26 @@ export default function PipelineItemDetailPage() {
               ))}
             </div>
           )}
-          {item.proposal_status === "not_sent" || (!esignDocs.length && item.proposal_status !== "paid") ? (
+          {proposalError && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+              {proposalError}
+            </div>
+          )}
+          {item.proposal_status === "paid" ? (
+            <p className="text-sm text-green-600 flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Payment received — full location details sent to customer
+            </p>
+          ) : item.proposal_status === "proposal_sent" ? (
+            <p className="text-sm text-blue-600 flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5" />
+              Agreement sent — waiting for customer signature &amp; payment
+            </p>
+          ) : (
             <>
               <button
                 onClick={handleSendProposal}
-                disabled={sendingProposal || !item.sales_accounts?.email || item.proposal_status === "proposal_sent"}
+                disabled={sendingProposal || !item.sales_accounts?.email}
                 className="flex items-center gap-1.5 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
               >
                 {sendingProposal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -905,16 +931,6 @@ export default function PipelineItemDetailPage() {
                 <p className="mt-2 text-xs text-red-500">Link an account with an email address to send the agreement.</p>
               )}
             </>
-          ) : item.proposal_status === "proposal_sent" ? (
-            <p className="text-sm text-blue-600 flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" />
-              Agreement sent — waiting for customer signature &amp; payment
-            </p>
-          ) : (
-            <p className="text-sm text-green-600 flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Payment received — full location details sent to customer
-            </p>
           )}
         </div>
       )}
