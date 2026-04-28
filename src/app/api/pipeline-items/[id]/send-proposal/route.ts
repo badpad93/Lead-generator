@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
-import { createDocumentFromTemplate, sendDocument } from "@/lib/pandadoc";
+import { createDocumentFromTemplate, sendDocument, waitForDocumentStatus } from "@/lib/pandadoc";
 import {
   calculateLocationPrice,
   BusinessHours,
@@ -181,9 +181,14 @@ export async function POST(
       pricing_tables: pricingTables,
     });
 
-    // Wait for PandaDoc to process, then send directly to the customer
-    await new Promise((r) => setTimeout(r, 3000));
-    await sendDocument(doc.id, "Please review this location placement proposal.");
+    // Wait for PandaDoc to finish processing before sending
+    await waitForDocumentStatus(doc.id, "document.draft");
+    const nameParts = recipientName.split(" ");
+    await sendDocument(doc.id, "Please review this location placement proposal.", {
+      email: recipientEmail,
+      first_name: nameParts[0],
+      last_name: nameParts.slice(1).join(" ") || "",
+    });
 
     // Create esign_documents record
     await supabaseAdmin.from("esign_documents").insert({

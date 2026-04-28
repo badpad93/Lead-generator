@@ -101,14 +101,33 @@ export async function createDocumentFromTemplate(
   return res.json();
 }
 
+export async function waitForDocumentStatus(
+  documentId: string,
+  targetStatus: string = "document.draft",
+  maxAttempts: number = 10,
+  intervalMs: number = 2000
+): Promise<void> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const doc = await getDocumentStatus(documentId);
+    if (doc.status === targetStatus) return;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(`Document did not reach '${targetStatus}' status in time`);
+}
+
 export async function sendDocument(
   documentId: string,
-  message?: string
+  message?: string,
+  recipient?: { email: string; first_name: string; last_name: string }
 ): Promise<{ id: string; status: string }> {
-  const body = {
+  const body: Record<string, unknown> = {
     message: message || "Please review and sign this document.",
     silent: false,
   };
+
+  if (recipient) {
+    body.recipients = [recipient];
+  }
 
   const res = await pandadocFetch(`/documents/${documentId}/send`, {
     method: "POST",
