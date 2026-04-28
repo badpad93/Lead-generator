@@ -61,16 +61,15 @@ export async function checkStepGating(
   let docsRequired = false;
   let docsCompleted = true;
   if (step.requires_document) {
-    const hasPandadocTemplate =
-      !!step.pandadoc_preliminary_template_id || !!step.pandadoc_full_template_id;
+    const { data: esignDocsForStep } = await supabaseAdmin
+      .from("esign_documents")
+      .select("status")
+      .eq("pipeline_item_id", pipelineItemId)
+      .eq("step_id", stepId);
 
-    if (hasPandadocTemplate) {
-      const { data: esignDocsForStep } = await supabaseAdmin
-        .from("esign_documents")
-        .select("status")
-        .eq("pipeline_item_id", pipelineItemId)
-        .eq("step_id", stepId);
+    const hasEsignDocs = (esignDocsForStep || []).length > 0;
 
+    if (hasEsignDocs) {
       const hasCompletedEsign = (esignDocsForStep || []).some(
         (d: { status: string }) => d.status === "completed"
       );
@@ -82,8 +81,8 @@ export async function checkStepGating(
         );
         blockers.push(
           hasPending
-            ? "Waiting for PandaDoc document completion"
-            : "PandaDoc document not sent yet"
+            ? "Waiting for document completion"
+            : "Document not sent yet"
         );
       }
     } else {

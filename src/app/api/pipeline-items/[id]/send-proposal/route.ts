@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
-import { createDocumentFromTemplate, sendDocument, waitForDocumentStatus } from "@/lib/pandadoc";
 import {
   calculateLocationPrice,
   BusinessHours,
   MachinesRequested,
   PricingResult,
 } from "@/lib/pricing/locationPricing";
+import { generateAgreementPdf } from "@/lib/pdf/agreementPdf";
+import { sendAgreementEmail } from "@/lib/agreementEmail";
+
+function getSiteUrl(): string {
+  return process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
+}
 
 export async function POST(
   req: NextRequest,
@@ -41,11 +46,8 @@ export async function POST(
     .eq("id", item.current_step_id)
     .single();
 
-  if (!step?.pandadoc_preliminary_template_id) {
-    return NextResponse.json(
-      { error: "Step has no preliminary PandaDoc template configured" },
-      { status: 422 }
-    );
+  if (!step) {
+    return NextResponse.json({ error: "Step not found" }, { status: 422 });
   }
 
   const { data: location } = await supabaseAdmin
@@ -97,125 +99,110 @@ export async function POST(
     };
   }
 
+  if (!pricing) {
+    return NextResponse.json(
+      { error: "Pricing not available — ensure location has business hours and machines requested" },
+      { status: 422 }
+    );
+  }
+
   const recipientEmail = item.sales_accounts?.email;
   const recipientName = item.sales_accounts?.contact_name || item.sales_accounts?.business_name || item.name;
 
   if (!recipientEmail) {
     return NextResponse.json(
-      { error: "Linked account has no email — cannot send proposal" },
+      { error: "Linked account has no email — cannot send agreement" },
       { status: 422 }
     );
   }
 
-  // Use pricing_price when available, otherwise fall back to step.payment_amount
-  const effectivePrice = pricing?.price ?? step.payment_amount;
-
   try {
-    const fields: Record<string, string> = {
+    // Create agreement token record
+    const { data: agreement, error: agreeErr } = await supabaseAdmin
+      .from("agreement_tokens")
+      .insert({
+        pipeline_item_id: itemId,
+        step_id: item.current_step_id,
+        location_id: item.location_id,
+        account_id: item.account_id,
+        recipient_email: recipientEmail,
+        recipient_name: recipientName,
+        industry: location.industry || null,
+        zip: location.zip || null,
+        pricing_score: pricing.total_score,
+        pricing_tier: pricing.tier,
+        pricing_price: pricing.price,
+        status: "pending",
+      })
+      .select("id, token")
+      .single();
+
+    if (agreeErr || !agreement) {
+      return NextResponse.json({ error: `Failed to create agreement: ${agreeErr?.message}` }, { status: 500 });
+    }
+
+    const agreementUrl = `${getSiteUrl()}/agreements/${agreement.token}`;
+
+    // Generate agreement PDF
+    const pdfBytes = await generateAgreementPdf({
+      businessName: item.sales_accounts?.business_name || item.name,
+      contactName: recipientName,
       industry: location.industry || "",
       zip: location.zip || "",
-      employee_count: String(location.employee_count || ""),
-      traffic_count: String(location.traffic_count || ""),
-      machine_type: location.machine_type || "",
-      machines_requested: String(location.machines_requested || ""),
-      business_hours: location.business_hours || "",
-      customer_name: recipientName,
-      customer_email: recipientEmail,
-      customer_phone: item.sales_accounts?.phone || "",
-      customer_address: item.sales_accounts?.address || "",
-      business_name: item.sales_accounts?.business_name || "",
-      location_name: location.location_name || "",
-      location_address: location.address || "",
-      location_phone: location.phone || "",
-      decision_maker_name: location.decision_maker_name || "",
-      decision_maker_email: location.decision_maker_email || "",
-    };
+      pricing,
+      agreementUrl,
+      generatedAt: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+    });
 
-    if (pricing) {
-      fields.ProposalPrice = String(pricing.price);
-      fields.ProposalTier = pricing.tier_label;
-      fields.ProposalScore = String(pricing.total_score);
-      fields.TrafficScore = String(pricing.traffic_score);
-      fields.HoursScore = String(pricing.hours_score);
-      fields.MachineScore = String(pricing.machine_score);
-    }
+    // Upload PDF to storage
+    const pdfPath = `agreements/${agreement.id}.pdf`;
+    await supabaseAdmin.storage
+      .from("sales-documents")
+      .upload(pdfPath, Buffer.from(pdfBytes), { contentType: "application/pdf", upsert: true });
 
-    if (effectivePrice) {
-      fields.payment_amount = String(effectivePrice);
-    }
+    const { data: urlData } = supabaseAdmin.storage.from("sales-documents").getPublicUrl(pdfPath);
 
-    const pricingTables = effectivePrice
-      ? [
-          {
-            name: "Quote 1",
-            options: { currency: "USD" },
-            sections: [
-              {
-                title: "Location Placement",
-                default: true,
-                rows: [
-                  {
-                    options: { optional: false, optional_selected: true, qty_editable: false },
-                    data: {
-                      name: "Location Placement",
-                      description: location.machine_type
-                        ? `${location.machine_type} — ${location.machines_requested || 1} machine(s)`
-                        : `${location.machines_requested || 1} machine(s)`,
-                      price: Number(effectivePrice),
-                      qty: 1,
-                    },
-                  },
-                ],
-              },
-            ],
-          },
-        ]
-      : undefined;
+    await supabaseAdmin
+      .from("agreement_tokens")
+      .update({ pdf_url: urlData.publicUrl })
+      .eq("id", agreement.id);
 
-    const doc = await createDocumentFromTemplate({
-      templateId: step.pandadoc_preliminary_template_id,
-      documentName: `Location Proposal — ${item.name}`,
-      recipientEmail,
+    // Send agreement email
+    await sendAgreementEmail({
+      to: recipientEmail,
       recipientName,
-      fields,
-      pricing_tables: pricingTables,
+      businessName: item.sales_accounts?.business_name || item.name,
+      price: pricing.price,
+      agreementUrl,
+      pdfBuffer: pdfBytes,
     });
 
-    // Wait for PandaDoc to finish processing before sending
-    await waitForDocumentStatus(doc.id, "document.draft");
-    const nameParts = recipientName.split(" ");
-    await sendDocument(doc.id, "Please review this location placement proposal.", {
-      email: recipientEmail,
-      first_name: nameParts[0],
-      last_name: nameParts.slice(1).join(" ") || "",
-    });
-
-    // Create esign_documents record
+    // Create esign_documents record for gating compatibility
     await supabaseAdmin.from("esign_documents").insert({
       pipeline_item_id: itemId,
       step_id: item.current_step_id,
-      provider: "pandadoc",
-      external_document_id: doc.id,
-      template_id: step.pandadoc_preliminary_template_id,
-      document_name: `Location Proposal — ${item.name}`,
+      provider: "inhouse",
+      external_document_id: agreement.id,
+      template_id: null,
+      document_name: `Location Placement Agreement — ${item.name}`,
       recipient_email: recipientEmail,
       recipient_name: recipientName,
       status: "sent",
       sent_at: new Date().toISOString(),
-      metadata: { type: "preliminary_proposal", location_id: item.location_id },
+      metadata: { type: "preliminary_proposal", location_id: item.location_id, agreement_token: agreement.token },
     });
 
-    // Create pending payment record if payment is required via PandaDoc+Stripe
-    if (step.requires_payment && step.payment_provider === "pandadoc_stripe" && effectivePrice) {
+    // Create pending payment record
+    if (step.requires_payment) {
       await supabaseAdmin.from("pipeline_payments").insert({
         pipeline_item_id: itemId,
         step_id: item.current_step_id,
         provider: "stripe",
-        amount: effectivePrice,
+        amount: pricing.price,
         currency: "USD",
-        description: step.payment_description || `Proposal payment — ${item.name}`,
+        description: step.payment_description || `Location placement — ${item.name}`,
         status: "pending",
-        metadata: { via: "pandadoc_stripe", pandadoc_document_id: doc.id },
+        metadata: { agreement_token_id: agreement.id },
       });
     }
 
@@ -227,7 +214,8 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
-      pandadoc_document_id: doc.id,
+      agreement_id: agreement.id,
+      agreement_url: agreementUrl,
       proposal_status: "proposal_sent",
     });
   } catch (err) {

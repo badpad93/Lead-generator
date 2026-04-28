@@ -41,6 +41,15 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
+  const missing: string[] = [];
+  if (!body.industry) missing.push("industry");
+  if (!body.zip) missing.push("zip");
+  if (!body.employee_count) missing.push("employee_count");
+  if (!body.traffic_count) missing.push("traffic_count");
+  if (missing.length > 0) {
+    return NextResponse.json({ error: `Required fields missing: ${missing.join(", ")}` }, { status: 400 });
+  }
+
   const employees = body.employee_count ? Number(body.employee_count) : null;
   const footTraffic = body.traffic_count ? Number(body.traffic_count) : null;
   const businessHours = body.business_hours || null;
