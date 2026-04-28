@@ -4,6 +4,7 @@ import { createBrowserClient } from "./supabase";
 const SIGNUP_ROLE_KEY = "vc_signup_role";
 const REDIRECT_KEY = "vc_redirect_after_login";
 const FLOW_KEY = "vc_auth_flow";
+const SIGNUP_LEAD_KEY = "vc_signup_lead";
 
 /** Store where to redirect after login completes */
 export function storeRedirectAfterLogin(path: string): void {
@@ -27,6 +28,28 @@ export function consumeSignupRole(): string | null {
   const role = localStorage.getItem(SIGNUP_ROLE_KEY);
   if (role) localStorage.removeItem(SIGNUP_ROLE_KEY);
   return role;
+}
+
+export interface SignupLeadData {
+  business_name: string;
+  contact_name: string;
+  phone: string;
+  email?: string;
+  address: string;
+  city: string;
+  state: string;
+  entity_type: string;
+  immediate_need: string;
+}
+
+export function storeSignupLead(data: SignupLeadData): void {
+  localStorage.setItem(SIGNUP_LEAD_KEY, JSON.stringify(data));
+}
+
+export function consumeSignupLead(): SignupLeadData | null {
+  const raw = localStorage.getItem(SIGNUP_LEAD_KEY);
+  if (raw) localStorage.removeItem(SIGNUP_LEAD_KEY);
+  try { return raw ? JSON.parse(raw) : null; } catch { return null; }
 }
 
 /** Store the auth flow type so the callback can distinguish login vs signup */
