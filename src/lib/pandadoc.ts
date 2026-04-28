@@ -76,7 +76,7 @@ export async function createDocumentFromTemplate(
         email: params.recipientEmail,
         first_name: params.recipientName.split(" ")[0],
         last_name: params.recipientName.split(" ").slice(1).join(" ") || "",
-        role: "signer",
+        role: "Client",
       },
     ],
     fields: fieldsMapped,
