@@ -54,12 +54,20 @@ interface CreateDocumentParams {
   recipientEmail: string;
   recipientName: string;
   fields?: Record<string, string>;
+  tokens?: { name: string; value: string }[];
   pricing_tables?: PricingTable[];
 }
 
 export async function createDocumentFromTemplate(
   params: CreateDocumentParams
 ): Promise<{ id: string; status: string }> {
+  const fieldsMapped: Record<string, { value: string }> = {};
+  if (params.fields) {
+    for (const [k, v] of Object.entries(params.fields)) {
+      fieldsMapped[k] = { value: v };
+    }
+  }
+
   const body: Record<string, unknown> = {
     name: params.documentName,
     template_uuid: params.templateId,
@@ -71,7 +79,8 @@ export async function createDocumentFromTemplate(
         role: "signer",
       },
     ],
-    fields: params.fields || {},
+    fields: fieldsMapped,
+    tokens: params.tokens || [],
     parse_form_fields: false,
   };
 
