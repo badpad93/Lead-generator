@@ -148,7 +148,6 @@ export async function POST(
       ? [
           {
             name: "Quote 1",
-            data_merge: true,
             options: { currency: "USD", discount: { type: "absolute", value: 0 } },
             sections: [
               {
