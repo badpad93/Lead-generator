@@ -188,10 +188,14 @@ export default function DealDashboardPage() {
 
   const activePipeline = pipelines.find((p) => p.id === activeTab);
 
+  // Only show items from sales-type pipelines (exclude onboarding)
+  const salesPipelineIds = new Set(pipelines.map((p) => p.id));
+  const salesItems = allItems.filter((item) => salesPipelineIds.has(item.pipeline_id));
+
   // Summary stats — use pipeline items as source of truth
-  const totalDeals = allItems.length;
-  const openDeals = allItems.filter((d) => d.status === "active").length;
-  const wonDeals = allItems.filter((d) => d.status === "won").length;
+  const totalDeals = salesItems.length;
+  const openDeals = salesItems.filter((d) => d.status === "active").length;
+  const wonDeals = salesItems.filter((d) => d.status === "won").length;
 
   if (loading && !deals.length) {
     return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
@@ -244,7 +248,7 @@ export default function DealDashboardPage() {
           All Deals
         </button>
         {pipelines.map((p) => {
-          const pipelineCount = allItems.filter((d) => d.pipeline_id === p.id).length;
+          const pipelineCount = salesItems.filter((d) => d.pipeline_id === p.id).length;
           return (
             <button
               key={p.id}
@@ -354,10 +358,10 @@ export default function DealDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {allItems.length === 0 && (
+              {salesItems.length === 0 && (
                 <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No deals found</td></tr>
               )}
-              {allItems.map((item) => (
+              {salesItems.map((item) => (
                 <tr
                   key={item.id}
                   onClick={() => router.push(`/sales/pipelines/${item.pipeline_id}/items/${item.id}`)}
