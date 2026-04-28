@@ -158,6 +158,7 @@ export default function PipelineItemDetailPage() {
   const [esignForm, setEsignForm] = useState({ document_name: "", recipient_email: "", template_id: "" });
   const [sendingProposal, setSendingProposal] = useState(false);
   const [proposalError, setProposalError] = useState<string | null>(null);
+  const [pandadocUrl, setPandadocUrl] = useState<string | null>(null);
   const [pricingData, setPricingData] = useState<PricingData | null>(null);
   const [pricingInputs, setPricingInputs] = useState({ employees: 0, foot_traffic: 0, business_hours: "low" as string, machines_requested: 1 });
   const [calculatingPricing, setCalculatingPricing] = useState(false);
@@ -441,7 +442,9 @@ export default function PipelineItemDetailPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        setItem((prev) => prev ? { ...prev, proposal_status: "proposal_sent" } : prev);
+        const data = await res.json();
+        setItem((prev) => prev ? { ...prev, proposal_status: data.proposal_status } : prev);
+        if (data.pandadoc_url) setPandadocUrl(data.pandadoc_url);
         load();
         loadGatingData();
         loadLocationPricing();
@@ -868,10 +871,12 @@ export default function PipelineItemDetailPage() {
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
               item.proposal_status === "paid" ? "bg-green-100 text-green-700" :
               item.proposal_status === "proposal_sent" ? "bg-blue-100 text-blue-600" :
+              item.proposal_status === "document_created" ? "bg-yellow-100 text-yellow-700" :
               "bg-gray-100 text-gray-500"
             }`}>
               {item.proposal_status === "paid" ? "Signed & Paid" :
                item.proposal_status === "proposal_sent" ? "Sent" :
+               item.proposal_status === "document_created" ? "Created" :
                "Not Sent"}
             </span>
           </div>
@@ -917,6 +922,27 @@ export default function PipelineItemDetailPage() {
               <Clock className="h-3.5 w-3.5" />
               Agreement sent — waiting for customer signature &amp; payment
             </p>
+          ) : item.proposal_status === "document_created" ? (
+            <div>
+              <p className="text-sm text-yellow-700 flex items-center gap-1.5 mb-2">
+                <FileText className="h-3.5 w-3.5" />
+                Document created — send manually from PandaDoc
+              </p>
+              {pandadocUrl && (
+                <a href={pandadocUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                  <ExternalLink className="h-4 w-4" />
+                  Open in PandaDoc
+                </a>
+              )}
+              {esignDocs.filter(d => d.status === "draft").map((doc) => (
+                <a key={doc.id} href={`https://app.pandadoc.com/a/#/documents/${doc.id}`} target="_blank" rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 ${pandadocUrl ? "hidden" : ""}`}>
+                  <ExternalLink className="h-4 w-4" />
+                  Open in PandaDoc
+                </a>
+              ))}
+            </div>
           ) : (
             <>
               <button
