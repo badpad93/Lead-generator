@@ -53,7 +53,7 @@ export default function DealDetailPage() {
 
   useEffect(() => { fetchDeal(); fetchCommissions(); }, [fetchDeal, fetchCommissions]);
 
-  const isAdmin = userRole === "admin" || userRole === "director_of_sales";
+  const isAdmin = userRole === "admin" || userRole === "director_of_sales" || userRole === "market_leader";
   const isLocked = !!deal?.locked_at && !isAdmin;
 
   async function handleStageChange(stage: string) {

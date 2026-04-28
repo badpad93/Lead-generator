@@ -289,7 +289,7 @@ export default function Navbar() {
                     <Route className="h-4 w-4 text-black-primary/50" />
                     Routes for Sale
                   </Link>
-                  {(isAdmin || profile?.role === "sales") && (
+                  {(isAdmin || profile?.role === "sales" || profile?.role === "director_of_sales" || profile?.role === "market_leader") && (
                     <Link
                       href="/sales"
                       onClick={() => setUserMenuOpen(false)}
@@ -493,7 +493,7 @@ export default function Navbar() {
                     <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
                 </li>
-                {(isAdmin || profile?.role === "sales") && (
+                {(isAdmin || profile?.role === "sales" || profile?.role === "director_of_sales" || profile?.role === "market_leader") && (
                   <li>
                     <Link
                       href="/sales"

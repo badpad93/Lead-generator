@@ -7,7 +7,7 @@ import { supabaseAdmin } from "./supabaseAdmin";
 export type SalesRole = "admin" | "director_of_sales" | "market_leader" | "sales";
 
 export function isElevatedRole(role: SalesRole): boolean {
-  return role === "admin" || role === "director_of_sales";
+  return role === "admin" || role === "director_of_sales" || role === "market_leader";
 }
 
 export interface SalesUser {

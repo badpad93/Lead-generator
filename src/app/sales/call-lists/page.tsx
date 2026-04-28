@@ -64,7 +64,7 @@ export default function CallListsPage() {
         const users: SalesUserRow[] = await res.json();
         setSalesUsers(users);
         const me = users.find((u) => u.id === session.user.id);
-        if (me?.role === "admin" || me?.role === "director_of_sales") setIsAdmin(true);
+        if (me?.role === "admin" || me?.role === "director_of_sales" || me?.role === "market_leader") setIsAdmin(true);
       }
     });
   }, []);

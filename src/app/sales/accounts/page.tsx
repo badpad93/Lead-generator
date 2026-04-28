@@ -27,7 +27,7 @@ export default function AccountsPage() {
       if (res.ok) {
         const users = await res.json();
         const me = users.find((u: { id: string }) => u.id === session.user.id);
-        if (me?.role === "admin" || me?.role === "director_of_sales") setUserRole("admin");
+        if (me?.role === "admin" || me?.role === "director_of_sales" || me?.role === "market_leader") setUserRole("admin");
       }
     });
   }, []);
