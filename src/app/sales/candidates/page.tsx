@@ -28,6 +28,18 @@ interface Candidate {
   onboarding_steps: { id: string; name: string; step_key: string } | null;
 }
 
+interface HiringPipelineItem {
+  id: string;
+  name: string;
+  status: string;
+  pipeline_id: string;
+  pipelines: { id: string; name: string } | null;
+  pipeline_steps: { id: string; name: string; order_index: number } | null;
+  sales_accounts: { business_name: string } | null;
+  employees: { full_name: string } | null;
+  created_at: string;
+}
+
 interface SalesUser {
   id: string;
   full_name: string;
@@ -39,6 +51,7 @@ export default function CandidatesPage() {
   const [userId, setUserId] = useState("");
   const [userRole, setUserRole] = useState("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [hiringItems, setHiringItems] = useState<HiringPipelineItem[]>([]);
   const [salesUsers, setSalesUsers] = useState<SalesUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -73,8 +86,18 @@ export default function CandidatesPage() {
   const fetchCandidates = useCallback(async () => {
     if (!token) return;
     setLoading(true);
-    const res = await fetch("/api/onboarding/candidates", { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) setCandidates(await res.json());
+    const [candRes, pipRes, itemRes] = await Promise.all([
+      fetch("/api/onboarding/candidates", { headers: { Authorization: `Bearer ${token}` } }),
+      fetch("/api/pipelines?type=hiring", { headers: { Authorization: `Bearer ${token}` } }),
+      fetch("/api/pipeline-items", { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    if (candRes.ok) setCandidates(await candRes.json());
+    if (pipRes.ok && itemRes.ok) {
+      const hiringPipelines: { id: string }[] = await pipRes.json();
+      const allItems: HiringPipelineItem[] = await itemRes.json();
+      const hiringPipelineIds = new Set(hiringPipelines.map((p) => p.id));
+      setHiringItems(allItems.filter((item) => hiringPipelineIds.has(item.pipeline_id)));
+    }
     setLoading(false);
   }, [token]);
 
@@ -217,6 +240,18 @@ export default function CandidatesPage() {
     return c.full_name.toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q) || (c.phone || "").toLowerCase().includes(q);
   });
 
+  // Hiring pipeline items not already in the candidates table
+  const candidateNames = new Set(candidates.map((c) => c.full_name.toLowerCase()));
+  const filteredHiringItems = hiringItems.filter((item) => {
+    if (item.status === "won" || item.status === "lost") return false;
+    if (candidateNames.has(item.name.toLowerCase())) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!item.name.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -317,7 +352,7 @@ export default function CandidatesPage() {
 
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-green-600" /></div>
-      ) : filtered.length === 0 ? (
+      ) : filtered.length === 0 && filteredHiringItems.length === 0 ? (
         <div className="py-16 text-center">
           <UserPlus className="mx-auto h-10 w-10 text-gray-300 mb-3" />
           <p className="text-sm text-gray-400">No candidates yet. Add one above to get started.</p>
@@ -458,6 +493,36 @@ export default function CandidatesPage() {
                   </tr>
                 );
               })}
+              {filteredHiringItems.map((item) => (
+                <tr key={`pi-${item.id}`} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3">
+                    <span className="font-medium text-gray-900">{item.name}</span>
+                    {item.pipelines && <p className="text-xs text-gray-400 mt-0.5">{item.pipelines.name}</p>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-gray-50 text-gray-500">—</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      item.status === "active" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-600"
+                    }`}>
+                      {item.status}
+                    </span>
+                    {item.pipeline_steps && (
+                      <p className="text-xs text-gray-400 mt-0.5">{item.pipeline_steps.name}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">
+                    {item.employees?.full_name || item.sales_accounts?.business_name || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-300">—</td>
+                  <td className="px-4 py-3 text-xs text-gray-300">—</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">
+                    {new Date(item.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">—</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
