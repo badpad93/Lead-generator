@@ -29,6 +29,8 @@ export async function POST(req: NextRequest) {
   const { business_name, contact_name, phone, email, address, notes, entity_type } = body;
   if (!business_name)
     return NextResponse.json({ error: "business_name required" }, { status: 400 });
+  if (!email)
+    return NextResponse.json({ error: "email required" }, { status: 400 });
 
   const { data, error } = await supabaseAdmin
     .from("sales_accounts")

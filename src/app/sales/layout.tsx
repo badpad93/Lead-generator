@@ -103,7 +103,7 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
 
   if (!authorized) return null;
 
-  const isElevated = userRole === "admin" || userRole === "director_of_sales";
+  const isElevated = userRole === "admin" || userRole === "director_of_sales" || userRole === "market_leader";
   const visibleNav = NAV_ITEMS.filter((item) => !item.elevated || isElevated);
 
   return (

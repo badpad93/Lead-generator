@@ -368,6 +368,10 @@ export default function PipelineItemDetailPage() {
   async function handleCreateOrder() {
     if (!orderOperatorId) { setOrderError("Select an operator account"); return; }
     if (!orderLocationForm.location_name) { setOrderError("Enter a location name"); return; }
+    if (!orderLocationForm.industry) { setOrderError("Industry is required for pricing"); return; }
+    if (!orderLocationForm.zip) { setOrderError("ZIP code is required for pricing"); return; }
+    if (!orderLocationForm.employee_count) { setOrderError("Employee count is required for pricing"); return; }
+    if (!orderLocationForm.traffic_count) { setOrderError("Foot traffic is required for pricing"); return; }
     setOrderSaving(true);
     setOrderError(null);
     try {
@@ -857,8 +861,8 @@ export default function PipelineItemDetailPage() {
         </div>
       )}
 
-      {/* Send Sales Agreement (PandaDoc-automated steps) */}
-      {currentStep && item.location_id && currentStep.pandadoc_preliminary_template_id && !isCompleted && (
+      {/* Send Sales Agreement (in-house agreement flow) */}
+      {currentStep && item.location_id && (currentStep.requires_payment || currentStep.requires_signature) && !isCompleted && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
@@ -935,8 +939,8 @@ export default function PipelineItemDetailPage() {
         </div>
       )}
 
-      {/* Current Step Documents (manual upload — hidden for PandaDoc-automated steps) */}
-      {currentStep && currentStep.requires_document && currentStep.step_documents.length > 0 && !isCompleted && !currentStep.pandadoc_preliminary_template_id && !currentStep.pandadoc_full_template_id && (
+      {/* Current Step Documents (manual upload — hidden when agreement flow is active) */}
+      {currentStep && currentStep.requires_document && currentStep.step_documents.length > 0 && !isCompleted && !item.location_id && !currentStep.pandadoc_full_template_id && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-3">
             Required Documents — {currentStep.name}
@@ -987,8 +991,8 @@ export default function PipelineItemDetailPage() {
         </div>
       )}
 
-      {/* E-Signature Section (hidden for PandaDoc-automated steps) */}
-      {currentStep?.requires_signature && !isCompleted && !currentStep.pandadoc_preliminary_template_id && (
+      {/* E-Signature Section (hidden when in-house agreement flow is active) */}
+      {currentStep?.requires_signature && !isCompleted && !item.location_id && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <PenTool className="h-4 w-4 text-gray-400" />
@@ -1049,8 +1053,8 @@ export default function PipelineItemDetailPage() {
         </div>
       )}
 
-      {/* Payment Section (hidden for PandaDoc-automated steps — payment is inline via PandaDoc+Stripe) */}
-      {currentStep?.requires_payment && !isCompleted && !currentStep?.pandadoc_preliminary_template_id && (
+      {/* Payment Section (hidden when in-house agreement flow is active) */}
+      {currentStep?.requires_payment && !isCompleted && !item.location_id && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-gray-400" />
@@ -1308,10 +1312,10 @@ export default function PipelineItemDetailPage() {
                   <div className="col-span-2">
                     <input value={orderLocationForm.address} onChange={(e) => setOrderLocationForm((f) => ({ ...f, address: e.target.value }))} placeholder="Address" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
                   </div>
-                  <input value={orderLocationForm.industry} onChange={(e) => setOrderLocationForm((f) => ({ ...f, industry: e.target.value }))} placeholder="Industry" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-                  <input value={orderLocationForm.zip} onChange={(e) => setOrderLocationForm((f) => ({ ...f, zip: e.target.value }))} placeholder="ZIP Code" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-                  <input value={orderLocationForm.employee_count} onChange={(e) => setOrderLocationForm((f) => ({ ...f, employee_count: e.target.value }))} placeholder="Employee Count" type="number" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-                  <input value={orderLocationForm.traffic_count} onChange={(e) => setOrderLocationForm((f) => ({ ...f, traffic_count: e.target.value }))} placeholder="Foot Traffic" type="number" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  <input value={orderLocationForm.industry} onChange={(e) => setOrderLocationForm((f) => ({ ...f, industry: e.target.value }))} placeholder="Industry *" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  <input value={orderLocationForm.zip} onChange={(e) => setOrderLocationForm((f) => ({ ...f, zip: e.target.value }))} placeholder="ZIP Code *" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  <input value={orderLocationForm.employee_count} onChange={(e) => setOrderLocationForm((f) => ({ ...f, employee_count: e.target.value }))} placeholder="Employee Count *" type="number" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                  <input value={orderLocationForm.traffic_count} onChange={(e) => setOrderLocationForm((f) => ({ ...f, traffic_count: e.target.value }))} placeholder="Foot Traffic *" type="number" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
                   <input value={orderLocationForm.decision_maker_name} onChange={(e) => setOrderLocationForm((f) => ({ ...f, decision_maker_name: e.target.value }))} placeholder="Decision Maker Name" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
                   <input value={orderLocationForm.decision_maker_email} onChange={(e) => setOrderLocationForm((f) => ({ ...f, decision_maker_email: e.target.value }))} placeholder="Decision Maker Email" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
                   <input value={orderLocationForm.phone} onChange={(e) => setOrderLocationForm((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
@@ -1347,7 +1351,7 @@ export default function PipelineItemDetailPage() {
 
               <button
                 onClick={handleCreateOrder}
-                disabled={orderSaving || !orderOperatorId || !orderLocationForm.location_name}
+                disabled={orderSaving || !orderOperatorId || !orderLocationForm.location_name || !orderLocationForm.industry || !orderLocationForm.zip || !orderLocationForm.employee_count || !orderLocationForm.traffic_count}
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
               >
                 {orderSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}

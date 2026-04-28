@@ -7,6 +7,9 @@ import {
   sendPurchaseConfirmationEmail,
   isLeadInfoComplete,
 } from "@/lib/email";
+import { generateSiteDetailsPdf } from "@/lib/pdf/agreementPdf";
+import { sendFullSiteDetailsEmail } from "@/lib/agreementEmail";
+import { PricingResult } from "@/lib/pricing/locationPricing";
 
 function getStripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -55,6 +58,13 @@ export async function POST(req: NextRequest) {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
+
+    // Handle agreement payments (location placement)
+    if (session.metadata?.type === "agreement_payment") {
+      await handleAgreementPayment(session);
+      return NextResponse.json({ received: true });
+    }
+
     const userId = session.metadata?.user_id;
     const requestId = session.metadata?.request_id;
     const agreementId = session.metadata?.agreement_id;
@@ -195,4 +205,130 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true });
+}
+
+async function handleAgreementPayment(session: Stripe.Checkout.Session) {
+  const agreementTokenId = session.metadata?.agreement_token_id;
+  const pipelineItemId = session.metadata?.pipeline_item_id;
+  const stepId = session.metadata?.step_id;
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+
+  if (!agreementTokenId) return;
+
+  // Mark agreement as paid
+  await supabaseAdmin
+    .from("agreement_tokens")
+    .update({
+      status: "paid",
+      stripe_payment_intent_id: paymentIntentId,
+      paid_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", agreementTokenId);
+
+  // Mark pipeline payment as completed
+  if (pipelineItemId && stepId) {
+    await supabaseAdmin
+      .from("pipeline_payments")
+      .update({
+        status: "completed",
+        stripe_payment_intent_id: paymentIntentId,
+        paid_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("pipeline_item_id", pipelineItemId)
+      .eq("step_id", stepId)
+      .in("status", ["pending", "created"]);
+
+    // Update proposal status
+    await supabaseAdmin
+      .from("pipeline_items")
+      .update({ proposal_status: "paid", updated_at: new Date().toISOString() })
+      .eq("id", pipelineItemId);
+  }
+
+  // Fetch agreement + location + account for full site details
+  const { data: agreement } = await supabaseAdmin
+    .from("agreement_tokens")
+    .select("*, sales_accounts(business_name, contact_name)")
+    .eq("id", agreementTokenId)
+    .single();
+
+  if (!agreement) return;
+
+  const { data: location } = await supabaseAdmin
+    .from("locations")
+    .select("*")
+    .eq("id", agreement.location_id)
+    .single();
+
+  if (!location) return;
+
+  // Mark location as revealed
+  await supabaseAdmin
+    .from("locations")
+    .update({ is_revealed: true, revealed_at: new Date().toISOString() })
+    .eq("id", location.id);
+
+  // Generate and send full site details
+  try {
+    const pricing: PricingResult = {
+      total_score: agreement.pricing_score,
+      traffic_score: 0,
+      hours_score: 0,
+      machine_score: 0,
+      tier: agreement.pricing_tier as 1 | 2 | 3 | 4 | 5,
+      tier_label: `Tier ${agreement.pricing_tier}`,
+      price: Number(agreement.pricing_price),
+    };
+
+    const pdfBytes = await generateSiteDetailsPdf({
+      businessName: agreement.sales_accounts?.business_name || agreement.recipient_name || "",
+      contactName: agreement.recipient_name || "",
+      locationName: location.location_name || "",
+      address: location.address || "",
+      phone: location.phone || "",
+      decisionMakerName: location.decision_maker_name || "",
+      decisionMakerEmail: location.decision_maker_email || "",
+      industry: location.industry || "",
+      zip: location.zip || "",
+      employeeCount: location.employee_count || 0,
+      trafficCount: location.traffic_count || 0,
+      machineType: location.machine_type || "",
+      machinesRequested: location.machines_requested || 1,
+      businessHours: location.business_hours || "",
+      pricing,
+      generatedAt: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+    });
+
+    // Upload full details PDF
+    const pdfPath = `agreements/${agreement.id}-full-details.pdf`;
+    await supabaseAdmin.storage
+      .from("sales-documents")
+      .upload(pdfPath, Buffer.from(pdfBytes), { contentType: "application/pdf", upsert: true });
+
+    const { data: urlData } = supabaseAdmin.storage.from("sales-documents").getPublicUrl(pdfPath);
+
+    await supabaseAdmin
+      .from("agreement_tokens")
+      .update({
+        full_details_sent_at: new Date().toISOString(),
+        full_details_pdf_url: urlData.publicUrl,
+      })
+      .eq("id", agreementTokenId);
+
+    // Send full site details email
+    await sendFullSiteDetailsEmail({
+      to: agreement.recipient_email,
+      recipientName: agreement.recipient_name || "",
+      businessName: agreement.sales_accounts?.business_name || "",
+      locationName: location.location_name || "Location",
+      pdfBuffer: pdfBytes,
+    });
+  } catch (e) {
+    console.error("[stripe-webhook] Failed to send full site details:", e);
+  }
 }

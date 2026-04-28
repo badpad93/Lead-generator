@@ -47,7 +47,7 @@ export default function PipelinesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const isAdmin = userRole === "admin" || userRole === "director_of_sales";
+  const isAdmin = userRole === "admin" || userRole === "director_of_sales" || userRole === "market_leader";
 
   async function handleCreate() {
     if (!form.name) return;

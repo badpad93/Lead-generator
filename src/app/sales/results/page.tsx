@@ -105,9 +105,8 @@ export default function SalesResultsPage() {
   const [goalForm, setGoalForm] = useState({ target_revenue: "", target_deals: "", target_leads: "" });
   const [savingGoal, setSavingGoal] = useState(false);
 
-  const isElevated = userRole === "admin" || userRole === "director_of_sales";
-  const isMarketLeader = userRole === "market_leader";
-  const canViewTeam = isElevated || isMarketLeader;
+  const isElevated = userRole === "admin" || userRole === "director_of_sales" || userRole === "market_leader";
+  const canViewTeam = isElevated;
   const canSetGoals = isElevated;
 
   useEffect(() => {
@@ -284,7 +283,7 @@ export default function SalesResultsPage() {
                 ? salesUsers.find((u) => u.id === filterUserId)?.full_name || "Rep"
                 : filterMarketId
                   ? markets.find((m) => m.id === filterMarketId)?.name || "Market"
-                  : isElevated ? "All Reps (Organization)" : isMarketLeader ? "Your Market" : "Your Results"
+                  : isElevated ? "All Reps (Organization)" : "Your Results"
               }
               {" — "}
               {period === "custom"

@@ -97,7 +97,7 @@ export async function PATCH(req: NextRequest) {
     ];
     // Privileged roles can ONLY be set by an admin via /api/admin/users.
     // Self-service signup must never grant admin/sales access.
-    const PRIVILEGED_ROLES = new Set(["admin", "sales"]);
+    const PRIVILEGED_ROLES = new Set(["admin", "sales", "director_of_sales", "market_leader"]);
     if (
       "role" in body &&
       typeof body.role === "string" &&

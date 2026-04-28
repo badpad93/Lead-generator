@@ -103,7 +103,7 @@ export default function CandidatesPage() {
 
   useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
 
-  const isElevated = userRole === "admin" || userRole === "director_of_sales";
+  const isElevated = userRole === "admin" || userRole === "director_of_sales" || userRole === "market_leader";
   const assignableUsers = salesUsers.filter((u) => u.role === "admin" || u.role === "director_of_sales" || u.role === "market_leader");
 
   async function handleAdd() {

@@ -96,7 +96,7 @@ export default function SalesDashboard() {
   const [counts, setCounts] = useState({ leads: 0, deals: 0, accounts: 0, orders: 0 });
   const [loading, setLoading] = useState(true);
 
-  const isElevated = userRole === "admin" || userRole === "director_of_sales";
+  const isElevated = userRole === "admin" || userRole === "director_of_sales" || userRole === "market_leader";
 
   useEffect(() => {
     const supabase = createBrowserClient();
