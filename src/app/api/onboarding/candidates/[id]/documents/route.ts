@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (!isElevatedRole(user.role)) {
     const { data: candidate } = await supabaseAdmin.from("candidates").select("assigned_to").eq("id", id).single();
-    if (!candidate || candidate.assigned_to !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!candidate || (candidate.assigned_to && candidate.assigned_to !== user.id)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { data, error } = await supabaseAdmin
@@ -34,11 +34,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const user = await getSalesUser(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
-
-  if (!isElevatedRole(user.role)) {
-    const { data: candidate } = await supabaseAdmin.from("candidates").select("assigned_to").eq("id", id).single();
-    if (!candidate || candidate.assigned_to !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
