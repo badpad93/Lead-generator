@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Truck, Building2, UserPlus, ArrowLeft, Loader2, LogOut } from "lucide-react";
-import { signUpWithGoogle, signUpWithMicrosoft, storeSignupRole, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
+import { signUpWithGoogle, signUpWithMicrosoft, storeSignupRole, storeSignupLead, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
 
 type Role = "operator" | "location_manager" | "requestor";
@@ -29,15 +29,42 @@ const roles: { value: Role; label: string; icon: typeof Truck; description: stri
   },
 ];
 
+const ENTITY_TYPES = [
+  { value: "operator", label: "Operator" },
+  { value: "location", label: "Location" },
+  { value: "machine_sales", label: "Machine Sales" },
+  { value: "vending_maintenance", label: "Vending Maintenance" },
+];
+
+const IMMEDIATE_NEEDS = [
+  { value: "location", label: "Location" },
+  { value: "machine", label: "Machine" },
+  { value: "digital", label: "Digital" },
+  { value: "llc_compliance", label: "LLC/Compliance" },
+  { value: "coffee", label: "Coffee" },
+  { value: "financing", label: "Financing" },
+  { value: "total_operator_package", label: "Total Operator Package" },
+];
+
 export default function SignupPage() {
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [role, setRole] = useState<Role | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<"google" | "microsoft" | null>(null);
   const [existingEmail, setExistingEmail] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
-  // Detect existing session so the user can choose to sign out first
+  const [leadForm, setLeadForm] = useState({
+    business_name: "",
+    contact_name: "",
+    phone: "",
+    address: "",
+    city: "",
+    state: "",
+    entity_type: "",
+    immediate_need: "",
+  });
+
   useEffect(() => {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -66,16 +93,45 @@ export default function SignupPage() {
   function handleRoleSelect(selected: Role) {
     setRole(selected);
     setError(null);
+    if (!leadForm.entity_type) {
+      const mapped = selected === "operator" ? "operator" : "location";
+      setLeadForm((f) => ({ ...f, entity_type: mapped }));
+    }
   }
 
-  function handleContinue() {
+  function handleContinueToInfo() {
     if (!role) return;
     setStep(2);
   }
 
-  function handleBack() {
-    setStep(1);
+  function handleContinueToAuth() {
+    if (!leadForm.business_name.trim()) {
+      setError("Business name is required");
+      return;
+    }
+    if (!leadForm.contact_name.trim()) {
+      setError("Contact name is required");
+      return;
+    }
+    if (!leadForm.phone.trim()) {
+      setError("Phone number is required");
+      return;
+    }
     setError(null);
+    setStep(3);
+  }
+
+  function storeLead() {
+    storeSignupLead({
+      business_name: leadForm.business_name.trim(),
+      contact_name: leadForm.contact_name.trim(),
+      phone: leadForm.phone.trim(),
+      address: leadForm.address.trim(),
+      city: leadForm.city.trim(),
+      state: leadForm.state.trim(),
+      entity_type: leadForm.entity_type,
+      immediate_need: leadForm.immediate_need,
+    });
   }
 
   async function handleGoogleSignup() {
@@ -93,6 +149,7 @@ export default function SignupPage() {
       setExistingEmail(null);
 
       storeSignupRole(role);
+      storeLead();
       storeRedirectAfterLogin("/dashboard");
       await signUpWithGoogle();
     } catch {
@@ -116,6 +173,7 @@ export default function SignupPage() {
       setExistingEmail(null);
 
       storeSignupRole(role);
+      storeLead();
       storeRedirectAfterLogin("/dashboard");
       await signUpWithMicrosoft();
     } catch {
@@ -123,6 +181,9 @@ export default function SignupPage() {
       setLoading(null);
     }
   }
+
+  const inputClass = "w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary/30 transition-colors";
+  const selectClass = `${inputClass} cursor-pointer`;
 
   return (
     <div className="min-h-[calc(100vh-160px)] flex items-center justify-center px-4 py-12">
@@ -133,6 +194,8 @@ export default function SignupPage() {
           <p className="text-black-primary/60 mt-2">
             {step === 1
               ? "Select your role to get started"
+              : step === 2
+              ? "Tell us about your business"
               : "Connect your account to continue"}
           </p>
         </div>
@@ -200,7 +263,7 @@ export default function SignupPage() {
 
               <button
                 type="button"
-                onClick={handleContinue}
+                onClick={handleContinueToInfo}
                 disabled={!role}
                 className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white
                   font-semibold rounded-xl transition-colors disabled:opacity-40
@@ -211,21 +274,18 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* Step 2: Google OAuth */}
+          {/* Step 2: Business & Contact Info */}
           {step === 2 && (
             <>
-              {/* Back button */}
               <button
                 type="button"
-                onClick={handleBack}
-                className="flex items-center gap-1.5 text-sm text-black-primary/60 hover:text-green-primary
-                  transition-colors mb-6 cursor-pointer"
+                onClick={() => { setStep(1); setError(null); }}
+                className="flex items-center gap-1.5 text-sm text-black-primary/60 hover:text-green-primary transition-colors mb-6 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Change role
               </button>
 
-              {/* Selected role badge */}
               <div className="flex items-center gap-2 mb-6 px-3 py-2 bg-light-warm rounded-lg w-fit">
                 {(() => {
                   const selected = roles.find((r) => r.value === role);
@@ -235,6 +295,92 @@ export default function SignupPage() {
                     <>
                       <Icon className="w-4 h-4 text-green-primary" />
                       <span className="text-sm font-medium text-black-primary">{selected.label}</span>
+                    </>
+                  );
+                })()}
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Business Name *</label>
+                  <input value={leadForm.business_name} onChange={(e) => setLeadForm((f) => ({ ...f, business_name: e.target.value }))} placeholder="Your business name" className={inputClass} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Contact Name *</label>
+                    <input value={leadForm.contact_name} onChange={(e) => setLeadForm((f) => ({ ...f, contact_name: e.target.value }))} placeholder="Full name" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Phone *</label>
+                    <input value={leadForm.phone} onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))} placeholder="(555) 555-5555" type="tel" className={inputClass} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
+                  <input value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} placeholder="Street address" className={inputClass} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">City</label>
+                    <input value={leadForm.city} onChange={(e) => setLeadForm((f) => ({ ...f, city: e.target.value }))} placeholder="City" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">State</label>
+                    <input value={leadForm.state} onChange={(e) => setLeadForm((f) => ({ ...f, state: e.target.value }))} placeholder="State" className={inputClass} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+                    <select value={leadForm.entity_type} onChange={(e) => setLeadForm((f) => ({ ...f, entity_type: e.target.value }))} className={selectClass}>
+                      <option value="">Select type...</option>
+                      {ENTITY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Immediate Need</label>
+                    <select value={leadForm.immediate_need} onChange={(e) => setLeadForm((f) => ({ ...f, immediate_need: e.target.value }))} className={selectClass}>
+                      <option value="">Select need...</option>
+                      {IMMEDIATE_NEEDS.map((n) => <option key={n.value} value={n.value}>{n.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleContinueToAuth}
+                  className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white
+                    font-semibold rounded-xl transition-colors mt-2 cursor-pointer"
+                >
+                  Continue
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Step 3: OAuth */}
+          {step === 3 && (
+            <>
+              <button
+                type="button"
+                onClick={() => { setStep(2); setError(null); }}
+                className="flex items-center gap-1.5 text-sm text-black-primary/60 hover:text-green-primary
+                  transition-colors mb-6 cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to details
+              </button>
+
+              <div className="flex items-center gap-2 mb-6 px-3 py-2 bg-light-warm rounded-lg w-fit">
+                {(() => {
+                  const selected = roles.find((r) => r.value === role);
+                  if (!selected) return null;
+                  const Icon = selected.icon;
+                  return (
+                    <>
+                      <Icon className="w-4 h-4 text-green-primary" />
+                      <span className="text-sm font-medium text-black-primary">{selected.label}</span>
+                      <span className="text-xs text-black-primary/40 ml-1">· {leadForm.business_name}</span>
                     </>
                   );
                 })()}

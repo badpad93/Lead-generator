@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
-import { consumeSignupRole, consumeRedirectAfterLogin, consumeAuthFlow } from "@/lib/auth";
+import { consumeSignupRole, consumeRedirectAfterLogin, consumeAuthFlow, consumeSignupLead } from "@/lib/auth";
 
 function CallbackContent() {
   const searchParams = useSearchParams();
@@ -58,6 +58,25 @@ function CallbackContent() {
             });
           } catch {
             // Profile might not exist yet — ignore
+          }
+        }
+
+        const leadData = consumeSignupLead();
+        if (leadData) {
+          try {
+            await fetch("/api/auth/signup-lead", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${data.session.access_token}`,
+              },
+              body: JSON.stringify({
+                ...leadData,
+                email: leadData.email || data.session.user.email,
+              }),
+            });
+          } catch {
+            // Lead creation is best-effort during signup
           }
         }
       } else {

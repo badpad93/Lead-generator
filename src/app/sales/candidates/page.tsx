@@ -112,7 +112,7 @@ export default function CandidatesPage() {
     const res = await fetch("/api/onboarding/candidates", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ ...form, pre_pipeline: true, assigned_to: form.assigned_to || null }),
+      body: JSON.stringify({ ...form, pre_pipeline: true, assigned_to: form.assigned_to || userId || null }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
