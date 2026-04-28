@@ -181,9 +181,18 @@ export async function POST(
       pricing_tables: pricingTables,
     });
 
-    // Wait for PandaDoc to process the document before sending
+    // Attempt to send — may fail on plans that restrict external sends
+    let sendFailed = false;
     await new Promise((r) => setTimeout(r, 3000));
-    await sendDocument(doc.id, "Please review this location placement proposal.");
+    try {
+      await sendDocument(doc.id, "Please review this location placement proposal.");
+    } catch {
+      sendFailed = true;
+    }
+
+    const docStatus = sendFailed ? "draft" : "sent";
+    const proposalStatus = sendFailed ? "document_created" : "proposal_sent";
+    const pandadocUrl = `https://app.pandadoc.com/a/#/documents/${doc.id}`;
 
     // Create esign_documents record
     await supabaseAdmin.from("esign_documents").insert({
@@ -195,8 +204,8 @@ export async function POST(
       document_name: `Location Proposal — ${item.name}`,
       recipient_email: recipientEmail,
       recipient_name: recipientName,
-      status: "sent",
-      sent_at: new Date().toISOString(),
+      status: docStatus,
+      sent_at: sendFailed ? null : new Date().toISOString(),
       metadata: { type: "preliminary_proposal", location_id: item.location_id },
     });
 
@@ -217,13 +226,15 @@ export async function POST(
     // Update proposal status
     await supabaseAdmin
       .from("pipeline_items")
-      .update({ proposal_status: "proposal_sent", updated_at: new Date().toISOString() })
+      .update({ proposal_status: proposalStatus, updated_at: new Date().toISOString() })
       .eq("id", itemId);
 
     return NextResponse.json({
       ok: true,
       pandadoc_document_id: doc.id,
-      proposal_status: "proposal_sent",
+      pandadoc_url: pandadocUrl,
+      proposal_status: proposalStatus,
+      send_failed: sendFailed,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
