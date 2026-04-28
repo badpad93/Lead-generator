@@ -24,6 +24,8 @@ interface Candidate {
   application_date: string | null;
   created_at: string;
   candidate_documents: CandidateDoc[];
+  onboarding_pipelines: { id: string; name: string; role_type: string } | null;
+  onboarding_steps: { id: string; name: string; step_key: string } | null;
 }
 
 interface SalesUser {
@@ -40,6 +42,7 @@ export default function CandidatesPage() {
   const [salesUsers, setSalesUsers] = useState<SalesUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ full_name: "", email: "", phone: "", role_type: "BDP", assigned_to: "", notes: "" });
   const [addFiles, setAddFiles] = useState<File[]>([]);
@@ -70,7 +73,7 @@ export default function CandidatesPage() {
   const fetchCandidates = useCallback(async () => {
     if (!token) return;
     setLoading(true);
-    const res = await fetch("/api/onboarding/candidates?status=application", { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch("/api/onboarding/candidates", { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) setCandidates(await res.json());
     setLoading(false);
   }, [token]);
@@ -207,6 +210,8 @@ export default function CandidatesPage() {
   }
 
   const filtered = candidates.filter((c) => {
+    if (statusFilter !== "all" && c.status !== statusFilter) return false;
+    if (c.status === "terminated") return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return c.full_name.toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q) || (c.phone || "").toLowerCase().includes(q);
@@ -275,19 +280,32 @@ export default function CandidatesPage() {
         </div>
       )}
 
-      <div className="relative mb-4">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search candidates..."
-          className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-9 text-sm placeholder:text-gray-400 focus:border-green-500 focus:outline-none"
-        />
-        {search && (
-          <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-            <X className="h-4 w-4" />
-          </button>
-        )}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search candidates..."
+            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-9 text-sm placeholder:text-gray-400 focus:border-green-500 focus:outline-none"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+        >
+          <option value="all">All Statuses</option>
+          <option value="application">Application</option>
+          <option value="interview">Interview</option>
+          <option value="training">Training</option>
+          <option value="active">Active</option>
+        </select>
       </div>
 
       {uploadError && (
@@ -311,6 +329,7 @@ export default function CandidatesPage() {
               <tr>
                 <th className="px-4 py-3 font-medium text-gray-500">Name</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Role</th>
+                <th className="px-4 py-3 font-medium text-gray-500">Status</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Contact</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Documents</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Assigned To</th>
@@ -336,6 +355,20 @@ export default function CandidatesPage() {
                       }`}>
                         {c.role_type === "BDP" ? "BDP" : "Market Leader"}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        c.status === "application" ? "bg-gray-100 text-gray-600" :
+                        c.status === "interview" ? "bg-yellow-50 text-yellow-700" :
+                        c.status === "training" ? "bg-blue-50 text-blue-600" :
+                        c.status === "active" ? "bg-green-50 text-green-700" :
+                        "bg-gray-100 text-gray-500"
+                      }`}>
+                        {c.status}
+                      </span>
+                      {c.onboarding_steps && (
+                        <p className="text-xs text-gray-400 mt-0.5">{c.onboarding_steps.name}</p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-600">
                       <div className="text-xs">
@@ -406,13 +439,15 @@ export default function CandidatesPage() {
                         <button onClick={() => openEdit(c)} title="Edit" className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 cursor-pointer">
                           <Pencil className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => handleAddToPipeline(c.id)}
-                          title="Add to Hiring Pipeline"
-                          className="rounded-lg p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 cursor-pointer"
-                        >
-                          <ArrowRight className="h-4 w-4" />
-                        </button>
+                        {c.status === "application" && (
+                          <button
+                            onClick={() => handleAddToPipeline(c.id)}
+                            title="Add to Hiring Pipeline"
+                            className="rounded-lg p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 cursor-pointer"
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                          </button>
+                        )}
                         {isElevated && (
                           <button onClick={() => handleDelete(c.id)} title="Remove" className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 cursor-pointer">
                             <Trash2 className="h-4 w-4" />
