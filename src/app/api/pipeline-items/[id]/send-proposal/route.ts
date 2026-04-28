@@ -148,10 +148,10 @@ export async function POST(
       ? [
           {
             name: "Quote 1",
-            options: { currency: "USD", discount: { type: "absolute", value: 0 } },
+            options: { currency: "USD" },
             sections: [
               {
-                title: "",
+                title: "Location Placement",
                 default: true,
                 rows: [
                   {
