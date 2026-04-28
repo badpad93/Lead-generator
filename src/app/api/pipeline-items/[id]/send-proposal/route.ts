@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
+import { getSalesUser } from "@/lib/salesAuth";
 import { createDocumentFromTemplate, sendDocument } from "@/lib/pandadoc";
 import {
   calculateLocationPrice,
@@ -14,8 +14,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  if (!user) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 403 });
   }
   const { id: itemId } = await params;
 
