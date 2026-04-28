@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
+import {
+  calculateLocationPrice,
+  BusinessHours,
+  MachinesRequested,
+} from "@/lib/pricing/locationPricing";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
@@ -36,6 +41,32 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
+  const employees = body.employee_count ? Number(body.employee_count) : null;
+  const footTraffic = body.traffic_count ? Number(body.traffic_count) : null;
+  const businessHours = body.business_hours || null;
+  const machinesRequested = body.machines_requested ? Number(body.machines_requested) : null;
+
+  // Auto-calculate pricing if all required inputs are present
+  let pricingFields: Record<string, unknown> = {};
+  if (employees != null && businessHours && machinesRequested) {
+    try {
+      const result = calculateLocationPrice({
+        employees,
+        foot_traffic: footTraffic ?? 0,
+        business_hours: businessHours as BusinessHours,
+        machines_requested: machinesRequested as MachinesRequested,
+      });
+      pricingFields = {
+        pricing_score: result.total_score,
+        pricing_tier: result.tier,
+        pricing_price: result.price,
+        pricing_calculated_at: new Date().toISOString(),
+      };
+    } catch {
+      // Invalid pricing inputs — skip auto-calculation
+    }
+  }
+
   const { data, error } = await supabaseAdmin
     .from("locations")
     .insert({
@@ -46,11 +77,12 @@ export async function POST(req: NextRequest) {
       decision_maker_email: body.decision_maker_email || null,
       industry: body.industry || null,
       zip: body.zip || null,
-      employee_count: body.employee_count ? Number(body.employee_count) : null,
-      traffic_count: body.traffic_count ? Number(body.traffic_count) : null,
+      employee_count: employees,
+      traffic_count: footTraffic,
       machine_type: body.machine_type || null,
-      business_hours: body.business_hours || null,
-      machines_requested: body.machines_requested ? Number(body.machines_requested) : null,
+      business_hours: businessHours,
+      machines_requested: machinesRequested,
+      ...pricingFields,
     })
     .select("*")
     .single();
