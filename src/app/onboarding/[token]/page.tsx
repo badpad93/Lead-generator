@@ -41,8 +41,8 @@ const STEP_TITLES: Record<string, string> = {
 };
 
 const STEP_DESCRIPTIONS: Record<string, string> = {
-  interview: "Please review and complete each of the following documents to proceed with your interview process.",
-  welcome_docs: "Congratulations on moving forward! Please complete these documents to finalize your onboarding.",
+  interview: "Please review and sign each of the following documents to proceed with your interview process.",
+  welcome_docs: "Congratulations on moving forward! Please complete and sign these documents to finalize your onboarding.",
 };
 
 function PortalContent() {
@@ -167,9 +167,9 @@ function PortalContent() {
           </div>
           <div className="rounded-2xl border border-green-200 bg-green-50 p-8">
             <CheckCircle2 className="mx-auto h-12 w-12 text-green-600 mb-4" />
-            <h2 className="text-xl font-bold text-gray-900 mb-2">All Documents Submitted</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">All Documents Completed</h2>
             <p className="text-sm text-gray-600">
-              Thank you, {data.candidate_name}! All required documents have been received.
+              Thank you, {data.candidate_name}! All required documents have been signed and submitted.
               {data.step_key === "interview"
                 ? " You'll receive your next set of onboarding documents shortly."
                 : " Your onboarding is now complete."}
@@ -181,13 +181,11 @@ function PortalContent() {
     );
   }
 
+  const formDocs = data.required_documents.filter((d) => d.form_enabled && d.form_fields);
+  const uploadDocs = data.required_documents.filter((d) => !d.form_enabled || !d.form_fields);
   const completedCount = data.required_documents.filter((d) => d.uploaded).length;
   const totalCount = data.required_documents.length;
   const allComplete = data.required_documents.filter((d) => d.required).every((d) => d.uploaded);
-
-  // Split docs into form-based and file-upload-based
-  const formDocs = data.required_documents.filter((d) => d.form_enabled && d.form_fields);
-  const uploadDocs = data.required_documents.filter((d) => !d.form_enabled || !d.form_fields);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -199,12 +197,13 @@ function PortalContent() {
         className="hidden"
       />
       <div className="mx-auto max-w-2xl">
+        {/* Header */}
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold text-green-600 mb-1">Vending Connector</h1>
           <p className="text-sm text-gray-500">Onboarding Portal</p>
         </div>
 
-        {/* Welcome Card */}
+        {/* Welcome & Progress Card */}
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-6">
           <div className="px-6 py-5 border-b border-gray-100">
             <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Welcome</p>
@@ -220,11 +219,10 @@ function PortalContent() {
             </p>
           </div>
 
-          {/* Progress */}
           <div className="px-6 py-4 bg-gray-50/50">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-gray-500">Progress</span>
-              <span className="text-xs font-medium text-gray-700">{completedCount} of {totalCount} completed</span>
+              <span className="text-xs font-medium text-gray-700">{completedCount} of {totalCount} signed</span>
             </div>
             <div className="h-2 w-full rounded-full bg-gray-200">
               <div
@@ -235,7 +233,7 @@ function PortalContent() {
           </div>
         </div>
 
-        {/* Inline Forms */}
+        {/* Form Documents — primary experience */}
         {formDocs.length > 0 && (
           <div className="space-y-4 mb-6">
             {formDocs.map((doc) => (
@@ -258,7 +256,7 @@ function PortalContent() {
           </div>
         )}
 
-        {/* File Upload Section */}
+        {/* File Upload Section — only for non-form documents added via doc mapping */}
         {uploadDocs.length > 0 && (
           <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-6">
             <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
@@ -332,7 +330,7 @@ function PortalContent() {
           <div className="rounded-2xl border border-green-200 bg-green-50 p-6 text-center mb-6">
             <CheckCircle2 className="mx-auto h-8 w-8 text-green-600 mb-2" />
             <p className="text-sm font-medium text-green-800">
-              All documents completed — your application is moving forward!
+              All documents signed — your application is moving forward!
             </p>
           </div>
         )}

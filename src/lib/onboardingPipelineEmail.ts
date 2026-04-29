@@ -28,24 +28,27 @@ export async function sendOnboardingDocsEmail(params: SendDocsParams) {
     .order("order_index");
 
   if (assignErr) throw new Error(`Failed to fetch assignments: ${assignErr.message}`);
-  if (!assignments || assignments.length === 0) {
-    throw new Error("No documents assigned to this pipeline step. Please configure document mappings first.");
-  }
 
-  const activeAssignments = assignments.filter(
+  const activeAssignments = (assignments || []).filter(
     (a: Record<string, unknown>) => {
       const tmpl = a.document_templates as Record<string, unknown> | null;
       return tmpl && tmpl.active === true;
     }
   );
 
-  if (activeAssignments.length === 0) {
-    throw new Error("No active document templates found for this step.");
+  if (activeAssignments.length === 0 && !params.portalUrl) {
+    throw new Error("No documents assigned to this pipeline step. Please configure document mappings first.");
   }
 
   const attachments: { filename: string; content: Buffer; contentType: string }[] = [];
 
-  for (const assignment of activeAssignments) {
+  // Only attach PDFs for non-form templates (form templates are filled out in the portal)
+  const pdfAssignments = activeAssignments.filter((a: Record<string, unknown>) => {
+    const tmpl = a.document_templates as Record<string, unknown> | null;
+    return tmpl && !tmpl.form_enabled;
+  });
+
+  for (const assignment of pdfAssignments) {
     const template = assignment.document_templates as {
       file_path: string;
       file_name: string;
@@ -84,8 +87,8 @@ export async function sendOnboardingDocsEmail(params: SendDocsParams) {
   if (params.portalUrl) {
     bodyHtml += `
       <div style="margin-top:24px;padding:20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;text-align:center;">
-        <p style="color:#374151;font-size:14px;margin:0 0 12px;">Upload your completed documents here:</p>
-        <a href="${params.portalUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Upload Documents</a>
+        <p style="color:#374151;font-size:14px;margin:0 0 12px;">Please review and sign your documents using the link below:</p>
+        <a href="${params.portalUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Complete & Sign Documents</a>
         <p style="color:#6b7280;font-size:12px;margin:12px 0 0;">Or copy this link: ${params.portalUrl}</p>
       </div>`;
   }

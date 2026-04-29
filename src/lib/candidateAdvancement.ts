@@ -40,12 +40,24 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
     .eq("pipeline_id", ct.pipeline_id)
     .eq("step_key", ct.step_key);
 
-  const requiredTemplateIds = (assignments || [])
+  let requiredTemplateIds = (assignments || [])
     .filter((a: Record<string, unknown>) => {
       const tmpl = a.document_templates as Record<string, unknown> | null;
       return a.required && tmpl && tmpl.active;
     })
     .map((a: Record<string, unknown>) => (a.document_templates as Record<string, unknown>).id as string);
+
+  // Fallback: if no assignments, use form-enabled templates for this step
+  if (requiredTemplateIds.length === 0) {
+    const { data: formTemplates } = await supabaseAdmin
+      .from("document_templates")
+      .select("id")
+      .eq("step_key", ct.step_key)
+      .eq("form_enabled", true)
+      .eq("active", true);
+
+    requiredTemplateIds = (formTemplates || []).map((t: { id: string }) => t.id);
+  }
 
   // Get uploaded docs for this token
   const { data: uploaded } = await supabaseAdmin
@@ -122,21 +134,32 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
   // If there's a next step with documents, auto-send them
   if (nextStepKey && candidate.email) {
     try {
-      // Check if next step has document assignments
+      // Check if next step has document assignments or form-enabled templates
       const { data: nextAssignments } = await supabaseAdmin
         .from("step_document_assignments")
-        .select("id, document_templates(active)")
+        .select("id, required, document_templates(active)")
         .eq("pipeline_id", candidate.current_pipeline_id)
         .eq("step_key", nextStepKey);
 
-      const hasNextDocs = (nextAssignments || []).some(
+      let nextRequiredCount = (nextAssignments || []).filter(
         (a: Record<string, unknown>) => {
           const tmpl = a.document_templates as Record<string, unknown> | null;
-          return tmpl && tmpl.active;
+          return a.required && tmpl && tmpl.active;
         }
-      );
+      ).length;
 
-      if (hasNextDocs) {
+      // Fallback: count form-enabled templates if no assignments
+      if (nextRequiredCount === 0) {
+        const { count } = await supabaseAdmin
+          .from("document_templates")
+          .select("id", { count: "exact", head: true })
+          .eq("step_key", nextStepKey)
+          .eq("form_enabled", true)
+          .eq("active", true);
+        nextRequiredCount = count || 0;
+      }
+
+      if (nextRequiredCount > 0) {
         // Create a new token for the next step
         const { data: nextToken } = await supabaseAdmin
           .from("candidate_tokens")
@@ -144,12 +167,7 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
             candidate_id: candidate.id,
             step_key: nextStepKey,
             pipeline_id: candidate.current_pipeline_id,
-            required_doc_count: (nextAssignments || []).filter(
-              (a: Record<string, unknown>) => {
-                const tmpl = a.document_templates as Record<string, unknown> | null;
-                return a.required && tmpl && tmpl.active;
-              }
-            ).length,
+            required_doc_count: nextRequiredCount,
           })
           .select("token")
           .single();
