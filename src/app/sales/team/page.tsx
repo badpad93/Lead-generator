@@ -312,35 +312,46 @@ export default function TeamPage() {
             </div>
 
             <div className="space-y-3">
-              <input
-                value={addForm.full_name}
-                onChange={(e) => setAddForm((f) => ({ ...f, full_name: e.target.value }))}
-                placeholder="Full Name *"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-              />
-              <input
-                value={addForm.email}
-                onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="Email *"
-                type="email"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-              />
-              <select
-                value={addForm.role}
-                onChange={(e) => setAddForm((f) => ({ ...f, role: e.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
-              >
-                <option value="sales">Sales Rep</option>
-                <option value="market_leader">Market Leader</option>
-                <option value="director_of_sales">Director of Sales</option>
-                <option value="admin">Admin</option>
-              </select>
-              <div className="relative">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Full Name</label>
                 <input
-                  value={addForm.password}
-                  onChange={(e) => setAddForm((f) => ({ ...f, password: e.target.value }))}
-                  placeholder="Temporary Password *"
-                  type={showPassword ? "text" : "password"}
+                  value={addForm.full_name}
+                  onChange={(e) => setAddForm((f) => ({ ...f, full_name: e.target.value }))}
+                  placeholder="e.g. Zach Seymour"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                <input
+                  value={addForm.email}
+                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="e.g. zach@company.com"
+                  type="email"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Role</label>
+                <select
+                  value={addForm.role}
+                  onChange={(e) => setAddForm((f) => ({ ...f, role: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="sales">Sales Rep</option>
+                  <option value="market_leader">Market Leader</option>
+                  <option value="director_of_sales">Director of Sales</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Temporary Password</label>
+                <div className="relative">
+                  <input
+                    value={addForm.password}
+                    onChange={(e) => setAddForm((f) => ({ ...f, password: e.target.value }))}
+                    placeholder="Min 8 characters"
+                    type={showPassword ? "text" : "password"}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2.5 pr-10 text-sm focus:border-green-500 focus:outline-none"
                 />
                 <button
@@ -350,6 +361,7 @@ export default function TeamPage() {
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
+                </div>
               </div>
               <p className="text-xs text-gray-400">Share these credentials with the team member so they can log in.</p>
             </div>
