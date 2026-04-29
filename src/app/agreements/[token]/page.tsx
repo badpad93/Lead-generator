@@ -41,7 +41,7 @@ function AgreementContent() {
 
   useEffect(() => {
     async function load() {
-      const res = await fetch(`/api/agreements/${token}`);
+      const res = await fetch(`/api/agreements/token/${token}`);
       if (res.ok) {
         setAgreement(await res.json());
       } else {
@@ -59,7 +59,7 @@ function AgreementContent() {
     }
     setSigning(true);
     setSignError(null);
-    const res = await fetch(`/api/agreements/${token}/sign`, {
+    const res = await fetch(`/api/agreements/token/${token}/sign`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ signature_name: signatureName }),
@@ -75,7 +75,7 @@ function AgreementContent() {
 
   async function handlePay() {
     setPaying(true);
-    const res = await fetch(`/api/agreements/${token}/checkout`, { method: "POST" });
+    const res = await fetch(`/api/agreements/token/${token}/checkout`, { method: "POST" });
     if (res.ok) {
       const { url } = await res.json();
       window.location.href = url;
