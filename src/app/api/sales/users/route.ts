@@ -77,3 +77,33 @@ export async function POST(req: NextRequest) {
     role,
   }, { status: 201 });
 }
+
+/** PATCH — admin updates a team member's role */
+export async function PATCH(req: NextRequest) {
+  const user = await getSalesUser(req);
+  if (!user || user.role !== "admin") {
+    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  }
+
+  const body = await req.json();
+  const { id, role } = body;
+
+  if (!id) return NextResponse.json({ error: "User id required" }, { status: 400 });
+  if (!role || !VALID_ROLES.includes(role)) {
+    return NextResponse.json({ error: `Role must be one of: ${VALID_ROLES.join(", ")}` }, { status: 400 });
+  }
+
+  if (id === user.id) {
+    return NextResponse.json({ error: "Cannot change your own role" }, { status: 400 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .update({ role })
+    .eq("id", id)
+    .select("id, full_name, email, role")
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}

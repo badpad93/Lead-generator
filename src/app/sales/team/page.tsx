@@ -69,6 +69,9 @@ export default function TeamPage() {
   const [addSaving, setAddSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [tab, setTab] = useState<"active" | "onboarding">("active");
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [currentUserRole, setCurrentUserRole] = useState("");
+  const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
 
   const loadTeamMembers = useCallback(async (t: string) => {
     const res = await fetch("/api/sales/users", { headers: { Authorization: `Bearer ${t}` } });
@@ -89,6 +92,8 @@ export default function TeamPage() {
           } else {
             setAuthorized(true);
             setTeamMembers(users);
+            setCurrentUserId(session.user.id);
+            setCurrentUserRole(me.role);
           }
         });
     });
@@ -134,6 +139,22 @@ export default function TeamPage() {
       setAddError("Network error");
     } finally {
       setAddSaving(false);
+    }
+  }
+
+  async function handleRoleChange(userId: string, newRole: string) {
+    setRoleUpdating(userId);
+    try {
+      const res = await fetch("/api/sales/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: userId, role: newRole }),
+      });
+      if (res.ok) {
+        await loadTeamMembers(token);
+      }
+    } finally {
+      setRoleUpdating(null);
     }
   }
 
@@ -200,13 +221,13 @@ export default function TeamPage() {
 
       <div className="flex gap-3 mb-4 items-center">
         <div className="relative flex-1 min-w-0 sm:min-w-[260px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search team..."
-            className="w-full rounded-lg border border-gray-200 bg-white pl-10 pr-4 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+            className="w-full rounded-lg border border-gray-200 bg-white pl-11 pr-4 py-2.5 text-sm focus:border-green-500 focus:outline-none"
           />
         </div>
         {tab === "onboarding" && (
@@ -237,9 +258,26 @@ export default function TeamPage() {
                   <td className="px-4 py-3 font-medium text-gray-900">{m.full_name}</td>
                   <td className="px-4 py-3 text-gray-500">{m.email}</td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">
-                      {ROLE_LABELS[m.role] || m.role}
-                    </span>
+                    {currentUserRole === "admin" && m.id !== currentUserId ? (
+                      <div className="relative inline-flex items-center">
+                        <select
+                          value={m.role}
+                          onChange={(e) => handleRoleChange(m.id, e.target.value)}
+                          disabled={roleUpdating === m.id}
+                          className="rounded-full bg-green-50 pl-2.5 pr-7 py-0.5 text-xs font-medium text-green-700 border-none focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer appearance-none disabled:opacity-50"
+                        >
+                          <option value="sales">Sales Rep</option>
+                          <option value="market_leader">Market Leader</option>
+                          <option value="director_of_sales">Director of Sales</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                        {roleUpdating === m.id && <Loader2 className="h-3 w-3 animate-spin text-green-600 ml-1 absolute right-1" />}
+                      </div>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                        {ROLE_LABELS[m.role] || m.role}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
