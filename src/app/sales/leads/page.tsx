@@ -178,7 +178,11 @@ export default function LeadsPage() {
     if (!token) return;
     setLoading(true);
     const res = await fetch("/api/sales/leads", { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) setLeads(await res.json());
+    if (res.ok) {
+      setLeads(await res.json());
+    } else {
+      console.error("Failed to fetch leads:", res.status, await res.text().catch(() => ""));
+    }
     setLoading(false);
   }, [token]);
 
