@@ -90,9 +90,9 @@ export async function POST(
   } else if (location.pricing_score != null) {
     pricing = {
       total_score: location.pricing_score,
-      traffic_score: Math.min(((location.employee_count ?? 0) + (location.traffic_count ?? 0)) / 500 * 70, 70),
-      hours_score: ({ low: 5, medium: 10, high: 15, "24/7": 20 } as Record<string, number>)[location.business_hours ?? "low"] ?? 5,
-      machine_score: ({ 1: 3, 2: 6, 3: 8, 4: 10 } as Record<number, number>)[location.machines_requested ?? 1] ?? 3,
+      traffic_score: Math.min(((location.employee_count ?? 0) + (location.traffic_count ?? 0)) / 500 * 30, 30),
+      hours_score: ({ low: 10, medium: 20, high: 30, "24/7": 40 } as Record<string, number>)[location.business_hours ?? "low"] ?? 10,
+      machine_score: ({ 1: 8, 2: 15, 3: 23, 4: 30 } as Record<number, number>)[location.machines_requested ?? 1] ?? 8,
       tier: location.pricing_tier as 1 | 2 | 3 | 4 | 5,
       tier_label: `Tier ${location.pricing_tier}`,
       price: Number(location.pricing_price),
