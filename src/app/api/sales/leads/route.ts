@@ -1,27 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
-import { filterByRole } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  let query = supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("sales_leads")
     .select("*")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(500);
 
-  try {
-    query = await filterByRole(query, user) as typeof query;
-  } catch {
-    // filterByRole failed — fall back to unfiltered for admin, empty for others
-    if (user.role !== "admin" && user.role !== "director_of_sales") {
-      return NextResponse.json([]);
-    }
-  }
-
-  const { data, error } = await query.limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Hydrate assigned profile names from profiles (separate query — sales_leads
