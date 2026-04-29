@@ -107,6 +107,11 @@ export default function TeamPage() {
 
   async function handleAddMember() {
     if (!addForm.full_name || !addForm.email || !addForm.password) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(addForm.email.trim())) {
+      setAddError("Please enter a valid email address");
+      return;
+    }
     setAddSaving(true);
     setAddError(null);
     setAddSuccess(null);
