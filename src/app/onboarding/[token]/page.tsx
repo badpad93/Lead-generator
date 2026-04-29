@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, CheckCircle2, FileText, Upload, Download, AlertCircle } from "lucide-react";
 
@@ -46,6 +46,8 @@ function PortalContent() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingTemplateRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/onboarding/candidate-portal/${token}`);
@@ -92,14 +94,20 @@ function PortalContent() {
   }
 
   function handleFileSelect(templateId: string) {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) handleUpload(templateId, file);
-    };
-    input.click();
+    pendingTemplateRef.current = templateId;
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
+  }
+
+  function onFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const templateId = pendingTemplateRef.current;
+    if (file && templateId) {
+      handleUpload(templateId, file);
+    }
+    pendingTemplateRef.current = null;
   }
 
   async function handleDownloadTemplate(filePath: string, fileName: string) {
@@ -165,6 +173,13 @@ function PortalContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp"
+        onChange={onFileInputChange}
+        className="hidden"
+      />
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold text-green-600 mb-1">Vending Connector</h1>
