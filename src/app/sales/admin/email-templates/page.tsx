@@ -46,7 +46,7 @@ export default function AdminEmailTemplatesPage() {
         .then((r) => r.ok ? r.json() : [])
         .then((users: { id: string; role: string }[]) => {
           const me = users.find((u) => u.id === session.user.id);
-          if (!me || (me.role !== "admin" && me.role !== "director_of_sales" && me.role !== "market_leader")) {
+          if (!me || me.role !== "admin") {
             router.push("/sales");
           } else {
             setAuthorized(true);

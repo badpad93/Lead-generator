@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import { filterByRole } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
@@ -11,12 +12,7 @@ export async function GET(req: NextRequest) {
     .select("*")
     .order("created_at", { ascending: false });
 
-  // Sales users see leads assigned to them, unassigned leads, or leads they created
-  if (user.role === "sales") {
-    query = query.or(
-      `assigned_to.eq.${user.id},assigned_to.is.null,created_by.eq.${user.id}`
-    );
-  }
+  query = await filterByRole(query, user) as typeof query;
 
   const { data, error } = await query.limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import { filterByRole } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
@@ -17,6 +18,8 @@ export async function GET(req: NextRequest) {
 
   if (pipelineId) query = query.eq("pipeline_id", pipelineId);
   if (status) query = query.eq("status", status);
+
+  query = await filterByRole(query, user, { creatorCol: "assigned_to" }) as typeof query;
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

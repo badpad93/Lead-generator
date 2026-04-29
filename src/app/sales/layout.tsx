@@ -28,24 +28,34 @@ import {
   Link2,
 } from "lucide-react";
 
+// minLevel: 1=Admin, 2=DOS, 3=Market Leader, 4=BDP/Sales
 const NAV_ITEMS = [
-  { href: "/sales", label: "Dashboard", icon: LayoutDashboard, elevated: false },
-  { href: "/sales/results", label: "Results", icon: TrendingUp, elevated: false },
-  { href: "/sales/leads", label: "Leads", icon: Users, elevated: false },
-  { href: "/sales/pipelines", label: "Pipelines", icon: GitBranch, elevated: false },
-  { href: "/sales/deals", label: "Deal Dashboard", icon: Kanban, elevated: false },
-  { href: "/sales/accounts", label: "Accounts", icon: Building2, elevated: false },
-  { href: "/sales/orders", label: "Orders", icon: ClipboardList, elevated: false },
-  { href: "/sales/team", label: "Team", icon: UserCog, elevated: true },
-  { href: "/sales/commissions", label: "Commissions", icon: DollarSign, elevated: false },
-  { href: "/sales/call-lists", label: "Call Lists", icon: PhoneCall, elevated: false },
-  { href: "/sales/resources", label: "Resources", icon: FolderOpen, elevated: false },
-  { href: "/sales/candidates", label: "Candidates", icon: UserPlus, elevated: false },
-  { href: "/sales/hiring-dashboard", label: "Hiring & Onboarding", icon: BarChart3, elevated: true },
-  { href: "/sales/admin/documents", label: "Doc Templates", icon: FileText, elevated: true },
-  { href: "/sales/admin/email-templates", label: "Email Templates", icon: Mail, elevated: true },
-  { href: "/sales/admin/pipeline-doc-mapping", label: "Doc Mapping", icon: Link2, elevated: true },
+  { href: "/sales", label: "Dashboard", icon: LayoutDashboard, minLevel: 4 as const },
+  { href: "/sales/results", label: "Results", icon: TrendingUp, minLevel: 4 as const },
+  { href: "/sales/leads", label: "Leads", icon: Users, minLevel: 4 as const },
+  { href: "/sales/pipelines", label: "Pipelines", icon: GitBranch, minLevel: 4 as const },
+  { href: "/sales/deals", label: "Deal Dashboard", icon: Kanban, minLevel: 4 as const },
+  { href: "/sales/accounts", label: "Accounts", icon: Building2, minLevel: 4 as const },
+  { href: "/sales/orders", label: "Orders", icon: ClipboardList, minLevel: 4 as const },
+  { href: "/sales/team", label: "Team", icon: UserCog, minLevel: 3 as const },
+  { href: "/sales/commissions", label: "Commissions", icon: DollarSign, minLevel: 4 as const },
+  { href: "/sales/call-lists", label: "Call Lists", icon: PhoneCall, minLevel: 4 as const },
+  { href: "/sales/resources", label: "Resources", icon: FolderOpen, minLevel: 4 as const },
+  { href: "/sales/candidates", label: "Candidates", icon: UserPlus, minLevel: 4 as const },
+  { href: "/sales/hiring-dashboard", label: "Hiring & Onboarding", icon: BarChart3, minLevel: 3 as const },
+  { href: "/sales/admin/documents", label: "Doc Templates", icon: FileText, minLevel: 1 as const },
+  { href: "/sales/admin/email-templates", label: "Email Templates", icon: Mail, minLevel: 1 as const },
+  { href: "/sales/admin/pipeline-doc-mapping", label: "Doc Mapping", icon: Link2, minLevel: 1 as const },
 ];
+
+function getUserLevel(role: string): number {
+  switch (role) {
+    case "admin": return 1;
+    case "director_of_sales": return 2;
+    case "market_leader": return 3;
+    default: return 4;
+  }
+}
 
 export default function SalesLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -103,8 +113,8 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
 
   if (!authorized) return null;
 
-  const isElevated = userRole === "admin" || userRole === "director_of_sales" || userRole === "market_leader";
-  const visibleNav = NAV_ITEMS.filter((item) => !item.elevated || isElevated);
+  const level = getUserLevel(userRole);
+  const visibleNav = NAV_ITEMS.filter((item) => level <= item.minLevel);
 
   return (
     <div className="flex h-screen bg-gray-50">
