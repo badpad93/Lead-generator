@@ -12,7 +12,13 @@ export async function GET(req: NextRequest) {
     .select("*, deal_services(*), pipelines(id, name)")
     .order("created_at", { ascending: false });
 
-  query = await filterByRole(query, user) as typeof query;
+  try {
+    query = await filterByRole(query, user, { creatorCol: "assigned_to" }) as typeof query;
+  } catch {
+    if (user.role !== "admin" && user.role !== "director_of_sales") {
+      return NextResponse.json([]);
+    }
+  }
 
   const { data, error } = await query.limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -18,7 +18,13 @@ export async function GET(req: NextRequest) {
   if (userId && getRoleLevel(user.role) <= 2) {
     query = query.eq("user_id", userId);
   } else {
-    query = await filterCommissionsByRole(query, user) as typeof query;
+    try {
+      query = await filterCommissionsByRole(query, user) as typeof query;
+    } catch {
+      if (user.role !== "admin" && user.role !== "director_of_sales") {
+        return NextResponse.json([]);
+      }
+    }
   }
 
   const { data, error } = await query.limit(200);
