@@ -221,13 +221,13 @@ export default function TeamPage() {
 
       <div className="flex gap-3 mb-4 items-center">
         <div className="relative flex-1 min-w-0 sm:min-w-[260px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search team..."
-            className="w-full rounded-lg border border-gray-200 bg-white pl-10 pr-4 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+            className="w-full rounded-lg border border-gray-200 bg-white pl-11 pr-4 py-2.5 text-sm focus:border-green-500 focus:outline-none"
           />
         </div>
         {tab === "onboarding" && (
