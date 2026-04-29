@@ -19,17 +19,17 @@ export interface PricingResult {
 }
 
 const HOURS_SCORES: Record<BusinessHours, number> = {
-  low: 5,
-  medium: 10,
-  high: 15,
-  "24/7": 20,
+  low: 10,
+  medium: 20,
+  high: 30,
+  "24/7": 40,
 };
 
 const MACHINE_SCORES: Record<MachinesRequested, number> = {
-  1: 3,
-  2: 6,
-  3: 8,
-  4: 10,
+  1: 8,
+  2: 15,
+  3: 23,
+  4: 30,
 };
 
 const TIERS: { min: number; tier: 1 | 2 | 3 | 4 | 5; label: string; price: number }[] = [
@@ -55,7 +55,7 @@ export function calculateLocationPrice(input: PricingInput): PricingResult {
   }
 
   const totalTraffic = input.employees + input.foot_traffic;
-  const trafficScore = Math.min((totalTraffic / 500) * 70, 70);
+  const trafficScore = Math.min((totalTraffic / 500) * 30, 30);
 
   const rawTotal = trafficScore + hoursScore + machineScore;
   const totalScore = Math.round(Math.min(rawTotal, 100));
