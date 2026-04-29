@@ -14,6 +14,7 @@ interface SendDocsParams {
   stepKey: string;
   pipelineId: string;
   roleType: string;
+  portalUrl?: string | null;
 }
 
 export async function sendOnboardingDocsEmail(params: SendDocsParams) {
@@ -77,8 +78,17 @@ export async function sendOnboardingDocsEmail(params: SendDocsParams) {
     .maybeSingle();
 
   const subject = emailTemplate?.subject || `Onboarding Documents — ${stepKey}`;
-  const bodyHtml = (emailTemplate?.body_html || "<p>Please find your documents attached.</p>")
+  let bodyHtml = (emailTemplate?.body_html || "<p>Please find your documents attached.</p>")
     .replace(/\{\{candidate_name\}\}/g, candidateName);
+
+  if (params.portalUrl) {
+    bodyHtml += `
+      <div style="margin-top:24px;padding:20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;text-align:center;">
+        <p style="color:#374151;font-size:14px;margin:0 0 12px;">Upload your completed documents here:</p>
+        <a href="${params.portalUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Upload Documents</a>
+        <p style="color:#6b7280;font-size:12px;margin:12px 0 0;">Or copy this link: ${params.portalUrl}</p>
+      </div>`;
+  }
 
   try {
     const { error: sendError } = await getResend().emails.send({

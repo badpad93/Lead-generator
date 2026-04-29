@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
+import { sendOnboardingDocsEmail } from "@/lib/onboardingPipelineEmail";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: candidate, error: cErr } = await supabaseAdmin
     .from("candidates")
-    .select("*, onboarding_steps(id, step_key, order_index)")
+    .select("*, onboarding_pipelines(id, role_type), onboarding_steps(id, step_key, order_index)")
     .eq("id", id)
     .single();
 
@@ -36,7 +37,59 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
       .eq("id", id);
 
-    return NextResponse.json({ success: true, new_status: "welcome_docs_sent" });
+    // Auto-send welcome docs with portal link if candidate has email
+    let portalUrl: string | null = null;
+    if (candidate.email) {
+      try {
+        const nextStepKey = "welcome_docs";
+        const { data: assignments } = await supabaseAdmin
+          .from("step_document_assignments")
+          .select("id, required, document_templates(id, active)")
+          .eq("pipeline_id", candidate.current_pipeline_id)
+          .eq("step_key", nextStepKey);
+
+        const requiredCount = (assignments || []).filter(
+          (a: Record<string, unknown>) => {
+            const tmpl = a.document_templates as Record<string, unknown> | null;
+            return a.required && tmpl && tmpl.active;
+          }
+        ).length;
+
+        if ((assignments || []).length > 0) {
+          const { data: tokenRecord } = await supabaseAdmin
+            .from("candidate_tokens")
+            .insert({
+              candidate_id: id,
+              step_key: nextStepKey,
+              pipeline_id: candidate.current_pipeline_id,
+              required_doc_count: requiredCount,
+            })
+            .select("token")
+            .single();
+
+          if (tokenRecord) {
+            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}`
+              : "http://localhost:3000");
+            portalUrl = `${baseUrl}/onboarding/${tokenRecord.token}`;
+          }
+
+          await sendOnboardingDocsEmail({
+            candidateId: id,
+            candidateEmail: candidate.email,
+            candidateName: candidate.full_name,
+            stepKey: nextStepKey,
+            pipelineId: candidate.current_pipeline_id,
+            roleType: candidate.onboarding_pipelines?.role_type || candidate.role_type,
+            portalUrl,
+          });
+        }
+      } catch {
+        // Don't block approval if email fails
+      }
+    }
+
+    return NextResponse.json({ success: true, new_status: "welcome_docs_sent", portal_url: portalUrl });
   }
 
   if (currentStatus === "pending_admin_review_2") {

@@ -40,6 +40,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   try {
+    // Count required documents for this step
+    const { data: assignments } = await supabaseAdmin
+      .from("step_document_assignments")
+      .select("id, required, document_templates(id, active)")
+      .eq("pipeline_id", candidate.current_pipeline_id)
+      .eq("step_key", stepKey);
+
+    const requiredCount = (assignments || []).filter(
+      (a: Record<string, unknown>) => {
+        const tmpl = a.document_templates as Record<string, unknown> | null;
+        return a.required && tmpl && tmpl.active;
+      }
+    ).length;
+
+    // Create a candidate token for the submission portal
+    const { data: tokenRecord } = await supabaseAdmin
+      .from("candidate_tokens")
+      .insert({
+        candidate_id: id,
+        step_key: stepKey,
+        pipeline_id: candidate.current_pipeline_id,
+        required_doc_count: requiredCount,
+      })
+      .select("token")
+      .single();
+
+    let portalUrl: string | null = null;
+    if (tokenRecord) {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000");
+      portalUrl = `${baseUrl}/onboarding/${tokenRecord.token}`;
+    }
+
     const result = await sendOnboardingDocsEmail({
       candidateId: id,
       candidateEmail: candidate.email,
@@ -47,6 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       stepKey,
       pipelineId: candidate.current_pipeline_id,
       roleType: candidate.onboarding_pipelines?.role_type || candidate.role_type,
+      portalUrl,
     });
 
     const nextStatus = stepKey === "interview" ? "pending_admin_review_1" : "pending_admin_review_2";
@@ -55,7 +90,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .update({ status: nextStatus, updated_at: new Date().toISOString() })
       .eq("id", id);
 
-    return NextResponse.json({ ...result, new_status: nextStatus });
+    return NextResponse.json({ ...result, new_status: nextStatus, portal_url: portalUrl });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Email send failed";
     return NextResponse.json({ error: message }, { status: 500 });
