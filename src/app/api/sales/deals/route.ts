@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import { filterByRole } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
@@ -11,9 +12,7 @@ export async function GET(req: NextRequest) {
     .select("*, deal_services(*), pipelines(id, name)")
     .order("created_at", { ascending: false });
 
-  if (user.role === "sales") {
-    query = query.eq("assigned_to", user.id);
-  }
+  query = await filterByRole(query, user) as typeof query;
 
   const { data, error } = await query.limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

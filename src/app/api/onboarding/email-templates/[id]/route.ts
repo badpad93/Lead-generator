@@ -4,7 +4,7 @@ import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) {
+  if (!user || user.role !== "admin") {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   }
   const { id } = await params;

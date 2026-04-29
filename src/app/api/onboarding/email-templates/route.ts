@@ -4,7 +4,7 @@ import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user || user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { data, error } = await supabaseAdmin
     .from("email_templates_v2")
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user || user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
   const { pipeline_type, step_key, subject, body_html } = body;
