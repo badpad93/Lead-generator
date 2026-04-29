@@ -4,7 +4,14 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle } from "lucide-react";
+import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus } from "lucide-react";
+
+interface TeamMember {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+}
 
 interface Candidate {
   id: string;
@@ -39,14 +46,34 @@ const FILTERS = [
   { value: "terminated", label: "Terminated" },
 ];
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  sales: "Sales Rep",
+  director_of_sales: "Director of Sales",
+  market_leader: "Market Leader",
+};
+
 export default function TeamPage() {
   const router = useRouter();
   const [token, setToken] = useState("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [authorized, setAuthorized] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [addForm, setAddForm] = useState({ full_name: "", email: "", role: "sales", password: "" });
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addSuccess, setAddSuccess] = useState<string | null>(null);
+  const [addSaving, setAddSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [tab, setTab] = useState<"active" | "onboarding">("active");
+
+  const loadTeamMembers = useCallback(async (t: string) => {
+    const res = await fetch("/api/sales/users", { headers: { Authorization: `Bearer ${t}` } });
+    if (res.ok) setTeamMembers(await res.json());
+  }, []);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -55,12 +82,13 @@ export default function TeamPage() {
       setToken(session.access_token);
       fetch("/api/sales/users", { headers: { Authorization: `Bearer ${session.access_token}` } })
         .then((r) => r.ok ? r.json() : [])
-        .then((users: { id: string; role: string }[]) => {
+        .then((users: TeamMember[]) => {
           const me = users.find((u) => u.id === session.user.id);
           if (!me || (me.role !== "admin" && me.role !== "director_of_sales" && me.role !== "market_leader")) {
             router.push("/sales");
           } else {
             setAuthorized(true);
+            setTeamMembers(users);
           }
         });
     });
@@ -77,6 +105,33 @@ export default function TeamPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  async function handleAddMember() {
+    if (!addForm.full_name || !addForm.email || !addForm.password) return;
+    setAddSaving(true);
+    setAddError(null);
+    setAddSuccess(null);
+    try {
+      const res = await fetch("/api/sales/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(addForm),
+      });
+      if (res.ok) {
+        const newUser = await res.json();
+        setAddSuccess(`Account created for ${newUser.full_name} (${newUser.email})`);
+        setAddForm({ full_name: "", email: "", role: "sales", password: "" });
+        loadTeamMembers(token);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setAddError(err.error || "Failed to create account");
+      }
+    } catch {
+      setAddError("Network error");
+    } finally {
+      setAddSaving(false);
+    }
+  }
+
   if (!authorized) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
 
   const filtered = candidates.filter((c) =>
@@ -91,20 +146,51 @@ export default function TeamPage() {
     return <AlertTriangle className="h-3.5 w-3.5 text-blue-500" />;
   };
 
+  const filteredTeam = teamMembers.filter((m) =>
+    m.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    m.email.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <Users className="h-6 w-6 text-green-600" />
           <h1 className="text-2xl font-bold text-gray-900">Team</h1>
-          <span className="text-sm text-gray-400 ml-2">{candidates.length} members</span>
+          <span className="text-sm text-gray-400 ml-2">
+            {tab === "active" ? `${teamMembers.length} active` : `${candidates.length} onboarding`}
+          </span>
         </div>
-        <Link
-          href="/sales/pipelines/onboarding"
-          className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowAddMember(true); setAddError(null); setAddSuccess(null); }}
+            className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer"
+          >
+            <UserPlus className="h-4 w-4" /> Add Team Member
+          </button>
+          <Link
+            href="/sales/pipelines/onboarding"
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            View Onboarding Pipeline
+          </Link>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4 border-b border-gray-200">
+        <button
+          onClick={() => setTab("active")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px cursor-pointer ${tab === "active" ? "border-green-600 text-green-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
         >
-          View Onboarding Pipeline
-        </Link>
+          Active Members
+        </button>
+        <button
+          onClick={() => setTab("onboarding")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px cursor-pointer ${tab === "onboarding" ? "border-green-600 text-green-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+        >
+          Onboarding
+        </button>
       </div>
 
       <div className="flex gap-3 mb-4 items-center">
@@ -118,55 +204,175 @@ export default function TeamPage() {
             className="w-full rounded-lg border border-gray-200 bg-white pl-10 pr-4 py-2.5 text-sm focus:border-green-500 focus:outline-none"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
-        >
-          {FILTERS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-        </select>
+        {tab === "onboarding" && (
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+          >
+            {FILTERS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+          </select>
+        )}
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>
-      ) : (
+      {/* Active Members Tab */}
+      {tab === "active" && (
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">Role</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Email</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">Current Step</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-500">Role</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50/50">
+              {filteredTeam.map((m) => (
+                <tr key={m.id} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3 font-medium text-gray-900">{m.full_name}</td>
+                  <td className="px-4 py-3 text-gray-500">{m.email}</td>
                   <td className="px-4 py-3">
-                    <Link href={`/sales/team/${c.id}`} className="font-medium text-gray-900 hover:text-green-600">
-                      {c.full_name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {c.role_type === "BDP" ? "Business Dev Partner" : "Market Leader"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">{c.email || "—"}</td>
-                  <td className="px-4 py-3 text-gray-500">{c.onboarding_steps?.name || "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CONFIG[c.status]?.color || "bg-gray-100 text-gray-500"}`}>
-                      {statusIcon(c.status)}
-                      {STATUS_CONFIG[c.status]?.label || c.status}
+                    <span className="inline-flex rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                      {ROLE_LABELS[m.role] || m.role}
                     </span>
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No team members found.</td></tr>
+              {filteredTeam.length === 0 && (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-400">No team members found.</td></tr>
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Onboarding Tab */}
+      {tab === "onboarding" && (
+        loading ? (
+          <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>
+        ) : (
+          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500">Name</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500">Role</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500">Email</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500">Current Step</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((c) => (
+                  <tr key={c.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3">
+                      <Link href={`/sales/team/${c.id}`} className="font-medium text-gray-900 hover:text-green-600">
+                        {c.full_name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {c.role_type === "BDP" ? "Business Dev Partner" : "Market Leader"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">{c.email || "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{c.onboarding_steps?.name || "—"}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CONFIG[c.status]?.color || "bg-gray-100 text-gray-500"}`}>
+                        {statusIcon(c.status)}
+                        {STATUS_CONFIG[c.status]?.label || c.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No onboarding candidates found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {/* Add Team Member Modal */}
+      {showAddMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-green-600" />
+                Add Team Member
+              </h2>
+              <button onClick={() => setShowAddMember(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                value={addForm.full_name}
+                onChange={(e) => setAddForm((f) => ({ ...f, full_name: e.target.value }))}
+                placeholder="Full Name *"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+              />
+              <input
+                value={addForm.email}
+                onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="Email *"
+                type="email"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+              />
+              <select
+                value={addForm.role}
+                onChange={(e) => setAddForm((f) => ({ ...f, role: e.target.value }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+              >
+                <option value="sales">Sales Rep</option>
+                <option value="market_leader">Market Leader</option>
+                <option value="director_of_sales">Director of Sales</option>
+                <option value="admin">Admin</option>
+              </select>
+              <div className="relative">
+                <input
+                  value={addForm.password}
+                  onChange={(e) => setAddForm((f) => ({ ...f, password: e.target.value }))}
+                  placeholder="Temporary Password *"
+                  type={showPassword ? "text" : "password"}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 pr-10 text-sm focus:border-green-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-gray-400">Share these credentials with the team member so they can log in.</p>
+            </div>
+
+            {addError && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">{addError}</div>
+            )}
+            {addSuccess && (
+              <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">{addSuccess}</div>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={handleAddMember}
+                disabled={addSaving || !addForm.full_name || !addForm.email || !addForm.password || addForm.password.length < 8}
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+              >
+                {addSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {addSaving ? "Creating..." : "Create Account"}
+              </button>
+              <button
+                onClick={() => setShowAddMember(false)}
+                className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
