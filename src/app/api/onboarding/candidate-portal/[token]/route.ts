@@ -37,12 +37,35 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     .eq("step_key", ct.step_key)
     .order("order_index");
 
-  const requiredDocs = (assignments || []).filter(
+  let requiredDocs = (assignments || []).filter(
     (a: Record<string, unknown>) => {
       const tmpl = a.document_templates as Record<string, unknown> | null;
       return tmpl && tmpl.active === true;
     }
   );
+
+  // Fallback: if no assignments exist, load form-enabled templates for this step directly
+  if (requiredDocs.length === 0) {
+    const { data: formTemplates } = await supabaseAdmin
+      .from("document_templates")
+      .select("id, name, file_name, file_path, mime_type, active, form_enabled, form_fields, description")
+      .eq("step_key", ct.step_key)
+      .eq("form_enabled", true)
+      .eq("active", true)
+      .order("created_at");
+
+    if (formTemplates && formTemplates.length > 0) {
+      requiredDocs = formTemplates.map((tmpl, idx) => ({
+        id: `fallback-${tmpl.id}`,
+        pipeline_id: ct.pipeline_id,
+        step_key: ct.step_key,
+        document_template_id: tmpl.id,
+        required: true,
+        order_index: idx,
+        document_templates: tmpl,
+      }));
+    }
+  }
 
   const { data: uploaded } = await supabaseAdmin
     .from("candidate_documents")

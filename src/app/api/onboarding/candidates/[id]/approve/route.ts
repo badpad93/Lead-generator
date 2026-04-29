@@ -48,14 +48,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           .eq("pipeline_id", candidate.current_pipeline_id)
           .eq("step_key", nextStepKey);
 
-        const requiredCount = (assignments || []).filter(
+        let requiredCount = (assignments || []).filter(
           (a: Record<string, unknown>) => {
             const tmpl = a.document_templates as Record<string, unknown> | null;
             return a.required && tmpl && tmpl.active;
           }
         ).length;
 
-        if ((assignments || []).length > 0) {
+        // Fallback: count form-enabled templates if no assignments
+        if (requiredCount === 0) {
+          const { count } = await supabaseAdmin
+            .from("document_templates")
+            .select("id", { count: "exact", head: true })
+            .eq("step_key", nextStepKey)
+            .eq("form_enabled", true)
+            .eq("active", true);
+          requiredCount = count || 0;
+        }
+
+        if (requiredCount > 0) {
           const { data: tokenRecord } = await supabaseAdmin
             .from("candidate_tokens")
             .insert({
