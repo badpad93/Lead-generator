@@ -72,6 +72,7 @@ export default function TeamPage() {
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentUserRole, setCurrentUserRole] = useState("");
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
 
   const loadTeamMembers = useCallback(async (t: string) => {
     const res = await fetch("/api/sales/users", { headers: { Authorization: `Bearer ${t}` } });
@@ -144,6 +145,9 @@ export default function TeamPage() {
 
   async function handleRoleChange(userId: string, newRole: string) {
     setRoleUpdating(userId);
+    setRoleError(null);
+    const prevMembers = teamMembers;
+    setTeamMembers((prev) => prev.map((m) => m.id === userId ? { ...m, role: newRole } : m));
     try {
       const res = await fetch("/api/sales/users", {
         method: "PATCH",
@@ -152,7 +156,14 @@ export default function TeamPage() {
       });
       if (res.ok) {
         await loadTeamMembers(token);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setRoleError(err.error || "Failed to update role");
+        setTeamMembers(prevMembers);
       }
+    } catch {
+      setRoleError("Network error");
+      setTeamMembers(prevMembers);
     } finally {
       setRoleUpdating(null);
     }
@@ -240,6 +251,13 @@ export default function TeamPage() {
           </select>
         )}
       </div>
+
+      {roleError && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 flex items-center justify-between">
+          {roleError}
+          <button onClick={() => setRoleError(null)} className="text-red-400 hover:text-red-600 cursor-pointer"><X className="h-4 w-4" /></button>
+        </div>
+      )}
 
       {/* Active Members Tab */}
       {tab === "active" && (
