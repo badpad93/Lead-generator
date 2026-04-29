@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
-import { filterCommissionsByRole, getRoleLevel } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
@@ -15,16 +14,10 @@ export async function GET(req: NextRequest) {
     .select("*, sales_deals:deal_id(business_name)")
     .order("created_at", { ascending: false });
 
-  if (userId && getRoleLevel(user.role) <= 2) {
+  if (userId && isElevatedRole(user.role)) {
     query = query.eq("user_id", userId);
-  } else {
-    try {
-      query = await filterCommissionsByRole(query, user) as typeof query;
-    } catch {
-      if (user.role !== "admin" && user.role !== "director_of_sales") {
-        return NextResponse.json([]);
-      }
-    }
+  } else if (!isElevatedRole(user.role)) {
+    query = query.eq("user_id", user.id);
   }
 
   const { data, error } = await query.limit(200);
