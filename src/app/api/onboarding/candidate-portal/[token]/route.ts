@@ -32,7 +32,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
   const { data: assignments } = await supabaseAdmin
     .from("step_document_assignments")
-    .select("*, document_templates(id, name, file_name, file_path, mime_type, active)")
+    .select("*, document_templates(id, name, file_name, file_path, mime_type, active, form_enabled, form_fields, description)")
     .eq("pipeline_id", ct.pipeline_id)
     .eq("step_key", ct.step_key)
     .order("order_index");
@@ -46,16 +46,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
   const { data: uploaded } = await supabaseAdmin
     .from("candidate_documents")
-    .select("id, file_name, file_url, file_type, document_template_id, completed, created_at")
+    .select("id, file_name, file_url, file_type, document_template_id, completed, form_data, created_at")
     .eq("candidate_id", ct.candidate_id)
     .eq("candidate_token_id", ct.id)
     .order("created_at", { ascending: false });
+
+  const candidate = ct.candidates as Record<string, unknown> | null;
 
   return NextResponse.json({
     token: ct.token,
     status: ct.status,
     step_key: ct.step_key,
-    candidate_name: ct.candidates?.full_name || "",
+    candidate_name: candidate?.full_name || "",
+    candidate_email: candidate?.email || "",
     required_documents: requiredDocs.map((a: Record<string, unknown>) => {
       const tmpl = a.document_templates as Record<string, unknown>;
       const templateId = tmpl.id as string;
@@ -66,9 +69,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
         assignment_id: a.id,
         template_id: templateId,
         name: tmpl.name,
+        description: tmpl.description || null,
         file_name: tmpl.file_name,
         file_path: tmpl.file_path,
         required: a.required,
+        form_enabled: tmpl.form_enabled || false,
+        form_fields: tmpl.form_fields || null,
         uploaded: !!uploadedDoc,
         uploaded_doc: uploadedDoc || null,
       };
