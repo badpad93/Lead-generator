@@ -24,31 +24,33 @@ body {
 }
 
 /* Form elements */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="number"],
-input[type="tel"],
-input[type="search"],
-input[type="date"],
-textarea,
-select {
-  width: 100%;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  background: white;
-  color: #0a0a0a;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
+@layer base {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="search"],
+  input[type="date"],
+  textarea,
+  select {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    background: white;
+    color: #0a0a0a;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
 
-input:focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  border-color: #22C55E;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: #22C55E;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+  }
 }
 
 /* Table */
