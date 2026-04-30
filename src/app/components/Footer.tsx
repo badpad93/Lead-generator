@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Zap } from "lucide-react";
+import { Zap, Phone } from "lucide-react";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
 const footerColumns = [
@@ -52,6 +52,13 @@ export default function Footer() {
               The smarter way to connect vending machine operators with prime
               locations. Find your next placement today.
             </p>
+            <a
+              href="tel:+18888511462"
+              className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-green-primary transition-colors hover:text-green-hover"
+            >
+              <Phone className="h-4 w-4" />
+              (888) 851-1462
+            </a>
           </div>
 
           {/* Link Columns */}

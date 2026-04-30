@@ -18,6 +18,7 @@ import {
   Eye,
   HandCoins,
   Mail,
+  Phone,
 } from "lucide-react";
 import type { Profile, OperatorListing } from "@/lib/types";
 import MachineTypeBadge from "../../components/MachineTypeBadge";
@@ -640,13 +641,22 @@ export default function OperatorProfilePage() {
               <p className="text-xs text-gray-600 leading-relaxed">
                 Contact our team and we&apos;ll connect you with this operator directly. No cost to locations.
               </p>
-              <a
-                href="mailto:james@apexaivending.com"
-                className="mt-3 inline-flex items-center gap-1 rounded-lg bg-green-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
-              >
-                <Mail className="h-3 w-3" />
-                Email Us
-              </a>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <a
+                  href="mailto:james@apexaivending.com"
+                  className="inline-flex items-center gap-1 rounded-lg bg-green-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
+                >
+                  <Mail className="h-3 w-3" />
+                  Email Us
+                </a>
+                <a
+                  href="tel:+18888511462"
+                  className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-4 py-2 text-xs font-semibold text-green-primary transition-colors hover:bg-green-50"
+                >
+                  <Phone className="h-3 w-3" />
+                  (888) 851-1462
+                </a>
+              </div>
             </div>
 
             {/* Browse CTA */}

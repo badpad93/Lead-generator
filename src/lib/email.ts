@@ -93,6 +93,7 @@ export async function sendReceiptEmail(params: ReceiptEmailParams) {
       <p style="font-size: 13px; color: #6b7280; text-align: center;">
         Thank you for your purchase! If you have questions, contact us at
         <a href="mailto:james@apexaivending.com" style="color: #16a34a;">james@apexaivending.com</a>
+        or call <a href="tel:+18888511462" style="color: #16a34a;">(888) 851-1462</a>
       </p>
     </div>
   `;
@@ -175,6 +176,7 @@ export async function sendLeadDetailsEmail(params: LeadDetailsEmailParams) {
       <p style="font-size: 13px; color: #6b7280; text-align: center;">
         Questions? Contact us at
         <a href="mailto:james@apexaivending.com" style="color: #16a34a;">james@apexaivending.com</a>
+        or call <a href="tel:+18888511462" style="color: #16a34a;">(888) 851-1462</a>
       </p>
     </div>
   `;

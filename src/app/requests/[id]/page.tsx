@@ -507,7 +507,7 @@ export default function RequestDetailPage() {
       doc.setFontSize(9);
       doc.setTextColor(156, 163, 175);
       doc.text(
-        "Thank you for your purchase! Questions? james@apexaivending.com",
+        "Thank you for your purchase! Questions? james@apexaivending.com | (888) 851-1462",
         pageWidth / 2,
         y,
         { align: "center" }
@@ -956,6 +956,13 @@ export default function RequestDetailPage() {
                   >
                     <Mail className="h-4 w-4" />
                     Contact Admin
+                  </a>
+                  <a
+                    href="tel:+18888511462"
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
+                  >
+                    <Phone className="h-4 w-4" />
+                    (888) 851-1462
                   </a>
                 </>
               )}
