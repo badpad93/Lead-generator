@@ -21,8 +21,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const stepKey = candidate.onboarding_steps?.step_key;
-  if (!stepKey || (stepKey !== "interview" && stepKey !== "welcome_docs")) {
-    return NextResponse.json({ error: "Cannot send documents for current step" }, { status: 400 });
+  if (!stepKey) {
+    return NextResponse.json({ error: "Candidate must be added to a pipeline before sending documents. Use the arrow button to add them first." }, { status: 400 });
+  }
+  if (stepKey !== "interview" && stepKey !== "welcome_docs") {
+    return NextResponse.json({ error: `Cannot send documents for step: ${stepKey}` }, { status: 400 });
   }
 
   // Check if docs were already sent for this step (prevent duplicate sends)
@@ -85,9 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     let portalUrl: string | null = null;
     if (tokenRecord) {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000");
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://vendingconnector.com";
       portalUrl = `${baseUrl}/onboarding/${tokenRecord.token}`;
     }
 

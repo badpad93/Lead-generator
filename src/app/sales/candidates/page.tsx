@@ -261,7 +261,7 @@ export default function CandidatesPage() {
         ref={rowUploadRef}
         type="file"
         accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp,.gif,.txt,.csv,.xls,.xlsx,.rtf"
-        className="hidden"
+        className="absolute w-0 h-0 overflow-hidden opacity-0"
         onChange={(e) => {
           const file = e.target.files?.[0];
           const candidateId = pendingUploadCandidateRef.current;
@@ -306,7 +306,7 @@ export default function CandidatesPage() {
               type="file"
               multiple
               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp,.gif,.txt,.csv,.xls,.xlsx,.rtf"
-              className="hidden"
+              className="absolute w-0 h-0 overflow-hidden opacity-0"
               onChange={(e) => { if (e.target.files) setAddFiles((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ""; }}
             />
             <button
