@@ -76,6 +76,7 @@ export default function AdminDocumentsPage() {
   const allStepOptions = [
     { value: "interview", label: "Interview" },
     { value: "welcome_docs", label: "Welcome Docs" },
+    { value: "completion", label: "Completion" },
     ...allPipelines.flatMap((p) =>
       p.pipeline_steps.map((s) => ({ value: `pipeline_${p.id}_${s.id}`, label: `${p.name} — ${s.name}` }))
     ),
