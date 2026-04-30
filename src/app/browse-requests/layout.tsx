@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Browse Locations",
+  title: "Locations for Sale",
   description:
     "Explore open vending machine placement requests from locations across the country.",
   alternates: { canonical: "/browse-requests" },

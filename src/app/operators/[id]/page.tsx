@@ -662,7 +662,7 @@ export default function OperatorProfilePage() {
                 href="/browse-requests"
                 className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-green-primary hover:text-green-hover transition-colors"
               >
-                Browse Locations
+                Locations for Sale
                 <ArrowRight className="h-3 w-3" />
               </Link>
             </div>

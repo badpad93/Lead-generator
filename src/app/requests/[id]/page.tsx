@@ -545,7 +545,7 @@ export default function RequestDetailPage() {
               className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-hover"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Browse Locations
+              Back to Locations for Sale
             </Link>
           </div>
         </div>
@@ -572,7 +572,7 @@ export default function RequestDetailPage() {
           className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-green-primary"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Browse Locations
+          Back to Locations for Sale
         </Link>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">

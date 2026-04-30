@@ -452,7 +452,7 @@ export default function YourLeadsPage() {
               className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
             >
               <Search className="h-4 w-4" />
-              Browse Locations
+              Locations for Sale
             </Link>
           </div>
         ) : (

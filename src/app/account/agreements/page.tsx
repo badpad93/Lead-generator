@@ -94,7 +94,7 @@ export default function AgreementsPage() {
               href="/browse-requests"
               className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-green-hover transition-colors"
             >
-              Browse Locations
+              Locations for Sale
               <ChevronRight className="h-4 w-4" />
             </Link>
           </div>
