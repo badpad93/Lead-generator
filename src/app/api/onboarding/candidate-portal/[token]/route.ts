@@ -40,7 +40,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   let requiredDocs = (assignments || []).filter(
     (a: Record<string, unknown>) => {
       const tmpl = a.document_templates as Record<string, unknown> | null;
-      return tmpl && tmpl.active === true;
+      return tmpl && tmpl.active === true && tmpl.form_enabled === true;
     }
   );
 
