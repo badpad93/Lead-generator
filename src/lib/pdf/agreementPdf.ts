@@ -184,6 +184,14 @@ export async function generateSiteDetailsPdf(data: {
   businessHours: string;
   pricing: PricingResult;
   generatedAt: string;
+  locationAgreement?: {
+    signatureName: string;
+    signedAt: string;
+    contactName: string;
+    titleRole?: string;
+    email: string;
+    phone: string;
+  };
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const page = doc.addPage([612, 792]);
@@ -253,6 +261,38 @@ export async function generateSiteDetailsPdf(data: {
   y -= 20;
   drawText(page, "Placement Fee", left, y, helvetica, 9, gray);
   drawText(page, `$${data.pricing.price.toLocaleString()} (Paid)`, left + 160, y, helveticaBold, 10, green);
+
+  if (data.locationAgreement) {
+    y -= 35;
+    drawLine(page, left, y, right);
+
+    y -= 25;
+    drawText(page, "LOCATION AGREEMENT — SIGNED", left, y, helveticaBold, 8, gray);
+
+    const laDetails: [string, string][] = [
+      ["Signed By", data.locationAgreement.signatureName],
+      ["Contact Name", data.locationAgreement.contactName],
+    ];
+    if (data.locationAgreement.titleRole) {
+      laDetails.push(["Title / Role", data.locationAgreement.titleRole]);
+    }
+    laDetails.push(
+      ["Email", data.locationAgreement.email],
+      ["Phone", data.locationAgreement.phone],
+    );
+    if (data.locationAgreement.signedAt) {
+      laDetails.push(["Signed On", new Date(data.locationAgreement.signedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })]);
+    }
+
+    for (const [label, value] of laDetails) {
+      y -= 20;
+      drawText(page, label, left, y, helvetica, 9, gray);
+      drawText(page, value || "—", left + 160, y, helveticaBold, 10, dark);
+    }
+
+    y -= 15;
+    drawText(page, "The location partner has signed a non-binding acknowledgment of intent for vending machine placement.", left, y, helvetica, 8, gray);
+  }
 
   y -= 35;
   drawText(page, "Thank you for your purchase. This location is now exclusively assigned to you.", left, y, helvetica, 9, gray);

@@ -114,6 +114,18 @@ interface Account {
   entity_type: string | null;
 }
 
+interface LocationAgreementInfo {
+  id: string;
+  status: string;
+  signature_name: string | null;
+  signed_at: string | null;
+  business_name: string | null;
+  contact_name: string | null;
+  email: string | null;
+  phone: string | null;
+  created_at: string;
+}
+
 interface PipelineItem {
   id: string;
   name: string;
@@ -131,6 +143,7 @@ interface PipelineItem {
   locations: Location | null;
   pipeline_item_documents: ItemDoc[];
   all_steps: Step[];
+  location_agreement: LocationAgreementInfo | null;
   created_at: string;
 }
 
@@ -751,6 +764,60 @@ export default function PipelineItemDetailPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Location Agreement Status */}
+      {item.location_agreement && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <FileText className="h-4 w-4 text-gray-400" />
+              Location Agreement
+            </h2>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              item.location_agreement.status === "signed" ? "bg-green-100 text-green-700" :
+              item.location_agreement.status === "viewed" ? "bg-blue-100 text-blue-600" :
+              "bg-yellow-100 text-yellow-700"
+            }`}>
+              {item.location_agreement.status === "signed" ? "Signed" :
+               item.location_agreement.status === "viewed" ? "Viewed" :
+               "Pending"}
+            </span>
+          </div>
+          {item.location_agreement.status === "signed" ? (
+            <div className="rounded-lg bg-green-50 border border-green-200 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <span className="text-sm font-medium text-green-800">
+                  Signed by {item.location_agreement.signature_name}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-gray-600">
+                {item.location_agreement.contact_name && (
+                  <div><span className="text-gray-400">Contact:</span> {item.location_agreement.contact_name}</div>
+                )}
+                {item.location_agreement.email && (
+                  <div><span className="text-gray-400">Email:</span> {item.location_agreement.email}</div>
+                )}
+                {item.location_agreement.phone && (
+                  <div><span className="text-gray-400">Phone:</span> {item.location_agreement.phone}</div>
+                )}
+                {item.location_agreement.signed_at && (
+                  <div><span className="text-gray-400">Signed:</span> {new Date(item.location_agreement.signed_at).toLocaleDateString()}</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Clock className="h-4 w-4 text-gray-400" />
+              <span>
+                Agreement sent {new Date(item.location_agreement.created_at).toLocaleDateString()}
+                {item.location_agreement.email && <> to {item.location_agreement.email}</>}
+                {" — waiting for location partner to sign"}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

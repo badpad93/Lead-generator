@@ -267,6 +267,29 @@ async function handleAgreementPayment(session: Stripe.Checkout.Session) {
 
   if (!location) return;
 
+  // Fetch signed location agreement via the location's lead
+  let locationAgreement: {
+    signature_name: string | null;
+    signed_at: string | null;
+    business_name: string | null;
+    contact_name: string | null;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    title_role: string | null;
+    status: string;
+  } | null = null;
+
+  if (location.sales_lead_id) {
+    const { data: la } = await supabaseAdmin
+      .from("location_agreements")
+      .select("signature_name, signed_at, business_name, contact_name, email, phone, address, title_role, status")
+      .eq("lead_id", location.sales_lead_id)
+      .eq("status", "signed")
+      .maybeSingle();
+    locationAgreement = la;
+  }
+
   // Mark location as revealed
   await supabaseAdmin
     .from("locations")
@@ -302,6 +325,14 @@ async function handleAgreementPayment(session: Stripe.Checkout.Session) {
       businessHours: location.business_hours || "",
       pricing,
       generatedAt: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+      locationAgreement: locationAgreement ? {
+        signatureName: locationAgreement.signature_name || "",
+        signedAt: locationAgreement.signed_at || "",
+        contactName: locationAgreement.contact_name || "",
+        titleRole: locationAgreement.title_role || "",
+        email: locationAgreement.email || "",
+        phone: locationAgreement.phone || "",
+      } : undefined,
     });
 
     // Upload full details PDF
@@ -327,6 +358,13 @@ async function handleAgreementPayment(session: Stripe.Checkout.Session) {
       businessName: agreement.sales_accounts?.business_name || "",
       locationName: location.location_name || "Location",
       pdfBuffer: pdfBytes,
+      locationAgreement: locationAgreement ? {
+        signatureName: locationAgreement.signature_name || "",
+        signedAt: locationAgreement.signed_at || "",
+        contactName: locationAgreement.contact_name || "",
+        email: locationAgreement.email || "",
+        phone: locationAgreement.phone || "",
+      } : undefined,
     });
   } catch (e) {
     console.error("[stripe-webhook] Failed to send full site details:", e);

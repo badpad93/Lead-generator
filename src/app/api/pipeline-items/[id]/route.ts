@@ -22,7 +22,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .eq("pipeline_id", data.pipeline_id)
     .order("order_index");
 
-  return NextResponse.json({ ...data, all_steps: allSteps || [] });
+  // Fetch location agreement status if a location with a lead exists
+  let location_agreement = null;
+  if (data.locations?.sales_lead_id) {
+    const { data: la } = await supabaseAdmin
+      .from("location_agreements")
+      .select("id, status, signature_name, signed_at, business_name, contact_name, email, phone, created_at")
+      .eq("lead_id", data.locations.sales_lead_id)
+      .maybeSingle();
+    location_agreement = la;
+  }
+
+  return NextResponse.json({ ...data, all_steps: allSteps || [], location_agreement });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
