@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
+import { sendLeadAssignmentEmail } from "@/lib/email";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
@@ -86,6 +87,33 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .eq("id", data.account_id);
   }
 
+  if ("assigned_to" in body && body.assigned_to) {
+    try {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", body.assigned_to)
+        .single();
+
+      if (profile?.email) {
+        await sendLeadAssignmentEmail({
+          to: profile.email,
+          assigneeName: profile.full_name || "",
+          leads: [{
+            business_name: data.business_name,
+            contact_name: data.contact_name,
+            phone: data.phone,
+            email: data.email,
+            city: data.city,
+            state: data.state,
+          }],
+        });
+      }
+    } catch (err) {
+      console.error("[leads] Failed to send assignment email:", err instanceof Error ? err.message : err);
+    }
+  }
+
   return NextResponse.json(data);
 }
 
@@ -108,12 +136,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Lead already assigned" }, { status: 400 });
     }
 
-    const { error } = await supabaseAdmin
+    const { data: updatedLead, error } = await supabaseAdmin
       .from("sales_leads")
       .update({ assigned_to: user.id })
-      .eq("id", id);
+      .eq("id", id)
+      .select("business_name, contact_name, phone, email, city, state")
+      .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    try {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.email && updatedLead) {
+        await sendLeadAssignmentEmail({
+          to: profile.email,
+          assigneeName: profile.full_name || "",
+          leads: [{
+            business_name: updatedLead.business_name,
+            contact_name: updatedLead.contact_name,
+            phone: updatedLead.phone,
+            email: updatedLead.email,
+            city: updatedLead.city,
+            state: updatedLead.state,
+          }],
+        });
+      }
+    } catch (err) {
+      console.error("[leads] Failed to send claim email:", err instanceof Error ? err.message : err);
+    }
+
     return NextResponse.json({ ok: true });
   }
 
