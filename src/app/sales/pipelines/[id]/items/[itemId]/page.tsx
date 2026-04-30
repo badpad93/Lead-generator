@@ -345,9 +345,21 @@ export default function PipelineItemDetailPage() {
     setOrderOperatorSearch("");
     setOrderLocationSearch("");
     setOrderSelectedLocationAcct(null);
+    const loc = item?.locations;
+    const acct = item?.sales_accounts;
     setOrderLocationForm({
-      location_name: "", address: "", phone: "", decision_maker_name: "", decision_maker_email: "",
-      industry: "", zip: "", employee_count: "", traffic_count: "", machine_type: "", business_hours: "low", machines_requested: "1",
+      location_name: loc?.location_name || acct?.business_name || "",
+      address: loc?.address || acct?.address || "",
+      phone: loc?.phone || acct?.phone || "",
+      decision_maker_name: loc?.decision_maker_name || acct?.contact_name || "",
+      decision_maker_email: loc?.decision_maker_email || acct?.email || "",
+      industry: loc?.industry || "",
+      zip: loc?.zip || "",
+      employee_count: loc?.employee_count != null ? String(loc.employee_count) : "",
+      traffic_count: loc?.traffic_count != null ? String(loc.traffic_count) : "",
+      machine_type: loc?.machine_type || "",
+      business_hours: loc?.business_hours || "low",
+      machines_requested: loc?.machines_requested != null ? String(loc.machines_requested) : "1",
     });
     setShowCreateOrder(true);
   }
