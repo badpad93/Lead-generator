@@ -283,11 +283,11 @@ export default function HomePage() {
             </Tooltip>
 
             {/* Card — Operator */}
-            <Tooltip content={TOOLTIP_COPY["Browse Requests"]} position="top">
+            <Tooltip content={TOOLTIP_COPY["Browse Locations"]} position="top">
               <Link
                 href="/browse-requests"
                 className="group relative rounded-2xl border border-navy/10 bg-white p-7 shadow-lg shadow-navy/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-navy/10"
-                aria-label={TOOLTIP_COPY["Browse Requests"]}
+                aria-label={TOOLTIP_COPY["Browse Locations"]}
               >
                 <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-black-primary/5 text-black-primary transition-colors group-hover:bg-black-primary/10">
                   <Truck className="h-6 w-6" />

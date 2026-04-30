@@ -67,7 +67,7 @@ const ROLES = [
   },
   {
     icon: UserPlus,
-    title: "Requestors",
+    title: "Location Requests",
     color: "bg-emerald-50 text-emerald-600",
     items: [
       "Request a vending machine for any location you frequent",

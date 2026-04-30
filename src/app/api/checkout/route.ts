@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
 
   if (lead.price == null || lead.price <= 0) {
     return NextResponse.json(
-      { error: "This lead is not available for purchase. Contact admin at contact@bytebitevending.com" },
+      { error: "This lead is not available for purchase. Contact admin at james@apexaivending.com" },
       { status: 400 }
     );
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createRouteSchema } from "@/lib/schemas";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { sanitizeSearch } from "@/lib/sanitizeSearch";
 
 const PAGE_SIZE = 12;
 
@@ -64,7 +65,8 @@ export async function GET(req: NextRequest) {
     .neq("city", "unknown").neq("state", "unknown");
 
   if (search) {
-    query = query.or(`city.ilike.%${search}%,state.ilike.%${search}%,title.ilike.%${search}%`);
+    const s = sanitizeSearch(search);
+    if (s) query = query.or(`city.ilike.%${s}%,state.ilike.%${s}%,title.ilike.%${s}%`);
   }
   if (state) query = query.eq("state", state);
 

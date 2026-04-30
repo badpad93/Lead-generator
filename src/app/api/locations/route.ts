@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
+import { sanitizeSearch } from "@/lib/sanitizeSearch";
 import {
   calculateLocationPrice,
   BusinessHours,
@@ -23,9 +24,12 @@ export async function GET(req: NextRequest) {
     .limit(50);
 
   if (search) {
-    query = query.or(
-      `location_name.ilike.%${search}%,address.ilike.%${search}%,zip.ilike.%${search}%,industry.ilike.%${search}%`
-    );
+    const s = sanitizeSearch(search);
+    if (s) {
+      query = query.or(
+        `location_name.ilike.%${s}%,address.ilike.%${s}%,zip.ilike.%${s}%,industry.ilike.%${s}%`
+      );
+    }
   }
 
   const { data, error } = await query;

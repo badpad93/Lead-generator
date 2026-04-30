@@ -213,7 +213,7 @@ export default function ProfilePage() {
                 >
                   <option value="operator">Operator</option>
                   <option value="location_manager">Location Manager</option>
-                  <option value="requestor">Requestor</option>
+                  <option value="requestor">Location Requests</option>
                 </select>
               </div>
 

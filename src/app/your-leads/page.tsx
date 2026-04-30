@@ -188,7 +188,7 @@ function LeadCard({ purchase }: { purchase: PurchasedLead }) {
       doc.setFontSize(9);
       doc.setTextColor(156, 163, 175);
       doc.text(
-        "Thank you for your purchase! Questions? contact@bytebitevending.com",
+        "Thank you for your purchase! Questions? james@apexaivending.com",
         pageWidth / 2,
         y,
         { align: "center" }
@@ -452,7 +452,7 @@ export default function YourLeadsPage() {
               className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
             >
               <Search className="h-4 w-4" />
-              Browse Requests
+              Browse Locations
             </Link>
           </div>
         ) : (

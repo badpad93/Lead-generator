@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "./supabaseAdmin";
 
 const ADMIN_EMAILS = [
-  "contact@bytebitevending.com",
+  "james@apexaivending.com",
   "jamespadden93x@gmail.com",
 ];
 
