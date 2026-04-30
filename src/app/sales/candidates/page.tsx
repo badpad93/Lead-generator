@@ -67,6 +67,8 @@ export default function CandidatesPage() {
   const [expandedDocsId, setExpandedDocsId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const addFileInputRef = useRef<HTMLInputElement>(null);
+  const rowUploadRef = useRef<HTMLInputElement>(null);
+  const pendingUploadCandidateRef = useRef<string | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -255,6 +257,18 @@ export default function CandidatesPage() {
 
   return (
     <div className="p-6">
+      <input
+        ref={rowUploadRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp,.gif,.txt,.csv,.xls,.xlsx,.rtf"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          const candidateId = pendingUploadCandidateRef.current;
+          if (file && candidateId) handleUploadDoc(candidateId, file);
+          pendingUploadCandidateRef.current = null;
+        }}
+      />
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Candidates</h1>
         <button
@@ -435,11 +449,14 @@ export default function CandidatesPage() {
                           ) : (
                             <span className="text-xs text-gray-300">None</span>
                           )}
-                          <label className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 cursor-pointer">
+                          <button
+                            type="button"
+                            onClick={() => { pendingUploadCandidateRef.current = c.id; if (rowUploadRef.current) { rowUploadRef.current.value = ""; rowUploadRef.current.click(); } }}
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 cursor-pointer"
+                          >
                             {uploadingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
                             Upload
-                            <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp,.gif,.txt,.csv,.xls,.xlsx,.rtf" onChange={(e) => { if (e.target.files?.[0]) handleUploadDoc(c.id, e.target.files[0]); e.target.value = ""; }} />
-                          </label>
+                          </button>
                         </div>
                         {expandedDocsId === c.id && appDocs.length > 0 && (
                           <div className="space-y-1 rounded-lg border border-gray-100 bg-gray-50 p-2">
