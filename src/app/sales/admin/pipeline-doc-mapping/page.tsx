@@ -87,6 +87,7 @@ export default function PipelineDocMappingPage() {
           steps: [
             { key: "interview", label: "Interview" },
             { key: "welcome_docs", label: "Welcome Docs" },
+            { key: "completion", label: "Completion" },
           ],
         });
       }
