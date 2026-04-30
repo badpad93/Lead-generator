@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createRequestSchema } from "@/lib/schemas";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { sanitizeSearch } from "@/lib/sanitizeSearch";
 
 const PAGE_SIZE = 12;
 
@@ -98,11 +99,13 @@ export async function GET(req: NextRequest) {
       .neq("city", "unknown").neq("state", "unknown");
 
     if (search) {
-      if (isOperator) {
-        // Operators can only search by state/zip
-        query = query.or(`state.ilike.%${search}%,zip.ilike.%${search}%,title.ilike.%${search}%`);
-      } else {
-        query = query.or(`city.ilike.%${search}%,state.ilike.%${search}%,title.ilike.%${search}%`);
+      const s = sanitizeSearch(search);
+      if (s) {
+        if (isOperator) {
+          query = query.or(`state.ilike.%${s}%,zip.ilike.%${s}%,title.ilike.%${s}%`);
+        } else {
+          query = query.or(`city.ilike.%${s}%,state.ilike.%${s}%,title.ilike.%${s}%`);
+        }
       }
     }
     if (locationType) query = query.eq("location_type", locationType);

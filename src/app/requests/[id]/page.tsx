@@ -507,7 +507,7 @@ export default function RequestDetailPage() {
       doc.setFontSize(9);
       doc.setTextColor(156, 163, 175);
       doc.text(
-        "Thank you for your purchase! Questions? contact@bytebitevending.com",
+        "Thank you for your purchase! Questions? james@apexaivending.com",
         pageWidth / 2,
         y,
         { align: "center" }
@@ -545,7 +545,7 @@ export default function RequestDetailPage() {
               className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-hover"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Browse Requests
+              Back to Browse Locations
             </Link>
           </div>
         </div>
@@ -572,7 +572,7 @@ export default function RequestDetailPage() {
           className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-green-primary"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Browse Requests
+          Back to Browse Locations
         </Link>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -942,7 +942,7 @@ export default function RequestDetailPage() {
                     </>
                   ) : (
                     <a
-                      href="mailto:contact@bytebitevending.com?subject=Lead%20Purchase%20Inquiry&body=I%20am%20interested%20in%20purchasing%20a%20lead.%20Request%20ID:%20${id}"
+                      href="mailto:james@apexaivending.com?subject=Lead%20Purchase%20Inquiry&body=I%20am%20interested%20in%20purchasing%20a%20lead.%20Request%20ID:%20${id}"
                       className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
                     >
                       <Mail className="h-4 w-4" />
@@ -951,7 +951,7 @@ export default function RequestDetailPage() {
                   )}
 
                   <a
-                    href="mailto:contact@bytebitevending.com"
+                    href="mailto:james@apexaivending.com"
                     className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
                   >
                     <Mail className="h-4 w-4" />

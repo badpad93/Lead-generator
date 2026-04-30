@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createListingSchema } from "@/lib/schemas";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { sanitizeSearch } from "@/lib/sanitizeSearch";
 
 const PAGE_SIZE = 12;
 
@@ -61,11 +62,13 @@ export async function GET(req: NextRequest) {
       .eq("role", "operator");
 
     if (search) {
-      if (isLocationAccount) {
-        // Location accounts can only search by state/zip
-        query = query.or(`state.ilike.%${search}%,zip.ilike.%${search}%`);
-      } else {
-        query = query.or(`full_name.ilike.%${search}%,company_name.ilike.%${search}%,city.ilike.%${search}%,state.ilike.%${search}%`);
+      const s = sanitizeSearch(search);
+      if (s) {
+        if (isLocationAccount) {
+          query = query.or(`state.ilike.%${s}%,zip.ilike.%${s}%`);
+        } else {
+          query = query.or(`full_name.ilike.%${s}%,company_name.ilike.%${s}%,city.ilike.%${s}%,state.ilike.%${s}%`);
+        }
       }
     }
     if (state) query = query.eq("state", state);
@@ -105,7 +108,8 @@ export async function GET(req: NextRequest) {
   }
 
   if (search) {
-    query = query.or(`title.ilike.%${search}%`);
+    const s = sanitizeSearch(search);
+    if (s) query = query.or(`title.ilike.%${s}%`);
   }
   if (machineTypes) {
     query = query.overlaps("machine_types", machineTypes.split(","));

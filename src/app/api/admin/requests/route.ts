@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createRequestSchema } from "@/lib/schemas";
 import { getAdminUserId } from "@/lib/adminAuth";
+import { sanitizeSearch } from "@/lib/sanitizeSearch";
 
 /** GET /api/admin/requests — list all requests (admin view) */
 export async function GET(req: NextRequest) {
@@ -20,7 +21,8 @@ export async function GET(req: NextRequest) {
     .select("*, profiles!created_by(id, full_name, email)", { count: "exact" });
 
   if (search) {
-    query = query.or(`title.ilike.%${search}%,city.ilike.%${search}%,state.ilike.%${search}%,location_name.ilike.%${search}%`);
+    const s = sanitizeSearch(search);
+    if (s) query = query.or(`title.ilike.%${s}%,city.ilike.%${s}%,state.ilike.%${s}%,location_name.ilike.%${s}%`);
   }
 
   const from = page * perPage;

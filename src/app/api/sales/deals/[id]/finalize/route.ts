@@ -12,6 +12,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: dealId } = await params;
   const body = await req.json();
   const { recipient_email, notes } = body;
+  if (!recipient_email) {
+    return NextResponse.json({ error: "recipient_email is required" }, { status: 400 });
+  }
 
   // Fetch deal + services
   const { data: deal, error: dealErr } = await supabaseAdmin
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       created_by: user.id,
       total_value: total,
       status: "draft",
-      recipient_email: recipient_email || "james@apexaivending.com",
+      recipient_email,
       notes: notes || null,
     })
     .select("id")

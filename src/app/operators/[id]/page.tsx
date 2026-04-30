@@ -641,7 +641,7 @@ export default function OperatorProfilePage() {
                 Contact our team and we&apos;ll connect you with this operator directly. No cost to locations.
               </p>
               <a
-                href="mailto:contact@bytebitevending.com"
+                href="mailto:james@apexaivending.com"
                 className="mt-3 inline-flex items-center gap-1 rounded-lg bg-green-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
               >
                 <Mail className="h-3 w-3" />
@@ -662,7 +662,7 @@ export default function OperatorProfilePage() {
                 href="/browse-requests"
                 className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-green-primary hover:text-green-hover transition-colors"
               >
-                Browse Requests
+                Browse Locations
                 <ArrowRight className="h-3 w-3" />
               </Link>
             </div>

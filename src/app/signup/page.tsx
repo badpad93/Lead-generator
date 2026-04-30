@@ -23,7 +23,7 @@ const roles: { value: Role; label: string; icon: typeof Truck; description: stri
   },
   {
     value: "requestor",
-    label: "Requestor",
+    label: "Location Requests",
     icon: UserPlus,
     description: "I want to request a vending machine for a location I frequent",
   },

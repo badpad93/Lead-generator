@@ -7,7 +7,7 @@
  */
 
 export const TOOLTIP_COPY: Record<string, string> = {
-  "Browse Requests":
+  "Browse Locations":
     "Browse available locations requesting services for vending, coffee, ATM, AI vending, and more.",
   "Routes for Sale":
     "Explore vending routes and machine portfolios currently available for purchase.",
@@ -18,7 +18,7 @@ export const TOOLTIP_COPY: Record<string, string> = {
   Login:
     "Access your account, messages, listings, applications, and saved activity.",
   "Get Started":
-    "Create an account and choose whether you're an operator, location, or requestor.",
+    "Create an account and choose whether you're an operator, location, or location requester.",
   "Sign Up":
     "Join the marketplace and start posting, browsing, and connecting.",
   "Post Listing":
@@ -37,8 +37,6 @@ export const TOOLTIP_COPY: Record<string, string> = {
     "Create an operator listing to showcase your machines, services, and coverage area.",
   "Sell a Route":
     "List your vending route or machine portfolio for sale on the marketplace.",
-  "Browse Locations":
-    "Browse available locations requesting services for vending, coffee, ATM, AI vending, and more.",
   "Request Location Services":
     "We find high quality locations for your vending machines",
   "Machines for Sale":

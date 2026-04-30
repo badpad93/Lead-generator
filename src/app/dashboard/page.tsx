@@ -311,7 +311,7 @@ export default function DashboardPage() {
                 ) : (
                   <>
                     <User className="h-3.5 w-3.5 text-green-primary" />{" "}
-                    Requestor
+                    Location Requests
                   </>
                 )}
               </span>
@@ -343,15 +343,15 @@ export default function DashboardPage() {
               <Link
                 href="/browse-requests"
                 className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
-                title={TOOLTIP_COPY["Browse Requests"]}
-                aria-label={TOOLTIP_COPY["Browse Requests"]}
+                title={TOOLTIP_COPY["Browse Locations"]}
+                aria-label={TOOLTIP_COPY["Browse Locations"]}
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-primary group-hover:text-white">
                   <Search className="h-6 w-6" />
                 </div>
                 <div>
                   <p className="font-semibold text-black-primary">
-                    Browse Requests
+                    Browse Locations
                   </p>
                   <p className="text-sm text-black-primary/50">
                     Find locations looking for vending machines

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAdminUserId } from "@/lib/adminAuth";
+import { sanitizeSearch } from "@/lib/sanitizeSearch";
 
 /** GET /api/admin/users — list all user profiles (admin view) */
 export async function GET(req: NextRequest) {
@@ -22,7 +23,8 @@ export async function GET(req: NextRequest) {
     .range(offset, offset + limit - 1);
 
   if (search) {
-    query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+    const s = sanitizeSearch(search);
+    if (s) query = query.or(`full_name.ilike.%${s}%,email.ilike.%${s}%`);
   }
 
   if (role) {

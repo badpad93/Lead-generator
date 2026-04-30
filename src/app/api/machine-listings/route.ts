@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createMachineListingSchema } from "@/lib/schemas";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { sanitizeSearch } from "@/lib/sanitizeSearch";
 
 const PAGE_SIZE = 12;
 
@@ -72,9 +73,12 @@ export async function GET(req: NextRequest) {
     .neq("state", "unknown");
 
   if (search) {
-    query = query.or(
-      `city.ilike.%${search}%,state.ilike.%${search}%,title.ilike.%${search}%,machine_make.ilike.%${search}%,machine_model.ilike.%${search}%`
-    );
+    const s = sanitizeSearch(search);
+    if (s) {
+      query = query.or(
+        `city.ilike.%${s}%,state.ilike.%${s}%,title.ilike.%${s}%,machine_make.ilike.%${s}%,machine_model.ilike.%${s}%`
+      );
+    }
   }
   if (state) query = query.eq("state", state);
   if (machineType) query = query.eq("machine_type", machineType);
