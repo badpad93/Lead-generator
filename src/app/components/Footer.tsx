@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Zap, Phone } from "lucide-react";
+import Image from "next/image";
+import { Phone } from "lucide-react";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
 const footerColumns = [
@@ -42,11 +43,8 @@ export default function Footer() {
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
           {/* Brand Column */}
           <div className="lg:col-span-1">
-            <Link href="/" className="inline-flex items-center gap-1.5">
-              <Zap className="h-6 w-6 text-green-primary fill-green-primary" />
-              <span className="text-2xl font-bold tracking-tight text-green-primary">
-                Vending Connector
-              </span>
+            <Link href="/" className="inline-flex items-center">
+              <Image src="/logo.png" alt="Vending Connector" width={180} height={40} className="h-10 w-auto" />
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-gray-400">
               The smarter way to connect vending machine operators with prime

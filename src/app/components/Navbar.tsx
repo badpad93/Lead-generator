@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText, Heart, Briefcase, Zap } from "lucide-react";
+import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText, Heart, Briefcase } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import Tooltip from "@/app/components/Tooltip";
@@ -174,11 +175,8 @@ export default function Navbar() {
     >
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-1.5">
-          <Zap className="h-6 w-6 text-green-primary fill-green-primary" />
-          <span className="text-2xl font-bold tracking-tight text-green-primary">
-            Vending Connector
-          </span>
+        <Link href="/" className="flex items-center">
+          <Image src="/logo.png" alt="Vending Connector" width={180} height={40} className="h-10 w-auto" priority />
         </Link>
 
         {/* Desktop Navigation */}
@@ -373,10 +371,7 @@ export default function Navbar() {
       >
         {/* Drawer Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-4">
-          <span className="flex items-center gap-1.5 text-xl font-bold text-green-primary">
-            <Zap className="h-5 w-5 fill-green-primary" />
-            Vending Connector
-          </span>
+          <Image src="/logo.png" alt="Vending Connector" width={150} height={34} className="h-8 w-auto" />
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
