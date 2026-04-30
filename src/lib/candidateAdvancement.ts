@@ -82,11 +82,19 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
 
   console.log(`[advancement] Token ${tokenId}: uploaded=${uploadedTemplateIds.size} docs, IDs=[${[...uploadedTemplateIds].join(",")}]`);
 
-  const allComplete = requiredTemplateIds.length > 0 && requiredTemplateIds.every((id: string) => uploadedTemplateIds.has(id));
+  let allComplete = requiredTemplateIds.length > 0 && requiredTemplateIds.every((id: string) => uploadedTemplateIds.has(id));
+
+  // Fallback: if template-ID matching fails, check by count against token's required_doc_count.
+  // This handles cases where the template IDs don't match due to data inconsistencies
+  // but the correct number of docs have been completed for this token.
+  if (!allComplete && ct.required_doc_count > 0 && uploadedTemplateIds.size >= ct.required_doc_count) {
+    console.log(`[advancement] Token ${tokenId}: template-ID check failed but count check passed (${uploadedTemplateIds.size} >= ${ct.required_doc_count}). Advancing via count fallback.`);
+    allComplete = true;
+  }
 
   if (!allComplete) {
     const missing = requiredTemplateIds.filter((id: string) => !uploadedTemplateIds.has(id));
-    console.log(`[advancement] Token ${tokenId}: NOT all complete. Missing ${missing.length} docs: [${missing.join(",")}]`);
+    console.log(`[advancement] Token ${tokenId}: NOT all complete. Missing ${missing.length} docs: [${missing.join(",")}], required_doc_count=${ct.required_doc_count}, uploaded=${uploadedTemplateIds.size}`);
     return { allComplete: false, advanced: false, newStatus: null, nextTokenUrl: null };
   }
 
