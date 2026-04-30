@@ -255,3 +255,83 @@ export function isLeadInfoComplete(lead: {
     lead.contact_email
   );
 }
+
+// ---------------------------------------------------------------------------
+// Lead Assignment Notification Email
+// ---------------------------------------------------------------------------
+
+interface LeadAssignmentEmailParams {
+  to: string;
+  assigneeName: string;
+  leads: {
+    business_name: string;
+    contact_name: string | null;
+    phone: string | null;
+    email: string | null;
+    city: string | null;
+    state: string | null;
+  }[];
+}
+
+export async function sendLeadAssignmentEmail(params: LeadAssignmentEmailParams) {
+  const { to, assigneeName, leads } = params;
+
+  const leadRows = leads
+    .map(
+      (lead) => `
+        <tr>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827; font-weight: 600;">${lead.business_name}</td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #374151;">${lead.contact_name || "—"}</td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #374151;">${lead.phone || "—"}</td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #374151;">${[lead.city, lead.state].filter(Boolean).join(", ") || "—"}</td>
+        </tr>`
+    )
+    .join("");
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 640px; margin: 0 auto; padding: 32px 24px;">
+      <div style="text-align: center; margin-bottom: 32px;">
+        <h1 style="color: #16a34a; font-size: 24px; margin: 0;">Vending Connector</h1>
+        <p style="color: #6b7280; font-size: 14px; margin: 4px 0 0;">New Lead Assignment</p>
+      </div>
+
+      <div style="background: #f9fafb; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+        <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.6;">
+          Hello${assigneeName ? ` ${assigneeName}` : ""}!
+        </p>
+        <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.6;">
+          You have some new leads. Please begin the process of achieving the goals for our customers so that we can provide them with an excellent experience. Thank you!
+        </p>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px;">
+          <thead>
+            <tr style="background: #e5e7eb;">
+              <th style="padding: 8px 12px; text-align: left; color: #374151; font-weight: 600;">Business</th>
+              <th style="padding: 8px 12px; text-align: left; color: #374151; font-weight: 600;">Contact</th>
+              <th style="padding: 8px 12px; text-align: left; color: #374151; font-weight: 600;">Phone</th>
+              <th style="padding: 8px 12px; text-align: left; color: #374151; font-weight: 600;">Location</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${leadRows}
+          </tbody>
+        </table>
+      </div>
+
+      <p style="font-size: 13px; color: #6b7280; text-align: center; margin: 0;">
+        — Vending Connector Team
+      </p>
+    </div>
+  `;
+
+  const subject = leads.length === 1
+    ? `New Lead Assigned: ${leads[0].business_name}`
+    : `${leads.length} New Leads Assigned`;
+
+  return getResend().emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject,
+    html,
+  });
+}
