@@ -298,7 +298,7 @@ export default function CandidateDetailPage() {
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Interview Time</label>
-              <input type="time" value={form.interview_time} onChange={(e) => setForm((f) => ({ ...f, interview_time: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+              <input type="time" step="900" value={form.interview_time} onChange={(e) => setForm((f) => ({ ...f, interview_time: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             </div>
             <div className="flex items-end gap-2">
               <button onClick={handleSave} disabled={saving} className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer">{saving ? "Saving..." : "Save"}</button>

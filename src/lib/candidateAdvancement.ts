@@ -7,6 +7,7 @@ interface AdvanceResult {
   advanced: boolean;
   newStatus: string | null;
   nextTokenUrl: string | null;
+  error?: string;
 }
 
 /**
@@ -14,14 +15,20 @@ interface AdvanceResult {
  * If yes, auto-advance the candidate to the next step and send the next batch of docs.
  */
 export async function checkAndAdvanceCandidate(tokenId: string): Promise<AdvanceResult> {
-  const { data: ct } = await supabaseAdmin
+  const { data: ct, error: ctError } = await supabaseAdmin
     .from("candidate_tokens")
     .select("*, candidates(id, full_name, email, role_type, status, current_pipeline_id, current_step_id)")
     .eq("id", tokenId)
     .single();
 
-  if (!ct || !ct.candidates) {
-    return { allComplete: false, advanced: false, newStatus: null, nextTokenUrl: null };
+  if (ctError || !ct) {
+    console.error("[advancement] Failed to fetch token:", ctError?.message);
+    return { allComplete: false, advanced: false, newStatus: null, nextTokenUrl: null, error: "Token not found" };
+  }
+
+  if (!ct.candidates) {
+    console.error("[advancement] Token has no linked candidate:", tokenId);
+    return { allComplete: false, advanced: false, newStatus: null, nextTokenUrl: null, error: "No candidate linked" };
   }
 
   const candidate = ct.candidates as {
@@ -48,8 +55,10 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
     })
     .map((a: Record<string, unknown>) => (a.document_templates as Record<string, unknown>).id as string);
 
+  const usedFallback = requiredTemplateIds.length === 0;
+
   // Fallback: if no assignments, use form-enabled templates for this step
-  if (requiredTemplateIds.length === 0) {
+  if (usedFallback) {
     const { data: formTemplates } = await supabaseAdmin
       .from("document_templates")
       .select("id")
@@ -60,6 +69,8 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
     requiredTemplateIds = (formTemplates || []).map((t: { id: string }) => t.id);
   }
 
+  console.log(`[advancement] Token ${tokenId}: step=${ct.step_key}, pipeline=${ct.pipeline_id}, required=${requiredTemplateIds.length} templates (fallback=${usedFallback}), IDs=[${requiredTemplateIds.join(",")}]`);
+
   // Get uploaded docs for this token
   const { data: uploaded } = await supabaseAdmin
     .from("candidate_documents")
@@ -68,14 +79,29 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
     .eq("completed", true);
 
   const uploadedTemplateIds = new Set((uploaded || []).map((u: Record<string, unknown>) => u.document_template_id));
-  const allComplete = requiredTemplateIds.every((id: string) => uploadedTemplateIds.has(id));
+
+  console.log(`[advancement] Token ${tokenId}: uploaded=${uploadedTemplateIds.size} docs, IDs=[${[...uploadedTemplateIds].join(",")}]`);
+
+  let allComplete = requiredTemplateIds.length > 0 && requiredTemplateIds.every((id: string) => uploadedTemplateIds.has(id));
+
+  // Fallback: if template-ID matching fails, check by count against token's required_doc_count.
+  // This handles cases where the template IDs don't match due to data inconsistencies
+  // but the correct number of docs have been completed for this token.
+  if (!allComplete && ct.required_doc_count > 0 && uploadedTemplateIds.size >= ct.required_doc_count) {
+    console.log(`[advancement] Token ${tokenId}: template-ID check failed but count check passed (${uploadedTemplateIds.size} >= ${ct.required_doc_count}). Advancing via count fallback.`);
+    allComplete = true;
+  }
 
   if (!allComplete) {
+    const missing = requiredTemplateIds.filter((id: string) => !uploadedTemplateIds.has(id));
+    console.log(`[advancement] Token ${tokenId}: NOT all complete. Missing ${missing.length} docs: [${missing.join(",")}], required_doc_count=${ct.required_doc_count}, uploaded=${uploadedTemplateIds.size}`);
     return { allComplete: false, advanced: false, newStatus: null, nextTokenUrl: null };
   }
 
+  console.log(`[advancement] Token ${tokenId}: All ${requiredTemplateIds.length} docs complete. Advancing...`);
+
   // Mark token as submitted
-  await supabaseAdmin
+  const { error: tokenUpdateErr } = await supabaseAdmin
     .from("candidate_tokens")
     .update({
       status: "submitted",
@@ -84,20 +110,23 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
     })
     .eq("id", ct.id);
 
+  if (tokenUpdateErr) {
+    console.error("[advancement] Failed to mark token submitted:", tokenUpdateErr.message);
+  }
+
   // Determine next status based on current step
   const stepKey = ct.step_key;
   let newStatus: string;
   let nextStepKey: string | null = null;
 
   if (stepKey === "interview") {
-    // All interview docs submitted → move to welcome_docs
     newStatus = "welcome_docs_sent";
     nextStepKey = "welcome_docs";
   } else if (stepKey === "welcome_docs") {
-    // All welcome docs submitted → completed
     newStatus = "completed";
     nextStepKey = null;
   } else {
+    console.error(`[advancement] Unknown step_key: ${stepKey}`);
     return { allComplete: true, advanced: false, newStatus: null, nextTokenUrl: null };
   }
 
@@ -125,10 +154,17 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
     updateFields.onboarding_completed_at = new Date().toISOString();
   }
 
-  await supabaseAdmin
+  const { error: candidateUpdateErr } = await supabaseAdmin
     .from("candidates")
     .update(updateFields)
     .eq("id", candidate.id);
+
+  if (candidateUpdateErr) {
+    console.error("[advancement] Failed to update candidate status:", candidateUpdateErr.message);
+    return { allComplete: true, advanced: false, newStatus: null, nextTokenUrl: null, error: candidateUpdateErr.message };
+  }
+
+  console.log(`[advancement] Candidate ${candidate.id} advanced to status=${newStatus}`);
 
   let nextTokenUrl: string | null = null;
 
@@ -160,9 +196,11 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
         nextRequiredCount = count || 0;
       }
 
+      console.log(`[advancement] Next step ${nextStepKey}: ${nextRequiredCount} required docs`);
+
       if (nextRequiredCount > 0) {
         // Create a new token for the next step
-        const { data: nextToken } = await supabaseAdmin
+        const { data: nextToken, error: nextTokenErr } = await supabaseAdmin
           .from("candidate_tokens")
           .insert({
             candidate_id: candidate.id,
@@ -173,9 +211,14 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
           .select("token")
           .single();
 
+        if (nextTokenErr) {
+          console.error("[advancement] Failed to create next token:", nextTokenErr.message);
+        }
+
         if (nextToken) {
           const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://vendingconnector.com";
           nextTokenUrl = `${baseUrl}/onboarding/${nextToken.token}`;
+          console.log(`[advancement] Created next token URL: ${nextTokenUrl}`);
         }
 
         // Send next round of docs with the portal link
@@ -188,9 +231,11 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
           roleType: candidate.role_type,
           portalUrl: nextTokenUrl,
         });
+
+        console.log(`[advancement] Sent onboarding docs email to ${candidate.email} for step ${nextStepKey}`);
       }
-    } catch {
-      // Email send failure shouldn't block advancement
+    } catch (err) {
+      console.error("[advancement] Error sending next step docs:", err instanceof Error ? err.message : err);
     }
   }
 
@@ -231,8 +276,10 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
       stepKey,
       completedDocs: notificationDocs,
     });
-  } catch {
-    // Notification failure shouldn't block advancement
+
+    console.log("[advancement] Sent completion notification to team");
+  } catch (err) {
+    console.error("[advancement] Error sending completion notification:", err instanceof Error ? err.message : err);
   }
 
   // When advancing to completed, send any resource docs mapped to the completion step
@@ -258,9 +305,10 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
           pipelineId: candidate.current_pipeline_id,
           roleType: candidate.role_type,
         });
+        console.log(`[advancement] Sent ${resourceDocs.length} resource docs to ${candidate.email}`);
       }
-    } catch {
-      // Resource doc send failure shouldn't block
+    } catch (err) {
+      console.error("[advancement] Error sending resource docs:", err instanceof Error ? err.message : err);
     }
   }
 

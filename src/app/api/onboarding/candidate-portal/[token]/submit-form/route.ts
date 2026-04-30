@@ -105,7 +105,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     .eq("id", ct.id);
 
   // Check if all required docs are now complete — auto-advance if so
-  const advanceResult = await checkAndAdvanceCandidate(ct.id);
+  let advanceResult;
+  try {
+    advanceResult = await checkAndAdvanceCandidate(ct.id);
+    console.log(`[submit-form] Token ${ct.id}: advancement result:`, JSON.stringify(advanceResult));
+  } catch (err) {
+    console.error("[submit-form] Advancement threw:", err instanceof Error ? err.message : err);
+    advanceResult = { allComplete: false, advanced: false, newStatus: null, nextTokenUrl: null };
+  }
 
   return NextResponse.json({
     document: doc,
