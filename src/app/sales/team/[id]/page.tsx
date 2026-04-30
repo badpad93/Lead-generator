@@ -56,6 +56,7 @@ interface Candidate {
   candidate_documents: CandidateDoc[];
   all_steps: StepInfo[];
   email_logs: EmailLog[];
+  completion_docs: { id: string; name: string; file_name: string }[];
 }
 
 interface TrainingPipeline {
@@ -567,6 +568,22 @@ export default function CandidateDetailPage() {
             )}
           </div>
         ))}
+        <div className="mb-4 last:mb-0">
+          <h3 className="text-xs font-medium text-gray-500 uppercase mb-2">Completion Documents (sent on completion)</h3>
+          {candidate.completion_docs.length === 0 ? (
+            <p className="text-xs text-gray-300 ml-2">No documents mapped to completion step</p>
+          ) : (
+            <div className="space-y-1.5">
+              {candidate.completion_docs.map((doc) => (
+                <div key={doc.id} className="flex items-center gap-2 rounded-lg border border-gray-100 px-4 py-2.5">
+                  <FileText className="h-4 w-4 text-green-500" />
+                  <span className="text-sm text-gray-900">{doc.name}</span>
+                  <span className="text-xs text-gray-400">({doc.file_name})</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Email History */}

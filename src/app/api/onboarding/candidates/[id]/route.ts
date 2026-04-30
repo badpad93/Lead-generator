@@ -32,7 +32,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .eq("candidate_id", id)
     .order("sent_at", { ascending: false });
 
-  return NextResponse.json({ ...data, all_steps: allSteps || [], email_logs: emailLogs || [] });
+  let completionDocs: { id: string; name: string; file_name: string }[] = [];
+  if (data.current_pipeline_id) {
+    const { data: compAssignments } = await supabaseAdmin
+      .from("step_document_assignments")
+      .select("document_templates(id, name, file_name)")
+      .eq("pipeline_id", data.current_pipeline_id)
+      .eq("step_key", "completion");
+
+    completionDocs = (compAssignments || [])
+      .map((a: Record<string, unknown>) => a.document_templates as { id: string; name: string; file_name: string })
+      .filter(Boolean);
+  }
+
+  return NextResponse.json({ ...data, all_steps: allSteps || [], email_logs: emailLogs || [], completion_docs: completionDocs });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

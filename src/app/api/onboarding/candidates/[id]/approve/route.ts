@@ -119,6 +119,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
       .eq("id", id);
 
+    // Send completion documents if any are mapped
+    if (candidate.email) {
+      try {
+        const { data: resourceAssignments } = await supabaseAdmin
+          .from("step_document_assignments")
+          .select("*, document_templates(id, name, file_name, file_path, mime_type, active, form_enabled)")
+          .eq("pipeline_id", candidate.current_pipeline_id)
+          .eq("step_key", "completion");
+
+        const resourceDocs = (resourceAssignments || []).filter((a: Record<string, unknown>) => {
+          const tmpl = a.document_templates as Record<string, unknown> | null;
+          return tmpl && tmpl.active;
+        });
+
+        if (resourceDocs.length > 0) {
+          await sendOnboardingDocsEmail({
+            candidateId: id,
+            candidateEmail: candidate.email,
+            candidateName: candidate.full_name,
+            stepKey: "completion",
+            pipelineId: candidate.current_pipeline_id,
+            roleType: candidate.onboarding_pipelines?.role_type || candidate.role_type,
+          });
+        }
+      } catch {
+        // Don't block approval if email fails
+      }
+    }
+
     return NextResponse.json({ success: true, new_status: "completed" });
   }
 
