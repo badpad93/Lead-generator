@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, CheckCircle2, FileText, Upload, Download, AlertCircle } from "lucide-react";
 import FormRenderer, { FormField } from "@/components/onboarding/FormRenderer";
@@ -52,8 +52,6 @@ function PortalContent() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const pendingTemplateRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/onboarding/candidate-portal/${token}`);
@@ -97,23 +95,6 @@ function PortalContent() {
     } finally {
       setUploading(null);
     }
-  }
-
-  function handleFileSelect(templateId: string) {
-    pendingTemplateRef.current = templateId;
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-      fileInputRef.current.click();
-    }
-  }
-
-  function onFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    const templateId = pendingTemplateRef.current;
-    if (file && templateId) {
-      handleUpload(templateId, file);
-    }
-    pendingTemplateRef.current = null;
   }
 
   async function handleDownloadTemplate(filePath: string, fileName: string) {
@@ -189,13 +170,6 @@ function PortalContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp"
-        onChange={onFileInputChange}
-        className="hidden"
-      />
       <div className="mx-auto max-w-2xl">
         {/* Header */}
         <div className="mb-6 text-center">
@@ -301,22 +275,25 @@ function PortalContent() {
                         <Download className="h-3 w-3" />
                         Template
                       </button>
-                      <button
-                        onClick={() => handleFileSelect(doc.template_id)}
-                        disabled={uploading === doc.template_id}
-                        className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium cursor-pointer ${
+                      <label className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium cursor-pointer ${
                           doc.uploaded
                             ? "border border-green-200 text-green-700 hover:bg-green-50"
                             : "bg-green-600 text-white hover:bg-green-700"
-                        } disabled:opacity-50`}
+                        }`}
                       >
+                        <input
+                          type="file"
+                          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp"
+                          className="absolute w-px h-px opacity-0"
+                          onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUpload(doc.template_id, file); e.target.value = ""; }}
+                        />
                         {uploading === doc.template_id ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
                         ) : (
                           <Upload className="h-3 w-3" />
                         )}
                         {doc.uploaded ? "Replace" : "Upload"}
-                      </button>
+                      </label>
                     </div>
                   </div>
                 </div>

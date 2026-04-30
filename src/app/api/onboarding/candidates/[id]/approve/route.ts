@@ -51,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         let requiredCount = (assignments || []).filter(
           (a: Record<string, unknown>) => {
             const tmpl = a.document_templates as Record<string, unknown> | null;
-            return a.required && tmpl && tmpl.active;
+            return a.required && tmpl && tmpl.active && tmpl.form_enabled;
           }
         ).length;
 

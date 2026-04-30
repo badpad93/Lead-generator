@@ -44,14 +44,14 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
   // Get required document assignments for this step
   const { data: assignments } = await supabaseAdmin
     .from("step_document_assignments")
-    .select("*, document_templates(id, active)")
+    .select("*, document_templates(id, active, form_enabled)")
     .eq("pipeline_id", ct.pipeline_id)
     .eq("step_key", ct.step_key);
 
   let requiredTemplateIds = (assignments || [])
     .filter((a: Record<string, unknown>) => {
       const tmpl = a.document_templates as Record<string, unknown> | null;
-      return a.required && tmpl && tmpl.active;
+      return a.required && tmpl && tmpl.active && tmpl.form_enabled;
     })
     .map((a: Record<string, unknown>) => (a.document_templates as Record<string, unknown>).id as string);
 
@@ -174,14 +174,14 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
       // Check if next step has document assignments or form-enabled templates
       const { data: nextAssignments } = await supabaseAdmin
         .from("step_document_assignments")
-        .select("id, required, document_templates(active)")
+        .select("id, required, document_templates(active, form_enabled)")
         .eq("pipeline_id", candidate.current_pipeline_id)
         .eq("step_key", nextStepKey);
 
       let nextRequiredCount = (nextAssignments || []).filter(
         (a: Record<string, unknown>) => {
           const tmpl = a.document_templates as Record<string, unknown> | null;
-          return a.required && tmpl && tmpl.active;
+          return a.required && tmpl && tmpl.active && tmpl.form_enabled;
         }
       ).length;
 
