@@ -503,6 +503,20 @@ export default function CandidateDetailPage() {
                   Success! You have successfully onboarded {candidate.full_name}.
                 </div>
               </div>
+              {candidate.completion_docs.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2">Completion Documents Sent</p>
+                  <div className="space-y-1.5">
+                    {candidate.completion_docs.map((doc) => (
+                      <div key={doc.id} className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <span className="text-sm text-gray-900">{doc.name}</span>
+                        <span className="text-xs text-gray-400">({doc.file_name})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Assign to Training Pipeline</label>
                 <div className="flex gap-2">
