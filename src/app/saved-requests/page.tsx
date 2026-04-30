@@ -113,7 +113,7 @@ export default function SavedRequestsPage() {
               href="/browse-requests"
               className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
             >
-              Browse Locations
+              Locations for Sale
             </Link>
           </div>
         )}

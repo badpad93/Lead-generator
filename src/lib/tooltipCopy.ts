@@ -7,7 +7,7 @@
  */
 
 export const TOOLTIP_COPY: Record<string, string> = {
-  "Browse Locations":
+  "Locations for Sale":
     "Browse available locations requesting services for vending, coffee, ATM, AI vending, and more.",
   "Routes for Sale":
     "Explore vending routes and machine portfolios currently available for purchase.",
