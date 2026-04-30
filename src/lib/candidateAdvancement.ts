@@ -174,9 +174,9 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
           .single();
 
         if (nextToken) {
-          const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
+          const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL
             ? `https://${process.env.VERCEL_URL}`
-            : "http://localhost:3000";
+            : "http://localhost:3000");
           nextTokenUrl = `${baseUrl}/onboarding/${nextToken.token}`;
         }
 
