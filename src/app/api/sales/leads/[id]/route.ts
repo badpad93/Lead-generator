@@ -2,6 +2,42 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 import { sendLeadAssignmentEmail } from "@/lib/email";
+import { sendLocationAgreementEmail } from "@/lib/locationAgreementEmail";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
+
+async function createAndSendAgreement(leadId: string, lead: { business_name?: string; contact_name?: string; email?: string; phone?: string; address?: string; title_role?: string }) {
+  if (!lead.email) return;
+
+  const existing = await supabaseAdmin
+    .from("location_agreements")
+    .select("id")
+    .eq("lead_id", leadId)
+    .maybeSingle();
+  if (existing.data) return;
+
+  const { data: agreement } = await supabaseAdmin
+    .from("location_agreements")
+    .insert({
+      lead_id: leadId,
+      business_name: lead.business_name || null,
+      contact_name: lead.contact_name || null,
+      email: lead.email,
+      phone: lead.phone || null,
+      address: lead.address || null,
+    })
+    .select("token")
+    .single();
+
+  if (!agreement) return;
+
+  await sendLocationAgreementEmail({
+    to: lead.email,
+    recipientName: lead.contact_name || "Business Owner",
+    businessName: lead.business_name || "your location",
+    agreementUrl: `${APP_URL}/location-agreement/${agreement.token}`,
+  });
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
@@ -114,6 +150,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
+  if (updates.status === "qualified") {
+    try {
+      await createAndSendAgreement(id, data);
+    } catch (err) {
+      console.error("[leads] Failed to send location agreement:", err instanceof Error ? err.message : err);
+    }
+  }
+
   return NextResponse.json(data);
 }
 
@@ -200,6 +244,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Mark lead as qualified
     await supabaseAdmin.from("sales_leads").update({ status: "qualified" }).eq("id", id);
 
+    try {
+      await createAndSendAgreement(id, lead);
+    } catch (err) {
+      console.error("[leads] Failed to send location agreement:", err instanceof Error ? err.message : err);
+    }
+
     return NextResponse.json({ dealId: deal.id }, { status: 201 });
   }
 
@@ -222,8 +272,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
   }
 
-  // Detach related deals so the FK constraint doesn't block deletion.
+  // Detach related records so FK constraints don't block deletion.
   // Activity log rows cascade automatically.
+  await supabaseAdmin.from("location_agreements").update({ lead_id: null }).eq("lead_id", id);
   await supabaseAdmin.from("sales_deals").update({ lead_id: null }).eq("lead_id", id);
 
   const { error } = await supabaseAdmin.from("sales_leads").delete().eq("id", id);

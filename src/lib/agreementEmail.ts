@@ -63,8 +63,31 @@ export async function sendFullSiteDetailsEmail(params: {
   businessName: string;
   locationName: string;
   pdfBuffer: Uint8Array;
+  locationAgreement?: {
+    signatureName: string;
+    signedAt: string;
+    contactName: string;
+    email: string;
+    phone: string;
+  };
 }) {
-  const { to, recipientName, businessName, locationName, pdfBuffer } = params;
+  const { to, recipientName, businessName, locationName, pdfBuffer, locationAgreement } = params;
+
+  const agreementSection = locationAgreement
+    ? `
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:20px 0;">
+          <p style="margin:0 0 8px;color:#6b7280;font-size:12px;">LOCATION AGREEMENT — SIGNED</p>
+          <p style="margin:0 0 4px;color:#16a34a;font-size:14px;font-weight:700;">✓ Location partner has confirmed intent</p>
+          <table style="margin-top:10px;font-size:13px;color:#374151;border-collapse:collapse;">
+            <tr><td style="padding:2px 12px 2px 0;color:#6b7280;">Signed By</td><td style="padding:2px 0;font-weight:600;">${locationAgreement.signatureName}</td></tr>
+            <tr><td style="padding:2px 12px 2px 0;color:#6b7280;">Contact</td><td style="padding:2px 0;">${locationAgreement.contactName}</td></tr>
+            <tr><td style="padding:2px 12px 2px 0;color:#6b7280;">Email</td><td style="padding:2px 0;">${locationAgreement.email}</td></tr>
+            <tr><td style="padding:2px 12px 2px 0;color:#6b7280;">Phone</td><td style="padding:2px 0;">${locationAgreement.phone}</td></tr>
+            ${locationAgreement.signedAt ? `<tr><td style="padding:2px 12px 2px 0;color:#6b7280;">Signed On</td><td style="padding:2px 0;">${new Date(locationAgreement.signedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</td></tr>` : ""}
+          </table>
+        </div>
+      `
+    : "";
 
   await resend.emails.send({
     from: FROM,
@@ -85,6 +108,7 @@ export async function sendFullSiteDetailsEmail(params: {
           <p style="margin:0 0 4px;color:#6b7280;font-size:12px;">STATUS</p>
           <p style="margin:0;color:#16a34a;font-size:16px;font-weight:700;">✓ Payment Complete — Site Details Attached</p>
         </div>
+        ${agreementSection}
         <p style="color:#374151;font-size:14px;line-height:1.6;">
           The attached PDF contains all site information including the location address, decision maker contact details, and placement specifications.
         </p>
