@@ -188,7 +188,7 @@ function LeadCard({ purchase }: { purchase: PurchasedLead }) {
       doc.setFontSize(9);
       doc.setTextColor(156, 163, 175);
       doc.text(
-        "Thank you for your purchase! Questions? james@apexaivending.com",
+        "Thank you for your purchase! Questions? james@apexaivending.com | (888) 851-1462",
         pageWidth / 2,
         y,
         { align: "center" }

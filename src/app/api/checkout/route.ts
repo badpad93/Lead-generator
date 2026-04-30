@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
 
   if (lead.price == null || lead.price <= 0) {
     return NextResponse.json(
-      { error: "This lead is not available for purchase. Contact admin at james@apexaivending.com" },
+      { error: "This lead is not available for purchase. Contact admin at james@apexaivending.com or call (888) 851-1462" },
       { status: 400 }
     );
   }

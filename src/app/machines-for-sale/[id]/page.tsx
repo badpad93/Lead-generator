@@ -12,6 +12,7 @@ import {
   Loader2,
   AlertCircle,
   Mail,
+  Phone,
   Package,
   Check,
   FileText,
@@ -523,6 +524,13 @@ export default function MachineDetailPage() {
               >
                 <Mail className="h-4 w-4" />
                 Contact Admin
+              </a>
+              <a
+                href="tel:+18888511462"
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
+              >
+                <Phone className="h-4 w-4" />
+                (888) 851-1462
               </a>
 
               <div className="mt-5 pt-4 border-t border-gray-100 space-y-2">
