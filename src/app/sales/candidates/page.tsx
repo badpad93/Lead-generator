@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createBrowserClient } from "@/lib/supabase";
 import { Plus, Loader2, Search, X, Upload, UserPlus, ArrowRight, Trash2, FileText, Pencil, Download, Eye } from "lucide-react";
 
@@ -66,6 +66,7 @@ export default function CandidatesPage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [expandedDocsId, setExpandedDocsId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const addFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -285,12 +286,23 @@ export default function CandidatesPage() {
           </div>
           <textarea placeholder="Notes (optional)" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" rows={2} />
           <div className="mt-3">
-            <label className="mb-1 block text-xs font-medium text-gray-500">Application Documents</label>
-            <label className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm text-gray-500 hover:border-green-400 hover:text-green-600 hover:bg-green-50/30 cursor-pointer transition-colors">
+            <p className="mb-1 block text-xs font-medium text-gray-500">Application Documents</p>
+            <input
+              ref={addFileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp,.gif,.txt,.csv,.xls,.xlsx,.rtf"
+              className="hidden"
+              onChange={(e) => { if (e.target.files) setAddFiles((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ""; }}
+            />
+            <button
+              type="button"
+              onClick={() => { if (addFileInputRef.current) { addFileInputRef.current.value = ""; addFileInputRef.current.click(); } }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm text-gray-500 hover:border-green-400 hover:text-green-600 hover:bg-green-50/30 cursor-pointer transition-colors"
+            >
               <Upload className="h-4 w-4" />
               Choose Files
-              <input type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp,.gif,.txt,.csv,.xls,.xlsx,.rtf" className="hidden" onChange={(e) => { if (e.target.files) setAddFiles((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ""; }} />
-            </label>
+            </button>
             {addFiles.length > 0 && (
               <div className="mt-2 space-y-1">
                 {addFiles.map((f, i) => (

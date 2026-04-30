@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "./supabaseAdmin";
 import { sendOnboardingDocsEmail } from "./onboardingPipelineEmail";
+import { sendCompletionNotification } from "./onboardingNotificationEmail";
 
 interface AdvanceResult {
   allComplete: boolean;
@@ -192,6 +193,76 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
       }
     } catch {
       // Email send failure shouldn't block advancement
+    }
+  }
+
+  // Send notification email to team (market leader, DoS, admins)
+  try {
+    const { data: completedDocs } = await supabaseAdmin
+      .from("candidate_documents")
+      .select("form_data, document_template_id")
+      .eq("candidate_token_id", ct.id)
+      .eq("completed", true);
+
+    const completedTemplateIds = (completedDocs || [])
+      .map((d: Record<string, unknown>) => d.document_template_id)
+      .filter(Boolean) as string[];
+
+    let templateData: { id: string; name: string; form_fields: unknown[] }[] = [];
+    if (completedTemplateIds.length > 0) {
+      const { data: templates } = await supabaseAdmin
+        .from("document_templates")
+        .select("id, name, form_fields")
+        .in("id", completedTemplateIds);
+      templateData = (templates || []) as typeof templateData;
+    }
+
+    const notificationDocs = (completedDocs || []).map((doc: Record<string, unknown>) => {
+      const tmpl = templateData.find((t) => t.id === doc.document_template_id);
+      return {
+        templateName: tmpl?.name || "Document",
+        formFields: (tmpl?.form_fields || []) as { key: string; label: string; type: string }[],
+        formData: (doc.form_data || {}) as Record<string, unknown>,
+      };
+    });
+
+    await sendCompletionNotification({
+      candidateId: candidate.id,
+      candidateName: candidate.full_name,
+      candidateRoleType: candidate.role_type,
+      stepKey,
+      completedDocs: notificationDocs,
+    });
+  } catch {
+    // Notification failure shouldn't block advancement
+  }
+
+  // When advancing to completed, send any resource docs mapped to the completion step
+  if (newStatus === "completed" && candidate.email) {
+    try {
+      const { data: resourceAssignments } = await supabaseAdmin
+        .from("step_document_assignments")
+        .select("*, document_templates(id, name, file_name, file_path, mime_type, active, form_enabled)")
+        .eq("pipeline_id", candidate.current_pipeline_id)
+        .eq("step_key", "completion");
+
+      const resourceDocs = (resourceAssignments || []).filter((a: Record<string, unknown>) => {
+        const tmpl = a.document_templates as Record<string, unknown> | null;
+        return tmpl && tmpl.active && !tmpl.form_enabled;
+      });
+
+      if (resourceDocs.length > 0) {
+        await sendOnboardingDocsEmail({
+          candidateId: candidate.id,
+          candidateEmail: candidate.email,
+          candidateName: candidate.full_name,
+          stepKey: "completion",
+          pipelineId: candidate.current_pipeline_id,
+          roleType: candidate.role_type,
+        });
+      }
+    } catch {
+      // Resource doc send failure shouldn't block
     }
   }
 
