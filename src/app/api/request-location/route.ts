@@ -3,7 +3,7 @@ import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendLocationRequestConfirmation } from "@/lib/intakeEmail";
 
-const TO_EMAIL = "james@apexaivending.com";
+const TO_EMAILS = ["james@apexaivending.com", "louis.cirino@apexaivending.com"];
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 
 function clean(v: unknown): string {
@@ -136,7 +136,7 @@ export async function POST(req: Request) {
     `;
     await resend.emails.send({
       from: FROM_EMAIL,
-      to: TO_EMAIL,
+      to: TO_EMAILS,
       subject: `New Location Services Request – ${business_name}`,
       html,
     });
