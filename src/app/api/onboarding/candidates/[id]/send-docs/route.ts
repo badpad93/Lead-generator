@@ -25,12 +25,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Cannot send documents for current step" }, { status: 400 });
   }
 
-  if (stepKey === "interview" && candidate.status !== "interview") {
-    return NextResponse.json({ error: "Candidate is not in interview step" }, { status: 400 });
-  }
+  // Check if docs were already sent for this step (prevent duplicate sends)
+  const { data: existingToken } = await supabaseAdmin
+    .from("candidate_tokens")
+    .select("id")
+    .eq("candidate_id", id)
+    .eq("step_key", stepKey)
+    .in("status", ["pending", "viewed"])
+    .limit(1)
+    .maybeSingle();
 
-  if (stepKey === "welcome_docs" && candidate.status !== "welcome_docs_sent") {
-    return NextResponse.json({ error: "Candidate is not in welcome docs step" }, { status: 400 });
+  if (existingToken) {
+    return NextResponse.json({ error: "Documents have already been sent for this step" }, { status: 400 });
   }
 
   if (!candidate.full_name || !candidate.interview_date || !candidate.interview_time || !candidate.phone) {
@@ -95,13 +101,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       portalUrl,
     });
 
-    const nextStatus = stepKey === "interview" ? "pending_admin_review_1" : "pending_admin_review_2";
-    await supabaseAdmin
-      .from("candidates")
-      .update({ status: nextStatus, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    return NextResponse.json({ ...result, new_status: nextStatus, portal_url: portalUrl });
+    return NextResponse.json({ ...result, portal_url: portalUrl });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Email send failed";
     return NextResponse.json({ error: message }, { status: 500 });
