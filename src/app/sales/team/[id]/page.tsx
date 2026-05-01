@@ -202,7 +202,7 @@ export default function CandidateDetailPage() {
     });
     const data = await res.json();
     if (res.ok) {
-      setActionSuccess("Candidate advanced — ready for Welcome Email.");
+      setActionSuccess(`Welcome email sent with ACH and W9 (${data.attachmentCount || 0} attachments)`);
       load();
     } else {
       setActionError(data.error || "Advance failed");
@@ -418,8 +418,8 @@ export default function CandidateDetailPage() {
                   disabled={advancing}
                   className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-5 py-2.5 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50 cursor-pointer"
                 >
-                  {advancing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Mark Interview Complete
+                  {advancing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Mark Complete &amp; Send Welcome Docs
                 </button>
               </div>
             </div>
@@ -481,11 +481,11 @@ export default function CandidateDetailPage() {
                 </p>
               </div>
               <button
-                onClick={handleSendDocs}
-                disabled={sending}
+                onClick={handleAdvance}
+                disabled={advancing}
                 className="flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
               >
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {advancing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Send Welcome Email with ACH and W9
               </button>
             </div>
