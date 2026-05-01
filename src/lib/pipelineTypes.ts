@@ -177,6 +177,7 @@ export type CandidateStatus =
   | "application"
   | "interview"
   | "pending_admin_review_1"
+  | "interview_complete"
   | "welcome_docs_sent"
   | "pending_admin_review_2"
   | "completed"
