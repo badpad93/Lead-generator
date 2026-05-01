@@ -117,17 +117,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   };
 
   const resolvedSubject = resolveMergeFields(subject, mergeVars);
-  const resolvedBody = resolveMergeFields(email_body, mergeVars);
+  const resolvedBody = resolveMergeFields(email_body || "", mergeVars);
+
+  if (!resolvedBody.trim()) {
+    return NextResponse.json({ error: "Email body resolved to empty" }, { status: 400 });
+  }
 
   const htmlBody = resolvedBody
     .split("\n")
-    .map((line: string) => (line.trim() === "" ? "<br/>" : `<p style="margin:0 0 8px;color:#374151;font-size:14px;line-height:1.6;">${line}</p>`))
+    .map((line: string) => {
+      if (line.trim() === "") return "<br/>";
+      const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return `<p style="margin:0 0 8px;color:#374151;font-size:14px;line-height:1.6;">${escaped}</p>`;
+    })
     .join("");
 
   const { error: sendError } = await resend.emails.send({
     from: FROM,
     to: to_email,
     subject: resolvedSubject,
+    text: resolvedBody,
     html: `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
         <div style="margin-bottom:24px;">
