@@ -129,7 +129,10 @@ export default function LeadsPage() {
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "urgent" | "type">("newest");
   const [hideDnc, setHideDnc] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
-  const [addForm, setAddForm] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false, entity_type: "location" as EntityType, immediate_need: "" as ImmediateNeed | "" });
+  const [addForm, setAddForm] = useState({
+    business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false, entity_type: "location" as EntityType, immediate_need: "" as ImmediateNeed | "",
+    location_name: "", industry: "", zip: "", employee_count: "", traffic_count: "", decision_maker_name: "", decision_maker_email: "", machine_type: "", machines_requested: "1", business_hours: "8",
+  });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [editingLead, setEditingLead] = useState<SalesLead | null>(null);
@@ -190,6 +193,24 @@ export default function LeadsPage() {
 
   async function handleAdd() {
     if (!addForm.business_name) return;
+    if (addForm.entity_type === "location") {
+      const missing: string[] = [];
+      if (!addForm.location_name) missing.push("Location Name");
+      if (!addForm.industry) missing.push("Industry");
+      if (!addForm.zip) missing.push("ZIP Code");
+      if (!addForm.employee_count) missing.push("Employee Count");
+      if (!addForm.traffic_count) missing.push("Foot Traffic");
+      if (!addForm.decision_maker_name) missing.push("Decision Maker Name");
+      if (!addForm.decision_maker_email) missing.push("Decision Maker Email");
+      if (!addForm.phone && !addForm.address) {
+        if (!addForm.phone) missing.push("Phone");
+      }
+      if (!addForm.machine_type) missing.push("Machine Type");
+      if (missing.length > 0) {
+        alert(`Required location fields missing: ${missing.join(", ")}`);
+        return;
+      }
+    }
     const res = await fetch("/api/sales/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -200,7 +221,7 @@ export default function LeadsPage() {
       alert(err.error || "Failed to add lead");
       return;
     }
-    setAddForm({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false, entity_type: "location", immediate_need: "" });
+    setAddForm({ business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false, entity_type: "location", immediate_need: "", location_name: "", industry: "", zip: "", employee_count: "", traffic_count: "", decision_maker_name: "", decision_maker_email: "", machine_type: "", machines_requested: "1", business_hours: "8" });
     setShowAdd(false);
     fetchLeads();
   }
@@ -566,6 +587,49 @@ export default function LeadsPage() {
               ))}
             </select>
           </div>
+
+          {/* Location Details — shown when entity_type is "location" */}
+          {addForm.entity_type === "location" && (
+            <div className="mt-4 rounded-lg border border-green-200 bg-green-50/50 p-4">
+              <h4 className="text-xs font-semibold text-green-800 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5" /> Location Details
+              </h4>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <input placeholder="Location Name *" value={addForm.location_name} onChange={(e) => setAddForm((f) => ({ ...f, location_name: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Industry *" value={addForm.industry} onChange={(e) => setAddForm((f) => ({ ...f, industry: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="ZIP Code *" value={addForm.zip} onChange={(e) => setAddForm((f) => ({ ...f, zip: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Employee Count *" type="number" min="0" value={addForm.employee_count} onChange={(e) => setAddForm((f) => ({ ...f, employee_count: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Foot Traffic *" type="number" min="0" value={addForm.traffic_count} onChange={(e) => setAddForm((f) => ({ ...f, traffic_count: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Decision Maker Name *" value={addForm.decision_maker_name} onChange={(e) => setAddForm((f) => ({ ...f, decision_maker_name: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Decision Maker Email *" type="email" value={addForm.decision_maker_email} onChange={(e) => setAddForm((f) => ({ ...f, decision_maker_email: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Phone *" value={addForm.phone || ""} onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <select value={addForm.machine_type} onChange={(e) => setAddForm((f) => ({ ...f, machine_type: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
+                  <option value="">Machine Type *</option>
+                  <option value="snack">Snack</option>
+                  <option value="beverage">Beverage</option>
+                  <option value="combo">Combo</option>
+                  <option value="coffee">Coffee</option>
+                  <option value="frozen">Frozen</option>
+                  <option value="healthy">Healthy / Fresh</option>
+                  <option value="micro_market">Micro Market</option>
+                  <option value="other">Other</option>
+                </select>
+                <select value={addForm.machines_requested} onChange={(e) => setAddForm((f) => ({ ...f, machines_requested: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
+                  <option value="1">1 Machine</option>
+                  <option value="2">2 Machines</option>
+                  <option value="3">3 Machines</option>
+                  <option value="4">4 Machines</option>
+                </select>
+                <select value={addForm.business_hours} onChange={(e) => setAddForm((f) => ({ ...f, business_hours: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
+                  <option value="8">8 Hours</option>
+                  <option value="12">12 Hours</option>
+                  <option value="16">16 Hours</option>
+                  <option value="24">24 Hours</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           <textarea placeholder="Notes" value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" rows={2} />
           <label className="mt-3 flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
             <input

@@ -83,6 +83,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (deal) dealId = deal.id;
   }
 
+  // Look up linked location (created when a location-type lead was added)
+  let locationId: string | null = null;
+  const { data: linkedLocation } = await supabaseAdmin
+    .from("locations")
+    .select("id")
+    .eq("sales_lead_id", leadId)
+    .maybeSingle();
+  if (linkedLocation) locationId = linkedLocation.id;
+
   // Create pipeline item
   const { data: pipelineItem, error: piErr } = await supabaseAdmin
     .from("pipeline_items")
@@ -90,6 +99,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       pipeline_id,
       account_id: accountId,
       lead_id: leadId,
+      location_id: locationId,
       name: lead.business_name || lead.contact_name || "Converted Lead",
       status: "active",
       current_step_id: firstStep?.id || null,
