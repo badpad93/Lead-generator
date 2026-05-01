@@ -147,6 +147,9 @@ interface PipelineItem {
   created_at: string;
 }
 
+const HOURS_TO_DISPLAY: Record<string, string> = { low: "8", medium: "12", high: "16", "24/7": "24" };
+const DISPLAY_TO_HOURS: Record<string, string> = { "8": "low", "12": "medium", "16": "high", "24": "24/7" };
+
 export default function PipelineItemDetailPage() {
   const { id: pipelineId, itemId } = useParams<{ id: string; itemId: string }>();
   const router = useRouter();
@@ -183,7 +186,7 @@ export default function PipelineItemDetailPage() {
   const [orderSelectedLocation, setOrderSelectedLocation] = useState<Location | null>(null);
   const [orderLocationForm, setOrderLocationForm] = useState({
     location_name: "", address: "", phone: "", decision_maker_name: "", decision_maker_email: "",
-    industry: "", zip: "", employee_count: "", traffic_count: "", machine_type: "", business_hours: "low", machines_requested: "1",
+    industry: "", zip: "", employee_count: "", traffic_count: "", machine_type: "", business_hours: "8", machines_requested: "1",
   });
 
   useEffect(() => {
@@ -373,7 +376,7 @@ export default function PipelineItemDetailPage() {
       employee_count: loc?.employee_count != null ? String(loc.employee_count) : "",
       traffic_count: loc?.traffic_count != null ? String(loc.traffic_count) : "",
       machine_type: loc?.machine_type || "",
-      business_hours: loc?.business_hours || "low",
+      business_hours: HOURS_TO_DISPLAY[loc?.business_hours || "low"] || "8",
       machines_requested: loc?.machines_requested != null ? String(loc.machines_requested) : "1",
     });
     setShowCreateOrder(true);
@@ -392,7 +395,7 @@ export default function PipelineItemDetailPage() {
       employee_count: loc.employee_count != null ? String(loc.employee_count) : "",
       traffic_count: loc.traffic_count != null ? String(loc.traffic_count) : "",
       machine_type: loc.machine_type || "",
-      business_hours: loc.business_hours || "low",
+      business_hours: HOURS_TO_DISPLAY[loc.business_hours || "low"] || "8",
       machines_requested: loc.machines_requested != null ? String(loc.machines_requested) : "1",
     });
     setOrderLocationSearch("");
@@ -422,7 +425,7 @@ export default function PipelineItemDetailPage() {
           employee_count: orderLocationForm.employee_count ? Number(orderLocationForm.employee_count) : null,
           traffic_count: orderLocationForm.traffic_count ? Number(orderLocationForm.traffic_count) : null,
           machine_type: orderLocationForm.machine_type || null,
-          business_hours: orderLocationForm.business_hours || null,
+          business_hours: DISPLAY_TO_HOURS[orderLocationForm.business_hours] || orderLocationForm.business_hours || null,
           machines_requested: orderLocationForm.machines_requested ? Number(orderLocationForm.machines_requested) : null,
         }),
       });
@@ -508,6 +511,18 @@ export default function PipelineItemDetailPage() {
   }, [token, item?.location_id]);
 
   useEffect(() => { loadLocationPricing(); }, [loadLocationPricing]);
+
+  useEffect(() => {
+    if (item?.locations) {
+      const loc = item.locations;
+      setPricingInputs({
+        employees: loc.employee_count || 0,
+        foot_traffic: loc.traffic_count || 0,
+        business_hours: loc.business_hours || "low",
+        machines_requested: (loc.machines_requested as 1 | 2 | 3 | 4) || 1,
+      });
+    }
+  }, [item?.locations]);
 
   async function handleRecalculatePricing() {
     if (!item?.location_id) return;
@@ -770,6 +785,12 @@ export default function PipelineItemDetailPage() {
                 <p className="text-sm text-gray-700">{item.locations.phone}</p>
               </div>
             )}
+            {item.locations.business_hours && (
+              <div>
+                <p className="text-xs text-gray-400">Business Hours</p>
+                <p className="text-sm text-gray-700">{HOURS_TO_DISPLAY[item.locations.business_hours] || item.locations.business_hours} Hours</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -906,10 +927,10 @@ export default function PipelineItemDetailPage() {
                 onChange={(e) => setPricingInputs((p) => ({ ...p, business_hours: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-green-500 focus:outline-none"
               >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="24/7">24/7</option>
+                <option value="low">8 Hours</option>
+                <option value="medium">12 Hours</option>
+                <option value="high">16 Hours</option>
+                <option value="24/7">24 Hours</option>
               </select>
             </div>
             <div>
@@ -1360,7 +1381,7 @@ export default function PipelineItemDetailPage() {
                         <p className="text-xs text-gray-500">{[orderSelectedLocation.address, orderSelectedLocation.industry, orderSelectedLocation.zip].filter(Boolean).join(" · ")}</p>
                       </div>
                     </div>
-                    <button onClick={() => { setOrderSelectedLocation(null); setOrderLocationForm({ location_name: "", address: "", phone: "", decision_maker_name: "", decision_maker_email: "", industry: "", zip: "", employee_count: "", traffic_count: "", machine_type: "", business_hours: "low", machines_requested: "1" }); }} className="text-xs text-red-500 hover:text-red-600 cursor-pointer">Change</button>
+                    <button onClick={() => { setOrderSelectedLocation(null); setOrderLocationForm({ location_name: "", address: "", phone: "", decision_maker_name: "", decision_maker_email: "", industry: "", zip: "", employee_count: "", traffic_count: "", machine_type: "", business_hours: "8", machines_requested: "1" }); }} className="text-xs text-red-500 hover:text-red-600 cursor-pointer">Change</button>
                   </div>
                 ) : (
                   <div className="mb-3">
@@ -1427,10 +1448,10 @@ export default function PipelineItemDetailPage() {
                     <option value="4">4 Machines</option>
                   </select>
                   <select value={orderLocationForm.business_hours} onChange={(e) => setOrderLocationForm((f) => ({ ...f, business_hours: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none">
-                    <option value="low">Business Hours: Low</option>
-                    <option value="medium">Business Hours: Medium</option>
-                    <option value="high">Business Hours: High</option>
-                    <option value="24/7">Business Hours: 24/7</option>
+                    <option value="8">Business Hours: 8</option>
+                    <option value="12">Business Hours: 12</option>
+                    <option value="16">Business Hours: 16</option>
+                    <option value="24">Business Hours: 24</option>
                   </select>
                 </div>
               </div>
