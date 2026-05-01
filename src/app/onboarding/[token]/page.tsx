@@ -152,7 +152,7 @@ function PortalContent() {
             <p className="text-sm text-gray-600">
               Thank you, {data.candidate_name}! All required documents have been signed and submitted.
               {data.step_key === "interview"
-                ? " You'll receive your next set of onboarding documents shortly."
+                ? " Your assigned representative will review your documents and send you the next steps when ready."
                 : " Your onboarding is now complete."}
             </p>
           </div>

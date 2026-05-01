@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Count required documents for this step
     const { data: assignments } = await supabaseAdmin
       .from("step_document_assignments")
-      .select("id, required, document_templates(id, active)")
+      .select("id, required, document_templates(id, active, form_enabled)")
       .eq("pipeline_id", candidate.current_pipeline_id)
       .eq("step_key", stepKey);
 
