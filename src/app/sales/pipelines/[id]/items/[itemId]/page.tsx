@@ -179,8 +179,8 @@ export default function PipelineItemDetailPage() {
   const [orderOperatorId, setOrderOperatorId] = useState<string | null>(null);
   const [orderOperatorSearch, setOrderOperatorSearch] = useState("");
   const [orderLocationSearch, setOrderLocationSearch] = useState("");
-  const [orderLocationAccounts, setOrderLocationAccounts] = useState<Account[]>([]);
-  const [orderSelectedLocationAcct, setOrderSelectedLocationAcct] = useState<Account | null>(null);
+  const [allLocations, setAllLocations] = useState<Location[]>([]);
+  const [orderSelectedLocation, setOrderSelectedLocation] = useState<Location | null>(null);
   const [orderLocationForm, setOrderLocationForm] = useState({
     location_name: "", address: "", phone: "", decision_maker_name: "", decision_maker_email: "",
     industry: "", zip: "", employee_count: "", traffic_count: "", machine_type: "", business_hours: "low", machines_requested: "1",
@@ -191,11 +191,15 @@ export default function PipelineItemDetailPage() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.access_token) return;
       setToken(session.access_token);
-      const res = await fetch("/api/sales/accounts", { headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (res.ok) {
-        const all: Account[] = await res.json();
-        setAccounts(all);
-        setOrderLocationAccounts(all.filter((a) => a.entity_type === "location"));
+      const [acctRes, locRes] = await Promise.all([
+        fetch("/api/sales/accounts", { headers: { Authorization: `Bearer ${session.access_token}` } }),
+        fetch("/api/locations", { headers: { Authorization: `Bearer ${session.access_token}` } }),
+      ]);
+      if (acctRes.ok) {
+        setAccounts(await acctRes.json());
+      }
+      if (locRes.ok) {
+        setAllLocations(await locRes.json());
       }
     });
   }, []);
@@ -355,7 +359,7 @@ export default function PipelineItemDetailPage() {
     setOrderOperatorId(item?.account_id || null);
     setOrderOperatorSearch("");
     setOrderLocationSearch("");
-    setOrderSelectedLocationAcct(null);
+    setOrderSelectedLocation(item?.locations || null);
     const loc = item?.locations;
     const acct = item?.sales_accounts;
     setOrderLocationForm({
@@ -375,16 +379,22 @@ export default function PipelineItemDetailPage() {
     setShowCreateOrder(true);
   }
 
-  function handleSelectLocationAccount(acct: Account) {
-    setOrderSelectedLocationAcct(acct);
-    setOrderLocationForm((f) => ({
-      ...f,
-      location_name: acct.business_name || "",
-      decision_maker_name: acct.contact_name || "",
-      decision_maker_email: acct.email || "",
-      phone: acct.phone || "",
-      address: acct.address || "",
-    }));
+  function handleSelectLocation(loc: Location) {
+    setOrderSelectedLocation(loc);
+    setOrderLocationForm({
+      location_name: loc.location_name || "",
+      address: loc.address || "",
+      phone: loc.phone || "",
+      decision_maker_name: loc.decision_maker_name || "",
+      decision_maker_email: loc.decision_maker_email || "",
+      industry: loc.industry || "",
+      zip: loc.zip || "",
+      employee_count: loc.employee_count != null ? String(loc.employee_count) : "",
+      traffic_count: loc.traffic_count != null ? String(loc.traffic_count) : "",
+      machine_type: loc.machine_type || "",
+      business_hours: loc.business_hours || "low",
+      machines_requested: loc.machines_requested != null ? String(loc.machines_requested) : "1",
+    });
     setOrderLocationSearch("");
   }
 
@@ -449,12 +459,13 @@ export default function PipelineItemDetailPage() {
         (a.contact_name || "").toLowerCase().includes(orderOperatorSearch.toLowerCase()))
     : operatorAccounts;
 
-  const filteredLocationAccounts = orderLocationSearch.length > 0
-    ? orderLocationAccounts.filter((a) =>
-        a.business_name.toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
-        (a.contact_name || "").toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
-        (a.address || "").toLowerCase().includes(orderLocationSearch.toLowerCase()))
-    : orderLocationAccounts;
+  const filteredLocations = orderLocationSearch.length > 0
+    ? allLocations.filter((l) =>
+        (l.location_name || "").toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
+        (l.address || "").toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
+        (l.industry || "").toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
+        (l.zip || "").toLowerCase().includes(orderLocationSearch.toLowerCase()))
+    : allLocations;
 
   const selectedOperator = accounts.find((a) => a.id === orderOperatorId) || null;
 
@@ -1337,19 +1348,19 @@ export default function PipelineItemDetailPage() {
                 )}
               </div>
 
-              {/* Location Account */}
+              {/* Location */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-2">Location</label>
-                {orderSelectedLocationAcct ? (
+                {orderSelectedLocation ? (
                   <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3 mb-3">
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-green-600" />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{orderSelectedLocationAcct.business_name}</p>
-                        <p className="text-xs text-gray-500">{[orderSelectedLocationAcct.contact_name, orderSelectedLocationAcct.address].filter(Boolean).join(" · ")}</p>
+                        <p className="text-sm font-medium text-gray-900">{orderSelectedLocation.location_name}</p>
+                        <p className="text-xs text-gray-500">{[orderSelectedLocation.address, orderSelectedLocation.industry, orderSelectedLocation.zip].filter(Boolean).join(" · ")}</p>
                       </div>
                     </div>
-                    <button onClick={() => { setOrderSelectedLocationAcct(null); setOrderLocationForm((f) => ({ ...f, location_name: "", decision_maker_name: "", decision_maker_email: "", phone: "", address: "" })); }} className="text-xs text-red-500 hover:text-red-600 cursor-pointer">Change</button>
+                    <button onClick={() => { setOrderSelectedLocation(null); setOrderLocationForm({ location_name: "", address: "", phone: "", decision_maker_name: "", decision_maker_email: "", industry: "", zip: "", employee_count: "", traffic_count: "", machine_type: "", business_hours: "low", machines_requested: "1" }); }} className="text-xs text-red-500 hover:text-red-600 cursor-pointer">Change</button>
                   </div>
                 ) : (
                   <div className="mb-3">
@@ -1363,18 +1374,18 @@ export default function PipelineItemDetailPage() {
                       />
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white max-h-48 overflow-y-auto">
-                      {filteredLocationAccounts.length > 0 ? (
-                        filteredLocationAccounts.map((a) => (
-                          <button key={a.id} onClick={() => handleSelectLocationAccount(a)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 border-b border-gray-100 last:border-b-0 cursor-pointer">
+                      {filteredLocations.length > 0 ? (
+                        filteredLocations.map((l) => (
+                          <button key={l.id} onClick={() => handleSelectLocation(l)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 border-b border-gray-100 last:border-b-0 cursor-pointer">
                             <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
                             <div className="min-w-0">
-                              <p className="font-medium text-gray-900 truncate">{a.business_name}</p>
-                              <p className="text-xs text-gray-400 truncate">{[a.contact_name, a.address].filter(Boolean).join(" · ")}</p>
+                              <p className="font-medium text-gray-900 truncate">{l.location_name || "Unnamed location"}</p>
+                              <p className="text-xs text-gray-400 truncate">{[l.address, l.industry, l.zip].filter(Boolean).join(" · ")}</p>
                             </div>
                           </button>
                         ))
                       ) : (
-                        <div className="p-3 text-sm text-gray-400 text-center">No location accounts found</div>
+                        <div className="p-3 text-sm text-gray-400 text-center">No locations found</div>
                       )}
                     </div>
                   </div>
