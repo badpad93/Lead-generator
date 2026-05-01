@@ -2979,6 +2979,8 @@ interface MachineListingRow {
   contact_phone: string | null;
   status: string;
   admin_notes: string | null;
+  buy_now_enabled: boolean;
+  buy_now_price: number | null;
   created_at: string;
   profiles?: { id: string; full_name: string; email: string } | null;
 }
@@ -2998,6 +3000,8 @@ function MachineListingsManager({
     status: "",
     asking_price: "",
     admin_notes: "",
+    buy_now_enabled: false,
+    buy_now_price: "",
   });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MachineListingRow | null>(
@@ -3032,6 +3036,9 @@ function MachineListingsManager({
       asking_price:
         listing.asking_price != null ? String(listing.asking_price) : "",
       admin_notes: listing.admin_notes || "",
+      buy_now_enabled: listing.buy_now_enabled || false,
+      buy_now_price:
+        listing.buy_now_price != null ? String(listing.buy_now_price / 100) : "",
     });
   }
 
@@ -3052,6 +3059,10 @@ function MachineListingsManager({
             ? Number(editForm.asking_price)
             : null,
           admin_notes: editForm.admin_notes || null,
+          buy_now_enabled: editForm.buy_now_enabled,
+          buy_now_price: editForm.buy_now_price
+            ? Math.round(Number(editForm.buy_now_price) * 100)
+            : null,
         }),
       });
       if (res.ok) {
@@ -3206,9 +3217,10 @@ function MachineListingsManager({
                     {listing.profiles?.full_name || "Unknown"}
                   </td>
                   <td className="px-4 py-3 text-black-primary/60 text-xs">
-                    {listing.asking_price
-                      ? `$${listing.asking_price.toLocaleString()}`
-                      : "—"}
+                    <span>{listing.asking_price ? `$${listing.asking_price.toLocaleString()}` : "—"}</span>
+                    {listing.buy_now_enabled && (
+                      <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium text-green-700 bg-green-50 rounded-full">Buy</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">{statusBadge(listing.status)}</td>
                   <td className="px-4 py-3">
@@ -3340,6 +3352,38 @@ function MachineListingsManager({
                   placeholder="Internal notes (not visible to users)"
                   className={inputClass}
                 />
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-black-primary">Buy Now Button</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Enable Stripe checkout for this listing</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm((f) => ({ ...f, buy_now_enabled: !f.buy_now_enabled }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${editForm.buy_now_enabled ? "bg-green-600" : "bg-gray-300"}`}
+                  >
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${editForm.buy_now_enabled ? "translate-x-6" : "translate-x-1"}`} />
+                  </button>
+                </div>
+                {editForm.buy_now_enabled && (
+                  <div className="mt-3">
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Buy Now Price ($)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editForm.buy_now_price}
+                      onChange={(e) => setEditForm((f) => ({ ...f, buy_now_price: e.target.value }))}
+                      placeholder="Leave blank to use asking price"
+                      className={inputClass}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Leave blank to use the asking price above</p>
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">

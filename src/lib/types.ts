@@ -170,6 +170,8 @@ export interface MachineListing {
   contact_phone: string | null;
   status: MachineListingStatus;
   admin_notes: string | null;
+  buy_now_enabled: boolean;
+  buy_now_price: number | null;
   created_at: string;
   updated_at: string;
   // Joined
