@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,6 +17,8 @@ import {
   Check,
   FileText,
   Download,
+  ShoppingCart,
+  CheckCircle2,
 } from "lucide-react";
 import type { MachineListing } from "@/lib/types";
 
@@ -156,9 +158,12 @@ function SimilarMachineCard({ listing }: { listing: MachineListing }) {
 
 export default function MachineDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
+  const purchased = searchParams.get("purchased") === "true";
 
   const [listing, setListing] = useState<MachineListing | null>(null);
+  const [checkingOut, setCheckingOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [similar, setSimilar] = useState<MachineListing[]>([]);
@@ -212,6 +217,24 @@ export default function MachineDetailPage() {
     }
     fetchSimilar();
   }, [listing]);
+
+  async function handleBuyNow() {
+    if (!listing) return;
+    setCheckingOut(true);
+    try {
+      const res = await fetch(`/api/machine-listings/${listing.id}/checkout`, { method: "POST" });
+      if (res.ok) {
+        const { url } = await res.json();
+        if (url) window.location.href = url;
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Failed to start checkout");
+      }
+    } catch {
+      alert("Network error. Please try again.");
+    }
+    setCheckingOut(false);
+  }
 
   if (loading) return <DetailSkeleton />;
 
@@ -492,26 +515,53 @@ export default function MachineDetailPage() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* Purchase Success Banner */}
+            {purchased && (
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4 animate-fade-in">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-green-800">Purchase successful!</p>
+                    <p className="text-xs text-green-600 mt-0.5">Thank you for your order. Our team will reach out with next steps.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* CTA Card */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-24 animate-fade-in">
               <h3 className="text-lg font-bold text-black-primary">
                 Interested in this machine?
               </h3>
               <p className="mt-1 text-sm text-gray-500">
-                Contact the admin to verify the listing and start the
-                acquisition process.
+                {listing.buy_now_enabled
+                  ? "Purchase this machine now or contact us for more details."
+                  : "Contact the admin to verify the listing and start the acquisition process."}
               </p>
 
               {listing.asking_price != null && (
                 <div className="mt-4 rounded-lg bg-green-50 border border-green-100 px-4 py-3">
                   <div className="flex items-center gap-1.5 text-xs text-gray-500 uppercase tracking-wide font-medium">
                     <DollarSign className="h-3 w-3" />
-                    Asking Price
+                    {listing.buy_now_enabled ? "Price" : "Asking Price"}
                   </div>
                   <p className="text-2xl font-bold text-green-700">
-                    {formatCurrency(listing.asking_price)}
+                    {listing.buy_now_enabled && listing.buy_now_price
+                      ? formatCurrency(listing.buy_now_price / 100)
+                      : formatCurrency(listing.asking_price)}
                   </p>
                 </div>
+              )}
+
+              {listing.buy_now_enabled && (
+                <button
+                  onClick={handleBuyNow}
+                  disabled={checkingOut}
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover disabled:opacity-50 cursor-pointer"
+                >
+                  {checkingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
+                  {checkingOut ? "Redirecting to checkout..." : "Buy Now"}
+                </button>
               )}
 
               <a
@@ -520,7 +570,7 @@ export default function MachineDetailPage() {
                 )}&body=${encodeURIComponent(
                   `Hi,\n\nI'm interested in the machine listing "${listing.title}" in ${listing.city}, ${listing.state}.\n\nListing ID: ${listing.id}\n\nPlease share more details.\n\nThank you`
                 )}`}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                className={`${listing.buy_now_enabled ? "mt-2" : "mt-5"} flex w-full items-center justify-center gap-2 rounded-lg ${listing.buy_now_enabled ? "border border-gray-200 text-black-primary hover:border-green-primary/40 hover:bg-green-50" : "bg-green-primary text-white hover:bg-green-hover shadow-sm"} px-4 py-2.5 text-sm font-semibold transition-colors`}
               >
                 <Mail className="h-4 w-4" />
                 Contact Admin
