@@ -84,6 +84,7 @@ export default function CandidateDetailPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [uploadingStep, setUploadingStep] = useState<string | null>(null);
@@ -189,6 +190,24 @@ export default function CandidateDetailPage() {
       setActionError(data.error || "Approval failed");
     }
     setApproving(false);
+  }
+
+  async function handleAdvance() {
+    setAdvancing(true);
+    setActionError(null);
+    setActionSuccess(null);
+    const res = await fetch(`/api/onboarding/candidates/${id}/advance`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setActionSuccess("Candidate advanced — ready for Welcome Email.");
+      load();
+    } else {
+      setActionError(data.error || "Advance failed");
+    }
+    setAdvancing(false);
   }
 
   async function handleUploadDoc(stepKey: string, file: File) {
@@ -385,14 +404,24 @@ export default function CandidateDetailPage() {
                   <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Resume uploaded</span>
                 )}
               </div>
-              <button
-                onClick={handleSendDocs}
-                disabled={sending}
-                className="flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
-              >
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Send NDA / NCA / Agreement
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSendDocs}
+                  disabled={sending}
+                  className="flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+                >
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Send NDA / NCA / Agreement
+                </button>
+                <button
+                  onClick={handleAdvance}
+                  disabled={advancing}
+                  className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-5 py-2.5 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50 cursor-pointer"
+                >
+                  {advancing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Mark Interview Complete
+                </button>
+              </div>
             </div>
           )}
 
