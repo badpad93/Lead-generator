@@ -68,7 +68,8 @@ interface TrainingPipeline {
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   interview: { label: "Interview", color: "bg-blue-50 text-blue-700" },
   pending_admin_review_1: { label: "Pending Admin Review", color: "bg-amber-50 text-amber-700" },
-  welcome_docs_sent: { label: "Welcome Docs Step", color: "bg-purple-50 text-purple-700" },
+  interview_complete: { label: "Interview Complete — Send Welcome Email", color: "bg-amber-50 text-amber-700" },
+  welcome_docs_sent: { label: "Welcome Docs Sent", color: "bg-purple-50 text-purple-700" },
   pending_admin_review_2: { label: "Pending Admin Review", color: "bg-amber-50 text-amber-700" },
   completed: { label: "Onboarding Complete", color: "bg-green-50 text-green-700" },
   assigned_to_training: { label: "Assigned to Training", color: "bg-emerald-50 text-emerald-700" },
@@ -437,10 +438,19 @@ export default function CandidateDetailPage() {
             </div>
           )}
 
-          {/* STEP 2: Welcome Docs */}
-          {candidate.status === "welcome_docs_sent" && (
+          {/* INTERVIEW COMPLETE — manual welcome email trigger */}
+          {candidate.status === "interview_complete" && (
             <div className="space-y-4">
-              <p className="text-sm text-gray-600">Send the welcome email with ACH and W9 form attachments.</p>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-amber-800 mb-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Interview documents completed
+                </div>
+                <p className="text-xs text-amber-700">
+                  {candidate.full_name} has completed their interview documents and is ready for the Welcome Email.
+                  Click the button below to send the ACH and W9 forms when you are ready to move forward.
+                </p>
+              </div>
               <button
                 onClick={handleSendDocs}
                 disabled={sending}
@@ -449,6 +459,19 @@ export default function CandidateDetailPage() {
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Send Welcome Email with ACH and W9
               </button>
+            </div>
+          )}
+
+          {/* STEP 2: Welcome Docs (already sent, waiting for completion) */}
+          {candidate.status === "welcome_docs_sent" && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-purple-50 border border-purple-200 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-purple-800 mb-2">
+                  <Clock className="h-4 w-4" />
+                  Welcome email sent — waiting for ACH and W9
+                </div>
+                <p className="text-xs text-purple-700">The welcome email with ACH and W9 forms has been sent to the candidate. Waiting for them to complete and submit.</p>
+              </div>
             </div>
           )}
 

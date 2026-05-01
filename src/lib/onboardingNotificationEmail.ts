@@ -37,7 +37,7 @@ function renderFormDataHtml(docs: CompletedDoc[]): string {
           if (f.type === "checkbox") {
             val = val ? "Yes" : "No";
           } else if (f.type === "sensitive") {
-            val = maskSensitive(String(val));
+            val = String(val);
           } else if (f.type === "signature") {
             val = `<em style="font-family:serif;">${String(val)}</em>`;
           } else {
@@ -102,7 +102,9 @@ export async function sendCompletionNotification(params: NotificationParams): Pr
 
   const isInterviewStep = stepKey === "interview";
 
-  const subject = `${candidateName} — ${isInterviewStep ? "Interview" : "Onboarding"} Documents Completed`;
+  const subject = isInterviewStep
+    ? `Action Required: ${candidateName} — Interview Documents Completed`
+    : `${candidateName} — Onboarding Documents Completed`;
 
   const bodyHtml = `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;">
@@ -114,9 +116,14 @@ export async function sendCompletionNotification(params: NotificationParams): Pr
         Candidate <strong>${candidateName}</strong> has completed their <strong>${docNames}</strong>.
       </p>
       ${isInterviewStep ? `
-      <p style="color:#374151;font-size:14px;line-height:1.6;">
-        Please let them know they will need to check their email for the next step, which is signing the <strong>${roleLabel}</strong>.
-      </p>
+      <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:16px 0;">
+        <p style="color:#92400e;font-size:14px;line-height:1.6;margin:0;font-weight:600;">
+          ${candidateName} is ready for their Welcome Email.
+        </p>
+        <p style="color:#92400e;font-size:14px;line-height:1.6;margin:8px 0 0;">
+          Please login to the CRM and send the candidate their welcome email if they are ready to move forward. The welcome email with ACH and W9 forms will NOT be sent automatically.
+        </p>
+      </div>
       ` : `
       <p style="color:#374151;font-size:14px;line-height:1.6;">
         All onboarding documents have been completed and submitted.
