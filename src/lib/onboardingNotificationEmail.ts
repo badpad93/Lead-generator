@@ -92,6 +92,13 @@ export async function sendCompletionNotification(params: NotificationParams): Pr
     .map((r) => r.email)
     .filter((e): e is string => !!e);
 
+  const alwaysNotify = process.env.ONBOARDING_NOTIFY_EMAIL;
+  if (alwaysNotify) {
+    for (const addr of alwaysNotify.split(",").map((e) => e.trim()).filter(Boolean)) {
+      if (!emails.includes(addr)) emails.push(addr);
+    }
+  }
+
   if (emails.length === 0) return;
 
   const docNames = completedDocs.map((d) => d.templateName).join(", ");
