@@ -48,17 +48,31 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
     .eq("pipeline_id", ct.pipeline_id)
     .eq("step_key", ct.step_key);
 
-  let requiredTemplateIds = (assignments || [])
-    .filter((a: Record<string, unknown>) => {
-      const tmpl = a.document_templates as Record<string, unknown> | null;
-      return a.required && tmpl && tmpl.active && tmpl.form_enabled;
-    })
+  // Count required form-enabled templates from assignments
+  const requiredAssignments = (assignments || []).filter((a: Record<string, unknown>) => {
+    const tmpl = a.document_templates as Record<string, unknown> | null;
+    return a.required && tmpl && tmpl.active && tmpl.form_enabled;
+  });
+
+  // Also count ALL active form-enabled assignments (regardless of required flag)
+  const allFormAssignments = (assignments || []).filter((a: Record<string, unknown>) => {
+    const tmpl = a.document_templates as Record<string, unknown> | null;
+    return tmpl && tmpl.active && tmpl.form_enabled;
+  });
+
+  let requiredCount = requiredAssignments.length;
+  let requiredTemplateIds = requiredAssignments
     .map((a: Record<string, unknown>) => (a.document_templates as Record<string, unknown>).id as string);
 
-  const usedFallback = requiredTemplateIds.length === 0;
+  // If no required assignments found, use ALL form-enabled assignments as required
+  if (requiredCount === 0 && allFormAssignments.length > 0) {
+    requiredCount = allFormAssignments.length;
+    requiredTemplateIds = allFormAssignments
+      .map((a: Record<string, unknown>) => (a.document_templates as Record<string, unknown>).id as string);
+  }
 
-  // Fallback: if no assignments, use form-enabled templates for this step
-  if (usedFallback) {
+  // Fallback: if no assignments at all, use form-enabled templates for this step
+  if (requiredCount === 0) {
     const { data: formTemplates } = await supabaseAdmin
       .from("document_templates")
       .select("id")
@@ -67,25 +81,34 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
       .eq("active", true);
 
     requiredTemplateIds = (formTemplates || []).map((t: { id: string }) => t.id);
+    requiredCount = requiredTemplateIds.length;
   }
 
-  // Get uploaded docs for this token
+  // Get completed docs for this token
   const { data: uploaded } = await supabaseAdmin
     .from("candidate_documents")
     .select("document_template_id")
     .eq("candidate_token_id", ct.id)
     .eq("completed", true);
 
+  const completedCount = (uploaded || []).length;
   const uploadedTemplateIds = new Set((uploaded || []).map((u: Record<string, unknown>) => u.document_template_id));
 
-  let allComplete = requiredTemplateIds.length > 0 && requiredTemplateIds.every((id: string) => uploadedTemplateIds.has(id));
+  console.log(`[advancement] Token ${ct.id}: step=${ct.step_key}, requiredCount=${requiredCount}, completedCount=${completedCount}, requiredTemplateIds=${JSON.stringify(requiredTemplateIds)}, uploadedTemplateIds=${JSON.stringify([...uploadedTemplateIds])}, required_doc_count=${ct.required_doc_count}`);
 
-  // Fallback: if template-ID matching fails, check by count against token's required_doc_count.
-  // This handles cases where the template IDs don't match due to data inconsistencies
-  // but the correct number of docs have been completed for this token.
-  if (!allComplete && ct.required_doc_count > 0 && uploadedTemplateIds.size >= ct.required_doc_count) {
+  // Check completion: count-based (primary) or template-ID matching
+  let allComplete = false;
+  if (requiredCount > 0 && completedCount >= requiredCount) {
     allComplete = true;
   }
+  if (!allComplete && requiredTemplateIds.length > 0 && requiredTemplateIds.every((id: string) => uploadedTemplateIds.has(id))) {
+    allComplete = true;
+  }
+  if (!allComplete && ct.required_doc_count > 0 && completedCount >= ct.required_doc_count) {
+    allComplete = true;
+  }
+
+  console.log(`[advancement] Token ${ct.id}: allComplete=${allComplete}`);
 
   if (!allComplete) {
     return { allComplete: false, advanced: false, newStatus: null, nextTokenUrl: null };
