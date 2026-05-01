@@ -17,6 +17,7 @@ Do you have a few minutes this week to chat? I'm happy to answer any questions o
 
 Best regards,
 {{sender_name}}
+{{sender_title}}
 {{sender_email}}
 Vending Connector`,
   },
@@ -30,6 +31,7 @@ Let me know if you'd like to reconnect — happy to help however I can.
 
 Best,
 {{sender_name}}
+{{sender_title}}
 {{sender_email}}
 Vending Connector`,
   },
@@ -43,6 +45,7 @@ Would you like to learn more? I'm available for a quick call at your convenience
 
 Best regards,
 {{sender_name}}
+{{sender_title}}
 {{sender_email}}
 Vending Connector`,
   },
@@ -92,9 +95,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("full_name, email")
+    .select("full_name, email, role")
     .eq("id", user.id)
     .single();
+
+  const ROLE_TITLES: Record<string, string> = {
+    admin: "Director of Sales",
+    director_of_sales: "Director of Sales",
+    market_leader: "Market Leader",
+    sales: "Business Development Partner",
+  };
 
   const mergeVars: Record<string, string> = {
     business_name: lead.business_name || "",
@@ -103,6 +113,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     phone: lead.phone || "",
     sender_name: profile?.full_name || "Your Vending Connector Rep",
     sender_email: profile?.email || "",
+    sender_title: ROLE_TITLES[profile?.role || "sales"] || "Business Development Partner",
   };
 
   const resolvedSubject = resolveMergeFields(subject, mergeVars);

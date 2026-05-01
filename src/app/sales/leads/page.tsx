@@ -554,17 +554,17 @@ export default function LeadsPage() {
     initial_followup: {
       label: "Initial Follow-up",
       subject: "Following Up — {{business_name}}",
-      body: "Hi {{contact_name}},\n\nI wanted to follow up regarding our conversation about vending services for {{business_name}}. We'd love to help you find the right solution for your location.\n\nDo you have a few minutes this week to chat? I'm happy to answer any questions or walk you through our options.\n\nBest regards,\n{{sender_name}}\n{{sender_email}}\nVending Connector",
+      body: "Hi {{contact_name}},\n\nI wanted to follow up regarding our conversation about vending services for {{business_name}}. We'd love to help you find the right solution for your location.\n\nDo you have a few minutes this week to chat? I'm happy to answer any questions or walk you through our options.\n\nBest regards,\n{{sender_name}}\n{{sender_title}}\n{{sender_email}}\nVending Connector",
     },
     check_in: {
       label: "Check-in",
       subject: "Checking In — {{business_name}}",
-      body: "Hi {{contact_name}},\n\nJust checking in to see if you've had a chance to consider vending services for {{business_name}}. We have operators ready to serve your area and can get started quickly.\n\nLet me know if you'd like to reconnect — happy to help however I can.\n\nBest,\n{{sender_name}}\n{{sender_email}}\nVending Connector",
+      body: "Hi {{contact_name}},\n\nJust checking in to see if you've had a chance to consider vending services for {{business_name}}. We have operators ready to serve your area and can get started quickly.\n\nLet me know if you'd like to reconnect — happy to help however I can.\n\nBest,\n{{sender_name}}\n{{sender_title}}\n{{sender_email}}\nVending Connector",
     },
     special_offer: {
       label: "Special Offer",
       subject: "Limited Time Opportunity — {{business_name}}",
-      body: "Hi {{contact_name}},\n\nI wanted to reach out because we have operators actively looking for locations like {{business_name}} in your area. This is a great time to get set up — no cost to you, and machines can be placed within weeks.\n\nWould you like to learn more? I'm available for a quick call at your convenience.\n\nBest regards,\n{{sender_name}}\n{{sender_email}}\nVending Connector",
+      body: "Hi {{contact_name}},\n\nI wanted to reach out because we have operators actively looking for locations like {{business_name}} in your area. This is a great time to get set up — no cost to you, and machines can be placed within weeks.\n\nWould you like to learn more? I'm available for a quick call at your convenience.\n\nBest regards,\n{{sender_name}}\n{{sender_title}}\n{{sender_email}}\nVending Connector",
     },
     custom: {
       label: "Custom Email",
@@ -1391,7 +1391,7 @@ export default function LeadsPage() {
                     placeholder="Email body..."
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    Merge fields: {"{{contact_name}}"}, {"{{business_name}}"}, {"{{sender_name}}"}, {"{{sender_email}}"}
+                    Merge fields: {"{{contact_name}}"}, {"{{business_name}}"}, {"{{sender_name}}"}, {"{{sender_title}}"}, {"{{sender_email}}"}
                   </p>
                 </div>
 
