@@ -466,6 +466,48 @@ export default function LeadsPage() {
     fetchLeads();
   }
 
+  function openBulkEmail() {
+    const selectedLeads = leads.filter((l) => selected.has(l.id) && l.email);
+    if (selectedLeads.length === 0) {
+      alert("None of the selected leads have an email address.");
+      return;
+    }
+    setEmailLead(selectedLeads[0]);
+    setEmailTemplate("initial_followup");
+    const tpl = EMAIL_TEMPLATES["initial_followup"];
+    setEmailSubject(tpl.subject);
+    setEmailBody(tpl.body);
+    setShowEmailHistory(false);
+    setEmailHistory([]);
+  }
+
+  async function handleBulkSendEmail() {
+    const selectedLeads = leads.filter((l) => selected.has(l.id) && l.email);
+    if (selectedLeads.length === 0) return;
+    if (!emailSubject.trim() || !emailBody.trim()) { alert("Subject and body required."); return; }
+    setEmailSending(true);
+    let sent = 0;
+    let failed = 0;
+    for (const lead of selectedLeads) {
+      const res = await fetch(`/api/sales/leads/${lead.id}/emails`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          template: emailTemplate,
+          subject: emailSubject,
+          email_body: emailBody,
+          to_email: lead.email,
+        }),
+      });
+      if (res.ok) sent++;
+      else failed++;
+    }
+    setEmailSending(false);
+    setEmailLead(null);
+    setSelected(new Set());
+    alert(`Sent ${sent} email${sent !== 1 ? "s" : ""}${failed > 0 ? `. ${failed} failed.` : "."}`);
+  }
+
   async function handleStatusChange(id: string, status: string) {
     await fetch(`/api/sales/leads/${id}`, {
       method: "PATCH",
@@ -957,20 +999,27 @@ export default function LeadsPage() {
       </div>
 
       {selected.size > 0 && (
-        <div className="mb-3 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5">
-          <CheckSquare className="h-4 w-4 text-red-600 shrink-0" />
-          <span className="text-sm font-medium text-red-800">{selected.size} lead{selected.size > 1 ? "s" : ""} selected</span>
+        <div className="mb-3 flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5">
+          <CheckSquare className="h-4 w-4 text-gray-600 shrink-0" />
+          <span className="text-sm font-medium text-gray-800">{selected.size} lead{selected.size > 1 ? "s" : ""} selected</span>
+          <button
+            onClick={openBulkEmail}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 cursor-pointer"
+          >
+            <Mail className="h-3.5 w-3.5" />
+            Email Selected
+          </button>
           <button
             onClick={handleBulkDelete}
             disabled={bulkDeleting}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
           >
             {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
             Delete Selected
           </button>
           <button
             onClick={() => setSelected(new Set())}
-            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 cursor-pointer"
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 cursor-pointer"
           >
             Clear
           </button>
@@ -1347,22 +1396,28 @@ export default function LeadsPage() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => setShowEmailHistory(true)}
-                    className="text-xs text-purple-600 hover:text-purple-700 flex items-center gap-1 cursor-pointer"
-                  >
-                    <Clock className="h-3.5 w-3.5" />
-                    View History ({emailHistory.length})
-                  </button>
-                  <div className="flex gap-2">
-                    <button onClick={() => setEmailLead(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+                  {selected.size > 0 ? (
+                    <span className="text-xs text-purple-600 font-medium">
+                      Sending to {leads.filter((l) => selected.has(l.id) && l.email).length} leads
+                    </span>
+                  ) : (
                     <button
-                      onClick={handleSendEmail}
+                      onClick={() => setShowEmailHistory(true)}
+                      className="text-xs text-purple-600 hover:text-purple-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      View History ({emailHistory.length})
+                    </button>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={() => { setEmailLead(null); }} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+                    <button
+                      onClick={selected.size > 0 ? handleBulkSendEmail : handleSendEmail}
                       disabled={emailSending || !emailSubject.trim() || !emailBody.trim()}
                       className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-5 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50 cursor-pointer"
                     >
                       {emailSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      {emailSending ? "Sending..." : "Send Email"}
+                      {emailSending ? "Sending..." : selected.size > 0 ? `Send to ${leads.filter((l) => selected.has(l.id) && l.email).length}` : "Send Email"}
                     </button>
                   </div>
                 </div>
