@@ -28,6 +28,7 @@ interface Candidate {
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   interview: { label: "Interview", color: "bg-blue-50 text-blue-700" },
   pending_admin_review_1: { label: "Pending Review", color: "bg-amber-50 text-amber-700" },
+  interview_complete: { label: "Ready for Welcome Email", color: "bg-amber-50 text-amber-700" },
   welcome_docs_sent: { label: "Welcome Docs", color: "bg-purple-50 text-purple-700" },
   pending_admin_review_2: { label: "Pending Review", color: "bg-amber-50 text-amber-700" },
   completed: { label: "Completed", color: "bg-green-50 text-green-700" },
@@ -39,6 +40,7 @@ const FILTERS = [
   { value: "", label: "All" },
   { value: "interview", label: "Interviewing" },
   { value: "pending_admin_review_1", label: "Pending Review 1" },
+  { value: "interview_complete", label: "Ready for Welcome Email" },
   { value: "welcome_docs_sent", label: "Welcome Docs" },
   { value: "pending_admin_review_2", label: "Pending Review 2" },
   { value: "completed", label: "Completed" },

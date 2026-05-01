@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const all = candidates || [];
   const total = all.length;
   const interviewing = all.filter((c) => c.status === "interview").length;
-  const pendingReview = all.filter((c) => c.status === "pending_admin_review_1" || c.status === "pending_admin_review_2").length;
+  const pendingReview = all.filter((c) => c.status === "pending_admin_review_1" || c.status === "pending_admin_review_2" || c.status === "interview_complete").length;
   const welcomeDocs = all.filter((c) => c.status === "welcome_docs_sent").length;
   const completed = all.filter((c) => c.status === "completed").length;
   const assignedToTraining = all.filter((c) => c.status === "assigned_to_training").length;

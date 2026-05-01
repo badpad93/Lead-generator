@@ -29,6 +29,7 @@ interface Pipeline {
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   interview: { label: "Interview", color: "bg-blue-50 text-blue-700" },
   pending_admin_review_1: { label: "Pending Review", color: "bg-amber-50 text-amber-700" },
+  interview_complete: { label: "Ready for Welcome Email", color: "bg-amber-50 text-amber-700" },
   welcome_docs_sent: { label: "Welcome Docs", color: "bg-purple-50 text-purple-700" },
   pending_admin_review_2: { label: "Pending Review", color: "bg-amber-50 text-amber-700" },
   completed: { label: "Completed", color: "bg-green-50 text-green-700" },
@@ -130,7 +131,7 @@ export default function OnboardingPipelinePage() {
 
   for (const c of candidates) {
     if (c.status === "interview") groupedByStep["interview"].push(c);
-    else if (c.status === "pending_admin_review_1") groupedByStep["pending_review_1"].push(c);
+    else if (c.status === "pending_admin_review_1" || c.status === "interview_complete") groupedByStep["pending_review_1"].push(c);
     else if (c.status === "welcome_docs_sent") groupedByStep["welcome_docs"].push(c);
     else if (c.status === "pending_admin_review_2") groupedByStep["pending_review_2"].push(c);
     else if (c.status === "completed" || c.status === "assigned_to_training") groupedByStep["completed"].push(c);
