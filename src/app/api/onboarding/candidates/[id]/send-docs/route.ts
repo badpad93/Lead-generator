@@ -102,6 +102,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       portalUrl,
     });
 
+    // When welcome docs are manually sent, advance status from interview_complete
+    if (stepKey === "welcome_docs" && candidate.status === "interview_complete") {
+      await supabaseAdmin
+        .from("candidates")
+        .update({ status: "welcome_docs_sent", updated_at: new Date().toISOString() })
+        .eq("id", id);
+    }
+
     return NextResponse.json({ ...result, portal_url: portalUrl });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Email send failed";

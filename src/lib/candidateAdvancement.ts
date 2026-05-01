@@ -111,7 +111,7 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
   let nextStepKey: string | null = null;
 
   if (stepKey === "interview") {
-    newStatus = "welcome_docs_sent";
+    newStatus = "interview_complete";
     nextStepKey = "welcome_docs";
   } else if (stepKey === "welcome_docs") {
     newStatus = "completed";
@@ -160,7 +160,8 @@ export async function checkAndAdvanceCandidate(tokenId: string): Promise<Advance
   let nextTokenUrl: string | null = null;
 
   // If there's a next step with documents, auto-send them
-  if (nextStepKey && candidate.email) {
+  // Skip auto-send when interview completes — admin must manually send welcome docs
+  if (nextStepKey && candidate.email && stepKey !== "interview") {
     try {
       // Check if next step has document assignments or form-enabled templates
       const { data: nextAssignments } = await supabaseAdmin
