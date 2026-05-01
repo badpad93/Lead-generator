@@ -160,7 +160,6 @@ export default function PipelineItemDetailPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountSearch, setAccountSearch] = useState("");
   const [showAccountSearch, setShowAccountSearch] = useState(false);
-  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [linkingAccount, setLinkingAccount] = useState(false);
   const [esignDocs, setEsignDocs] = useState<EsignDoc[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -264,7 +263,6 @@ export default function PipelineItemDetailPage() {
     });
     setShowAccountSearch(false);
     setAccountSearch("");
-    setShowAccountDropdown(false);
     setLinkingAccount(false);
     load();
   }
@@ -443,20 +441,20 @@ export default function PipelineItemDetailPage() {
     setOrderSaving(false);
   }
 
+  const operatorAccounts = accounts.filter((a) => a.entity_type === "operator");
+
   const filteredOperatorAccounts = orderOperatorSearch.length > 0
-    ? accounts.filter((a) => a.entity_type === "operator" &&
-        (a.business_name.toLowerCase().includes(orderOperatorSearch.toLowerCase()) ||
-        (a.contact_name || "").toLowerCase().includes(orderOperatorSearch.toLowerCase())))
-      .slice(0, 8)
-    : [];
+    ? operatorAccounts.filter((a) =>
+        a.business_name.toLowerCase().includes(orderOperatorSearch.toLowerCase()) ||
+        (a.contact_name || "").toLowerCase().includes(orderOperatorSearch.toLowerCase()))
+    : operatorAccounts;
 
   const filteredLocationAccounts = orderLocationSearch.length > 0
     ? orderLocationAccounts.filter((a) =>
         a.business_name.toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
         (a.contact_name || "").toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
         (a.address || "").toLowerCase().includes(orderLocationSearch.toLowerCase()))
-      .slice(0, 8)
-    : [];
+    : orderLocationAccounts;
 
   const selectedOperator = accounts.find((a) => a.id === orderOperatorId) || null;
 
@@ -515,13 +513,13 @@ export default function PipelineItemDetailPage() {
     setCalculatingPricing(false);
   }
 
-  const filteredAccounts = accountSearch.length > 0
-    ? accounts.filter((a) =>
-        a.business_name.toLowerCase().includes(accountSearch.toLowerCase()) ||
-        (a.contact_name || "").toLowerCase().includes(accountSearch.toLowerCase()) ||
-        (a.email || "").toLowerCase().includes(accountSearch.toLowerCase())
-      ).slice(0, 8)
-    : [];
+  const filteredAccounts = accounts.filter((a) =>
+    a.entity_type === "operator" &&
+    (accountSearch.length === 0 ||
+      a.business_name.toLowerCase().includes(accountSearch.toLowerCase()) ||
+      (a.contact_name || "").toLowerCase().includes(accountSearch.toLowerCase()) ||
+      (a.email || "").toLowerCase().includes(accountSearch.toLowerCase()))
+  ).slice(0, 20);
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
   if (!item) return <p className="p-6 text-gray-400">Item not found.</p>;
@@ -583,29 +581,30 @@ export default function PipelineItemDetailPage() {
         </div>
 
         {showAccountSearch && (
-          <div className="relative mb-3">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              value={accountSearch}
-              onChange={(e) => { setAccountSearch(e.target.value); setShowAccountDropdown(true); }}
-              onFocus={() => { if (accountSearch) setShowAccountDropdown(true); }}
-              placeholder="Search accounts by name, contact, or email..."
-              className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-9 text-sm focus:border-green-500 focus:outline-none"
-              autoFocus
-            />
-            {accountSearch && (
-              <button onClick={() => { setAccountSearch(""); setShowAccountSearch(false); setShowAccountDropdown(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            {showAccountDropdown && filteredAccounts.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto">
-                {filteredAccounts.map((a) => (
+          <div className="mb-3">
+            <div className="relative mb-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                value={accountSearch}
+                onChange={(e) => setAccountSearch(e.target.value)}
+                placeholder="Search operator accounts..."
+                className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-9 text-sm focus:border-green-500 focus:outline-none"
+                autoFocus
+              />
+              {accountSearch && (
+                <button onClick={() => { setAccountSearch(""); setShowAccountSearch(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white max-h-48 overflow-y-auto">
+              {filteredAccounts.length > 0 ? (
+                filteredAccounts.map((a) => (
                   <button
                     key={a.id}
                     onClick={() => handleLinkAccount(a.id)}
                     disabled={linkingAccount}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 cursor-pointer disabled:opacity-50"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 border-b border-gray-100 last:border-b-0 cursor-pointer disabled:opacity-50"
                   >
                     <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
                     <div className="min-w-0">
@@ -615,14 +614,11 @@ export default function PipelineItemDetailPage() {
                       </p>
                     </div>
                   </button>
-                ))}
-              </div>
-            )}
-            {showAccountDropdown && accountSearch.length > 0 && filteredAccounts.length === 0 && (
-              <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg p-3 text-sm text-gray-400 text-center">
-                No accounts found
-              </div>
-            )}
+                ))
+              ) : (
+                <div className="p-3 text-sm text-gray-400 text-center">No operator accounts found</div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1312,31 +1308,31 @@ export default function PipelineItemDetailPage() {
                     <button onClick={() => setOrderOperatorId(null)} className="text-xs text-red-500 hover:text-red-600 cursor-pointer">Change</button>
                   </div>
                 ) : (
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <input
-                      value={orderOperatorSearch}
-                      onChange={(e) => setOrderOperatorSearch(e.target.value)}
-                      placeholder="Search operator accounts..."
-                      className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-4 text-sm focus:border-green-500 focus:outline-none"
-                      autoFocus
-                    />
-                    {filteredOperatorAccounts.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-40 overflow-y-auto">
-                        {filteredOperatorAccounts.map((a) => (
-                          <button key={a.id} onClick={() => { setOrderOperatorId(a.id); setOrderOperatorSearch(""); }} className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 cursor-pointer">
+                  <div>
+                    <div className="relative mb-1">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                      <input
+                        value={orderOperatorSearch}
+                        onChange={(e) => setOrderOperatorSearch(e.target.value)}
+                        placeholder="Search operators..."
+                        className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-4 text-sm focus:border-green-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-white max-h-48 overflow-y-auto">
+                      {filteredOperatorAccounts.length > 0 ? (
+                        filteredOperatorAccounts.map((a) => (
+                          <button key={a.id} onClick={() => { setOrderOperatorId(a.id); setOrderOperatorSearch(""); }} className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 border-b border-gray-100 last:border-b-0 cursor-pointer">
                             <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
                             <div className="min-w-0">
                               <p className="font-medium text-gray-900 truncate">{a.business_name}</p>
                               <p className="text-xs text-gray-400 truncate">{[a.contact_name, a.email].filter(Boolean).join(" · ")}</p>
                             </div>
                           </button>
-                        ))}
-                      </div>
-                    )}
-                    {orderOperatorSearch.length > 0 && filteredOperatorAccounts.length === 0 && (
-                      <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg p-3 text-sm text-gray-400 text-center">No operator accounts found</div>
-                    )}
+                        ))
+                      ) : (
+                        <div className="p-3 text-sm text-gray-400 text-center">No operator accounts found</div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1356,27 +1352,31 @@ export default function PipelineItemDetailPage() {
                     <button onClick={() => { setOrderSelectedLocationAcct(null); setOrderLocationForm((f) => ({ ...f, location_name: "", decision_maker_name: "", decision_maker_email: "", phone: "", address: "" })); }} className="text-xs text-red-500 hover:text-red-600 cursor-pointer">Change</button>
                   </div>
                 ) : (
-                  <div className="relative mb-3">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <input
-                      value={orderLocationSearch}
-                      onChange={(e) => setOrderLocationSearch(e.target.value)}
-                      placeholder="Search location accounts or enter details below..."
-                      className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-4 text-sm focus:border-green-500 focus:outline-none"
-                    />
-                    {filteredLocationAccounts.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-40 overflow-y-auto">
-                        {filteredLocationAccounts.map((a) => (
-                          <button key={a.id} onClick={() => handleSelectLocationAccount(a)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 cursor-pointer">
+                  <div className="mb-3">
+                    <div className="relative mb-1">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                      <input
+                        value={orderLocationSearch}
+                        onChange={(e) => setOrderLocationSearch(e.target.value)}
+                        placeholder="Search locations..."
+                        className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-4 text-sm focus:border-green-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-white max-h-48 overflow-y-auto">
+                      {filteredLocationAccounts.length > 0 ? (
+                        filteredLocationAccounts.map((a) => (
+                          <button key={a.id} onClick={() => handleSelectLocationAccount(a)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 border-b border-gray-100 last:border-b-0 cursor-pointer">
                             <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
                             <div className="min-w-0">
                               <p className="font-medium text-gray-900 truncate">{a.business_name}</p>
                               <p className="text-xs text-gray-400 truncate">{[a.contact_name, a.address].filter(Boolean).join(" · ")}</p>
                             </div>
                           </button>
-                        ))}
-                      </div>
-                    )}
+                        ))
+                      ) : (
+                        <div className="p-3 text-sm text-gray-400 text-center">No location accounts found</div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
