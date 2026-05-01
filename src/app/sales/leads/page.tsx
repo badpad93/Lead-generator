@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2 } from "lucide-react";
+import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2, Mail, Send, Clock } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
 
 const LEAD_FIELDS: { key: LeadFieldKey; label: string; required?: boolean }[] = [
@@ -153,6 +153,15 @@ export default function LeadsPage() {
   const [columnMapping, setColumnMapping] = useState<Record<number, LeadFieldKey | "">>({});
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+
+  // Email follow-up state
+  const [emailLead, setEmailLead] = useState<SalesLead | null>(null);
+  const [emailTemplate, setEmailTemplate] = useState("initial_followup");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailHistory, setEmailHistory] = useState<{ id: string; subject: string; to_email: string; created_at: string; template_name: string }[]>([]);
+  const [showEmailHistory, setShowEmailHistory] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -497,6 +506,79 @@ export default function LeadsPage() {
       fetchLeads();
     }
     setSaving(false);
+  }
+
+  const EMAIL_TEMPLATES: Record<string, { label: string; subject: string; body: string }> = {
+    initial_followup: {
+      label: "Initial Follow-up",
+      subject: "Following Up — {{business_name}}",
+      body: "Hi {{contact_name}},\n\nI wanted to follow up regarding our conversation about vending services for {{business_name}}. We'd love to help you find the right solution for your location.\n\nDo you have a few minutes this week to chat? I'm happy to answer any questions or walk you through our options.\n\nBest regards,\n{{sender_name}}\nVending Connector",
+    },
+    check_in: {
+      label: "Check-in",
+      subject: "Checking In — {{business_name}}",
+      body: "Hi {{contact_name}},\n\nJust checking in to see if you've had a chance to consider vending services for {{business_name}}. We have operators ready to serve your area and can get started quickly.\n\nLet me know if you'd like to reconnect — happy to help however I can.\n\nBest,\n{{sender_name}}\nVending Connector",
+    },
+    special_offer: {
+      label: "Special Offer",
+      subject: "Limited Time Opportunity — {{business_name}}",
+      body: "Hi {{contact_name}},\n\nI wanted to reach out because we have operators actively looking for locations like {{business_name}} in your area. This is a great time to get set up — no cost to you, and machines can be placed within weeks.\n\nWould you like to learn more? I'm available for a quick call at your convenience.\n\nBest regards,\n{{sender_name}}\nVending Connector",
+    },
+    custom: {
+      label: "Custom Email",
+      subject: "",
+      body: "",
+    },
+  };
+
+  function openEmailModal(lead: SalesLead) {
+    setEmailLead(lead);
+    setEmailTemplate("initial_followup");
+    const tpl = EMAIL_TEMPLATES["initial_followup"];
+    setEmailSubject(tpl.subject);
+    setEmailBody(tpl.body);
+    setShowEmailHistory(false);
+    loadEmailHistory(lead.id);
+  }
+
+  function handleTemplateChange(templateKey: string) {
+    setEmailTemplate(templateKey);
+    const tpl = EMAIL_TEMPLATES[templateKey];
+    if (tpl) {
+      setEmailSubject(tpl.subject);
+      setEmailBody(tpl.body);
+    }
+  }
+
+  async function loadEmailHistory(leadId: string) {
+    const res = await fetch(`/api/sales/leads/${leadId}/emails`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) setEmailHistory(await res.json());
+  }
+
+  async function handleSendEmail() {
+    if (!emailLead) return;
+    if (!emailLead.email) { alert("This lead has no email address."); return; }
+    if (!emailSubject.trim()) { alert("Subject is required."); return; }
+    if (!emailBody.trim()) { alert("Email body is required."); return; }
+    setEmailSending(true);
+    const res = await fetch(`/api/sales/leads/${emailLead.id}/emails`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        template: emailTemplate,
+        subject: emailSubject,
+        email_body: emailBody,
+        to_email: emailLead.email,
+      }),
+    });
+    if (res.ok) {
+      loadEmailHistory(emailLead.id);
+      setShowEmailHistory(true);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to send email");
+    }
+    setEmailSending(false);
   }
 
   const availableStates = Array.from(
@@ -1028,6 +1110,15 @@ export default function LeadsPage() {
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
+                      {lead.email && (
+                        <button
+                          onClick={() => openEmailModal(lead)}
+                          title="Send Follow-up Email"
+                          className="rounded-lg p-1.5 text-gray-400 hover:bg-purple-50 hover:text-purple-600 cursor-pointer"
+                        >
+                          <Mail className="h-4 w-4" />
+                        </button>
+                      )}
                       {!lead.assigned_to && (
                         <button
                           onClick={() => handleClaim(lead.id)}
@@ -1190,6 +1281,127 @@ export default function LeadsPage() {
                 Convert
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send Follow-up Email Modal */}
+      {emailLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Mail className="h-5 w-5 text-purple-600" />
+                Send Follow-up Email
+              </h2>
+              <button onClick={() => setEmailLead(null)} className="rounded-lg p-1 text-gray-400 hover:text-gray-600 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 mb-4">
+              <p className="text-sm text-gray-700">
+                <span className="font-medium">{emailLead.business_name}</span>
+                {emailLead.contact_name && <span className="text-gray-500"> — {emailLead.contact_name}</span>}
+              </p>
+              <p className="text-xs text-gray-500">{emailLead.email}</p>
+            </div>
+
+            {!showEmailHistory ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Template</label>
+                  <select
+                    value={emailTemplate}
+                    onChange={(e) => handleTemplateChange(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none cursor-pointer"
+                  >
+                    {Object.entries(EMAIL_TEMPLATES).map(([key, tpl]) => (
+                      <option key={key} value={key}>{tpl.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Subject</label>
+                  <input
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                    placeholder="Email subject..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Body</label>
+                  <textarea
+                    value={emailBody}
+                    onChange={(e) => setEmailBody(e.target.value)}
+                    rows={10}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none resize-y"
+                    placeholder="Email body..."
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Merge fields: {"{{contact_name}}"}, {"{{business_name}}"}, {"{{sender_name}}"}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setShowEmailHistory(true)}
+                    className="text-xs text-purple-600 hover:text-purple-700 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    View History ({emailHistory.length})
+                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={() => setEmailLead(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+                    <button
+                      onClick={handleSendEmail}
+                      disabled={emailSending || !emailSubject.trim() || !emailBody.trim()}
+                      className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-5 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50 cursor-pointer"
+                    >
+                      {emailSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      {emailSending ? "Sending..." : "Send Email"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-gray-700">Email History</h3>
+                  <button
+                    onClick={() => setShowEmailHistory(false)}
+                    className="text-xs text-purple-600 hover:text-purple-700 cursor-pointer"
+                  >
+                    Back to compose
+                  </button>
+                </div>
+                {emailHistory.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-4">No emails sent yet</p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {emailHistory.map((em) => (
+                      <div key={em.id} className="rounded-lg border border-gray-200 px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-gray-800 truncate">{em.subject}</p>
+                          <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
+                            {new Date(em.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          To: {em.to_email} · Template: {em.template_name}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex justify-end pt-2">
+                  <button onClick={() => setEmailLead(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Close</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
