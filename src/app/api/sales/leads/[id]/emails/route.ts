@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = process.env.FROM_EMAIL || "sales@bytebitevending.com";
+const FROM = process.env.MARKETING_FROM_EMAIL || "sales@vendingconnector.com";
 
 const TEMPLATES: Record<string, { subject: string; body: string }> = {
   initial_followup: {
