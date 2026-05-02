@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { calculateFees, FEE_EXEMPT_ROLES } from "@/lib/checkoutFees";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -121,6 +122,14 @@ export async function POST(req: NextRequest) {
   const amountCents = Math.round(lead.price * 100);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
+  // Check if buyer is exempt from fees (sales team / admin)
+  let feesExempt = false;
+  const { data: profile } = await supabaseAdmin.from("profiles").select("role").eq("id", userId).single();
+  if (profile?.role && FEE_EXEMPT_ROLES.includes(profile.role)) feesExempt = true;
+
+  const fees = feesExempt ? { brokerFeeCents: 0, processingFeeCents: 0, totalFeeCents: 0 } : calculateFees(amountCents);
+  const totalAmountCents = amountCents + fees.totalFeeCents;
+
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     payment_method_types: ["card"],
@@ -136,6 +145,36 @@ export async function POST(req: NextRequest) {
         },
         quantity: 1,
       },
+      ...(fees.brokerFeeCents > 0
+        ? [
+            {
+              price_data: {
+                currency: "usd" as const,
+                product_data: {
+                  name: "Broker Fee (5%)",
+                  description: "Vending Connector marketplace broker fee",
+                },
+                unit_amount: fees.brokerFeeCents,
+              },
+              quantity: 1,
+            },
+          ]
+        : []),
+      ...(fees.processingFeeCents > 0
+        ? [
+            {
+              price_data: {
+                currency: "usd" as const,
+                product_data: {
+                  name: "Processing Fee (2.9%)",
+                  description: "Payment processing fee",
+                },
+                unit_amount: fees.processingFeeCents,
+              },
+              quantity: 1,
+            },
+          ]
+        : []),
     ],
     metadata: {
       user_id: userId,
@@ -152,7 +191,7 @@ export async function POST(req: NextRequest) {
       user_id: userId,
       request_id: requestId,
       stripe_checkout_session_id: session.id,
-      amount_cents: amountCents,
+      amount_cents: totalAmountCents,
       status: "pending",
     },
     { onConflict: "user_id,request_id" }

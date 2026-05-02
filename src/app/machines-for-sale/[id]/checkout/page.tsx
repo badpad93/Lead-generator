@@ -14,7 +14,9 @@ import {
   Truck,
   CheckSquare,
   ShoppingCart,
+  Info,
 } from "lucide-react";
+import { calculateFees, FEE_EXEMPT_ROLES } from "@/lib/checkoutFees";
 
 interface Listing {
   id: string;
@@ -98,6 +100,9 @@ export default function CheckoutFormPage() {
   // Shipping
   const [shippingIntent, setShippingIntent] = useState("");
 
+  // Fee exemption
+  const [feesExempt, setFeesExempt] = useState(false);
+
   useEffect(() => {
     async function load() {
       const res = await fetch(`/api/machine-listings/${id}`);
@@ -109,7 +114,21 @@ export default function CheckoutFormPage() {
       }
       setLoading(false);
     }
+    async function checkRole() {
+      try {
+        const { createBrowserClient } = await import("@/lib/supabase");
+        const supabase = createBrowserClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single() as { data: { role: string } | null };
+          if (profile?.role && FEE_EXEMPT_ROLES.includes(profile.role)) setFeesExempt(true);
+        }
+      } catch {
+        // not logged in — fees apply
+      }
+    }
     load();
+    checkRole();
   }, [id]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -210,7 +229,9 @@ export default function CheckoutFormPage() {
 
   const price = listing.buy_now_price || (listing.asking_price ? listing.asking_price * 100 : null);
   const deliveryFeeDisplay = listing.includes_delivery && listing.delivery_fee_cents ? listing.delivery_fee_cents : 0;
-  const totalPrice = price ? price + deliveryFeeDisplay : null;
+  const subtotalCents = price ? price + deliveryFeeDisplay : 0;
+  const fees = !feesExempt && subtotalCents > 0 ? calculateFees(subtotalCents) : { brokerFeeCents: 0, processingFeeCents: 0, totalFeeCents: 0 };
+  const totalPrice = price ? subtotalCents + fees.totalFeeCents : null;
   const showExistingLocation = locationStatus === "confirmed";
   const showNoLocation = locationStatus === "securing" || locationStatus === "need_help";
 
@@ -232,10 +253,33 @@ export default function CheckoutFormPage() {
             {listing.title}
             {price ? ` — ${formatCurrency(price)}` : ""}
           </p>
-          {deliveryFeeDisplay > 0 && (
-            <p className="text-xs text-gray-400 mt-0.5">
-              + {formatCurrency(deliveryFeeDisplay)} delivery fee
-            </p>
+          {(deliveryFeeDisplay > 0 || fees.totalFeeCents > 0) && (
+            <div className="mt-2 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 space-y-1">
+              {deliveryFeeDisplay > 0 && (
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Delivery Fee</span>
+                  <span>{formatCurrency(deliveryFeeDisplay)}</span>
+                </div>
+              )}
+              {fees.brokerFeeCents > 0 && (
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Broker Fee (5%)</span>
+                  <span>{formatCurrency(fees.brokerFeeCents)}</span>
+                </div>
+              )}
+              {fees.processingFeeCents > 0 && (
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Processing Fee (2.9%)</span>
+                  <span>{formatCurrency(fees.processingFeeCents)}</span>
+                </div>
+              )}
+              {totalPrice && (
+                <div className="flex justify-between text-sm font-semibold text-gray-900 pt-1 border-t border-gray-200">
+                  <span>Total</span>
+                  <span>{formatCurrency(totalPrice)}</span>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
