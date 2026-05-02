@@ -22,6 +22,8 @@ interface Listing {
   buy_now_enabled: boolean;
   buy_now_price: number | null;
   asking_price: number | null;
+  includes_delivery: boolean;
+  delivery_fee_cents: number | null;
   status: string;
   image_thumb_url: string | null;
   photos: string[];
@@ -207,6 +209,8 @@ export default function CheckoutFormPage() {
   }
 
   const price = listing.buy_now_price || (listing.asking_price ? listing.asking_price * 100 : null);
+  const deliveryFeeDisplay = listing.includes_delivery && listing.delivery_fee_cents ? listing.delivery_fee_cents : 0;
+  const totalPrice = price ? price + deliveryFeeDisplay : null;
   const showExistingLocation = locationStatus === "confirmed";
   const showNoLocation = locationStatus === "securing" || locationStatus === "need_help";
 
@@ -228,6 +232,11 @@ export default function CheckoutFormPage() {
             {listing.title}
             {price ? ` — ${formatCurrency(price)}` : ""}
           </p>
+          {deliveryFeeDisplay > 0 && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              + {formatCurrency(deliveryFeeDisplay)} delivery fee
+            </p>
+          )}
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -618,7 +627,7 @@ export default function CheckoutFormPage() {
             ) : (
               <>
                 <ShoppingCart className="h-5 w-5" />
-                Proceed to Payment{price ? ` — ${formatCurrency(price)}` : ""}
+                Proceed to Payment{totalPrice ? ` — ${formatCurrency(totalPrice)}` : ""}
               </>
             )}
           </button>

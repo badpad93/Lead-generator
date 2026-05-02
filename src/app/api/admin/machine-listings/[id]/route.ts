@@ -41,6 +41,7 @@ export async function PATCH(
       "admin_notes",
       "buy_now_enabled",
       "buy_now_price",
+      "delivery_fee_cents",
     ];
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {

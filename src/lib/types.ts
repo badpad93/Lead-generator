@@ -172,6 +172,7 @@ export interface MachineListing {
   admin_notes: string | null;
   buy_now_enabled: boolean;
   buy_now_price: number | null;
+  delivery_fee_cents: number | null;
   created_at: string;
   updated_at: string;
   // Joined

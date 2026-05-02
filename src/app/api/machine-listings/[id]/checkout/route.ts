@@ -8,7 +8,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: listing } = await supabaseAdmin
     .from("machine_listings")
-    .select("id, title, buy_now_enabled, buy_now_price, asking_price, status")
+    .select("id, title, buy_now_enabled, buy_now_price, asking_price, delivery_fee_cents, includes_delivery, status")
     .eq("id", id)
     .single();
 
@@ -23,11 +23,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Full name, email, and phone are required" }, { status: 400 });
   }
 
+  const deliveryFeeCents = listing.includes_delivery && listing.delivery_fee_cents ? listing.delivery_fee_cents : 0;
+  const totalCents = priceInCents + deliveryFeeCents;
+
   const { data: purchase, error: purchaseErr } = await supabaseAdmin
     .from("machine_listing_purchases")
     .insert({
       machine_listing_id: listing.id,
-      amount_cents: priceInCents,
+      amount_cents: totalCents,
       full_name: body.full_name,
       email: body.email,
       phone: body.phone,
@@ -84,6 +87,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         },
         quantity: 1,
       },
+      ...(deliveryFeeCents > 0
+        ? [
+            {
+              price_data: {
+                currency: "usd" as const,
+                product_data: {
+                  name: "Delivery Fee",
+                  description: `Delivery for ${listing.title}`,
+                },
+                unit_amount: deliveryFeeCents,
+              },
+              quantity: 1,
+            },
+          ]
+        : []),
     ],
     metadata: {
       machine_listing_id: listing.id,
