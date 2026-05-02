@@ -729,6 +729,7 @@ export default function LeadsPage() {
                 <input placeholder="Phone *" value={addForm.phone || ""} onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
                 <select value={addForm.machine_type} onChange={(e) => setAddForm((f) => ({ ...f, machine_type: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
                   <option value="">Machine Type *</option>
+                  <option value="ai">AI Machine</option>
                   <option value="snack">Snack</option>
                   <option value="beverage">Beverage</option>
                   <option value="combo">Combo</option>

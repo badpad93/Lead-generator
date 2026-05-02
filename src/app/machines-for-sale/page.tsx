@@ -15,6 +15,7 @@ import type { MachineListing } from "@/lib/types";
 import { US_STATES, US_STATE_NAMES } from "@/lib/types";
 
 const MACHINE_TYPE_OPTIONS = [
+  "AI Machine",
   "Snack",
   "Beverage",
   "Combo",
