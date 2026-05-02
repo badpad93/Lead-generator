@@ -187,7 +187,7 @@ function MachineCard({ listing }: { listing: MachineListing }) {
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            window.location.href = `/machines-for-sale/${listing.id}?checkout=1`;
+            window.location.href = `/machines-for-sale/${listing.id}/checkout`;
           }}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
         >
