@@ -43,7 +43,7 @@ export async function middleware(req: NextRequest) {
   // Only check protected paths (and auth pages for reverse redirect)
   const isProtected = PROTECTED_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
-  );
+  ) || /^\/machines-for-sale\/[^/]+\/checkout/.test(pathname);
   if (!isProtected && !isAuthPage) return NextResponse.next();
 
   // Create a Supabase server client that reads/writes cookies on the request/response

@@ -28,13 +28,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const deliveryFeeCents = listing.includes_delivery && listing.delivery_fee_cents ? listing.delivery_fee_cents : 0;
   const subtotalCents = priceInCents + deliveryFeeCents;
 
+  // Require authentication
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) return NextResponse.json({ error: "You must be logged in to purchase" }, { status: 401 });
+
   // Check if buyer is exempt from fees (sales team / admin)
   let feesExempt = false;
-  const userId = await getUserIdFromRequest(req);
-  if (userId) {
-    const { data: profile } = await supabaseAdmin.from("profiles").select("role").eq("id", userId).single();
-    if (profile?.role && FEE_EXEMPT_ROLES.includes(profile.role)) feesExempt = true;
-  }
+  const { data: profile } = await supabaseAdmin.from("profiles").select("role").eq("id", userId).single();
+  if (profile?.role && FEE_EXEMPT_ROLES.includes(profile.role)) feesExempt = true;
 
   const fees = feesExempt ? { brokerFeeCents: 0, processingFeeCents: 0, totalFeeCents: 0 } : calculateFees(subtotalCents);
   const totalCents = subtotalCents + fees.totalFeeCents;
