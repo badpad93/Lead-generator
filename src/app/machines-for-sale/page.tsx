@@ -106,7 +106,7 @@ function MachineCard({ listing }: { listing: MachineListing }) {
         <div className="flex items-center gap-1 mt-1.5 text-sm text-gray-500">
           <MapPin className="w-3.5 h-3.5 shrink-0" />
           <span>
-            {listing.city}, {listing.state}
+            {listing.state === "US" ? "Entire United States" : `${listing.city}, ${listing.state}`}
           </span>
         </div>
       )}
