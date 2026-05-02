@@ -59,7 +59,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single();
 
   if (purchaseErr) {
-    return NextResponse.json({ error: "Failed to create purchase record" }, { status: 500 });
+    console.error("[checkout] Failed to create purchase record:", purchaseErr.message);
+    return NextResponse.json({ error: `Failed to create purchase record: ${purchaseErr.message}` }, { status: 500 });
   }
 
   const stripeKey = process.env.STRIPE_SECRET_KEY;
