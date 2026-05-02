@@ -88,10 +88,10 @@ function MachineCard({ listing }: { listing: MachineListing }) {
           src={photo}
           alt={listing.title}
           loading="lazy"
-          className="mb-4 h-40 w-full rounded-lg object-cover bg-gray-100"
+          className="mb-4 h-52 w-full rounded-lg object-contain bg-gray-100"
         />
       ) : (
-        <div className="mb-4 flex h-40 w-full items-center justify-center rounded-lg bg-gray-100">
+        <div className="mb-4 flex h-52 w-full items-center justify-center rounded-lg bg-gray-100">
           <Package className="h-10 w-10 text-gray-400" />
         </div>
       )}
