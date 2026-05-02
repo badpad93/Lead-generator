@@ -53,6 +53,59 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Failed to save application: ${insertErr.message}` }, { status: 500 });
   }
 
+  // Auto-create CRM account + lead for the financing applicant
+  let crmAccountId: string | null = null;
+  let crmLeadId: string | null = null;
+  try {
+    const { data: account } = await supabaseAdmin
+      .from("sales_accounts")
+      .insert({
+        business_name: body.business_name || body.full_name,
+        contact_name: body.full_name,
+        phone: body.phone,
+        email: body.email,
+        entity_type: "operator",
+      })
+      .select("id")
+      .single();
+
+    if (account) {
+      crmAccountId = account.id;
+
+      const notes = [
+        `Source: SBA Financing Application`,
+        `Credit Score: ${body.credit_score_range || "Not provided"}`,
+        `Net Worth: ${body.net_worth_range || "Not provided"}`,
+        `Annual Income: ${body.annual_income || "Not provided"}`,
+        `Citizenship: ${body.citizenship_status || "Not provided"}`,
+        `Verifiable Income: ${body.has_verifiable_income ? "Yes" : "No"}`,
+        `Tax Liens: ${body.has_tax_liens ? "Yes" : "No"}`,
+        `Bankruptcy: ${body.has_bankruptcy ? "Yes" : "No"}`,
+        `Judgments: ${body.has_judgments ? "Yes" : "No"}`,
+      ].join("\n");
+
+      const { data: lead } = await supabaseAdmin
+        .from("sales_leads")
+        .insert({
+          business_name: body.business_name || body.full_name,
+          contact_name: body.full_name,
+          phone: body.phone,
+          email: body.email,
+          entity_type: "operator",
+          source: "financing_application",
+          status: "qualified",
+          account_id: account.id,
+          notes,
+        })
+        .select("id")
+        .single();
+
+      if (lead) crmLeadId = lead.id;
+    }
+  } catch (crmErr) {
+    console.error("[financing] Failed to create CRM records:", crmErr);
+  }
+
   const yesNo = (v: boolean) => (v ? "Yes" : "No");
 
   try {
@@ -104,7 +157,7 @@ export async function POST(req: NextRequest) {
     console.error("[financing] Failed to send notification email:", emailErr);
   }
 
-  return NextResponse.json({ success: true, applicationId: application.id });
+  return NextResponse.json({ success: true, applicationId: application.id, crmAccountId, crmLeadId });
 }
 
 export async function GET(req: NextRequest) {
