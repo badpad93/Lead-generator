@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import { createAndSendAgreement } from "@/lib/locationAgreement";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
@@ -137,6 +138,18 @@ export async function POST(req: NextRequest) {
         .from("sales_accounts")
         .update({ entity_type: "location" })
         .eq("id", account.id);
+    }
+
+    try {
+      await createAndSendAgreement(data.id, {
+        business_name: body.location_name || business_name,
+        contact_name: body.decision_maker_name || contact_name,
+        email: body.decision_maker_email || email,
+        phone: phone,
+        address: address,
+      });
+    } catch (err) {
+      console.error("[leads] Failed to send location agreement on create:", err instanceof Error ? err.message : err);
     }
   }
 
