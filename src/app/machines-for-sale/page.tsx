@@ -10,6 +10,7 @@ import {
   MapPin,
   Plus,
   Package,
+  ShoppingCart,
 } from "lucide-react";
 import type { MachineListing } from "@/lib/types";
 import { US_STATES, US_STATE_NAMES } from "@/lib/types";
@@ -179,6 +180,21 @@ function MachineCard({ listing }: { listing: MachineListing }) {
           </span>
         )}
       </div>
+
+      {/* Buy Now button */}
+      {listing.buy_now_enabled && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.href = `/machines-for-sale/${listing.id}?checkout=1`;
+          }}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+        >
+          <ShoppingCart className="h-4 w-4" />
+          Buy Now{listing.buy_now_price ? ` — ${formatCurrency(listing.buy_now_price / 100)}` : ""}
+        </button>
+      )}
     </Link>
   );
 }
