@@ -176,7 +176,9 @@ function MachineCard({ listing }: { listing: MachineListing }) {
         {listing.includes_delivery && (
           <span className="flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-            Delivery incl.
+            {listing.delivery_fee_cents
+              ? `Delivery: ${formatCurrency(listing.delivery_fee_cents / 100)}`
+              : "Free delivery"}
           </span>
         )}
       </div>

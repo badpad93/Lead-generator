@@ -79,6 +79,7 @@ export const createMachineListingSchema = z.object({
   includes_card_reader: z.boolean().default(false),
   includes_install: z.boolean().default(false),
   includes_delivery: z.boolean().default(false),
+  delivery_fee_cents: z.number().int().min(0).max(100000000).nullable().optional(),
   photos: z.array(z.string().url()).max(10).default([]),
   image_thumb_url: z.string().url().nullable().optional(),
   image_medium_url: z.string().url().nullable().optional(),

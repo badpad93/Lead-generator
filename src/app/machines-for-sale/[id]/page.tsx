@@ -481,7 +481,9 @@ export default function MachineDetailPage() {
                     {listing.includes_delivery && (
                       <li className="flex items-center gap-2 text-sm text-gray-700">
                         <Check className="h-4 w-4 text-green-primary" />
-                        Delivery service included
+                        {listing.delivery_fee_cents
+                          ? `Delivery available — ${formatCurrency(listing.delivery_fee_cents / 100)}`
+                          : "Free delivery included"}
                       </li>
                     )}
                   </ul>

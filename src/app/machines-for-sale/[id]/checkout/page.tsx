@@ -22,6 +22,8 @@ interface Listing {
   buy_now_enabled: boolean;
   buy_now_price: number | null;
   asking_price: number | null;
+  includes_delivery: boolean;
+  delivery_fee_cents: number | null;
   status: string;
   image_thumb_url: string | null;
   photos: string[];
@@ -84,6 +86,7 @@ export default function CheckoutFormPage() {
   const [deploymentTimeline, setDeploymentTimeline] = useState("");
 
   // Site readiness
+  const [siteReadinessUnsure, setSiteReadinessUnsure] = useState(false);
   const [hasPowerOutlet, setHasPowerOutlet] = useState(false);
   const [hasIndoorPlacement, setHasIndoorPlacement] = useState(false);
   const [hasEnoughSpace, setHasEnoughSpace] = useState(false);
@@ -206,6 +209,8 @@ export default function CheckoutFormPage() {
   }
 
   const price = listing.buy_now_price || (listing.asking_price ? listing.asking_price * 100 : null);
+  const deliveryFeeDisplay = listing.includes_delivery && listing.delivery_fee_cents ? listing.delivery_fee_cents : 0;
+  const totalPrice = price ? price + deliveryFeeDisplay : null;
   const showExistingLocation = locationStatus === "confirmed";
   const showNoLocation = locationStatus === "securing" || locationStatus === "need_help";
 
@@ -227,6 +232,11 @@ export default function CheckoutFormPage() {
             {listing.title}
             {price ? ` — ${formatCurrency(price)}` : ""}
           </p>
+          {deliveryFeeDisplay > 0 && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              + {formatCurrency(deliveryFeeDisplay)} delivery fee
+            </p>
+          )}
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -493,22 +503,43 @@ export default function CheckoutFormPage() {
               </div>
             </div>
             <div className="px-6 py-5 space-y-3">
-              {[
-                { checked: hasPowerOutlet, set: setHasPowerOutlet, label: "Location has standard power outlet (110V)" },
-                { checked: hasIndoorPlacement, set: setHasIndoorPlacement, label: "Indoor placement available" },
-                { checked: hasEnoughSpace, set: setHasEnoughSpace, label: "Enough space (~3 ft x 3 ft)" },
-                { checked: hasDeliveryAccess, set: setHasDeliveryAccess, label: "Delivery access (doorways, no major obstructions)" },
-              ].map((item) => (
-                <label key={item.label} className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={item.checked}
-                    onChange={(e) => item.set(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                  />
-                  <span className="text-sm text-gray-700">{item.label}</span>
-                </label>
-              ))}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={siteReadinessUnsure}
+                  onChange={(e) => {
+                    setSiteReadinessUnsure(e.target.checked);
+                    if (e.target.checked) {
+                      setHasPowerOutlet(false);
+                      setHasIndoorPlacement(false);
+                      setHasEnoughSpace(false);
+                      setHasDeliveryAccess(false);
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                <span className="text-sm text-gray-700 font-medium">Unsure at this time</span>
+              </label>
+              {!siteReadinessUnsure && (
+                <>
+                  {[
+                    { checked: hasPowerOutlet, set: setHasPowerOutlet, label: "Location has standard power outlet (110V)" },
+                    { checked: hasIndoorPlacement, set: setHasIndoorPlacement, label: "Indoor placement available" },
+                    { checked: hasEnoughSpace, set: setHasEnoughSpace, label: "Enough space (~3 ft x 3 ft)" },
+                    { checked: hasDeliveryAccess, set: setHasDeliveryAccess, label: "Delivery access (doorways, no major obstructions)" },
+                  ].map((item) => (
+                    <label key={item.label} className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={item.checked}
+                        onChange={(e) => item.set(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      />
+                      <span className="text-sm text-gray-700">{item.label}</span>
+                    </label>
+                  ))}
+                </>
+              )}
             </div>
           </div>
 
@@ -525,7 +556,7 @@ export default function CheckoutFormPage() {
                 {[
                   { value: "wifi", label: "WiFi Available" },
                   { value: "no_wifi", label: "No WiFi (may need 4G)" },
-                  { value: "not_sure", label: "Not Sure" },
+                  { value: "not_sure", label: "Unsure at this time" },
                 ].map((opt) => (
                   <button
                     key={opt.value}
@@ -596,7 +627,7 @@ export default function CheckoutFormPage() {
             ) : (
               <>
                 <ShoppingCart className="h-5 w-5" />
-                Proceed to Payment{price ? ` — ${formatCurrency(price)}` : ""}
+                Proceed to Payment{totalPrice ? ` — ${formatCurrency(totalPrice)}` : ""}
               </>
             )}
           </button>
