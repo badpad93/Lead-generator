@@ -14,7 +14,7 @@ const navLinks = [
   { label: "Machines for Sale", href: "/machines-for-sale" },
   { label: "Routes for Sale", href: "/routes-for-sale" },
   { label: "Browse Operators", href: "/browse-operators" },
-  { label: "How It Works", href: "/how-it-works" },
+  { label: "Financing", href: "/financing" },
 ];
 
 const authNavLinks = [
@@ -23,6 +23,10 @@ const authNavLinks = [
   { label: "Machines for Sale", href: "/machines-for-sale" },
   { label: "Routes for Sale", href: "/routes-for-sale" },
   { label: "Browse Operators", href: "/browse-operators" },
+  { label: "Financing", href: "/financing" },
+];
+
+const sidebarExtraLinks = [
   { label: "How It Works", href: "/how-it-works" },
 ];
 
@@ -412,6 +416,19 @@ export default function Navbar() {
                   onClick={() => setMobileOpen(false)}
                   className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
                   aria-label={TOOLTIP_COPY[link.label] ?? undefined}
+                >
+                  {link.label}
+                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                </Link>
+              </li>
+            ))}
+
+            {sidebarExtraLinks.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
                 >
                   {link.label}
                   <ChevronRight className="h-4 w-4 text-gray-400" />
