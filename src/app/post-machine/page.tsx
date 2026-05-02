@@ -24,6 +24,7 @@ const MACHINE_TYPE_OPTIONS = [
   "Cold Food",
   "Frozen",
   "Healthy",
+  "AI Machine",
   "Specialty",
   "Other",
 ];
