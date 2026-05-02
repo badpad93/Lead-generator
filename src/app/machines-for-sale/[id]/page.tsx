@@ -168,6 +168,7 @@ export default function MachineDetailPage() {
   const [similar, setSimilar] = useState<MachineListing[]>([]);
   const [loadingSimilar, setLoadingSimilar] = useState(false);
   const [activePhoto, setActivePhoto] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const fetchListing = useCallback(async () => {
     if (!id) return;
@@ -285,13 +286,22 @@ export default function MachineDetailPage() {
             <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 animate-fade-in">
               {/* Photos */}
               {mainPhoto ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={mainPhoto}
-                  alt={listing.title}
-                  loading="lazy"
-                  className="mb-4 h-80 w-full rounded-lg object-cover bg-gray-100"
-                />
+                <button
+                  type="button"
+                  onClick={() => setLightboxOpen(true)}
+                  className="mb-4 w-full rounded-lg overflow-hidden bg-gray-100 cursor-zoom-in relative group"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={mainPhoto}
+                    alt={listing.title}
+                    loading="lazy"
+                    className="w-full max-h-[500px] object-contain"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10">
+                    <span className="bg-white/90 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-full shadow">Click to enlarge</span>
+                  </div>
+                </button>
               ) : (
                 <div className="mb-4 flex h-80 w-full items-center justify-center rounded-lg bg-gray-100">
                   <Package className="h-16 w-16 text-gray-400" />
@@ -305,7 +315,7 @@ export default function MachineDetailPage() {
                       key={i}
                       type="button"
                       onClick={() => setActivePhoto(i)}
-                      className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
+                      className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
                         i === safeActivePhoto
                           ? "border-green-primary"
                           : "border-transparent opacity-60 hover:opacity-100"
@@ -641,6 +651,58 @@ export default function MachineDetailPage() {
           </section>
         )}
       </div>
+
+      {/* Lightbox */}
+      {lightboxOpen && mainPhoto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in"
+          onClick={() => setLightboxOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(false)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white text-3xl font-light z-10 cursor-pointer"
+          >
+            ✕
+          </button>
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActivePhoto((prev) => (prev - 1 + images.length) % images.length);
+                }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl cursor-pointer"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActivePhoto((prev) => (prev + 1) % images.length);
+                }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl cursor-pointer"
+              >
+                ›
+              </button>
+            </>
+          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={images[safeActivePhoto] ?? mainPhoto}
+            alt={listing.title}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+          />
+          {images.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm">
+              {safeActivePhoto + 1} / {images.length}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
