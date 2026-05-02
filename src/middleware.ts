@@ -16,6 +16,7 @@ const PROTECTED_PATHS = [
   "/account",
   "/saved-requests",
   "/sales",
+  "/financing",
 ];
 
 export async function middleware(req: NextRequest) {

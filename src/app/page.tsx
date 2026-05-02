@@ -26,6 +26,8 @@ import {
   Users,
   TrendingUp,
   Globe,
+  UserPlus,
+  Banknote,
 } from "lucide-react";
 import Tooltip from "@/app/components/Tooltip";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
@@ -58,6 +60,24 @@ const steps = [
     title: "Machine Installed",
     description:
       "Your vending machine arrives — everyone wins",
+  },
+];
+
+const operatorSteps = [
+  {
+    icon: UserPlus,
+    title: "Create a Profile",
+    description: "Sign up and build your operator profile to get started",
+  },
+  {
+    icon: Search,
+    title: "Search Locations",
+    description: "Browse available locations that match your market and preferences",
+  },
+  {
+    icon: Package,
+    title: "Place Your Vending Machine",
+    description: "Secure a location, deliver your machine, and start earning",
   },
 ];
 
@@ -174,7 +194,7 @@ export default function HomePage() {
   const statItems = [
     { label: "Active Requests", value: stats ? formatStat(stats.activeRequests) : "...", icon: Zap },
     { label: "Verified Operators", value: stats ? formatStat(stats.operators) : "...", icon: Users },
-    { label: "Successful Placements", value: stats ? formatStat(stats.placements) : "...", icon: TrendingUp },
+    { label: "Successful Placements", value: "98+", icon: TrendingUp },
     { label: "States Covered", value: "48", icon: Globe },
   ];
 
@@ -371,6 +391,80 @@ export default function HomePage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* ============================================================ */}
+      {/*  HOW IT WORKS — OPERATORS                                     */}
+      {/* ============================================================ */}
+      <section className="bg-light-warm/50 py-20 sm:py-28">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="animate-fade-in text-center">
+            <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
+              How It Works for Operators
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-base text-black-primary/60 sm:text-lg">
+              Three simple steps to grow your vending business.
+            </p>
+          </div>
+
+          <div className="mt-16 grid gap-8 sm:grid-cols-3">
+            {operatorSteps.map((step, idx) => {
+              const Icon = step.icon;
+              return (
+                <div
+                  key={step.title}
+                  className="animate-slide-up group relative text-center"
+                  style={{ animationDelay: `${idx * 0.1}s` }}
+                >
+                  {idx < operatorSteps.length - 1 && (
+                    <div className="pointer-events-none absolute left-[calc(50%+40px)] top-10 hidden h-0.5 w-[calc(100%-80px)] bg-gradient-to-r from-green-200 to-green-100 sm:block" />
+                  )}
+                  <div className="relative mx-auto mb-5 flex h-20 w-20 items-center justify-center">
+                    <div className="absolute inset-0 rounded-2xl bg-green-50 transition-colors group-hover:bg-green-100" />
+                    <Icon className="relative h-8 w-8 text-green-primary" />
+                    <span className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-green-primary text-xs font-bold text-white shadow-sm">
+                      {idx + 1}
+                    </span>
+                  </div>
+                  <h3 className="mb-2 text-lg font-bold text-black-primary">
+                    {step.title}
+                  </h3>
+                  <p className="mx-auto max-w-[240px] text-sm leading-relaxed text-black-primary/60">
+                    {step.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ============================================================ */}
+      {/*  FINANCING CTA                                                */}
+      {/* ============================================================ */}
+      <section className="bg-gradient-to-r from-green-primary to-green-dark py-14 sm:py-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center text-center sm:flex-row sm:text-left sm:justify-between gap-6">
+            <div>
+              <div className="flex items-center justify-center sm:justify-start gap-2 mb-2">
+                <Banknote className="h-6 w-6 text-white/90" />
+                <h2 className="text-2xl font-extrabold text-white sm:text-3xl">
+                  Need Financing?
+                </h2>
+              </div>
+              <p className="text-base text-white/80 max-w-lg">
+                Pre-qualify for SBA financing to fund your Apex AI Vending micro-market business. Low interest rates, trusted lenders, quick screening.
+              </p>
+            </div>
+            <Link
+              href="/financing"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-sm font-semibold text-green-primary shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl shrink-0"
+            >
+              Pre-Qualify Now
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         </div>
       </section>
