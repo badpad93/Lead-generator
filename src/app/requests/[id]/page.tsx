@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import type { VendingRequest, Profile } from "@/lib/types";
 import { LOCATION_TYPES } from "@/lib/types";
+import { calculateFees, FEE_EXEMPT_ROLES } from "@/lib/checkoutFees";
 import MachineTypeBadge from "../../components/MachineTypeBadge";
 import UrgencyBadge from "../../components/UrgencyBadge";
 import LocationTypeIcon from "../../components/LocationTypeIcon";
@@ -223,6 +224,7 @@ export default function RequestDetailPage() {
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [showAgreement, setShowAgreement] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
+  const [feesExempt, setFeesExempt] = useState(false);
   const justPurchased = searchParams.get("purchased") === "true";
 
   // Fetch main request — re-fetch when purchase is detected to get full data
@@ -254,6 +256,23 @@ export default function RequestDetailPage() {
   useEffect(() => {
     fetchRequest();
   }, [fetchRequest, isPurchased]);
+
+  useEffect(() => {
+    async function checkRole() {
+      try {
+        const { createBrowserClient } = await import("@/lib/supabase");
+        const supabase = createBrowserClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single() as { data: { role: string } | null };
+          if (profile?.role && FEE_EXEMPT_ROLES.includes(profile.role)) setFeesExempt(true);
+        }
+      } catch {
+        // not logged in — fees apply
+      }
+    }
+    checkRole();
+  }, []);
 
   // Fetch similar requests
   useEffect(() => {
@@ -791,17 +810,38 @@ export default function RequestDetailPage() {
                 )}
 
                 {/* Price */}
-                {request.price != null && (
-                  <div className="rounded-lg bg-green-50 p-4 border border-green-100">
-                    <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide font-medium">
-                      <DollarSign className="h-3.5 w-3.5" />
-                      Price
+                {request.price != null && (() => {
+                  const priceCents = Math.round(request.price * 100);
+                  const leadFees = !feesExempt && priceCents > 0 ? calculateFees(priceCents) : { brokerFeeCents: 0, processingFeeCents: 0, totalFeeCents: 0 };
+                  const totalCents = priceCents + leadFees.totalFeeCents;
+                  return (
+                    <div className="rounded-lg bg-green-50 p-4 border border-green-100">
+                      <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide font-medium">
+                        <DollarSign className="h-3.5 w-3.5" />
+                        Price
+                      </div>
+                      <p className="mt-1 text-2xl font-bold text-green-700">
+                        ${request.price.toLocaleString()}
+                      </p>
+                      {leadFees.totalFeeCents > 0 && (
+                        <div className="mt-2 pt-2 border-t border-green-200 space-y-0.5">
+                          <div className="flex justify-between text-xs text-green-700/70">
+                            <span>Broker Fee (5%)</span>
+                            <span>${(leadFees.brokerFeeCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="flex justify-between text-xs text-green-700/70">
+                            <span>Processing Fee (2.9%)</span>
+                            <span>${(leadFees.processingFeeCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="flex justify-between text-sm font-bold text-green-700 pt-1">
+                            <span>Total</span>
+                            <span>${(totalCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <p className="mt-1 text-2xl font-bold text-green-700">
-                      ${request.price.toLocaleString()}
-                    </p>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Commission */}
                 <div className="rounded-lg bg-gray-50 p-4 border border-gray-100">
@@ -919,23 +959,30 @@ export default function RequestDetailPage() {
 
                   {request.price != null && request.price > 0 ? (
                     <>
-                      <button
-                        onClick={handlePurchase}
-                        disabled={purchasing}
-                        className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {purchasing ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Redirecting to payment...
-                          </>
-                        ) : (
-                          <>
-                            <CreditCard className="h-4 w-4" />
-                            Purchase This Lead — ${request.price.toLocaleString()}
-                          </>
-                        )}
-                      </button>
+                      {(() => {
+                        const btnPriceCents = Math.round(request.price * 100);
+                        const btnFees = !feesExempt ? calculateFees(btnPriceCents) : { totalFeeCents: 0 };
+                        const btnTotal = (btnPriceCents + btnFees.totalFeeCents) / 100;
+                        return (
+                          <button
+                            onClick={handlePurchase}
+                            disabled={purchasing}
+                            className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {purchasing ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Redirecting to payment...
+                              </>
+                            ) : (
+                              <>
+                                <CreditCard className="h-4 w-4" />
+                                Purchase This Lead — ${btnTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </>
+                            )}
+                          </button>
+                        );
+                      })()}
                       {purchaseError && (
                         <p className="mt-2 text-xs text-red-600">{purchaseError}</p>
                       )}

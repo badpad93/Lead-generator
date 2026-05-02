@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { calculateFees, FEE_EXEMPT_ROLES } from "@/lib/checkoutFees";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -24,7 +26,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const deliveryFeeCents = listing.includes_delivery && listing.delivery_fee_cents ? listing.delivery_fee_cents : 0;
-  const totalCents = priceInCents + deliveryFeeCents;
+  const subtotalCents = priceInCents + deliveryFeeCents;
+
+  // Check if buyer is exempt from fees (sales team / admin)
+  let feesExempt = false;
+  const userId = await getUserIdFromRequest(req);
+  if (userId) {
+    const { data: profile } = await supabaseAdmin.from("profiles").select("role").eq("id", userId).single();
+    if (profile?.role && FEE_EXEMPT_ROLES.includes(profile.role)) feesExempt = true;
+  }
+
+  const fees = feesExempt ? { brokerFeeCents: 0, processingFeeCents: 0, totalFeeCents: 0 } : calculateFees(subtotalCents);
+  const totalCents = subtotalCents + fees.totalFeeCents;
 
   const { data: purchase, error: purchaseErr } = await supabaseAdmin
     .from("machine_listing_purchases")
@@ -97,6 +110,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   description: `Delivery for ${listing.title}`,
                 },
                 unit_amount: deliveryFeeCents,
+              },
+              quantity: 1,
+            },
+          ]
+        : []),
+      ...(fees.brokerFeeCents > 0
+        ? [
+            {
+              price_data: {
+                currency: "usd" as const,
+                product_data: {
+                  name: "Broker Fee (5%)",
+                  description: "Vending Connector marketplace broker fee",
+                },
+                unit_amount: fees.brokerFeeCents,
+              },
+              quantity: 1,
+            },
+          ]
+        : []),
+      ...(fees.processingFeeCents > 0
+        ? [
+            {
+              price_data: {
+                currency: "usd" as const,
+                product_data: {
+                  name: "Processing Fee (2.9%)",
+                  description: "Payment processing fee",
+                },
+                unit_amount: fees.processingFeeCents,
               },
               quantity: 1,
             },
