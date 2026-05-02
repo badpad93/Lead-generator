@@ -76,6 +76,7 @@ export interface VendingRequest {
   is_public: boolean;
   views: number;
   seller_name: string | null;
+  lead_type: "standard" | "contracted";
   created_at: string;
   updated_at: string;
   // Joined
