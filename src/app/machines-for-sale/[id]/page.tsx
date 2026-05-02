@@ -194,6 +194,14 @@ export default function MachineDetailPage() {
     fetchListing();
   }, [fetchListing]);
 
+  // Auto-trigger checkout if redirected from Buy Now on listing card
+  useEffect(() => {
+    if (listing && listing.buy_now_enabled && searchParams.get("checkout") === "1" && !checkingOut) {
+      handleBuyNow();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listing]);
+
   // Fetch similar listings in same state
   useEffect(() => {
     if (!listing) return;
