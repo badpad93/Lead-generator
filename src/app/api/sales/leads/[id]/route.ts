@@ -276,6 +276,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   // Activity log rows cascade automatically.
   await supabaseAdmin.from("location_agreements").update({ lead_id: null }).eq("lead_id", id);
   await supabaseAdmin.from("sales_deals").update({ lead_id: null }).eq("lead_id", id);
+  await supabaseAdmin.from("pipeline_items").update({ lead_id: null }).eq("lead_id", id);
 
   const { error } = await supabaseAdmin.from("sales_leads").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
