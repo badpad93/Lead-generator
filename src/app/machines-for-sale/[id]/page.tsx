@@ -124,7 +124,7 @@ function SimilarMachineCard({ listing }: { listing: MachineListing }) {
         <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-500">
           <MapPin className="w-3 h-3 shrink-0" />
           <span className="truncate">
-            {listing.city}, {listing.state}
+            {listing.state === "US" ? "Entire United States" : `${listing.city}, ${listing.state}`}
           </span>
         </div>
       )}
@@ -412,7 +412,7 @@ export default function MachineDetailPage() {
                         Location
                       </p>
                       <p className="text-sm font-medium text-black-primary mt-0.5">
-                        {listing.city}, {listing.state}
+                        {listing.state === "US" ? "Entire United States" : `${listing.city}, ${listing.state}`}
                       </p>
                     </div>
                   )}
@@ -555,7 +555,7 @@ export default function MachineDetailPage() {
                 href={`mailto:james@apexaivending.com?subject=${encodeURIComponent(
                   `Machine Inquiry: ${listing.title}`
                 )}&body=${encodeURIComponent(
-                  `Hi,\n\nI'm interested in the machine listing "${listing.title}" in ${listing.city}, ${listing.state}.\n\nListing ID: ${listing.id}\n\nPlease share more details.\n\nThank you`
+                  `Hi,\n\nI'm interested in the machine listing "${listing.title}" in ${listing.state === "US" ? "the United States" : `${listing.city}, ${listing.state}`}.\n\nListing ID: ${listing.id}\n\nPlease share more details.\n\nThank you`
                 )}`}
                 className={`${listing.buy_now_enabled ? "mt-2" : "mt-5"} flex w-full items-center justify-center gap-2 rounded-lg ${listing.buy_now_enabled ? "border border-gray-200 text-black-primary hover:border-green-primary/40 hover:bg-green-50" : "bg-green-primary text-white hover:bg-green-hover shadow-sm"} px-4 py-2.5 text-sm font-semibold transition-colors`}
               >
