@@ -7,6 +7,7 @@ import {
   sendPurchaseConfirmationEmail,
   isLeadInfoComplete,
 } from "@/lib/email";
+import { sendMachinePurchaseThankYouEmail, sendMachinePurchaseNotificationEmail } from "@/lib/machinePurchaseEmail";
 import { generateSiteDetailsPdf } from "@/lib/pdf/agreementPdf";
 import { sendFullSiteDetailsEmail } from "@/lib/agreementEmail";
 import { PricingResult } from "@/lib/pricing/locationPricing";
@@ -62,6 +63,12 @@ export async function POST(req: NextRequest) {
     // Handle agreement payments (location placement)
     if (session.metadata?.type === "agreement_payment") {
       await handleAgreementPayment(session);
+      return NextResponse.json({ received: true });
+    }
+
+    // Handle machine listing purchases
+    if (session.metadata?.type === "machine_purchase") {
+      await handleMachinePurchase(session);
       return NextResponse.json({ received: true });
     }
 
@@ -197,6 +204,14 @@ export async function POST(req: NextRequest) {
     const session = event.data.object as Stripe.Checkout.Session;
     await supabaseAdmin
       .from("lead_purchases")
+      .update({
+        status: "failed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("stripe_checkout_session_id", session.id);
+
+    await supabaseAdmin
+      .from("machine_listing_purchases")
       .update({
         status: "failed",
         updated_at: new Date().toISOString(),
@@ -368,5 +383,111 @@ async function handleAgreementPayment(session: Stripe.Checkout.Session) {
     });
   } catch (e) {
     console.error("[stripe-webhook] Failed to send full site details:", e);
+  }
+}
+
+async function handleMachinePurchase(session: Stripe.Checkout.Session) {
+  const purchaseId = session.metadata?.purchase_id;
+  const listingId = session.metadata?.machine_listing_id;
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+
+  if (!purchaseId) return;
+
+  const { data: purchase } = await supabaseAdmin
+    .from("machine_listing_purchases")
+    .update({
+      status: "completed",
+      stripe_payment_intent_id: paymentIntentId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", purchaseId)
+    .select("*")
+    .single();
+
+  if (!purchase) return;
+
+  const { data: listing } = await supabaseAdmin
+    .from("machine_listings")
+    .select("id, title, machine_type, machine_make, machine_model, buy_now_price, asking_price")
+    .eq("id", listingId)
+    .single();
+
+  const machineTitle = listing?.title || "Vending Machine";
+
+  // Auto-create CRM account + lead for the buyer
+  try {
+    const { data: account } = await supabaseAdmin
+      .from("sales_accounts")
+      .insert({
+        business_name: purchase.business_name || purchase.full_name,
+        contact_name: purchase.full_name,
+        phone: purchase.phone,
+        email: purchase.email,
+        address: purchase.location_address || null,
+        entity_type: "operator",
+      })
+      .select("id")
+      .single();
+
+    if (account) {
+      const { data: lead } = await supabaseAdmin
+        .from("sales_leads")
+        .insert({
+          business_name: purchase.business_name || purchase.full_name,
+          contact_name: purchase.full_name,
+          phone: purchase.phone,
+          email: purchase.email,
+          address: purchase.location_address || null,
+          city: purchase.location_city || null,
+          state: purchase.location_state || null,
+          entity_type: "operator",
+          source: "machine_purchase",
+          status: "qualified",
+          account_id: account.id,
+          notes: `Machine purchase: ${machineTitle} — $${(purchase.amount_cents / 100).toFixed(2)}\nBuyer type: ${purchase.buyer_type || "N/A"}\nLocation status: ${purchase.location_status || "N/A"}\nDeployment: ${purchase.deployment_timeline || "N/A"}\nShipping: ${purchase.shipping_intent || "N/A"}`,
+        })
+        .select("id")
+        .single();
+
+      await supabaseAdmin
+        .from("machine_listing_purchases")
+        .update({
+          crm_account_id: account.id,
+          crm_lead_id: lead?.id || null,
+        })
+        .eq("id", purchaseId);
+    }
+  } catch (e) {
+    console.error("[stripe-webhook] Failed to create CRM records for machine purchase:", e);
+  }
+
+  // Send thank-you email to buyer
+  try {
+    await sendMachinePurchaseThankYouEmail({
+      to: purchase.email,
+      buyerName: purchase.full_name,
+      machineTitle,
+      amountCents: purchase.amount_cents,
+      purchaseId: purchase.id,
+      stripePaymentIntentId: paymentIntentId,
+    });
+  } catch (e) {
+    console.error("[stripe-webhook] Failed to send machine purchase thank-you email:", e);
+  }
+
+  // Send notification to james@apexaivending.com
+  try {
+    const notifyEmail = process.env.MACHINE_PURCHASE_NOTIFY_EMAIL || "james@apexaivending.com";
+    await sendMachinePurchaseNotificationEmail({
+      to: notifyEmail,
+      purchase,
+      machineTitle,
+      listing,
+    });
+  } catch (e) {
+    console.error("[stripe-webhook] Failed to send machine purchase notification:", e);
   }
 }

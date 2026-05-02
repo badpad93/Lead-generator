@@ -163,7 +163,6 @@ export default function MachineDetailPage() {
   const purchased = searchParams.get("purchased") === "true";
 
   const [listing, setListing] = useState<MachineListing | null>(null);
-  const [checkingOut, setCheckingOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [similar, setSimilar] = useState<MachineListing[]>([]);
@@ -194,14 +193,6 @@ export default function MachineDetailPage() {
     fetchListing();
   }, [fetchListing]);
 
-  // Auto-trigger checkout if redirected from Buy Now on listing card
-  useEffect(() => {
-    if (listing && listing.buy_now_enabled && searchParams.get("checkout") === "1" && !checkingOut) {
-      handleBuyNow();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listing]);
-
   // Fetch similar listings in same state
   useEffect(() => {
     if (!listing) return;
@@ -226,22 +217,9 @@ export default function MachineDetailPage() {
     fetchSimilar();
   }, [listing]);
 
-  async function handleBuyNow() {
+  function handleBuyNow() {
     if (!listing) return;
-    setCheckingOut(true);
-    try {
-      const res = await fetch(`/api/machine-listings/${listing.id}/checkout`, { method: "POST" });
-      if (res.ok) {
-        const { url } = await res.json();
-        if (url) window.location.href = url;
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || "Failed to start checkout");
-      }
-    } catch {
-      alert("Network error. Please try again.");
-    }
-    setCheckingOut(false);
+    window.location.href = `/machines-for-sale/${listing.id}/checkout`;
   }
 
   if (loading) return <DetailSkeleton />;
@@ -564,11 +542,10 @@ export default function MachineDetailPage() {
               {listing.buy_now_enabled && (
                 <button
                   onClick={handleBuyNow}
-                  disabled={checkingOut}
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover disabled:opacity-50 cursor-pointer"
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover cursor-pointer"
                 >
-                  {checkingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
-                  {checkingOut ? "Redirecting to checkout..." : "Buy Now"}
+                  <ShoppingCart className="h-4 w-4" />
+                  Buy Now
                 </button>
               )}
 
