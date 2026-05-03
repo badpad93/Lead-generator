@@ -24,9 +24,6 @@ BEGIN
   VALUES (admin_id, 'APARTMENT BUILDING/COMPLEX OPPURTUNITY!', 'Apartment Building in Springfield, IL', 'Apartment Building', 'Springfield', 'IL', '62704', 'apartment', '{}', 946, 'open', 'email', true, 'contracted', 'flexible', false, '2026-05-01T12:00:00Z', now(), 'Vending Connector');
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
-  VALUES (admin_id, 'OFFICE 50 EMPS!(COFFEE)', 'Office in Waterloo, IA', 'Office', 'Waterloo', 'IA', '50701', 'office', '{}', 814, 'open', 'email', true, 'contracted', 'flexible', false, '2026-05-01T12:00:00Z', now(), 'Vending Connector');
-
-  INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
   VALUES (admin_id, 'APARTMENT BUILDING/COMPLEX OPPURTUNITY!', 'Apartment Building in Independence, MO', 'Apartment Building', 'Independence', 'MO', '64057', 'apartment', '{}', 748, 'open', 'email', true, 'contracted', 'flexible', false, '2026-05-01T12:00:00Z', now(), 'Vending Connector');
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
@@ -87,9 +84,6 @@ BEGIN
   VALUES (admin_id, '3 APARTMENT BUILDING/COMPLEX OPPURTUNITY!', 'Apartment Building in Mobile, AL', 'Apartment Building', 'Mobile', 'AL', '36609', 'apartment', '{}', 1078, 'open', 'email', true, 'contracted', 'flexible', false, '2026-05-01T12:00:00Z', now(), 'Vending Connector');
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
-  VALUES (admin_id, 'APARTMENT BUILDING/COMPLEX 4EMPS 80+RES!', 'Apartment Building in Prattville, AL', 'Apartment Building', 'Prattville', 'AL', '36066', 'apartment', '{}', 814, 'open', 'email', true, 'contracted', 'flexible', false, '2026-05-01T12:00:00Z', now(), 'Vending Connector');
-
-  INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
   VALUES (admin_id, 'APARTMENT COMPLEX 6 EMPS 300 RESIDENTS!', 'Apartment Complex in Harker Heights, TX', 'Apartment Complex', 'Harker Heights', 'TX', '76548', 'apartment', '{}', 924, 'open', 'email', true, 'contracted', 'flexible', false, '2026-05-01T12:00:00Z', now(), 'Vending Connector');
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
@@ -127,9 +121,6 @@ BEGIN
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
   VALUES (admin_id, 'WAREHOUSE 40EMPS!', 'Warehouse in Laramie, WY', 'Warehouse', 'Laramie', 'WY', '82070', 'warehouse', '{}', 638, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-30T12:00:00Z', now(), 'Vending Connector');
-
-  INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
-  VALUES (admin_id, 'OFFICE 10 EMPS/COFFEE SERVICE!', 'Office in Chicago, IL', 'Office', 'Chicago', 'IL', '60606', 'office', '{}', 418, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-30T12:00:00Z', now(), 'Vending Connector');
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
   VALUES (admin_id, 'PRODUCTION 75 EMPS!', 'Production Facility in Steele, AL', 'Production Facility', 'Steele', 'AL', '35987', 'warehouse', '{}', 858, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-30T12:00:00Z', now(), 'Vending Connector');
@@ -183,9 +174,6 @@ BEGIN
   VALUES (admin_id, 'DISTRIBUTION CENTER 45 EMPS, 10 VIS!', 'Distribution Center in Charlotte, NC', 'Distribution Center', 'Charlotte', 'NC', '28269', 'warehouse', '{}', 1078, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-30T12:00:00Z', now(), 'Vending Connector');
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
-  VALUES (admin_id, '3 OFFICE LOCATION OPPURTUNITY!', 'Office in Black Hawk, CO', 'Office', 'Black Hawk', 'CO', '80422', 'office', '{}', 1540, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-30T12:00:00Z', now(), 'Vending Connector');
-
-  INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
   VALUES (admin_id, 'AUTOMOTIVE LOCATION 35 EMPS 40 CUSTOMERS!', 'Automotive Location in Libertyville, IL', 'Automotive Location', 'Libertyville', 'IL', '60048', 'other', '{}', 1078, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-29T12:00:00Z', now(), 'Vending Connector');
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
@@ -214,9 +202,6 @@ BEGIN
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
   VALUES (admin_id, 'WAREHOUSE 10 EMPS, 10-20 VIS!', 'Warehouse in Tucker, GA', 'Warehouse', 'Tucker', 'GA', '30084', 'warehouse', '{}', 682, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-29T12:00:00Z', now(), 'Vending Connector');
-
-  INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
-  VALUES (admin_id, 'OFFICE 45EMPS 5VIS!', 'Office in Fremont, CA', 'Office', 'Fremont', 'CA', '94538', 'office', '{}', 748, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-29T12:00:00Z', now(), 'Vending Connector');
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
   VALUES (admin_id, 'OFFICE 15-20 EMPS/COFFEE SERVICE!', 'Office in Brentwood, TN', 'Office', 'Brentwood', 'TN', '37027', 'office', '{}', 528, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-29T12:00:00Z', now(), 'Vending Connector');
@@ -466,9 +451,6 @@ BEGIN
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
   VALUES (admin_id, 'OFFICE 50EMPS!', 'Office in Bothell, WA', 'Office', 'Bothell', 'WA', '98011', 'office', '{}', 638, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-22T12:00:00Z', now(), 'Vending Connector');
-
-  INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
-  VALUES (admin_id, '4/29/26-WAREHOUSE 14 EMPS!', 'Warehouse in Montgomeryville, PA', 'Warehouse', 'Montgomeryville', 'PA', '18936', 'warehouse', '{}', 330, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-22T12:00:00Z', now(), 'Vending Connector');
 
   INSERT INTO vending_requests (created_by, title, description, location_name, city, state, zip, location_type, machine_types_wanted, price, status, contact_preference, is_public, lead_type, urgency, commission_offered, created_at, updated_at, seller_name)
   VALUES (admin_id, 'SCHOOL 45+EMPS!', 'School in Milford, NH', 'School', 'Milford', 'NH', '03055', 'school', '{}', 748, 'open', 'email', true, 'contracted', 'flexible', false, '2026-04-21T12:00:00Z', now(), 'Vending Connector');
