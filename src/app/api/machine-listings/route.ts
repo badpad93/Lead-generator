@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createMachineListingSchema } from "@/lib/schemas";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { sanitizeSearch } from "@/lib/sanitizeSearch";
+import { sendFormConfirmationEmails } from "@/lib/confirmationEmail";
 
 const PAGE_SIZE = 12;
 
@@ -37,6 +38,46 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Send confirmation emails (non-blocking)
+    const d = parsed.data;
+    (async () => {
+      try {
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+        const email = authUser?.user?.email ?? d.contact_email ?? null;
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("full_name")
+          .eq("id", userId)
+          .single();
+        await sendFormConfirmationEmails({
+          formName: "Machine for Sale",
+          submitterEmail: email,
+          submitterName: profile?.full_name ?? null,
+          fields: [
+            { label: "Title", value: d.title },
+            { label: "City", value: d.city },
+            { label: "State", value: d.state },
+            { label: "Make", value: d.machine_make },
+            { label: "Model", value: d.machine_model },
+            { label: "Year", value: d.machine_year },
+            { label: "Type", value: d.machine_type },
+            { label: "Condition", value: d.condition },
+            { label: "Quantity", value: d.quantity },
+            { label: "Asking Price", value: d.asking_price ? `$${d.asking_price.toLocaleString()}` : undefined },
+            { label: "Includes Card Reader", value: d.includes_card_reader },
+            { label: "Includes Install", value: d.includes_install },
+            { label: "Includes Delivery", value: d.includes_delivery },
+            { label: "Contact Email", value: d.contact_email },
+            { label: "Contact Phone", value: d.contact_phone },
+            { label: "Description", value: d.description },
+          ],
+          adminSubject: `New Machine Listing: ${d.title} — ${d.city}, ${d.state}`,
+        });
+      } catch (e) {
+        console.error("[machine-listings] confirmation email error", e);
+      }
+    })();
 
     return NextResponse.json({ id: data.id }, { status: 201 });
   } catch (e) {

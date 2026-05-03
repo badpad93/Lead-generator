@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createRouteSchema } from "@/lib/schemas";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { sanitizeSearch } from "@/lib/sanitizeSearch";
+import { sendFormConfirmationEmails } from "@/lib/confirmationEmail";
 
 const PAGE_SIZE = 12;
 
@@ -37,6 +38,43 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Send confirmation emails (non-blocking)
+    const d = parsed.data;
+    (async () => {
+      try {
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+        const email = authUser?.user?.email ?? d.contact_email ?? null;
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("full_name")
+          .eq("id", userId)
+          .single();
+        await sendFormConfirmationEmails({
+          formName: "Route for Sale",
+          submitterEmail: email,
+          submitterName: profile?.full_name ?? null,
+          fields: [
+            { label: "Title", value: d.title },
+            { label: "City", value: d.city },
+            { label: "State", value: d.state },
+            { label: "Machines", value: d.num_machines },
+            { label: "Locations", value: d.num_locations },
+            { label: "Monthly Revenue", value: d.monthly_revenue ? `$${d.monthly_revenue.toLocaleString()}` : undefined },
+            { label: "Asking Price", value: d.asking_price ? `$${d.asking_price.toLocaleString()}` : undefined },
+            { label: "Machine Types", value: d.machine_types?.join(", ") },
+            { label: "Includes Equipment", value: d.includes_equipment },
+            { label: "Includes Contracts", value: d.includes_contracts },
+            { label: "Contact Email", value: d.contact_email },
+            { label: "Contact Phone", value: d.contact_phone },
+            { label: "Description", value: d.description },
+          ],
+          adminSubject: `New Route Listing: ${d.title} — ${d.city}, ${d.state}`,
+        });
+      } catch (e) {
+        console.error("[routes] confirmation email error", e);
+      }
+    })();
 
     return NextResponse.json({ id: data.id }, { status: 201 });
   } catch (e) {

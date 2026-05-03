@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { sendFormConfirmationEmails } from "@/lib/confirmationEmail";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "onboarding@bytebitevending.com";
 const NOTIFY_EMAIL = process.env.FINANCING_NOTIFY_EMAIL || "james@apexaivending.com";
@@ -156,6 +157,31 @@ export async function POST(req: NextRequest) {
   } catch (emailErr) {
     console.error("[financing] Failed to send notification email:", emailErr);
   }
+
+  // Send confirmation copy to applicant (non-blocking)
+  sendFormConfirmationEmails({
+    formName: "SBA Financing Pre-Qualification",
+    submitterEmail: body.email,
+    submitterName: body.full_name,
+    fields: [
+      { label: "Full Name", value: body.full_name },
+      { label: "Email", value: body.email },
+      { label: "Phone", value: body.phone },
+      { label: "Date of Birth", value: body.date_of_birth },
+      { label: "Citizenship", value: body.citizenship_status },
+      { label: "Credit Score Range", value: body.credit_score_range },
+      { label: "Net Worth Range", value: body.net_worth_range },
+      { label: "Annual Income", value: body.annual_income },
+      { label: "Verifiable Income", value: !!body.has_verifiable_income },
+      { label: "Outstanding Tax Liens", value: !!body.has_tax_liens },
+      { label: "Bankruptcy (Last 7 Years)", value: !!body.has_bankruptcy },
+      { label: "Outstanding Judgments", value: !!body.has_judgments },
+      { label: "Felony Conviction", value: !!body.has_felony },
+      { label: "Current Legal Actions", value: !!body.has_legal_actions },
+      { label: "Delinquent Federal Debt", value: !!body.has_federal_debt },
+    ],
+    adminSubject: `Financing Application Copy: ${body.full_name}`,
+  }).catch((e) => console.error("[financing] confirmation email error", e));
 
   return NextResponse.json({ success: true, applicationId: application.id, crmAccountId, crmLeadId });
 }

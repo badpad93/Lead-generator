@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createRequestSchema } from "@/lib/schemas";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { sanitizeSearch } from "@/lib/sanitizeSearch";
+import { sendFormConfirmationEmails } from "@/lib/confirmationEmail";
 
 const PAGE_SIZE = 12;
 
@@ -188,6 +189,41 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Send confirmation emails (non-blocking)
+    const d = parsed.data;
+    (async () => {
+      try {
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+        const email = authUser?.user?.email ?? null;
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("full_name")
+          .eq("id", userId)
+          .single();
+        await sendFormConfirmationEmails({
+          formName: "Vending Location Request",
+          submitterEmail: email,
+          submitterName: profile?.full_name ?? null,
+          fields: [
+            { label: "Title", value: d.title },
+            { label: "Location Name", value: d.location_name },
+            { label: "City", value: d.city },
+            { label: "State", value: d.state },
+            { label: "ZIP", value: d.zip },
+            { label: "Location Type", value: d.location_type },
+            { label: "Machine Types", value: d.machine_types_wanted?.join(", ") },
+            { label: "Daily Traffic", value: d.estimated_daily_traffic },
+            { label: "Commission Offered", value: d.commission_offered },
+            { label: "Urgency", value: d.urgency },
+            { label: "Description", value: d.description },
+          ],
+          adminSubject: `New Vending Request: ${d.title} — ${d.city}, ${d.state}`,
+        });
+      } catch (e) {
+        console.error("[requests] confirmation email error", e);
+      }
+    })();
 
     return NextResponse.json({ id: data.id }, { status: 201 });
   } catch (e) {
