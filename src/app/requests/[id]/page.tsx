@@ -948,6 +948,34 @@ export default function RequestDetailPage() {
                     Browse Other Leads
                   </Link>
                 </>
+              ) : request.lead_type === "contracted" ? (
+                <>
+                  <h3 className="text-lg font-bold text-black-primary">
+                    Interested in this location?
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    This is a contracted lead. Call or email to inquire about this location opportunity.
+                  </p>
+                  {request.price != null && (
+                    <p className="mt-2 text-xl font-bold text-green-700">
+                      ${request.price.toLocaleString()}
+                    </p>
+                  )}
+                  <a
+                    href="tel:+18888511462"
+                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                  >
+                    <Phone className="h-4 w-4" />
+                    Call to Inquire — (888) 851-1462
+                  </a>
+                  <a
+                    href={`mailto:james@apexaivending.com?subject=Location%20Inquiry%20—%20${encodeURIComponent(request.title)}&body=I%20am%20interested%20in%20the%20location%20lead%20in%20${encodeURIComponent(request.city)}%2C%20${encodeURIComponent(request.state)}.%0A%0ARequest%20ID:%20${id}`}
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
+                  >
+                    <Mail className="h-4 w-4" />
+                    Email to Inquire
+                  </a>
+                </>
               ) : (
                 <>
                   <h3 className="text-lg font-bold text-black-primary">
