@@ -49,7 +49,6 @@ const TYPE_MAP = {
 const rows = `05/01/2026	Apartment Building	Louisville/Kentucky/40272	APARTMENT BUILDING/COMPLEX OPPURTUNITY!	$1,100	$1,210
 05/01/2026	Apartment Building	Prattville/Alabama/36066	APARTMENT BUILDING/COMPLEX OPPURTUNITY!	$900	$990
 05/01/2026	Apartment Building	Springfield/Illinois/62704	APARTMENT BUILDING/COMPLEX OPPURTUNITY!	$860	$946
-05/01/2026	Office	Waterloo/Iowa/50701	OFFICE 50 EMPS!(COFFEE)	$740	$814
 05/01/2026	Apartment Building	Independence/Missouri/64057	APARTMENT BUILDING/COMPLEX OPPURTUNITY!	$680	$748
 05/01/2026	Apartment Building	Madison/Wisconsin/53719	APARTMENT BUILDING/COMPLEX OPPURTUNITY!	$780	$858
 05/01/2026	Apartment Building	Gurnee/Illinois/60031	APARTMENT BUILDING/COMPLEX OPPURTUNITY!	$1,400	$1,540
@@ -70,7 +69,6 @@ const rows = `05/01/2026	Apartment Building	Louisville/Kentucky/40272	APARTMENT 
 05/01/2026	Apartment Building	Swartz Creek/Michigan/48473	APARTMENT BUILDING/COMPLEX 4EMPS 112+RES!	$840	$924
 05/01/2026	Apartment Building	Tallahassee/Florida/32304	2 APARTMENT BUILDING/COMPLEX OPPURTUNITY!	$920	$1,012
 05/01/2026	Apartment Building	Mobile/Alabama/36609	3 APARTMENT BUILDING/COMPLEX OPPURTUNITY!	$980	$1,078
-05/01/2026	Apartment Building	Prattville/Alabama/36066	APARTMENT BUILDING/COMPLEX 4EMPS 80+RES!	$740	$814
 05/01/2026	Apartment Complex	Harker Heights/Texas/76548	APARTMENT COMPLEX 6 EMPS 300 RESIDENTS!	$840	$924
 05/01/2026	Office	Fort Walton Beach/Florida/32548	GROWING OFFICE!	$500	$550
 05/01/2026	Facility	Palm Desert/California/92211	SEASONAL LIVING FACILITY 14-300+RES!	$800	$880
@@ -84,7 +82,6 @@ const rows = `05/01/2026	Apartment Building	Louisville/Kentucky/40272	APARTMENT 
 04/30/2026	Apartment Building	Knoxville/Tennessee/37920	2 APTS 600 RES! ( COFFEE SERVICE)	$580	$638
 04/30/2026	Facility	Easley/South Carolina/29640	FACILITY 8 EMPS 11 CUSTOMERS!	$380	$418
 04/30/2026	Warehouse	Laramie/Wyoming/82070	WAREHOUSE 40EMPS!	$580	$638
-04/30/2026	Office	Chicago/Illinois/60606	OFFICE 10 EMPS/COFFEE SERVICE!	$380	$418
 04/30/2026	Production Facility	Steele/Alabama/35987	PRODUCTION 75 EMPS!	$780	$858
 04/30/2026	Assisted Living Facility	Moorhead/Minnesota/56560	ASSISTED LIVING FACILITY 8+EMPS 18+RES!	$380	$418
 04/30/2026	Manufacturing Facility	Griffin/Georgia/30224	MANUFACTURING 30EMPS!	$880	$968
@@ -102,7 +99,6 @@ const rows = `05/01/2026	Apartment Building	Louisville/Kentucky/40272	APARTMENT 
 04/30/2026	Facility	Beverly/Massachusetts/01915	FACILITY 10EMPS 100+STUDENTS!	$1,000	$1,100
 04/30/2026	Assisted Living Facility	Venice/Florida/34285	AST.LIVING 75 EMPS, 30 VIS!	$980	$1,078
 04/30/2026	Distribution Center	Charlotte/North Carolina/28269	DISTRIBUTION CENTER 45 EMPS, 10 VIS!	$980	$1,078
-04/30/2026	Office	Black Hawk/Colorado/80422	3 OFFICE LOCATION OPPURTUNITY!	$1,400	$1,540
 04/29/2026	Automotive Location	Libertyville/Illinois/60048	AUTOMOTIVE LOCATION 35 EMPS 40 CUSTOMERS!	$980	$1,078
 04/29/2026	Office	Cynthiana/Kentucky/41031	OFFICE 1EMP 10VIS!	$380	$418
 04/29/2026	Facility	Chicago/Illinois/60622	FACILITY 50 VIS!	$580	$638
@@ -113,7 +109,6 @@ const rows = `05/01/2026	Apartment Building	Louisville/Kentucky/40272	APARTMENT 
 04/29/2026	Facility	Lester/Pennsylvania/19029	FACILITY 40 EMPS 10+VIS!	$800	$880
 04/29/2026	Manufacturing Facility	Raymond/Wisconsin/53126	MANUFACTURING FACILITY 40 EMPS!	$800	$880
 04/29/2026	Warehouse	Tucker/Georgia/30084	WAREHOUSE 10 EMPS, 10-20 VIS!	$620	$682
-04/29/2026	Office	Fremont/California/94538	OFFICE 45EMPS 5VIS!	$680	$748
 04/29/2026	Office	Brentwood/Tennessee/37027	OFFICE 15-20 EMPS/COFFEE SERVICE!	$480	$528
 04/29/2026	Apartment Building	Marathon/Florida/33050	APARTMENT BUILDING 180RES 2EMPS!	$780	$858
 04/29/2026	Facility	Sun Prairie/Wisconsin/53590	FACILITY 6-30 EMPS!	$480	$528
@@ -197,7 +192,6 @@ const rows = `05/01/2026	Apartment Building	Louisville/Kentucky/40272	APARTMENT 
 04/22/2026	Warehouse	Kentwood/Michigan/49512	WAREHOUSE 30 EMPS!	$580	$638
 04/22/2026	Manufacturing Facility	Horsham/Pennsylvania/19044	MANUFACTURING 50+ EMPS!	$760	$836
 04/22/2026	Office	Bothell/Washington/98011	OFFICE 50EMPS!	$580	$638
-04/22/2026	Warehouse	Montgomeryville/Pennsylvania/18936	4/29/26-WAREHOUSE 14 EMPS!	$300	$330
 04/21/2026	School	Milford/New Hampshire/03055	SCHOOL 45+EMPS!	$680	$748
 04/21/2026	Apartment Building	Wyomissing/Pennsylvania/19610	APT 90+ RES!(COFFEE SERVICE)	$380	$418
 04/21/2026	Retail Establishment	Dayton/Ohio/45403	RETAIL 100-200 CUSTOMERS/ COFFEE SERVICE!	$480	$528
