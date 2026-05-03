@@ -7,16 +7,21 @@ import { sendFormConfirmationEmails } from "@/lib/confirmationEmail";
 
 const PAGE_SIZE = 12;
 
-/** Determine the role of the requesting user (if authenticated) */
-async function getRequesterRole(req: NextRequest): Promise<string | null> {
+/** Determine the role and profile info of the requesting user (if authenticated) */
+async function getRequesterInfo(req: NextRequest): Promise<{
+  id: string;
+  role: string;
+  state: string | null;
+} | null> {
   const userId = await getUserIdFromRequest(req);
   if (!userId) return null;
   const { data } = await supabaseAdmin
     .from("profiles")
-    .select("role")
+    .select("role, state")
     .eq("id", userId)
     .single();
-  return data?.role ?? null;
+  if (!data) return null;
+  return { id: userId, role: data.role, state: data.state ?? null };
 }
 
 /**
@@ -55,9 +60,9 @@ export async function GET(req: NextRequest) {
     const saved = params.get("saved");
     const userId = params.get("user_id");
 
-    // Determine if requester is an operator
-    const requesterRole = await getRequesterRole(req);
-    const isOperator = requesterRole === "operator";
+    // Determine requester info
+    const requester = await getRequesterInfo(req);
+    const isOperator = requester?.role === "operator";
 
     let query = supabaseAdmin
       .from("vending_requests")
@@ -113,7 +118,29 @@ export async function GET(req: NextRequest) {
     if (state) query = query.eq("state", state);
     if (urgency) query = query.eq("urgency", urgency);
     if (commission === "true") query = query.eq("commission_offered", true);
-    if (status && status !== "all") query = query.eq("status", status);
+
+    // "matched" filter: show open leads in the operator's served states
+    if (status === "matched" && requester) {
+      query = query.eq("status", "open");
+      // Get operator's states from profile + operator_listings
+      const operatorStates = new Set<string>();
+      if (requester.state) operatorStates.add(requester.state);
+      const { data: listings } = await supabaseAdmin
+        .from("operator_listings")
+        .select("states_served")
+        .eq("operator_id", requester.id);
+      for (const l of listings || []) {
+        for (const s of l.states_served || []) operatorStates.add(s);
+      }
+      if (operatorStates.size > 0) {
+        query = query.in("state", Array.from(operatorStates));
+      } else {
+        return NextResponse.json({ requests: [], total: 0 });
+      }
+    } else if (status && status !== "all") {
+      query = query.eq("status", status);
+    }
+
     if (machineTypes) {
       const types = machineTypes.split(",");
       query = query.overlaps("machine_types_wanted", types);

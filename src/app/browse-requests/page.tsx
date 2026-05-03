@@ -36,7 +36,7 @@ const PER_PAGE = 12;
 const STATUS_TABS = [
   { value: "all", label: "All" },
   { value: "open", label: "Open" },
-  { value: "matched", label: "Matched" },
+  { value: "matched", label: "Near Me" },
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -353,7 +353,9 @@ export default function BrowseRequestsPage() {
         params.set("page", String(pageNum));
         params.set("per_page", String(PER_PAGE));
 
-        const res = await fetch(`/api/requests?${params}`);
+        const headers: HeadersInit = {};
+        if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+        const res = await fetch(`/api/requests?${params}`, { headers });
         if (!res.ok) throw new Error("Failed to fetch");
 
         const data = await res.json();
@@ -388,6 +390,7 @@ export default function BrowseRequestsPage() {
       urgencyFilter,
       commissionFilter,
       statusFilter,
+      accessToken,
     ]
   );
 
