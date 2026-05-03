@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -20,6 +20,14 @@ import { US_STATES } from "@/lib/types";
 import type { Profile } from "@/lib/types";
 
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[calc(100vh-160px)] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-green-primary" /></div>}>
+      <ProfilePageInner />
+    </Suspense>
+  );
+}
+
+function ProfilePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
