@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -13,6 +13,7 @@ import {
   MapPin,
   Globe,
   Phone,
+  Mail,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import { US_STATES } from "@/lib/types";
@@ -20,6 +21,7 @@ import type { Profile } from "@/lib/types";
 
 export default function ProfilePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -36,6 +38,8 @@ export default function ProfilePage() {
     state: "",
     zip: "",
     role: "" as string,
+    digest_opt_in: true,
+    digest_frequency: "weekly" as string,
   });
 
   useEffect(() => {
@@ -69,7 +73,26 @@ export default function ProfilePage() {
           state: data.state || "",
           zip: data.zip || "",
           role: data.role || "requestor",
+          digest_opt_in: data.digest_opt_in ?? true,
+          digest_frequency: data.digest_frequency || "weekly",
         });
+
+        // Handle ?digest=off unsubscribe link
+        if (searchParams.get("digest") === "off" && data.digest_opt_in) {
+          const unsub = await fetch("/api/auth/me", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ digest_opt_in: false }),
+          });
+          if (unsub.ok) {
+            setForm((f) => ({ ...f, digest_opt_in: false }));
+            setToast({ message: "You've been unsubscribed from digest emails.", type: "success" });
+            setTimeout(() => setToast(null), 5000);
+          }
+        }
       } catch {
         router.replace("/login?redirect=/dashboard/profile");
       } finally {
@@ -108,6 +131,8 @@ export default function ProfilePage() {
           state: form.state || null,
           zip: form.zip || null,
           role: form.role,
+          digest_opt_in: form.digest_opt_in,
+          digest_frequency: form.digest_frequency,
         }),
       });
 
@@ -328,6 +353,56 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+
+          {/* Email Digest Preferences (operators only) */}
+          {(form.role === "operator" || profile.role === "operator") && (
+            <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+              <h2 className="mb-4 flex items-center gap-1.5 text-lg font-semibold text-black-primary">
+                <Mail className="h-5 w-5 text-black-primary/40" />
+                Location Digest Emails
+              </h2>
+              <p className="mb-4 text-sm text-black-primary/60">
+                Get notified when new vending locations open up in your area.
+              </p>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-black-primary">Receive digest emails</p>
+                    <p className="text-xs text-black-primary/50">We&apos;ll send you new locations matching your state</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.digest_opt_in}
+                    onClick={() => setForm((f) => ({ ...f, digest_opt_in: !f.digest_opt_in }))}
+                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors ${
+                      form.digest_opt_in ? "bg-green-primary" : "bg-gray-300"
+                    }`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform mt-1 ${
+                      form.digest_opt_in ? "translate-x-6" : "translate-x-1"
+                    }`} />
+                  </button>
+                </div>
+
+                {form.digest_opt_in && (
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-black-primary">
+                      Frequency
+                    </label>
+                    <select
+                      value={form.digest_frequency}
+                      onChange={(e) => setForm((f) => ({ ...f, digest_frequency: e.target.value }))}
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Save Button */}
           <div className="flex items-center justify-end gap-3">

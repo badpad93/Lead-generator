@@ -19,7 +19,7 @@ const PROTECTED_PATHS = [
   "/financing",
 ];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Enforce canonical domain — redirect Vercel preview URLs to vendingconnector.com
