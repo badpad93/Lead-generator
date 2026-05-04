@@ -11,7 +11,6 @@ import {
   Star,
   Award,
   Monitor,
-  Loader2,
   AlertCircle,
   Compass,
   Clock,
@@ -19,6 +18,7 @@ import {
   HandCoins,
   Mail,
   Phone,
+  Crown,
 } from "lucide-react";
 import type { Profile, OperatorListing } from "@/lib/types";
 import MachineTypeBadge from "../../components/MachineTypeBadge";
@@ -275,12 +275,11 @@ export default function OperatorProfilePage() {
   const [listings, setListings] = useState<OperatorListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [loadingListings, setLoadingListings] = useState(false);
 
   // Per-lead purchase model: nothing is purchased by default
   const isPurchased = false;
 
-  // Fetch profile
+  // Fetch profile and listings from the [id] endpoint
   useEffect(() => {
     if (!id) return;
 
@@ -289,24 +288,19 @@ export default function OperatorProfilePage() {
       setError(null);
 
       try {
-        const params = new URLSearchParams();
-        params.set("mode", "profiles");
-        params.set("search", "");
-        params.set("page", "0");
-
-        const res = await fetch(`/api/operators?${params}`);
-        if (!res.ok) throw new Error("Failed to fetch operators");
-
-        const data = await res.json();
-        const operators: Profile[] = data.operators ?? [];
-        const found = operators.find((op) => op.id === id);
-
-        if (!found) {
-          setError("Operator not found");
+        const res = await fetch(`/api/operators/${id}`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            setError("Operator not found");
+          } else {
+            throw new Error("Failed to fetch operator");
+          }
           return;
         }
 
-        setProfile(found);
+        const data = await res.json();
+        setProfile(data.profile);
+        setListings(data.listings ?? []);
       } catch {
         setError("Failed to load operator profile. Please try again.");
       } finally {
@@ -317,32 +311,6 @@ export default function OperatorProfilePage() {
     fetchProfile();
   }, [id]);
 
-  // Fetch listings
-  useEffect(() => {
-    if (!id) return;
-
-    async function fetchListings() {
-      setLoadingListings(true);
-      try {
-        const params = new URLSearchParams();
-        params.set("mine", "true");
-        params.set("user_id", id);
-        params.set("page", "0");
-
-        const res = await fetch(`/api/operators?${params}`);
-        if (res.ok) {
-          const data = await res.json();
-          setListings(data.listings ?? []);
-        }
-      } catch {
-        // Silently fail
-      } finally {
-        setLoadingListings(false);
-      }
-    }
-
-    fetchListings();
-  }, [id]);
 
   // ---------- Loading state ----------
   if (loading) return <ProfileSkeleton />;
@@ -394,6 +362,7 @@ export default function OperatorProfilePage() {
   if (profile.state) allStates.add(profile.state);
 
   const memberSince = formatDate(profile.created_at);
+  const isFeatured = profile.featured === true;
 
   return (
     <div className="min-h-screen bg-light">
@@ -413,7 +382,14 @@ export default function OperatorProfilePage() {
           {/* ---------------------------------------------------------------- */}
           <div className="lg:col-span-2 space-y-6">
             {/* Profile Header Card */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 animate-fade-in">
+            <div className={`bg-white rounded-xl border p-6 sm:p-8 animate-fade-in ${isFeatured ? "border-green-300 ring-1 ring-green-200" : "border-gray-200"}`}>
+              {isFeatured && (
+                <div className="flex items-center gap-1.5 mb-4">
+                  <Crown className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm font-semibold text-amber-600">Featured Operator</span>
+                </div>
+              )}
+
               <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
                 <AvatarCircle
                   name={profile.full_name}
@@ -422,18 +398,20 @@ export default function OperatorProfilePage() {
                 <div className="text-center sm:text-left min-w-0 flex-1">
                   <div className="flex items-center justify-center gap-2 sm:justify-start">
                     <h1 className="text-xl font-bold text-black-primary sm:text-2xl">
-                      Verified Operator
+                      {isFeatured ? profile.full_name : "Verified Operator"}
                     </h1>
                     {profile.verified && (
                       <BadgeCheck className="h-5 w-5 shrink-0 text-green-primary" />
                     )}
                   </div>
-                  {/* Full address always visible */}
-                  {(profile.address || profile.city || profile.state || profile.zip) && (
+                  {isFeatured && profile.company_name && (
+                    <p className="mt-0.5 text-sm font-medium text-green-700">{profile.company_name}</p>
+                  )}
+                  {(profile.city || profile.state || (isFeatured && profile.address)) && (
                     <p className="mt-1 flex items-center justify-center gap-1 text-sm text-gray-500 sm:justify-start">
                       <MapPin className="h-3.5 w-3.5" />
                       {[
-                        profile.address,
+                        isFeatured ? profile.address : null,
                         [profile.city, profile.state].filter(Boolean).join(", "),
                         profile.zip,
                       ]
@@ -442,15 +420,34 @@ export default function OperatorProfilePage() {
                     </p>
                   )}
 
-                  {/* Call to connect CTA */}
+                  {/* Contact CTA */}
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
-                    <a
-                      href="tel:+18888511462"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-green-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
-                    >
-                      <Phone className="h-3 w-3" />
-                      Call (888) 851-1462 to Connect
-                    </a>
+                    {isFeatured && profile.phone ? (
+                      <a
+                        href={`tel:${profile.phone}`}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-green-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
+                      >
+                        <Phone className="h-3 w-3" />
+                        Call Operator
+                      </a>
+                    ) : (
+                      <a
+                        href="tel:+18888511462"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-green-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
+                      >
+                        <Phone className="h-3 w-3" />
+                        Call (888) 851-1462 to Connect
+                      </a>
+                    )}
+                    {isFeatured && profile.email && (
+                      <a
+                        href={`mailto:${profile.email}`}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 px-4 py-2 text-xs font-semibold text-green-primary transition-colors hover:bg-green-50"
+                      >
+                        <Mail className="h-3 w-3" />
+                        Email Operator
+                      </a>
+                    )}
                   </div>
 
                   <p className="mt-1 text-xs text-gray-400">
@@ -459,16 +456,14 @@ export default function OperatorProfilePage() {
                 </div>
               </div>
 
-              {/* Bio - blurred until purchased */}
-              {profile.bio && (
+              {/* Bio — only shown for featured operators */}
+              {isFeatured && profile.bio && (
                 <div className="mt-6 pt-5 border-t border-gray-100">
                   <h3 className="text-sm font-semibold text-black-primary mb-2">
                     About
                   </h3>
                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-                    <BlurredText isPurchased={isPurchased} placeholder="Operator bio and description available after purchase.">
-                      {profile.bio}
-                    </BlurredText>
+                    {profile.bio}
                   </p>
                 </div>
               )}
@@ -554,14 +549,7 @@ export default function OperatorProfilePage() {
                 )}
               </h3>
 
-              {loadingListings && (
-                <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading listings...
-                </div>
-              )}
-
-              {!loadingListings && listings.length === 0 && (
+              {listings.length === 0 && (
                 <div className="rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
                   <Monitor className="h-8 w-8 text-gray-300 mx-auto mb-2" />
                   <p className="text-sm text-gray-500">
@@ -570,7 +558,7 @@ export default function OperatorProfilePage() {
                 </div>
               )}
 
-              {!loadingListings && listings.length > 0 && (
+              {listings.length > 0 && (
                 <div className="space-y-4">
                   {listings.map((listing) => (
                     <ListingCard key={listing.id} listing={listing} isPurchased={isPurchased} />
