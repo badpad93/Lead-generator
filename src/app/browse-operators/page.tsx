@@ -932,6 +932,33 @@ export default function BrowseOperatorsPage() {
       {/* ------------------------------------------------------------------ */}
       {/* Bottom CTA */}
       {/* ------------------------------------------------------------------ */}
+      {/* Featured operator promo */}
+      {!loading && operators.length > 0 && (
+        <section className="border-t border-amber-100 bg-gradient-to-r from-amber-50 to-yellow-50">
+          <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+            <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
+              <div className="text-center sm:text-left">
+                <div className="flex items-center justify-center gap-2 sm:justify-start mb-1">
+                  <Crown className="h-5 w-5 text-amber-500" />
+                  <h2 className="text-lg font-bold text-black-primary">Want to stand out?</h2>
+                </div>
+                <p className="text-sm text-gray-600 max-w-md">
+                  Featured operators get full visibility, direct contact from locations, and priority placement. Only 3 spots per state.
+                </p>
+              </div>
+              <Link
+                href="/become-featured"
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-6 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-amber-600 shrink-0"
+              >
+                <Crown className="h-4 w-4" />
+                Become Featured — $29.99/mo
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Sign up CTA */}
       {!loading && operators.length > 0 && (
         <section className="border-t border-green-100 bg-light-warm">
           <div className="mx-auto max-w-7xl px-4 py-12 text-center sm:px-6 lg:px-8">
