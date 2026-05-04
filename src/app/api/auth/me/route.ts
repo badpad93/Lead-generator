@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       role:
         meta.role && meta.role !== "admin" && meta.role !== "sales"
           ? meta.role
-          : "requestor",
+          : "location_manager",
       country: "US",
       verified: false,
       rating: 0,
