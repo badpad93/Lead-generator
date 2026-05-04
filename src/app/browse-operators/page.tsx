@@ -16,6 +16,7 @@ import {
   BadgeCheck,
   Monitor,
   UserPlus,
+  Phone,
 } from "lucide-react";
 import type { Profile, MachineType, OperatorListing } from "@/lib/types";
 import { MACHINE_TYPES, US_STATES, US_STATE_NAMES } from "@/lib/types";
@@ -382,15 +383,18 @@ function OperatorCard({ operator, onViewProfile }: { operator: OperatorWithListi
         <OperatorAvatar name={operator.full_name} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <h3 className="font-semibold text-black-primary text-base leading-snug truncate select-none blur-sm">
-              {operator.full_name}
+            <h3 className="font-semibold text-black-primary text-base leading-snug truncate">
+              Verified Operator
             </h3>
             {operator.verified && (
               <BadgeCheck className="h-4.5 w-4.5 shrink-0 text-green-primary" />
             )}
           </div>
-          {operator.company_name && (
-            <p className="text-sm text-gray-500 truncate">{operator.company_name}</p>
+          {/* City/State always visible */}
+          {(operator.city || operator.state) && (
+            <p className="text-sm text-gray-500 truncate">
+              {[operator.city, operator.state].filter(Boolean).join(", ")}
+            </p>
           )}
         </div>
         <StatusBadge status={status} />
@@ -439,6 +443,13 @@ function OperatorCard({ operator, onViewProfile }: { operator: OperatorWithListi
         {!operator.accepts_commission && <span />}
 
         <div className="flex items-center gap-2">
+          <a
+            href="tel:+18888511462"
+            className="inline-flex items-center gap-1 rounded-lg bg-green-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
+          >
+            <Phone className="h-3 w-3" />
+            Call to Connect
+          </a>
           <Link
             href={`/operators/${operator.id}`}
             className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50 hover:text-green-primary"
@@ -668,7 +679,7 @@ export default function BrowseOperatorsPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search operators by name, city, state..."
+                placeholder="Search operators by city, state..."
                 className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-10 text-sm shadow-sm placeholder:text-gray-400 focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
               />
               {search && (

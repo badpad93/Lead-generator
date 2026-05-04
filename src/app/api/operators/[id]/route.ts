@@ -20,7 +20,7 @@ export async function GET(
       .single();
     requesterRole = requesterProfile?.role ?? null;
   }
-  const isLocationAccount = requesterRole === "location_manager";
+  const isOperator = requesterRole === "operator";
 
   const { data: profile, error } = await supabaseAdmin
     .from("profiles")
@@ -33,9 +33,9 @@ export async function GET(
     return NextResponse.json({ error: "Operator not found" }, { status: 404 });
   }
 
-  // Strip sensitive operator data for location accounts (only show zip code)
+  // Strip company name and contact info for non-operator viewers; keep city/state
   let safeProfile = profile;
-  if (isLocationAccount) {
+  if (!isOperator) {
     safeProfile = {
       ...profile,
       full_name: "Operator",
@@ -44,8 +44,7 @@ export async function GET(
       phone: null,
       website: null,
       bio: null,
-      city: null,
-      // Keep: id, zip, state, verified, rating, review_count, role, created_at
+      // Keep: id, city, state, zip, address, verified, rating, review_count, role, created_at
     };
   }
 

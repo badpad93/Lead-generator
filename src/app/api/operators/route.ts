@@ -64,10 +64,10 @@ export async function GET(req: NextRequest) {
     if (search) {
       const s = sanitizeSearch(search);
       if (s) {
-        if (isLocationAccount) {
-          query = query.or(`state.ilike.%${s}%,zip.ilike.%${s}%`);
-        } else {
+        if (requesterRole === "operator") {
           query = query.or(`full_name.ilike.%${s}%,company_name.ilike.%${s}%,city.ilike.%${s}%,state.ilike.%${s}%`);
+        } else {
+          query = query.or(`city.ilike.%${s}%,state.ilike.%${s}%,zip.ilike.%${s}%`);
         }
       }
     }
@@ -80,9 +80,10 @@ export async function GET(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Strip sensitive data for location accounts
+    // Strip company name and contact info for all non-operator viewers
     let operators = data || [];
-    if (isLocationAccount) {
+    const isOperator = requesterRole === "operator";
+    if (!isOperator) {
       operators = operators.map((op: Record<string, unknown>) => ({
         ...op,
         full_name: "Operator",
@@ -129,9 +130,10 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Strip operator profile data for location accounts
+  // Strip operator profile data for non-operator viewers
   let listings = data || [];
-  if (isLocationAccount) {
+  const isOp = requesterRole === "operator";
+  if (!isOp) {
     listings = listings.map((listing: Record<string, unknown>) => ({
       ...listing,
       profiles: stripOperatorProfileForLocations(listing.profiles as Record<string, unknown> | null),
