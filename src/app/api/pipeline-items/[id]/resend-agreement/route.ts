@@ -13,23 +13,41 @@ export async function POST(
   }
   const { id: itemId } = await params;
 
-  const { data: item } = await supabaseAdmin
+  console.log("[resend-agreement] Looking up pipeline item:", itemId);
+
+  const { data: item, error: itemError } = await supabaseAdmin
     .from("pipeline_items")
-    .select("*, locations(sales_lead_id, location_name, decision_maker_name, decision_maker_email, phone, address)")
+    .select("id, name, location_id")
     .eq("id", itemId)
-    .single();
+    .maybeSingle();
+
+  if (itemError) {
+    console.error("[resend-agreement] Pipeline item query error:", itemError.message);
+    return NextResponse.json({ error: `Query failed: ${itemError.message}` }, { status: 500 });
+  }
 
   if (!item) {
+    console.error("[resend-agreement] Pipeline item not found for id:", itemId);
     return NextResponse.json({ error: "Pipeline item not found" }, { status: 404 });
   }
 
-  if (!item.location_id || !item.locations) {
-    return NextResponse.json({ error: "No location linked" }, { status: 422 });
+  if (!item.location_id) {
+    return NextResponse.json({ error: "No location linked to this pipeline item" }, { status: 422 });
   }
 
-  const loc = item.locations;
+  const { data: loc, error: locError } = await supabaseAdmin
+    .from("locations")
+    .select("id, sales_lead_id, location_name, decision_maker_name, decision_maker_email, phone, address")
+    .eq("id", item.location_id)
+    .maybeSingle();
+
+  if (locError || !loc) {
+    console.error("[resend-agreement] Location query error:", locError?.message);
+    return NextResponse.json({ error: "Location not found" }, { status: 404 });
+  }
+
   if (!loc.sales_lead_id) {
-    return NextResponse.json({ error: "Location has no linked lead" }, { status: 422 });
+    return NextResponse.json({ error: "Location has no linked sales lead — cannot send agreement" }, { status: 422 });
   }
 
   if (!loc.decision_maker_email) {
@@ -52,6 +70,7 @@ export async function POST(
     return NextResponse.json({ ok: true, sent_to: loc.decision_maker_email });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[resend-agreement] Failed to send:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
