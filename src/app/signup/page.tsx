@@ -111,6 +111,16 @@ export default function SignupPage() {
       setError("Phone number is required");
       return;
     }
+    if (role === "operator") {
+      if (!leadForm.city.trim()) {
+        setError("City is required for operators");
+        return;
+      }
+      if (!leadForm.state.trim()) {
+        setError("State is required for operators");
+        return;
+      }
+    }
     setError(null);
     setStep(3);
   }
@@ -315,12 +325,12 @@ export default function SignupPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">City</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">City {role === "operator" && <span className="text-red-500">*</span>}</label>
                     <input value={leadForm.city} onChange={(e) => setLeadForm((f) => ({ ...f, city: e.target.value }))} placeholder="City" className={inputClass} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">State</label>
-                    <input value={leadForm.state} onChange={(e) => setLeadForm((f) => ({ ...f, state: e.target.value }))} placeholder="State" className={inputClass} />
+                    <label className="block text-xs font-medium text-gray-500 mb-1">State {role === "operator" && <span className="text-red-500">*</span>}</label>
+                    <input value={leadForm.state} onChange={(e) => setLeadForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} placeholder="e.g. TX" maxLength={2} className={inputClass} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
