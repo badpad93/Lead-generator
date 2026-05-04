@@ -4,6 +4,10 @@ import { sanitizeSearch } from "@/lib/sanitizeSearch";
 
 const PAGE_SIZE = 12;
 
+function isPaidFeatured(profile: Record<string, unknown> | null): boolean {
+  return profile?.featured === true && !!profile?.stripe_subscription_id;
+}
+
 /**
  * Strip operator profile data.
  * Non-featured operators: only show city, state, zip, verified status.
@@ -14,7 +18,8 @@ function stripOperatorProfile(
   isFeatured: boolean
 ): Record<string, unknown> | null {
   if (!profile) return null;
-  if (isFeatured) return profile;
+  const { stripe_subscription_id: _sid, stripe_customer_id: _cid, ...clean } = profile;
+  if (isFeatured) return { ...clean, featured: true };
   return {
     id: profile.id,
     city: profile.city ?? null,
@@ -70,7 +75,7 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     const operators = (data || []).map((op: Record<string, unknown>) =>
-      stripOperatorProfile(op, op.featured === true)
+      stripOperatorProfile(op, isPaidFeatured(op))
     );
 
     return NextResponse.json({ operators, total: count || 0 });
@@ -79,7 +84,7 @@ export async function GET(req: NextRequest) {
   // Listings mode
   let query = supabaseAdmin
     .from("operator_listings")
-    .select("*, profiles!operator_id(id, full_name, company_name, verified, rating, review_count, address, city, state, zip, featured)", { count: "exact" });
+    .select("*, profiles!operator_id(id, full_name, company_name, verified, rating, review_count, address, city, state, zip, featured, stripe_subscription_id)", { count: "exact" });
 
   if (mine === "true" && userId) {
     query = query.eq("operator_id", userId);
@@ -109,7 +114,7 @@ export async function GET(req: NextRequest) {
 
   const listings = (data || []).map((listing: Record<string, unknown>) => {
     const profile = listing.profiles as Record<string, unknown> | null;
-    const isFeatured = listing.featured === true || profile?.featured === true;
+    const isFeatured = isPaidFeatured(profile);
     return {
       ...listing,
       profiles: stripOperatorProfile(profile, isFeatured),

@@ -19,22 +19,25 @@ export async function GET(
     return NextResponse.json({ error: "Operator not found" }, { status: 404 });
   }
 
-  const isFeatured = profile.featured === true;
+  const isFeatured = profile.featured === true && !!profile.stripe_subscription_id;
+
+  // Never expose Stripe IDs
+  const { stripe_subscription_id: _sid, stripe_customer_id: _cid, ...cleanProfile } = profile;
 
   // Non-featured operators: strip all identifying info
-  let safeProfile = profile;
-  if (!isFeatured) {
-    safeProfile = {
-      ...profile,
-      full_name: "Operator",
-      company_name: null,
-      email: null,
-      phone: null,
-      website: null,
-      bio: null,
-      address: null,
-    };
-  }
+  let safeProfile = isFeatured
+    ? { ...cleanProfile, featured: true }
+    : {
+        ...cleanProfile,
+        featured: false,
+        full_name: "Operator",
+        company_name: null,
+        email: null,
+        phone: null,
+        website: null,
+        bio: null,
+        address: null,
+      };
 
   // Get their listings
   const { data: listings } = await supabaseAdmin
