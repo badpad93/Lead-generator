@@ -73,6 +73,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
+    // Handle featured operator subscription
+    if (session.metadata?.type === "featured_operator") {
+      await handleFeaturedSubscription(session);
+      return NextResponse.json({ received: true });
+    }
+
     const userId = session.metadata?.user_id;
     const requestId = session.metadata?.request_id;
     const agreementId = session.metadata?.agreement_id;
@@ -198,6 +204,21 @@ export async function POST(req: NextRequest) {
         .eq("pipeline_item_id", pipelineItemId)
         .eq("step_id", stepId)
         .in("status", ["pending", "created"]);
+    }
+  }
+
+  // Handle subscription cancellation — remove featured status
+  if (event.type === "customer.subscription.deleted") {
+    const subscription = event.data.object as Stripe.Subscription;
+    if (subscription.metadata?.type === "featured_operator") {
+      const userId = subscription.metadata.user_id;
+      if (userId) {
+        await supabaseAdmin
+          .from("profiles")
+          .update({ featured: false, stripe_subscription_id: null })
+          .eq("id", userId);
+        console.log(`[stripe-webhook] Removed featured status for user ${userId}`);
+      }
     }
   }
 
@@ -518,4 +539,43 @@ async function handleMachinePurchase(session: Stripe.Checkout.Session) {
   } catch (e) {
     console.error("[stripe-webhook] Failed to send machine purchase notification:", e);
   }
+}
+
+async function handleFeaturedSubscription(session: Stripe.Checkout.Session) {
+  const userId = session.metadata?.user_id;
+  const state = session.metadata?.state;
+  if (!userId) return;
+
+  const subscriptionId =
+    typeof session.subscription === "string"
+      ? session.subscription
+      : session.subscription?.id ?? null;
+
+  // Verify slot is still available (race condition guard)
+  const { count } = await supabaseAdmin
+    .from("profiles")
+    .select("*", { count: "exact", head: true })
+    .eq("role", "operator")
+    .eq("featured", true)
+    .eq("state", state || "")
+    .neq("id", userId);
+
+  if ((count || 0) >= 3) {
+    console.error(`[stripe-webhook] Featured slots full for ${state}, cancelling subscription ${subscriptionId}`);
+    if (subscriptionId) {
+      const stripeClient = getStripeClient();
+      await stripeClient.subscriptions.cancel(subscriptionId);
+    }
+    return;
+  }
+
+  await supabaseAdmin
+    .from("profiles")
+    .update({
+      featured: true,
+      stripe_subscription_id: subscriptionId,
+    })
+    .eq("id", userId);
+
+  console.log(`[stripe-webhook] User ${userId} is now a featured operator in ${state}`);
 }

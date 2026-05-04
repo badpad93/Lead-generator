@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 /** GET /api/operators/[id] — get an operator's profile with listings */
 export async function GET(
@@ -8,19 +7,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-
-  // Determine requester role for data access control
-  const requesterId = await getUserIdFromRequest(req);
-  let requesterRole: string | null = null;
-  if (requesterId) {
-    const { data: requesterProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", requesterId)
-      .single();
-    requesterRole = requesterProfile?.role ?? null;
-  }
-  const isOperator = requesterRole === "operator";
 
   const { data: profile, error } = await supabaseAdmin
     .from("profiles")
@@ -33,9 +19,11 @@ export async function GET(
     return NextResponse.json({ error: "Operator not found" }, { status: 404 });
   }
 
-  // Strip company name and contact info for non-operator viewers; keep city/state
+  const isFeatured = profile.featured === true;
+
+  // Non-featured operators: strip all identifying info
   let safeProfile = profile;
-  if (!isOperator) {
+  if (!isFeatured) {
     safeProfile = {
       ...profile,
       full_name: "Operator",
@@ -44,7 +32,7 @@ export async function GET(
       phone: null,
       website: null,
       bio: null,
-      // Keep: id, city, state, zip, address, verified, rating, review_count, role, created_at
+      address: null,
     };
   }
 

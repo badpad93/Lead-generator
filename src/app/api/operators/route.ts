@@ -1,41 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { createListingSchema } from "@/lib/schemas";
-import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { sanitizeSearch } from "@/lib/sanitizeSearch";
 
 const PAGE_SIZE = 12;
 
-/** Determine the role of the requesting user (if authenticated) */
-async function getRequesterRole(req: NextRequest): Promise<string | null> {
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) return null;
-  const { data } = await supabaseAdmin
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .single();
-  return data?.role ?? null;
-}
-
 /**
- * Strip operator profile data for location accounts.
- * Location accounts can only see operator zip codes — not business name or contact info.
+ * Strip operator profile data.
+ * Non-featured operators: only show city, state, zip, verified status.
+ * Featured operators ($29.99/mo subscription): show full profile info.
  */
-function stripOperatorProfileForLocations(profile: Record<string, unknown> | null): Record<string, unknown> | null {
+function stripOperatorProfile(
+  profile: Record<string, unknown> | null,
+  isFeatured: boolean
+): Record<string, unknown> | null {
   if (!profile) return null;
+  if (isFeatured) return profile;
   return {
     id: profile.id,
-    address: profile.address ?? null,
     city: profile.city ?? null,
     zip: profile.zip ?? null,
     state: profile.state ?? null,
     verified: profile.verified ?? false,
     rating: profile.rating ?? 0,
     review_count: profile.review_count ?? 0,
-    // Hide: full_name, company_name, email, phone, website, bio, city
+    role: profile.role ?? "operator",
+    created_at: profile.created_at ?? null,
     full_name: "Operator",
     company_name: null,
+    email: null,
+    phone: null,
+    website: null,
+    bio: null,
+    address: null,
   };
 }
 
@@ -49,11 +45,7 @@ export async function GET(req: NextRequest) {
   const page = Math.max(0, parseInt(params.get("page") || "0"));
   const mine = params.get("mine");
   const userId = params.get("user_id");
-  const mode = params.get("mode") || "listings"; // "listings" or "profiles"
-
-  // Determine if requester is a location account
-  const requesterRole = await getRequesterRole(req);
-  const isLocationAccount = requesterRole === "location_manager";
+  const mode = params.get("mode") || "listings";
 
   if (mode === "profiles") {
     let query = supabaseAdmin
@@ -64,37 +56,22 @@ export async function GET(req: NextRequest) {
     if (search) {
       const s = sanitizeSearch(search);
       if (s) {
-        if (requesterRole === "operator") {
-          query = query.or(`full_name.ilike.%${s}%,company_name.ilike.%${s}%,city.ilike.%${s}%,state.ilike.%${s}%`);
-        } else {
-          query = query.or(`city.ilike.%${s}%,state.ilike.%${s}%,zip.ilike.%${s}%`);
-        }
+        query = query.or(`city.ilike.%${s}%,state.ilike.%${s}%,zip.ilike.%${s}%`);
       }
     }
     if (state) query = query.eq("state", state);
 
     const from = page * PAGE_SIZE;
     const { data, error, count } = await query
+      .order("featured", { ascending: false })
       .order("rating", { ascending: false })
       .range(from, from + PAGE_SIZE - 1);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Strip company name and contact info for all non-operator viewers
-    let operators = data || [];
-    const isOperator = requesterRole === "operator";
-    if (!isOperator) {
-      operators = operators.map((op: Record<string, unknown>) => ({
-        ...op,
-        full_name: "Operator",
-        company_name: null,
-        email: null,
-        phone: null,
-        website: null,
-        bio: null,
-        // Keep: id, address, city, zip, state, verified, rating, review_count, role, created_at
-      }));
-    }
+    const operators = (data || []).map((op: Record<string, unknown>) =>
+      stripOperatorProfile(op, op.featured === true)
+    );
 
     return NextResponse.json({ operators, total: count || 0 });
   }
@@ -102,7 +79,7 @@ export async function GET(req: NextRequest) {
   // Listings mode
   let query = supabaseAdmin
     .from("operator_listings")
-    .select("*, profiles!operator_id(id, full_name, company_name, verified, rating, review_count, address, city, state, zip)", { count: "exact" });
+    .select("*, profiles!operator_id(id, full_name, company_name, verified, rating, review_count, address, city, state, zip, featured)", { count: "exact" });
 
   if (mine === "true" && userId) {
     query = query.eq("operator_id", userId);
@@ -130,51 +107,14 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Strip operator profile data for non-operator viewers
-  let listings = data || [];
-  const isOp = requesterRole === "operator";
-  if (!isOp) {
-    listings = listings.map((listing: Record<string, unknown>) => ({
+  const listings = (data || []).map((listing: Record<string, unknown>) => {
+    const profile = listing.profiles as Record<string, unknown> | null;
+    const isFeatured = listing.featured === true || profile?.featured === true;
+    return {
       ...listing,
-      profiles: stripOperatorProfileForLocations(listing.profiles as Record<string, unknown> | null),
-    }));
-  }
+      profiles: stripOperatorProfile(profile, isFeatured),
+    };
+  });
 
   return NextResponse.json({ listings, total: count || 0 });
-}
-
-/** POST /api/operators — create a new operator listing */
-export async function POST(req: NextRequest) {
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    const body = await req.json();
-    const parsed = createListingSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.flatten().fieldErrors },
-        { status: 400 }
-      );
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from("operator_listings")
-      .insert({
-        operator_id: userId,
-        ...parsed.data,
-        featured: false, // All submissions require admin approval (set featured=true to approve)
-      })
-      .select("id")
-      .single();
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ id: data.id }, { status: 201 });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
 }

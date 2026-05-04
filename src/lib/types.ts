@@ -48,6 +48,7 @@ export interface Profile {
   verified: boolean;
   rating: number;
   review_count: number;
+  featured: boolean;
   digest_opt_in: boolean;
   digest_frequency: "daily" | "weekly" | "never";
   digest_last_sent_at: string | null;

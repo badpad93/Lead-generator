@@ -17,6 +17,7 @@ import {
   Monitor,
   UserPlus,
   Phone,
+  Crown,
 } from "lucide-react";
 import type { Profile, MachineType, OperatorListing } from "@/lib/types";
 import { MACHINE_TYPES, US_STATES, US_STATE_NAMES } from "@/lib/types";
@@ -365,10 +366,10 @@ function OperatorCard({ operator, onViewProfile }: { operator: OperatorWithListi
   const states = operator.aggregated_states ?? [];
   const totalMachines = operator.total_machines ?? 0;
   const status = operator.aggregated_status ?? "available";
+  const isFeatured = operator.featured === true;
 
-  // Operator service address is public so locations can find them.
   const locationParts: string[] = [];
-  if (operator.address) locationParts.push(operator.address);
+  if (isFeatured && operator.address) locationParts.push(operator.address);
   const cityState = [operator.city, operator.state].filter(Boolean).join(", ");
   if (cityState) locationParts.push(cityState);
   if (operator.zip) locationParts.push(operator.zip);
@@ -377,20 +378,30 @@ function OperatorCard({ operator, onViewProfile }: { operator: OperatorWithListi
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-green-primary/5 group">
+    <div className={`bg-white rounded-xl border p-5 transition-shadow hover:shadow-lg group ${isFeatured ? "border-green-300 ring-1 ring-green-200 hover:shadow-green-primary/10" : "border-gray-200 hover:shadow-green-primary/5"}`}>
+      {/* Featured badge */}
+      {isFeatured && (
+        <div className="flex items-center gap-1.5 mb-3 -mt-1">
+          <Crown className="h-3.5 w-3.5 text-amber-500" />
+          <span className="text-xs font-semibold text-amber-600">Featured Operator</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start gap-3">
         <OperatorAvatar name={operator.full_name} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <h3 className="font-semibold text-black-primary text-base leading-snug truncate">
-              Verified Operator
+              {isFeatured ? operator.full_name : "Verified Operator"}
             </h3>
             {operator.verified && (
               <BadgeCheck className="h-4.5 w-4.5 shrink-0 text-green-primary" />
             )}
           </div>
-          {/* City/State always visible */}
+          {isFeatured && operator.company_name && (
+            <p className="text-sm text-green-700 font-medium truncate">{operator.company_name}</p>
+          )}
           {(operator.city || operator.state) && (
             <p className="text-sm text-gray-500 truncate">
               {[operator.city, operator.state].filter(Boolean).join(", ")}
@@ -399,6 +410,13 @@ function OperatorCard({ operator, onViewProfile }: { operator: OperatorWithListi
         </div>
         <StatusBadge status={status} />
       </div>
+
+      {/* Rating for featured */}
+      {isFeatured && operator.rating > 0 && (
+        <div className="mt-2">
+          <InlineStarRating value={operator.rating} count={operator.review_count} />
+        </div>
+      )}
 
       {/* Machine Types */}
       {machineTypes.length > 0 && (
@@ -432,6 +450,11 @@ function OperatorCard({ operator, onViewProfile }: { operator: OperatorWithListi
         </div>
       )}
 
+      {/* Bio excerpt for featured */}
+      {isFeatured && operator.bio && (
+        <p className="mt-2 text-sm text-gray-500 line-clamp-2">{operator.bio}</p>
+      )}
+
       {/* Footer */}
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
         {operator.accepts_commission && (
@@ -443,13 +466,23 @@ function OperatorCard({ operator, onViewProfile }: { operator: OperatorWithListi
         {!operator.accepts_commission && <span />}
 
         <div className="flex items-center gap-2">
-          <a
-            href="tel:+18888511462"
-            className="inline-flex items-center gap-1 rounded-lg bg-green-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
-          >
-            <Phone className="h-3 w-3" />
-            Call to Connect
-          </a>
+          {isFeatured && operator.phone ? (
+            <a
+              href={`tel:${operator.phone}`}
+              className="inline-flex items-center gap-1 rounded-lg bg-green-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
+            >
+              <Phone className="h-3 w-3" />
+              Call Operator
+            </a>
+          ) : (
+            <a
+              href="tel:+18888511462"
+              className="inline-flex items-center gap-1 rounded-lg bg-green-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
+            >
+              <Phone className="h-3 w-3" />
+              Call to Connect
+            </a>
+          )}
           <Link
             href={`/operators/${operator.id}`}
             className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50 hover:text-green-primary"

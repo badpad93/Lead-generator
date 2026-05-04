@@ -26,6 +26,7 @@ import {
   Timer,
   Play,
   Square,
+  Crown,
 } from "lucide-react";
 import type {
   Profile,
@@ -98,6 +99,131 @@ function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${h}h ${m}m`;
+}
+
+function FeaturedOperatorWidget({ token }: { token: string }) {
+  const [featuredData, setFeaturedData] = useState<{
+    featured: boolean;
+    slots_available: number;
+    state: string | null;
+    has_subscription: boolean;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [subscribing, setSubscribing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/featured-subscription", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then(setFeaturedData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  async function handleSubscribe() {
+    setSubscribing(true);
+    try {
+      const res = await fetch("/api/featured-subscription", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || "Something went wrong");
+      }
+    } catch {
+      alert("Network error. Please try again.");
+    } finally {
+      setSubscribing(false);
+    }
+  }
+
+  async function handleCancel() {
+    if (!confirm("Cancel your featured subscription? It will remain active until the end of your billing period.")) return;
+    setCancelling(true);
+    try {
+      const res = await fetch("/api/featured-subscription", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert("Your subscription will cancel at the end of the billing period.");
+        setFeaturedData((prev) => prev ? { ...prev, has_subscription: false } : prev);
+      } else {
+        alert(data.error || "Something went wrong");
+      }
+    } catch {
+      alert("Network error. Please try again.");
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  if (loading || !featuredData) return null;
+
+  if (featuredData.featured) {
+    return (
+      <div className="rounded-2xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-5">
+        <div className="flex items-center gap-2 mb-2">
+          <Crown className="h-5 w-5 text-amber-500" />
+          <h3 className="font-bold text-black-primary">Featured Operator</h3>
+        </div>
+        <p className="text-sm text-gray-600">
+          Your full profile is visible to all visitors. Your name, company, contact info, and bio are displayed on your listing.
+        </p>
+        {featuredData.has_subscription && (
+          <button
+            onClick={handleCancel}
+            disabled={cancelling}
+            className="mt-3 text-xs text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+          >
+            {cancelling ? "Cancelling..." : "Cancel subscription"}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-5">
+      <div className="flex items-center gap-2 mb-2">
+        <Crown className="h-5 w-5 text-amber-500" />
+        <h3 className="font-bold text-black-primary">Become a Featured Operator</h3>
+      </div>
+      <p className="text-sm text-gray-600 mb-1">
+        Show your full profile — name, company, contact info, and bio — to all visitors.
+        Get priority placement in search results.
+      </p>
+      <p className="text-xs text-gray-500 mb-3">
+        $29.99/month {featuredData.state && `• ${featuredData.slots_available} spot${featuredData.slots_available !== 1 ? "s" : ""} left in ${featuredData.state}`}
+        {!featuredData.state && "• Set your state in your profile first"}
+      </p>
+      <button
+        onClick={handleSubscribe}
+        disabled={subscribing || featuredData.slots_available === 0 || !featuredData.state}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50 cursor-pointer"
+      >
+        {subscribing ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Redirecting...
+          </>
+        ) : featuredData.slots_available === 0 ? (
+          "No spots available"
+        ) : (
+          <>
+            <Crown className="h-4 w-4" />
+            Subscribe — $29.99/mo
+          </>
+        )}
+      </button>
+    </div>
+  );
 }
 
 function ClockWidget({ token }: { token: string }) {
@@ -513,6 +639,11 @@ export default function DashboardPage() {
           <ClockWidget token={token} />
         )}
 
+        {/* ------- FEATURED OPERATOR ------- */}
+        {isOperator && (
+          <FeaturedOperatorWidget token={token} />
+        )}
+
         {/* ------- QUICK ACTIONS ------- */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {isOperator ? (
@@ -535,25 +666,6 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-green-primary" />
-              </Link>
-              <Link
-                href="/listings/new"
-                className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
-                title={TOOLTIP_COPY["Create Listing"]}
-                aria-label={TOOLTIP_COPY["Create Listing"]}
-              >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white">
-                  <Plus className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="font-semibold text-black-primary">
-                    Create Listing
-                  </p>
-                  <p className="text-sm text-black-primary/50">
-                    Advertise your vending services
-                  </p>
-                </div>
-                <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-blue-600" />
               </Link>
             </>
           ) : (
