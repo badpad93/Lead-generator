@@ -17,7 +17,7 @@ export async function POST(
 
   const { data: item, error: itemError } = await supabaseAdmin
     .from("pipeline_items")
-    .select("id, name, location_id")
+    .select("id, name, location_id, lead_id, account_id")
     .eq("id", itemId)
     .maybeSingle();
 
@@ -27,47 +27,105 @@ export async function POST(
   }
 
   if (!item) {
-    console.error("[resend-agreement] Pipeline item not found for id:", itemId);
     return NextResponse.json({ error: "Pipeline item not found" }, { status: 404 });
   }
 
-  if (!item.location_id) {
-    return NextResponse.json({ error: "No location linked to this pipeline item" }, { status: 422 });
+  // Try to get contact info from location first
+  let leadId: string | null = null;
+  let contactEmail: string | null = null;
+  let contactName: string | null = null;
+  let businessName: string = item.name;
+  let phone: string | null = null;
+  let address: string | null = null;
+
+  if (item.location_id) {
+    const { data: loc } = await supabaseAdmin
+      .from("locations")
+      .select("id, sales_lead_id, location_name, decision_maker_name, decision_maker_email, phone, address")
+      .eq("id", item.location_id)
+      .maybeSingle();
+
+    if (loc) {
+      leadId = loc.sales_lead_id;
+      contactEmail = loc.decision_maker_email;
+      contactName = loc.decision_maker_name;
+      businessName = loc.location_name || item.name;
+      phone = loc.phone;
+      address = loc.address;
+    } else {
+      console.warn("[resend-agreement] Location not found for id:", item.location_id, "— falling back to lead/account");
+    }
   }
 
-  const { data: loc, error: locError } = await supabaseAdmin
-    .from("locations")
-    .select("id, sales_lead_id, location_name, decision_maker_name, decision_maker_email, phone, address")
-    .eq("id", item.location_id)
-    .maybeSingle();
+  // Fallback: use the sales lead linked to the pipeline item
+  if (!leadId && item.lead_id) {
+    const { data: lead } = await supabaseAdmin
+      .from("sales_leads")
+      .select("id, email, contact_name, business_name, phone, address")
+      .eq("id", item.lead_id)
+      .maybeSingle();
 
-  if (locError || !loc) {
-    console.error("[resend-agreement] Location query error:", locError?.message);
-    return NextResponse.json({ error: "Location not found" }, { status: 404 });
+    if (lead) {
+      leadId = lead.id;
+      contactEmail = contactEmail || lead.email;
+      contactName = contactName || lead.contact_name;
+      businessName = lead.business_name || businessName;
+      phone = phone || lead.phone;
+      address = address || lead.address;
+    }
   }
 
-  if (!loc.sales_lead_id) {
-    return NextResponse.json({ error: "Location has no linked sales lead — cannot send agreement" }, { status: 422 });
+  // Fallback: use the sales account linked to the pipeline item
+  if (!contactEmail && item.account_id) {
+    const { data: account } = await supabaseAdmin
+      .from("sales_accounts")
+      .select("id, email, contact_name, business_name, phone, address")
+      .eq("id", item.account_id)
+      .maybeSingle();
+
+    if (account) {
+      contactEmail = account.email;
+      contactName = contactName || account.contact_name;
+      businessName = account.business_name || businessName;
+      phone = phone || account.phone;
+      address = address || account.address;
+    }
   }
 
-  if (!loc.decision_maker_email) {
-    return NextResponse.json({ error: "Location has no decision maker email" }, { status: 422 });
+  // If we still don't have a lead_id, create the agreement under the pipeline item's lead
+  if (!leadId && item.lead_id) {
+    leadId = item.lead_id;
+  }
+
+  if (!leadId) {
+    return NextResponse.json(
+      { error: "No sales lead linked — create or link a location first" },
+      { status: 422 }
+    );
+  }
+
+  if (!contactEmail) {
+    return NextResponse.json(
+      { error: "No email found on location, lead, or account — add an email first" },
+      { status: 422 }
+    );
   }
 
   try {
     await createAndSendAgreement(
-      loc.sales_lead_id,
+      leadId,
       {
-        business_name: loc.location_name || item.name,
-        contact_name: loc.decision_maker_name || undefined,
-        email: loc.decision_maker_email,
-        phone: loc.phone || undefined,
-        address: loc.address || undefined,
+        business_name: businessName,
+        contact_name: contactName || undefined,
+        email: contactEmail,
+        phone: phone || undefined,
+        address: address || undefined,
       },
       { force: true }
     );
 
-    return NextResponse.json({ ok: true, sent_to: loc.decision_maker_email });
+    console.log("[resend-agreement] Agreement sent to", contactEmail);
+    return NextResponse.json({ ok: true, sent_to: contactEmail });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error("[resend-agreement] Failed to send:", msg);
