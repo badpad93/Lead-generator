@@ -9,6 +9,7 @@ import {
 } from "@/lib/pricing/locationPricing";
 import { generateAgreementPdf } from "@/lib/pdf/agreementPdf";
 import { sendAgreementEmail } from "@/lib/agreementEmail";
+import { sendLocationMatchedEmail } from "@/lib/locationAgreementEmail";
 
 function getSiteUrl(): string {
   return process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
@@ -211,6 +212,22 @@ export async function POST(
       .from("pipeline_items")
       .update({ proposal_status: "proposal_sent", updated_at: new Date().toISOString() })
       .eq("id", itemId);
+
+    // Notify location manager that an operator is interested
+    try {
+      const locEmail = location.decision_maker_email;
+      if (locEmail) {
+        await sendLocationMatchedEmail({
+          to: locEmail,
+          recipientName: location.decision_maker_name || "Business Owner",
+          businessName: item.sales_accounts?.business_name || item.name,
+          locationName: location.location_name || "your location",
+        });
+        console.log(`[send-proposal] Notified location manager ${locEmail} of operator interest`);
+      }
+    } catch (notifyErr) {
+      console.error("[send-proposal] Failed to notify location manager:", notifyErr);
+    }
 
     return NextResponse.json({
       ok: true,
