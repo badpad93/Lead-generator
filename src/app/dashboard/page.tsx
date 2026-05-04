@@ -203,25 +203,33 @@ function FeaturedOperatorWidget({ token }: { token: string }) {
         $29.99/month {featuredData.state && `• ${featuredData.slots_available} spot${featuredData.slots_available !== 1 ? "s" : ""} left in ${featuredData.state}`}
         {!featuredData.state && "• Set your state in your profile first"}
       </p>
-      <button
-        onClick={handleSubscribe}
-        disabled={subscribing || featuredData.slots_available === 0 || !featuredData.state}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50 cursor-pointer"
-      >
-        {subscribing ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Redirecting...
-          </>
-        ) : featuredData.slots_available === 0 ? (
-          "No spots available"
-        ) : (
-          <>
-            <Crown className="h-4 w-4" />
-            Subscribe — $29.99/mo
-          </>
-        )}
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleSubscribe}
+          disabled={subscribing || featuredData.slots_available === 0 || !featuredData.state}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50 cursor-pointer"
+        >
+          {subscribing ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Redirecting...
+            </>
+          ) : featuredData.slots_available === 0 ? (
+            "No spots available"
+          ) : (
+            <>
+              <Crown className="h-4 w-4" />
+              Subscribe — $29.99/mo
+            </>
+          )}
+        </button>
+        <Link
+          href="/become-featured"
+          className="text-sm font-medium text-amber-600 hover:text-amber-700 transition-colors"
+        >
+          Learn more →
+        </Link>
+      </div>
     </div>
   );
 }
