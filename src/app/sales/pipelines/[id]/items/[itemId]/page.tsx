@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, ChevronRight, Upload, CheckCircle2, Circle, AlertTriangle, FileText, Lock, Building2, Search, X, Link2, Unlink, Send, DollarSign, ShieldCheck, PenTool, CreditCard, Clock, ExternalLink, MapPin, Calculator, Plus, ClipboardList } from "lucide-react";
+import { ArrowLeft, Loader2, ChevronRight, Upload, CheckCircle2, Circle, AlertTriangle, FileText, Lock, Building2, Search, X, Link2, Unlink, Send, DollarSign, ShieldCheck, PenTool, CreditCard, Clock, ExternalLink, MapPin, Calculator, Plus, ClipboardList, RefreshCw } from "lucide-react";
 
 interface StepDoc {
   id: string;
@@ -173,6 +173,8 @@ export default function PipelineItemDetailPage() {
   const [esignForm, setEsignForm] = useState({ document_name: "", recipient_email: "", template_id: "" });
   const [sendingProposal, setSendingProposal] = useState(false);
   const [proposalError, setProposalError] = useState<string | null>(null);
+  const [resendingAgreement, setResendingAgreement] = useState(false);
+  const [resendResult, setResendResult] = useState<string | null>(null);
   const [pricingData, setPricingData] = useState<PricingData | null>(null);
   const [pricingInputs, setPricingInputs] = useState({ employees: 0, foot_traffic: 0, business_hours: "low" as string, machines_requested: 1 });
   const [calculatingPricing, setCalculatingPricing] = useState(false);
@@ -494,6 +496,27 @@ export default function PipelineItemDetailPage() {
       setProposalError(err instanceof Error ? err.message : "Network error");
     } finally {
       setSendingProposal(false);
+    }
+  }
+
+  async function handleResendAgreement() {
+    setResendingAgreement(true);
+    setResendResult(null);
+    try {
+      const res = await fetch(`/api/pipeline-items/${itemId}/resend-agreement`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResendResult(`Agreement resent to ${data.sent_to}`);
+      } else {
+        setResendResult(`Error: ${data.error}`);
+      }
+    } catch {
+      setResendResult("Network error");
+    } finally {
+      setResendingAgreement(false);
     }
   }
 
@@ -837,14 +860,61 @@ export default function PipelineItemDetailPage() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Clock className="h-4 w-4 text-gray-400" />
-              <span>
-                Agreement sent {new Date(item.location_agreement.created_at).toLocaleDateString()}
-                {item.location_agreement.email && <> to {item.location_agreement.email}</>}
-                {" — waiting for location partner to sign"}
-              </span>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Clock className="h-4 w-4 text-gray-400" />
+                <span>
+                  Agreement sent {new Date(item.location_agreement.created_at).toLocaleDateString()}
+                  {item.location_agreement.email && <> to {item.location_agreement.email}</>}
+                  {" — waiting for location partner to sign"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleResendAgreement}
+                disabled={resendingAgreement}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+              >
+                {resendingAgreement ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                Resend Agreement Email
+              </button>
+              {resendResult && (
+                <p className={`text-xs ${resendResult.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
+                  {resendResult}
+                </p>
+              )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Send Location Agreement (when none exists yet) */}
+      {!item.location_agreement && item.location_id && (
+        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-yellow-600" />
+                Location Agreement Not Sent
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">
+                No agreement has been sent to the location manager yet.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleResendAgreement}
+              disabled={resendingAgreement}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-yellow-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-yellow-700 disabled:opacity-50 cursor-pointer"
+            >
+              {resendingAgreement ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+              Send Agreement to Location
+            </button>
+          </div>
+          {resendResult && (
+            <p className={`mt-2 text-xs ${resendResult.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
+              {resendResult}
+            </p>
           )}
         </div>
       )}

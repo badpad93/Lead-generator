@@ -10,6 +10,7 @@ import {
 import { sendMachinePurchaseThankYouEmail, sendMachinePurchaseNotificationEmail } from "@/lib/machinePurchaseEmail";
 import { generateSiteDetailsPdf } from "@/lib/pdf/agreementPdf";
 import { sendFullSiteDetailsEmail } from "@/lib/agreementEmail";
+import { sendLocationDealClosedEmail } from "@/lib/locationAgreementEmail";
 import { PricingResult } from "@/lib/pricing/locationPricing";
 
 function getStripeClient(): Stripe {
@@ -381,6 +382,33 @@ async function handleAgreementPayment(session: Stripe.Checkout.Session) {
         phone: locationAgreement.phone || "",
       } : undefined,
     });
+
+    // Notify location manager that the deal is closed
+    if (locationAgreement?.email) {
+      try {
+        await sendLocationDealClosedEmail({
+          to: locationAgreement.email,
+          recipientName: locationAgreement.contact_name || "Business Owner",
+          businessName: locationAgreement.business_name || location.location_name || "",
+          locationName: location.location_name || "your location",
+        });
+        console.log(`[stripe-webhook] Sent deal-closed email to location manager: ${locationAgreement.email}`);
+      } catch (locErr) {
+        console.error("[stripe-webhook] Failed to send location deal-closed email:", locErr);
+      }
+    } else if (location.decision_maker_email) {
+      try {
+        await sendLocationDealClosedEmail({
+          to: location.decision_maker_email,
+          recipientName: location.decision_maker_name || "Business Owner",
+          businessName: location.location_name || "",
+          locationName: location.location_name || "your location",
+        });
+        console.log(`[stripe-webhook] Sent deal-closed email to decision maker: ${location.decision_maker_email}`);
+      } catch (locErr) {
+        console.error("[stripe-webhook] Failed to send location deal-closed email:", locErr);
+      }
+    }
   } catch (e) {
     console.error("[stripe-webhook] Failed to send full site details:", e);
   }
