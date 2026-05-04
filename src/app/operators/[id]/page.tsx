@@ -422,21 +422,12 @@ export default function OperatorProfilePage() {
                 <div className="text-center sm:text-left min-w-0 flex-1">
                   <div className="flex items-center justify-center gap-2 sm:justify-start">
                     <h1 className="text-xl font-bold text-black-primary sm:text-2xl">
-                      <BlurredText isPurchased={isPurchased} placeholder="Operator Name">
-                        {profile.full_name}
-                      </BlurredText>
+                      Verified Operator
                     </h1>
                     {profile.verified && (
                       <BadgeCheck className="h-5 w-5 shrink-0 text-green-primary" />
                     )}
                   </div>
-                  {profile.company_name && (
-                    <p className="mt-0.5 text-sm text-gray-500">
-                      <BlurredText isPurchased={isPurchased} placeholder="Company Name">
-                        {profile.company_name}
-                      </BlurredText>
-                    </p>
-                  )}
                   {/* Full address always visible */}
                   {(profile.address || profile.city || profile.state || profile.zip) && (
                     <p className="mt-1 flex items-center justify-center gap-1 text-sm text-gray-500 sm:justify-start">
@@ -451,14 +442,15 @@ export default function OperatorProfilePage() {
                     </p>
                   )}
 
-                  {/* Contact links - all blurred until purchased */}
+                  {/* Call to connect CTA */}
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
-                    <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                      <Mail className="h-3 w-3" />
-                      <BlurredText isPurchased={isPurchased} placeholder="user@email.com">
-                        {profile.email}
-                      </BlurredText>
-                    </span>
+                    <a
+                      href="tel:+18888511462"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-green-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-hover"
+                    >
+                      <Phone className="h-3 w-3" />
+                      Call (888) 851-1462 to Connect
+                    </a>
                   </div>
 
                   <p className="mt-1 text-xs text-gray-400">
