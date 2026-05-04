@@ -183,6 +183,20 @@ export interface MachineListing {
   profiles?: Profile;
 }
 
+export interface TimeEntry {
+  id: string;
+  user_id: string;
+  clock_in: string;
+  clock_out: string | null;
+  duration_minutes: number | null;
+  notes: string | null;
+  admin_edited: boolean;
+  edited_by: string | null;
+  created_at: string;
+  updated_at: string;
+  profiles?: Pick<Profile, "id" | "full_name" | "role">;
+}
+
 export interface SignedAgreement {
   id: string;
   user_id: string;

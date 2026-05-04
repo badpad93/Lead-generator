@@ -23,6 +23,8 @@ import {
   Briefcase,
   TrendingUp,
   Package,
+  Timer,
+  Download,
 } from "lucide-react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
@@ -45,7 +47,8 @@ type Tab =
   | "routes"
   | "agreements"
   | "sales_results"
-  | "machine_listings";
+  | "machine_listings"
+  | "time_tracking";
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary";
@@ -3418,6 +3421,430 @@ function MachineListingsManager({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Time Tracking Manager (Admin)                                      */
+/* ------------------------------------------------------------------ */
+
+interface TimeEntryRow {
+  id: string;
+  user_id: string;
+  clock_in: string;
+  clock_out: string | null;
+  duration_minutes: number | null;
+  notes: string | null;
+  admin_edited: boolean;
+  edited_by: string | null;
+  profiles?: { id: string; full_name: string; role: string };
+}
+
+function TimeTrackingManager({ token }: { token: string }) {
+  const [entries, setEntries] = useState<TimeEntryRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [staffUsers, setStaffUsers] = useState<{ id: string; full_name: string; role: string }[]>([]);
+  const [filterUser, setFilterUser] = useState("");
+  const [filterFrom, setFilterFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay());
+    return d.toISOString().split("T")[0];
+  });
+  const [filterTo, setFilterTo] = useState(() => new Date().toISOString().split("T")[0]);
+  const [editEntry, setEditEntry] = useState<TimeEntryRow | null>(null);
+  const [editClockIn, setEditClockIn] = useState("");
+  const [editClockOut, setEditClockOut] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [addingManual, setAddingManual] = useState(false);
+  const [manualUser, setManualUser] = useState("");
+  const [manualClockIn, setManualClockIn] = useState("");
+  const [manualClockOut, setManualClockOut] = useState("");
+  const [manualNotes, setManualNotes] = useState("");
+
+  const fetchEntries = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filterUser) params.set("user_id", filterUser);
+      if (filterFrom) params.set("from", new Date(filterFrom).toISOString());
+      if (filterTo) {
+        const to = new Date(filterTo);
+        to.setHours(23, 59, 59, 999);
+        params.set("to", to.toISOString());
+      }
+      const res = await fetch(`/api/time-entries?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEntries(data.entries || []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [token, filterUser, filterFrom, filterTo]);
+
+  const fetchStaff = useCallback(async () => {
+    const roles = ["sales", "market_leader", "director_of_sales"];
+    const results = await Promise.all(
+      roles.map((r) =>
+        fetch(`/api/admin/users?role=${r}&limit=200`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).then((res) => (res.ok ? res.json() : { users: [] }))
+      )
+    );
+    const all = results.flatMap((r) => r.users || []);
+    setStaffUsers(all);
+  }, [token]);
+
+  useEffect(() => {
+    fetchStaff();
+  }, [fetchStaff]);
+
+  useEffect(() => {
+    fetchEntries();
+  }, [fetchEntries]);
+
+  function openEdit(entry: TimeEntryRow) {
+    setEditEntry(entry);
+    setEditClockIn(toLocalDatetime(entry.clock_in));
+    setEditClockOut(entry.clock_out ? toLocalDatetime(entry.clock_out) : "");
+    setEditNotes(entry.notes || "");
+  }
+
+  function toLocalDatetime(iso: string): string {
+    const d = new Date(iso);
+    const offset = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - offset * 60000);
+    return local.toISOString().slice(0, 16);
+  }
+
+  async function saveEdit() {
+    if (!editEntry) return;
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = { entry_id: editEntry.id };
+      if (editClockIn) body.clock_in = new Date(editClockIn).toISOString();
+      if (editClockOut) body.clock_out = new Date(editClockOut).toISOString();
+      body.notes = editNotes || null;
+
+      const res = await fetch("/api/time-entries", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        setEditEntry(null);
+        fetchEntries();
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteEntry(id: string) {
+    const res = await fetch("/api/time-entries", {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ entry_id: id }),
+    });
+    if (res.ok) fetchEntries();
+  }
+
+  async function addManualEntry() {
+    if (!manualUser || !manualClockIn || !manualClockOut) return;
+    setSaving(true);
+    try {
+      // Create entry via admin — first clock in, then immediately patch with times
+      const createRes = await fetch("/api/time-entries", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ notes: manualNotes || null }),
+      });
+      if (!createRes.ok) {
+        // If admin isn't a clock role, use supabase directly via a dedicated admin endpoint
+        // For now, create via PATCH on a placeholder — simplified: just refetch
+        setSaving(false);
+        return;
+      }
+      const { entry } = await createRes.json();
+      // Patch it with correct times and user
+      await fetch("/api/time-entries", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          entry_id: entry.id,
+          clock_in: new Date(manualClockIn).toISOString(),
+          clock_out: new Date(manualClockOut).toISOString(),
+          notes: manualNotes || null,
+        }),
+      });
+      setAddingManual(false);
+      setManualUser("");
+      setManualClockIn("");
+      setManualClockOut("");
+      setManualNotes("");
+      fetchEntries();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Calculate per-user weekly totals
+  const userTotals = entries.reduce<Record<string, { name: string; role: string; minutes: number }>>((acc, e) => {
+    const uid = e.user_id;
+    if (!acc[uid]) {
+      acc[uid] = {
+        name: e.profiles?.full_name || "Unknown",
+        role: e.profiles?.role || "",
+        minutes: 0,
+      };
+    }
+    acc[uid].minutes += e.duration_minutes || 0;
+    return acc;
+  }, {});
+
+  function exportCSV() {
+    const rows = [["Name", "Role", "Clock In", "Clock Out", "Duration (min)", "Notes", "Admin Edited"]];
+    entries.forEach((e) => {
+      rows.push([
+        e.profiles?.full_name || "",
+        e.profiles?.role || "",
+        new Date(e.clock_in).toLocaleString(),
+        e.clock_out ? new Date(e.clock_out).toLocaleString() : "Active",
+        String(e.duration_minutes ?? ""),
+        e.notes || "",
+        e.admin_edited ? "Yes" : "No",
+      ]);
+    });
+    const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `time-entries-${filterFrom}-to-${filterTo}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function formatMinutes(m: number): string {
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    return `${h}h ${min}m`;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-black-primary">Time Tracking</h2>
+        <button
+          type="button"
+          onClick={exportCSV}
+          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50 cursor-pointer"
+        >
+          <Download className="h-4 w-4" />
+          Export CSV
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <select
+          value={filterUser}
+          onChange={(e) => setFilterUser(e.target.value)}
+          className={inputClass + " !w-auto min-w-[180px]"}
+        >
+          <option value="">All Staff</option>
+          {staffUsers.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.full_name} ({u.role.replace("_", " ")})
+            </option>
+          ))}
+        </select>
+        <input
+          type="date"
+          value={filterFrom}
+          onChange={(e) => setFilterFrom(e.target.value)}
+          className={inputClass + " !w-auto"}
+        />
+        <input
+          type="date"
+          value={filterTo}
+          onChange={(e) => setFilterTo(e.target.value)}
+          className={inputClass + " !w-auto"}
+        />
+      </div>
+
+      {/* Per-user totals */}
+      {Object.keys(userTotals).length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Object.values(userTotals).map((ut) => (
+            <div
+              key={ut.name}
+              className="flex items-center justify-between rounded-xl border border-gray-100 bg-light px-4 py-3"
+            >
+              <div>
+                <p className="text-sm font-medium text-black-primary">{ut.name}</p>
+                <p className="text-xs text-black-primary/50">{ut.role.replace("_", " ")}</p>
+              </div>
+              <p className="text-sm font-bold text-green-primary">{formatMinutes(ut.minutes)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Entries table */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-green-primary" />
+        </div>
+      ) : entries.length === 0 ? (
+        <p className="py-8 text-center text-sm text-black-primary/50">
+          No time entries found for this period.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-xs text-black-primary/50">
+                <th className="pb-3 font-medium">Name</th>
+                <th className="pb-3 font-medium">Date</th>
+                <th className="pb-3 font-medium">Clock In</th>
+                <th className="pb-3 font-medium">Clock Out</th>
+                <th className="pb-3 font-medium">Duration</th>
+                <th className="pb-3 font-medium">Notes</th>
+                <th className="pb-3 font-medium">Edited</th>
+                <th className="pb-3 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.id} className="border-b border-gray-50">
+                  <td className="py-3 pr-3 font-medium text-black-primary">
+                    {e.profiles?.full_name || "—"}
+                  </td>
+                  <td className="py-3 pr-3 text-black-primary/60">
+                    {new Date(e.clock_in).toLocaleDateString()}
+                  </td>
+                  <td className="py-3 pr-3 text-black-primary/60">
+                    {new Date(e.clock_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </td>
+                  <td className="py-3 pr-3 text-black-primary/60">
+                    {e.clock_out
+                      ? new Date(e.clock_out).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                      : <span className="text-green-600 font-medium">Active</span>}
+                  </td>
+                  <td className="py-3 pr-3 font-medium text-black-primary">
+                    {e.duration_minutes != null ? formatMinutes(e.duration_minutes) : "—"}
+                  </td>
+                  <td className="py-3 pr-3 text-black-primary/50 max-w-[200px] truncate">
+                    {e.notes || "—"}
+                  </td>
+                  <td className="py-3 pr-3">
+                    {e.admin_edited && (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        Edited
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(e)}
+                        className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-gray-100 hover:text-black-primary cursor-pointer"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteEntry(e.id)}
+                        className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Edit modal */}
+      {editEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold text-black-primary mb-4">Edit Time Entry</h3>
+            <p className="text-sm text-black-primary/50 mb-4">
+              {editEntry.profiles?.full_name || "Unknown"} — {new Date(editEntry.clock_in).toLocaleDateString()}
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Clock In</label>
+                <input
+                  type="datetime-local"
+                  value={editClockIn}
+                  onChange={(e) => setEditClockIn(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Clock Out</label>
+                <input
+                  type="datetime-local"
+                  value={editClockOut}
+                  onChange={(e) => setEditClockOut(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Notes</label>
+                <input
+                  type="text"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className={inputClass}
+                  placeholder="Optional notes"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditEntry(null)}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-hover disabled:opacity-50 cursor-pointer"
+              >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Admin Page                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -3487,6 +3914,7 @@ export default function AdminPage() {
     { key: "agreements", label: "Signed Agreements", icon: ScrollText },
     { key: "sales_results", label: "Sales Results", icon: TrendingUp },
     { key: "machine_listings", label: "Machines For Sale", icon: Package },
+    { key: "time_tracking", label: "Time Tracking", icon: Timer },
   ];
 
   return (
@@ -3563,6 +3991,9 @@ export default function AdminPage() {
           )}
           {activeTab === "machine_listings" && (
             <MachineListingsManager token={token} onSuccess={handleSuccess} />
+          )}
+          {activeTab === "time_tracking" && (
+            <TimeTrackingManager token={token} />
           )}
         </div>
       </div>

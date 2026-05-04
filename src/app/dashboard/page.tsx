@@ -23,12 +23,16 @@ import {
   Settings,
   Route,
   ShoppingBag,
+  Timer,
+  Play,
+  Square,
 } from "lucide-react";
 import type {
   Profile,
   VendingRequest,
   OperatorListing,
   MachineType,
+  TimeEntry,
 } from "@/lib/types";
 import { MACHINE_TYPES } from "@/lib/types";
 import { createBrowserClient } from "@/lib/supabase";
@@ -73,6 +77,174 @@ function SkeletonCard() {
         <div className="skeleton h-5 w-16 rounded-full" />
       </div>
       <div className="skeleton mt-4 h-4 w-1/3" />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Clock In/Out Widget                                                */
+/* ------------------------------------------------------------------ */
+
+const CLOCK_ROLES = ["sales", "market_leader", "director_of_sales"];
+
+function formatElapsed(start: string): string {
+  const ms = Date.now() - new Date(start).getTime();
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return `${h}h ${m}m`;
+}
+
+function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}h ${m}m`;
+}
+
+function ClockWidget({ token }: { token: string }) {
+  const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null);
+  const [todayTotal, setTodayTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [acting, setActing] = useState(false);
+  const [elapsed, setElapsed] = useState("");
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const res = await fetch(
+        `/api/time-entries?from=${today.toISOString()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const entries: TimeEntry[] = data.entries || [];
+
+      const open = entries.find((e) => !e.clock_out);
+      setActiveEntry(open || null);
+
+      const total = entries.reduce(
+        (sum, e) => sum + (e.duration_minutes || 0),
+        0
+      );
+      setTodayTotal(total);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  useEffect(() => {
+    if (!activeEntry) {
+      setElapsed("");
+      return;
+    }
+    setElapsed(formatElapsed(activeEntry.clock_in));
+    const interval = setInterval(() => {
+      setElapsed(formatElapsed(activeEntry.clock_in));
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [activeEntry]);
+
+  async function clockIn() {
+    setActing(true);
+    try {
+      const res = await fetch("/api/time-entries", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) await fetchStatus();
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function clockOut() {
+    if (!activeEntry) return;
+    setActing(true);
+    try {
+      const res = await fetch("/api/time-entries", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          entry_id: activeEntry.id,
+          clock_out: new Date().toISOString(),
+        }),
+      });
+      if (res.ok) await fetchStatus();
+    } finally {
+      setActing(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+        <div className="skeleton h-12 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+            activeEntry ? "bg-red-50 text-red-600" : "bg-green-50 text-green-primary"
+          }`}>
+            <Timer className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="font-semibold text-black-primary">
+              {activeEntry ? "Clocked In" : "Clocked Out"}
+            </p>
+            <div className="flex items-center gap-3 text-sm text-black-primary/50">
+              {activeEntry && elapsed && (
+                <span className="text-green-primary font-medium">{elapsed}</span>
+              )}
+              <span>Today: {formatDuration(todayTotal)}</span>
+            </div>
+          </div>
+        </div>
+        {activeEntry ? (
+          <button
+            type="button"
+            onClick={clockOut}
+            disabled={acting}
+            className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+          >
+            {acting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Square className="h-4 w-4" />
+            )}
+            Clock Out
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={clockIn}
+            disabled={acting}
+            className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-hover disabled:opacity-50 cursor-pointer"
+          >
+            {acting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            Clock In
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -336,6 +508,11 @@ export default function DashboardPage() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
+        {/* ------- CLOCK IN/OUT ------- */}
+        {CLOCK_ROLES.includes(profile.role) && (
+          <ClockWidget token={token} />
+        )}
+
         {/* ------- QUICK ACTIONS ------- */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {isOperator ? (
