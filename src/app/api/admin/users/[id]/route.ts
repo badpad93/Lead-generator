@@ -18,7 +18,7 @@ export async function PATCH(
     const body = await req.json();
     const allowedFields = [
       "full_name", "email", "role", "company_name", "phone",
-      "website", "bio", "city", "state", "zip", "country",
+      "website", "bio", "address", "city", "state", "zip", "country",
       "verified",
     ];
     const updates: Record<string, unknown> = {};

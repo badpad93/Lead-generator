@@ -215,7 +215,7 @@ function UsersManager({ token }: { token: string }) {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
-  const [editForm, setEditForm] = useState({ role: "", verified: false, full_name: "", email: "" });
+  const [editForm, setEditForm] = useState({ role: "", verified: false, full_name: "", email: "", address: "", city: "", state: "", zip: "" });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -252,6 +252,10 @@ function UsersManager({ token }: { token: string }) {
       verified: user.verified,
       full_name: user.full_name,
       email: user.email,
+      address: user.address || "",
+      city: user.city || "",
+      state: user.state || "",
+      zip: user.zip || "",
     });
   }
 
@@ -362,6 +366,7 @@ function UsersManager({ token }: { token: string }) {
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Name</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Email</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Location</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Role</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Verified</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Joined</th>
@@ -375,6 +380,11 @@ function UsersManager({ token }: { token: string }) {
                     {user.full_name}
                   </td>
                   <td className="px-4 py-3 text-black-primary/60">{user.email}</td>
+                  <td className="px-4 py-3 text-black-primary/60 text-xs">
+                    {user.city && user.state
+                      ? `${user.city}, ${user.state}`
+                      : user.state || <span className="text-red-400">Missing</span>}
+                  </td>
                   <td className="px-4 py-3">{roleBadge(user.role)}</td>
                   <td className="px-4 py-3">
                     {user.verified ? (
@@ -470,6 +480,53 @@ function UsersManager({ token }: { token: string }) {
                 <label htmlFor="edit_verified" className="text-sm text-black-primary">
                   Verified
                 </label>
+              </div>
+              <hr className="border-gray-100" />
+              <p className="text-xs font-medium text-black-primary/50 uppercase tracking-wide">Location Info</p>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Address</label>
+                <input
+                  type="text"
+                  value={editForm.address}
+                  onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value }))}
+                  placeholder="123 Main St"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-black-primary">City</label>
+                  <input
+                    type="text"
+                    value={editForm.city}
+                    onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))}
+                    placeholder="Denver"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-black-primary">State</label>
+                  <select
+                    value={editForm.state}
+                    onChange={(e) => setEditForm((f) => ({ ...f, state: e.target.value }))}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                  >
+                    <option value="">—</option>
+                    {US_STATES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-black-primary">ZIP</label>
+                  <input
+                    type="text"
+                    value={editForm.zip}
+                    onChange={(e) => setEditForm((f) => ({ ...f, zip: e.target.value }))}
+                    placeholder="80202"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                  />
+                </div>
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">
