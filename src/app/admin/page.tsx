@@ -3950,7 +3950,7 @@ export default function AdminPage() {
 
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Tabs */}
-        <div className="mb-8 flex gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="mb-8 flex gap-1 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -3958,7 +3958,7 @@ export default function AdminPage() {
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
+                className={`flex shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
                   activeTab === tab.key
                     ? "bg-green-primary text-white shadow-sm"
                     : "text-black-primary/60 hover:bg-gray-50 hover:text-black-primary"
