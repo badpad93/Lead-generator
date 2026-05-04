@@ -103,7 +103,7 @@ const FAQ = [
   },
   {
     q: "Can I post multiple requests?",
-    a: "Absolutely. Location managers and requestors can post as many requests as they need.",
+    a: "Absolutely. Location accounts can post as many requests as they need.",
   },
 ];
 

@@ -80,7 +80,7 @@ function ProfilePageInner() {
           city: data.city || "",
           state: data.state || "",
           zip: data.zip || "",
-          role: data.role || "requestor",
+          role: data.role || "location_manager",
           digest_opt_in: data.digest_opt_in ?? true,
           digest_frequency: data.digest_frequency || "weekly",
         });
@@ -245,8 +245,7 @@ function ProfilePageInner() {
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
                 >
                   <option value="operator">Operator</option>
-                  <option value="location_manager">Location Manager</option>
-                  <option value="requestor">Location Requests</option>
+                  <option value="location_manager">Location</option>
                 </select>
               </div>
 

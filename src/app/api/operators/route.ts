@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
   // Determine if requester is a location account
   const requesterRole = await getRequesterRole(req);
-  const isLocationAccount = requesterRole === "location_manager" || requesterRole === "requestor";
+  const isLocationAccount = requesterRole === "location_manager";
 
   if (mode === "profiles") {
     let query = supabaseAdmin

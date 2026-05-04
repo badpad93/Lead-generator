@@ -20,7 +20,7 @@ export async function GET(
       .single();
     requesterRole = requesterProfile?.role ?? null;
   }
-  const isLocationAccount = requesterRole === "location_manager" || requesterRole === "requestor";
+  const isLocationAccount = requesterRole === "location_manager";
 
   const { data: profile, error } = await supabaseAdmin
     .from("profiles")

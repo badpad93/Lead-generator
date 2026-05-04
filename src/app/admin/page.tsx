@@ -296,21 +296,19 @@ function UsersManager({ token }: { token: string }) {
     const colors: Record<string, string> = {
       operator: "bg-blue-50 text-blue-700 ring-blue-200",
       location_manager: "bg-purple-50 text-purple-700 ring-purple-200",
-      requestor: "bg-gray-100 text-gray-700 ring-gray-200",
       admin: "bg-red-50 text-red-700 ring-red-200",
       sales: "bg-amber-50 text-amber-700 ring-amber-200",
     };
     const labels: Record<string, string> = {
       operator: "Operator",
-      location_manager: "Location Mgr",
-      requestor: "Location Requests",
+      location_manager: "Location",
       admin: "Admin",
       sales: "Sales",
     };
     return (
       <span
         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
-          colors[role] || colors.requestor
+          colors[role] || "bg-gray-100 text-gray-700 ring-gray-200"
         }`}
       >
         {labels[role] || role}
@@ -341,8 +339,7 @@ function UsersManager({ token }: { token: string }) {
           <option value="admin">Admins</option>
           <option value="sales">Sales Team</option>
           <option value="operator">Operators</option>
-          <option value="location_manager">Location Managers</option>
-          <option value="requestor">Location Requests</option>
+          <option value="location_manager">Locations</option>
         </select>
       </div>
 
@@ -454,8 +451,7 @@ function UsersManager({ token }: { token: string }) {
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
                 >
                   <option value="operator">Operator</option>
-                  <option value="location_manager">Location Manager</option>
-                  <option value="requestor">Location Requests</option>
+                  <option value="location_manager">Location</option>
                   <option value="sales">Sales Team Member</option>
                   <option value="admin">Admin</option>
                 </select>

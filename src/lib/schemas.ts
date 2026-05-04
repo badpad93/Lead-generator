@@ -4,7 +4,7 @@ export const signupSchema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   full_name: z.string().min(2, "Name is required"),
-  role: z.enum(["operator", "location_manager", "requestor"]),
+  role: z.enum(["operator", "location_manager"]),
 });
 
 export const loginSchema = z.object({

@@ -6,7 +6,7 @@ import { Truck, Building2, UserPlus, ArrowLeft, Loader2, LogOut } from "lucide-r
 import { signUpWithGoogle, signUpWithMicrosoft, storeSignupRole, storeSignupLead, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
 
-type Role = "operator" | "location_manager" | "requestor";
+type Role = "operator" | "location_manager";
 
 const roles: { value: Role; label: string; icon: typeof Truck; description: string }[] = [
   {
@@ -17,15 +17,9 @@ const roles: { value: Role; label: string; icon: typeof Truck; description: stri
   },
   {
     value: "location_manager",
-    label: "Location Manager",
+    label: "Location",
     icon: Building2,
-    description: "I manage a property and want a vending machine",
-  },
-  {
-    value: "requestor",
-    label: "Location Requests",
-    icon: UserPlus,
-    description: "I want to request a vending machine for a location I frequent",
+    description: "I have a property and want a vending machine placed",
   },
 ];
 
