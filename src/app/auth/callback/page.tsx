@@ -46,22 +46,30 @@ function CallbackContent() {
 
       if (isSignup) {
         const signupRole = consumeSignupRole();
+        const leadData = consumeSignupLead();
+
         if (signupRole) {
           try {
+            const profileUpdate: Record<string, string> = { role: signupRole };
+            if (leadData?.city) profileUpdate.city = leadData.city;
+            if (leadData?.state) profileUpdate.state = leadData.state;
+            if (leadData?.address) profileUpdate.address = leadData.address;
+            if (leadData?.business_name) profileUpdate.company_name = leadData.business_name;
+            if (leadData?.contact_name) profileUpdate.full_name = leadData.contact_name;
+            if (leadData?.phone) profileUpdate.phone = leadData.phone;
+
             await fetch("/api/auth/me", {
               method: "PATCH",
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${data.session.access_token}`,
               },
-              body: JSON.stringify({ role: signupRole }),
+              body: JSON.stringify(profileUpdate),
             });
           } catch {
             // Profile might not exist yet — ignore
           }
         }
-
-        const leadData = consumeSignupLead();
         if (leadData) {
           try {
             await fetch("/api/auth/signup-lead", {
