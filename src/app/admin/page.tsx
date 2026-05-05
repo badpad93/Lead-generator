@@ -25,6 +25,8 @@ import {
   Package,
   Timer,
   Download,
+  Play,
+  Square,
 } from "lucide-react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
@@ -3902,6 +3904,126 @@ function TimeTrackingManager({ token }: { token: string }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Admin Clock In/Out Widget                                          */
+/* ------------------------------------------------------------------ */
+
+function formatClockElapsed(start: string): string {
+  const ms = Date.now() - new Date(start).getTime();
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return `${h}h ${m}m`;
+}
+
+interface ClockEntry {
+  id: string;
+  clock_in: string;
+  clock_out: string | null;
+  duration_minutes?: number;
+}
+
+function AdminClockWidget({ token }: { token: string }) {
+  const [activeEntry, setActiveEntry] = useState<ClockEntry | null>(null);
+  const [todayTotal, setTodayTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [acting, setActing] = useState(false);
+  const [elapsed, setElapsed] = useState("");
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const res = await fetch(
+        `/api/time-entries?from=${today.toISOString()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const entries: ClockEntry[] = data.entries || [];
+      const open = entries.find((e) => !e.clock_out);
+      setActiveEntry(open || null);
+      const total = entries.reduce((sum, e) => sum + (e.duration_minutes || 0), 0);
+      setTodayTotal(total);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  useEffect(() => {
+    if (!activeEntry) { setElapsed(""); return; }
+    setElapsed(formatClockElapsed(activeEntry.clock_in));
+    const interval = setInterval(() => {
+      setElapsed(formatClockElapsed(activeEntry.clock_in));
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [activeEntry]);
+
+  async function clockIn() {
+    setActing(true);
+    try {
+      const res = await fetch("/api/time-entries", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) await fetchStatus();
+    } finally { setActing(false); }
+  }
+
+  async function clockOut() {
+    if (!activeEntry) return;
+    setActing(true);
+    try {
+      const res = await fetch("/api/time-entries", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ entry_id: activeEntry.id, clock_out: new Date().toISOString() }),
+      });
+      if (res.ok) await fetchStatus();
+    } finally { setActing(false); }
+  }
+
+  if (loading) return null;
+
+  const todayH = Math.floor(todayTotal / 60);
+  const todayM = todayTotal % 60;
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 text-sm text-black-primary/60">
+        <Timer className="h-4 w-4" />
+        {activeEntry && elapsed && (
+          <span className="font-medium text-green-600">{elapsed}</span>
+        )}
+        <span>Today: {todayH}h {todayM}m</span>
+      </div>
+      {activeEntry ? (
+        <button
+          type="button"
+          onClick={clockOut}
+          disabled={acting}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+        >
+          {acting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
+          Clock Out
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={clockIn}
+          disabled={acting}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+        >
+          {acting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+          Clock In
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Admin Page                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -3993,14 +4115,17 @@ export default function AdminPage() {
                 </p>
               </div>
             </div>
-            <Link
-              href="/sales"
-              className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-primary/90"
-            >
-              <Briefcase className="h-4 w-4" />
-              <span className="hidden sm:inline">Open Sales CRM</span>
-              <span className="sm:hidden">CRM</span>
-            </Link>
+            <div className="flex items-center gap-4">
+              <AdminClockWidget token={token} />
+              <Link
+                href="/sales"
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-primary/90"
+              >
+                <Briefcase className="h-4 w-4" />
+                <span className="hidden sm:inline">Open Sales CRM</span>
+                <span className="sm:hidden">CRM</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
