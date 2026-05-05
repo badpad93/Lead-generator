@@ -175,6 +175,8 @@ export default function PipelineItemDetailPage() {
   const [proposalError, setProposalError] = useState<string | null>(null);
   const [resendingAgreement, setResendingAgreement] = useState(false);
   const [resendResult, setResendResult] = useState<string | null>(null);
+  const [manualAgreementEmail, setManualAgreementEmail] = useState("");
+  const [showManualEmailInput, setShowManualEmailInput] = useState(false);
   const [pricingData, setPricingData] = useState<PricingData | null>(null);
   const [pricingInputs, setPricingInputs] = useState({ employees: 0, foot_traffic: 0, business_hours: "low" as string, machines_requested: 1 });
   const [calculatingPricing, setCalculatingPricing] = useState(false);
@@ -503,15 +505,25 @@ export default function PipelineItemDetailPage() {
     setResendingAgreement(true);
     setResendResult(null);
     try {
-      const res = await fetch(`/api/pipeline-items/${itemId}/resend-agreement`, {
+      const fetchOptions: RequestInit = {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
-      });
+      };
+      if (manualAgreementEmail.trim()) {
+        (fetchOptions.headers as Record<string, string>)["Content-Type"] = "application/json";
+        fetchOptions.body = JSON.stringify({ email: manualAgreementEmail.trim() });
+      }
+      const res = await fetch(`/api/pipeline-items/${itemId}/resend-agreement`, fetchOptions);
       const data = await res.json();
       if (res.ok) {
-        setResendResult(`Agreement resent to ${data.sent_to}`);
+        setResendResult(`Agreement sent to ${data.sent_to}`);
+        setShowManualEmailInput(false);
+        setManualAgreementEmail("");
       } else {
         setResendResult(`Error: ${data.error}`);
+        if (data.error?.includes("No email found")) {
+          setShowManualEmailInput(true);
+        }
       }
     } catch {
       setResendResult("Network error");
@@ -878,6 +890,26 @@ export default function PipelineItemDetailPage() {
                 {resendingAgreement ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                 Resend Agreement Email
               </button>
+              {showManualEmailInput && (
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="email"
+                    placeholder="Enter email manually"
+                    value={manualAgreementEmail}
+                    onChange={(e) => setManualAgreementEmail(e.target.value)}
+                    className="rounded-md border border-gray-300 px-2 py-1 text-xs w-56"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleResendAgreement}
+                    disabled={resendingAgreement || !manualAgreementEmail.trim()}
+                    className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+                  >
+                    {resendingAgreement ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                    Send
+                  </button>
+                </div>
+              )}
               {resendResult && (
                 <p className={`text-xs ${resendResult.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
                   {resendResult}
@@ -911,6 +943,26 @@ export default function PipelineItemDetailPage() {
               Send Agreement to Location
             </button>
           </div>
+          {showManualEmailInput && (
+            <div className="flex items-center gap-2 mt-3">
+              <input
+                type="email"
+                placeholder="Enter recipient email"
+                value={manualAgreementEmail}
+                onChange={(e) => setManualAgreementEmail(e.target.value)}
+                className="rounded-md border border-gray-300 px-2 py-1.5 text-xs w-64"
+              />
+              <button
+                type="button"
+                onClick={handleResendAgreement}
+                disabled={resendingAgreement || !manualAgreementEmail.trim()}
+                className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+              >
+                {resendingAgreement ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                Send
+              </button>
+            </div>
+          )}
           {resendResult && (
             <p className={`mt-2 text-xs ${resendResult.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
               {resendResult}

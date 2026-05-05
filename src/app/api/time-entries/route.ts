@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 
-const CLOCK_ROLES = ["sales", "market_leader", "director_of_sales"];
+const CLOCK_ROLES = ["admin", "sales", "market_leader", "director_of_sales"];
 
 async function getUserRole(userId: string): Promise<string | null> {
   const { data } = await supabaseAdmin

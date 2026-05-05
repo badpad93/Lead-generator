@@ -86,7 +86,7 @@ function SkeletonCard() {
 /*  Clock In/Out Widget                                                */
 /* ------------------------------------------------------------------ */
 
-const CLOCK_ROLES = ["sales", "market_leader", "director_of_sales"];
+const CLOCK_ROLES = ["admin", "sales", "market_leader", "director_of_sales"];
 
 function formatElapsed(start: string): string {
   const ms = Date.now() - new Date(start).getTime();
