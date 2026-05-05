@@ -3967,7 +3967,10 @@ function AdminClockWidget({ token }: { token: string }) {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      if (res.ok) await fetchStatus();
+      if (res.ok) {
+        const data = await res.json();
+        setActiveEntry(data.entry);
+      }
     } finally { setActing(false); }
   }
 
@@ -3980,7 +3983,10 @@ function AdminClockWidget({ token }: { token: string }) {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ entry_id: activeEntry.id, clock_out: new Date().toISOString() }),
       });
-      if (res.ok) await fetchStatus();
+      if (res.ok) {
+        setActiveEntry(null);
+        fetchStatus();
+      }
     } finally { setActing(false); }
   }
 

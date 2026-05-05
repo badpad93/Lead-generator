@@ -293,7 +293,10 @@ function ClockWidget({ token }: { token: string }) {
         },
         body: JSON.stringify({}),
       });
-      if (res.ok) await fetchStatus();
+      if (res.ok) {
+        const data = await res.json();
+        setActiveEntry(data.entry);
+      }
     } finally {
       setActing(false);
     }
@@ -314,7 +317,10 @@ function ClockWidget({ token }: { token: string }) {
           clock_out: new Date().toISOString(),
         }),
       });
-      if (res.ok) await fetchStatus();
+      if (res.ok) {
+        setActiveEntry(null);
+        fetchStatus();
+      }
     } finally {
       setActing(false);
     }
