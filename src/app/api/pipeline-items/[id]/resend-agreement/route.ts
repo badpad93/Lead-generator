@@ -13,6 +13,17 @@ export async function POST(
   }
   const { id: itemId } = await params;
 
+  // Accept optional email override in request body
+  let bodyEmail: string | null = null;
+  let bodyName: string | null = null;
+  try {
+    const body = await req.json();
+    bodyEmail = body.email || null;
+    bodyName = body.recipient_name || null;
+  } catch {
+    // No body — that's fine
+  }
+
   console.log("[resend-agreement] Looking up pipeline item:", itemId);
 
   const { data: item, error: itemError } = await supabaseAdmin
@@ -104,9 +115,15 @@ export async function POST(
     );
   }
 
+  // Final fallback: use the email provided in the request body
+  if (!contactEmail && bodyEmail) {
+    contactEmail = bodyEmail;
+    contactName = contactName || bodyName;
+  }
+
   if (!contactEmail) {
     return NextResponse.json(
-      { error: "No email found on location, lead, or account — add an email first" },
+      { error: "No email found on location, lead, or account — provide an email manually" },
       { status: 422 }
     );
   }
