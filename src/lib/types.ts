@@ -187,9 +187,11 @@ export interface MachineListing {
 export interface TimeEntry {
   id: string;
   user_id: string;
+  role: string | null;
   clock_in: string;
   clock_out: string | null;
   duration_minutes: number | null;
+  total_hours: number | null;
   notes: string | null;
   admin_edited: boolean;
   edited_by: string | null;
