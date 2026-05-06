@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import {
   Timer,
@@ -37,6 +38,7 @@ function formatDuration(minutes: number): string {
 }
 
 export default function TimeClockPage() {
+  const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null);
@@ -47,6 +49,7 @@ export default function TimeClockPage() {
   const [elapsed, setElapsed] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"today" | "week">("today");
+  const [noSession, setNoSession] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -55,6 +58,7 @@ export default function TimeClockPage() {
         setToken(session.access_token);
         setUserId(session.user.id);
       } else {
+        setNoSession(true);
         setLoading(false);
       }
     });
@@ -70,22 +74,24 @@ export default function TimeClockPage() {
       const weekStart = new Date(today);
       weekStart.setDate(weekStart.getDate() - weekStart.getDay());
 
-      // Fetch today, this week, AND check for any open entry (no date filter)
-      const [todayRes, weekRes, openRes] = await Promise.all([
-        fetch(`/api/time-entries?from=${today.toISOString()}&user_id=${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`/api/time-entries?from=${weekStart.toISOString()}&user_id=${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`/api/time-entries?user_id=${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [todayRes, weekRes, activeRes] = await Promise.all([
+        fetch(`/api/time-entries?from=${today.toISOString()}&user_id=${userId}`, { headers }),
+        fetch(`/api/time-entries?from=${weekStart.toISOString()}&user_id=${userId}`, { headers }),
+        fetch(`/api/time-entries?user_id=${userId}&status=active`, { headers }),
       ]);
+
+      if (todayRes.status === 401 || weekRes.status === 401 || activeRes.status === 401) {
+        router.push("/login?redirect=/sales/time-clock");
+        return;
+      }
 
       if (todayRes.ok) {
         const data = await todayRes.json();
         setTodayEntries(data.entries || []);
+      } else {
+        console.error("[time-clock] today fetch failed:", todayRes.status, await todayRes.text());
       }
 
       if (weekRes.ok) {
@@ -93,17 +99,17 @@ export default function TimeClockPage() {
         setWeekEntries(data.entries || []);
       }
 
-      // Find active entry from ALL entries (not just today)
-      if (openRes.ok) {
-        const data = await openRes.json();
-        const allEntries: TimeEntry[] = data.entries || [];
-        const open = allEntries.find((e) => !e.clock_out);
-        setActiveEntry(open || null);
+      if (activeRes.ok) {
+        const data = await activeRes.json();
+        const openEntries: TimeEntry[] = data.entries || [];
+        setActiveEntry(openEntries.length > 0 ? openEntries[0] : null);
+      } else {
+        console.error("[time-clock] active fetch failed:", activeRes.status, await activeRes.text());
       }
     } finally {
       setLoading(false);
     }
-  }, [token, userId]);
+  }, [token, userId, router]);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
@@ -163,8 +169,11 @@ export default function TimeClockPage() {
     } finally { setActing(false); }
   }
 
-  const todayTotal = todayEntries.reduce((sum, e) => sum + (e.duration_minutes || 0), 0);
-  const weekTotal = weekEntries.reduce((sum, e) => sum + (e.duration_minutes || 0), 0);
+  const activeElapsedMin = activeEntry
+    ? Math.floor((Date.now() - new Date(activeEntry.clock_in).getTime()) / 60000)
+    : 0;
+  const todayTotal = todayEntries.reduce((sum, e) => sum + (e.duration_minutes || 0), 0) + activeElapsedMin;
+  const weekTotal = weekEntries.reduce((sum, e) => sum + (e.duration_minutes || 0), 0) + activeElapsedMin;
   const displayEntries = view === "today" ? todayEntries : weekEntries;
 
   function exportCSV() {
@@ -188,6 +197,10 @@ export default function TimeClockPage() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  useEffect(() => {
+    if (noSession) router.push("/login?redirect=/sales/time-clock");
+  }, [noSession, router]);
 
   if (!token || loading) {
     return (
