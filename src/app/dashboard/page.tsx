@@ -92,7 +92,8 @@ function formatElapsed(start: string): string {
   const ms = Date.now() - new Date(start).getTime();
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
-  return `${h}h ${m}m`;
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${h}h ${m}m ${s.toString().padStart(2, "0")}s`;
 }
 
 function formatDuration(minutes: number): string {
@@ -278,7 +279,7 @@ function ClockWidget({ token }: { token: string }) {
     setElapsed(formatElapsed(activeEntry.clock_in));
     const interval = setInterval(() => {
       setElapsed(formatElapsed(activeEntry.clock_in));
-    }, 30000);
+    }, 1000);
     return () => clearInterval(interval);
   }, [activeEntry]);
 

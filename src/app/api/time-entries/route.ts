@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
     .from("time_entries")
     .insert({
       user_id: userId,
+      role: role,
       notes: body.notes || null,
     })
     .select("*")
@@ -160,6 +161,51 @@ export async function PATCH(req: NextRequest) {
   }
 
   return NextResponse.json({ entry: data });
+}
+
+/** PUT /api/time-entries — admin: create entry for any user */
+export async function PUT(req: NextRequest) {
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const role = await getUserRole(userId);
+  if (role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await req.json();
+  const { target_user_id, clock_in, clock_out, notes } = body;
+
+  if (!target_user_id || !clock_in || !clock_out) {
+    return NextResponse.json(
+      { error: "target_user_id, clock_in, and clock_out are required" },
+      { status: 400 }
+    );
+  }
+
+  const targetRole = await getUserRole(target_user_id);
+
+  const { data, error } = await supabaseAdmin
+    .from("time_entries")
+    .insert({
+      user_id: target_user_id,
+      role: targetRole,
+      clock_in,
+      clock_out,
+      notes: notes || null,
+      admin_edited: true,
+      edited_by: userId,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ entry: data }, { status: 201 });
 }
 
 /** DELETE /api/time-entries — admin only delete */

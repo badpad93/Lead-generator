@@ -3617,42 +3617,27 @@ function TimeTrackingManager({ token }: { token: string }) {
     if (!manualUser || !manualClockIn || !manualClockOut) return;
     setSaving(true);
     try {
-      // Create entry via admin — first clock in, then immediately patch with times
-      const createRes = await fetch("/api/time-entries", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ notes: manualNotes || null }),
-      });
-      if (!createRes.ok) {
-        // If admin isn't a clock role, use supabase directly via a dedicated admin endpoint
-        // For now, create via PATCH on a placeholder — simplified: just refetch
-        setSaving(false);
-        return;
-      }
-      const { entry } = await createRes.json();
-      // Patch it with correct times and user
-      await fetch("/api/time-entries", {
-        method: "PATCH",
+      const res = await fetch("/api/time-entries", {
+        method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          entry_id: entry.id,
+          target_user_id: manualUser,
           clock_in: new Date(manualClockIn).toISOString(),
           clock_out: new Date(manualClockOut).toISOString(),
           notes: manualNotes || null,
         }),
       });
-      setAddingManual(false);
-      setManualUser("");
-      setManualClockIn("");
-      setManualClockOut("");
-      setManualNotes("");
-      fetchEntries();
+      if (res.ok) {
+        setAddingManual(false);
+        setManualUser("");
+        setManualClockIn("");
+        setManualClockOut("");
+        setManualNotes("");
+        fetchEntries();
+      }
     } finally {
       setSaving(false);
     }
@@ -3673,24 +3658,46 @@ function TimeTrackingManager({ token }: { token: string }) {
   }, {});
 
   function exportCSV() {
-    const rows = [["Name", "Role", "Clock In", "Clock Out", "Duration (min)", "Notes", "Admin Edited"]];
+    const rows = [["Name", "Role", "Date", "Clock In", "Clock Out", "Total Hours", "Duration (min)", "Notes", "Admin Edited"]];
     entries.forEach((e) => {
+      const totalHrs = e.duration_minutes != null ? (e.duration_minutes / 60).toFixed(2) : "";
       rows.push([
         e.profiles?.full_name || "",
         e.profiles?.role || "",
+        new Date(e.clock_in).toLocaleDateString(),
         new Date(e.clock_in).toLocaleString(),
         e.clock_out ? new Date(e.clock_out).toLocaleString() : "Active",
+        totalHrs,
         String(e.duration_minutes ?? ""),
         e.notes || "",
         e.admin_edited ? "Yes" : "No",
       ]);
     });
+
+    const dailyTotals: Record<string, Record<string, number>> = {};
+    entries.forEach((e) => {
+      if (e.duration_minutes == null) return;
+      const name = e.profiles?.full_name || "Unknown";
+      const date = new Date(e.clock_in).toLocaleDateString();
+      const key = `${name}|||${date}`;
+      dailyTotals[key] = dailyTotals[key] || { minutes: 0 };
+      dailyTotals[key].minutes += e.duration_minutes;
+    });
+
+    rows.push([]);
+    rows.push(["--- PAYROLL SUMMARY ---", "", "", "", "", "", "", "", ""]);
+    rows.push(["Name", "Date", "Total Hours", "", "", "", "", "", ""]);
+    Object.entries(dailyTotals).forEach(([key, val]) => {
+      const [name, date] = key.split("|||");
+      rows.push([name, "", date, "", "", (val.minutes / 60).toFixed(2), "", "", ""]);
+    });
+
     const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `time-entries-${filterFrom}-to-${filterTo}.csv`;
+    a.download = `payroll-${filterFrom}-to-${filterTo}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -3705,14 +3712,24 @@ function TimeTrackingManager({ token }: { token: string }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-black-primary">Time Tracking</h2>
-        <button
-          type="button"
-          onClick={exportCSV}
-          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50 cursor-pointer"
-        >
-          <Download className="h-4 w-4" />
-          Export CSV
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAddingManual(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-hover cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            Add Entry
+          </button>
+          <button
+            type="button"
+            onClick={exportCSV}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50 cursor-pointer"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -3755,7 +3772,10 @@ function TimeTrackingManager({ token }: { token: string }) {
                 <p className="text-sm font-medium text-black-primary">{ut.name}</p>
                 <p className="text-xs text-black-primary/50">{ut.role.replace("_", " ")}</p>
               </div>
-              <p className="text-sm font-bold text-green-primary">{formatMinutes(ut.minutes)}</p>
+              <div className="text-right">
+                <p className="text-sm font-bold text-green-primary">{formatMinutes(ut.minutes)}</p>
+                <p className="text-xs text-black-primary/50">{(ut.minutes / 60).toFixed(2)} hrs</p>
+              </div>
             </div>
           ))}
         </div>
@@ -3840,6 +3860,78 @@ function TimeTrackingManager({ token }: { token: string }) {
         </div>
       )}
 
+      {/* Add manual entry modal */}
+      {addingManual && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold text-black-primary mb-4">Add Manual Time Entry</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Staff Member</label>
+                <select
+                  value={manualUser}
+                  onChange={(e) => setManualUser(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Select staff member</option>
+                  {staffUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.role.replace("_", " ")})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Clock In</label>
+                <input
+                  type="datetime-local"
+                  value={manualClockIn}
+                  onChange={(e) => setManualClockIn(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Clock Out</label>
+                <input
+                  type="datetime-local"
+                  value={manualClockOut}
+                  onChange={(e) => setManualClockOut(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Notes</label>
+                <input
+                  type="text"
+                  value={manualNotes}
+                  onChange={(e) => setManualNotes(e.target.value)}
+                  className={inputClass}
+                  placeholder="Optional notes"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => { setAddingManual(false); setManualUser(""); setManualClockIn(""); setManualClockOut(""); setManualNotes(""); }}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={addManualEntry}
+                disabled={saving || !manualUser || !manualClockIn || !manualClockOut}
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-hover disabled:opacity-50 cursor-pointer"
+              >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Add Entry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit modal */}
       {editEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -3911,7 +4003,8 @@ function formatClockElapsed(start: string): string {
   const ms = Date.now() - new Date(start).getTime();
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
-  return `${h}h ${m}m`;
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${h}h ${m}m ${s.toString().padStart(2, "0")}s`;
 }
 
 interface ClockEntry {
@@ -3955,7 +4048,7 @@ function AdminClockWidget({ token }: { token: string }) {
     setElapsed(formatClockElapsed(activeEntry.clock_in));
     const interval = setInterval(() => {
       setElapsed(formatClockElapsed(activeEntry.clock_in));
-    }, 30000);
+    }, 1000);
     return () => clearInterval(interval);
   }, [activeEntry]);
 
