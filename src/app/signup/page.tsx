@@ -55,6 +55,7 @@ export default function SignupPage() {
     address: "",
     city: "",
     state: "",
+    zip: "",
     entity_type: "",
     immediate_need: "",
   });
@@ -111,15 +112,17 @@ export default function SignupPage() {
       setError("Phone number is required");
       return;
     }
-    if (role === "operator") {
-      if (!leadForm.city.trim()) {
-        setError("City is required for operators");
-        return;
-      }
-      if (!leadForm.state.trim()) {
-        setError("State is required for operators");
-        return;
-      }
+    if (!leadForm.city.trim()) {
+      setError("City is required");
+      return;
+    }
+    if (!leadForm.state.trim()) {
+      setError("State is required");
+      return;
+    }
+    if (!leadForm.zip.trim()) {
+      setError("Zip code is required");
+      return;
     }
     setError(null);
     setStep(3);
@@ -133,6 +136,7 @@ export default function SignupPage() {
       address: leadForm.address.trim(),
       city: leadForm.city.trim(),
       state: leadForm.state.trim(),
+      zip: leadForm.zip.trim(),
       entity_type: leadForm.entity_type,
       immediate_need: leadForm.immediate_need,
     });
@@ -323,14 +327,18 @@ export default function SignupPage() {
                   <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
                   <input value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} placeholder="Street address" className={inputClass} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">City {role === "operator" && <span className="text-red-500">*</span>}</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">City <span className="text-red-500">*</span></label>
                     <input value={leadForm.city} onChange={(e) => setLeadForm((f) => ({ ...f, city: e.target.value }))} placeholder="City" className={inputClass} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">State {role === "operator" && <span className="text-red-500">*</span>}</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">State <span className="text-red-500">*</span></label>
                     <input value={leadForm.state} onChange={(e) => setLeadForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} placeholder="e.g. TX" maxLength={2} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Zip Code <span className="text-red-500">*</span></label>
+                    <input value={leadForm.zip} onChange={(e) => setLeadForm((f) => ({ ...f, zip: e.target.value }))} placeholder="e.g. 75001" maxLength={10} className={inputClass} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
