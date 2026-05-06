@@ -37,7 +37,8 @@ function formatDuration(minutes: number): string {
 }
 
 export default function TimeClockPage() {
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null);
   const [todayEntries, setTodayEntries] = useState<TimeEntry[]>([]);
   const [weekEntries, setWeekEntries] = useState<TimeEntry[]>([]);
@@ -52,12 +53,15 @@ export default function TimeClockPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.access_token) {
         setToken(session.access_token);
+        setUserId(session.user.id);
+      } else {
+        setLoading(false);
       }
     });
   }, []);
 
   const fetchEntries = useCallback(async () => {
-    if (!token) return;
+    if (!token || !userId) return;
     setLoading(true);
     try {
       const today = new Date();
@@ -67,10 +71,10 @@ export default function TimeClockPage() {
       weekStart.setDate(weekStart.getDate() - weekStart.getDay());
 
       const [todayRes, weekRes] = await Promise.all([
-        fetch(`/api/time-entries?from=${today.toISOString()}`, {
+        fetch(`/api/time-entries?from=${today.toISOString()}&user_id=${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`/api/time-entries?from=${weekStart.toISOString()}`, {
+        fetch(`/api/time-entries?from=${weekStart.toISOString()}&user_id=${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -90,7 +94,7 @@ export default function TimeClockPage() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, userId]);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
@@ -173,7 +177,7 @@ export default function TimeClockPage() {
     URL.revokeObjectURL(url);
   }
 
-  if (loading) {
+  if (!token || loading) {
     return (
       <div className="flex items-center justify-center py-24">
         <Loader2 className="h-8 w-8 animate-spin text-green-600" />
