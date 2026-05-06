@@ -26,6 +26,7 @@ import {
   FileText,
   Mail,
   Link2,
+  Timer,
 } from "lucide-react";
 
 // minLevel: 1=Admin, 2=DOS, 3=Market Leader, 4=BDP/Sales
@@ -40,6 +41,7 @@ const NAV_ITEMS = [
   { href: "/sales/team", label: "Team", icon: UserCog, minLevel: 3 as const },
   { href: "/sales/commissions", label: "Commissions", icon: DollarSign, minLevel: 4 as const },
   { href: "/sales/call-lists", label: "Call Lists", icon: PhoneCall, minLevel: 4 as const },
+  { href: "/sales/time-clock", label: "Time Clock", icon: Timer, minLevel: 4 as const },
   { href: "/sales/resources", label: "Resources", icon: FolderOpen, minLevel: 4 as const },
   { href: "/sales/candidates", label: "Candidates", icon: UserPlus, minLevel: 4 as const },
   { href: "/sales/hiring-dashboard", label: "Hiring & Onboarding", icon: BarChart3, minLevel: 3 as const },

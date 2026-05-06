@@ -15,9 +15,6 @@ import {
   Copy,
   Check,
   Calendar,
-  Timer,
-  Play,
-  Square,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -80,146 +77,6 @@ function ProgressBar({ value, target, label }: { value: number; target: number; 
           className={`h-2 rounded-full ${pct >= 100 ? "bg-green-500" : "bg-green-400"}`}
           style={{ width: `${pct}%` }}
         />
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Clock In/Out Widget                                                */
-/* ------------------------------------------------------------------ */
-
-interface ClockEntry {
-  id: string;
-  clock_in: string;
-  clock_out: string | null;
-  duration_minutes?: number;
-}
-
-function formatClockElapsed(start: string): string {
-  const ms = Date.now() - new Date(start).getTime();
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
-  return `${h}h ${m}m ${s.toString().padStart(2, "0")}s`;
-}
-
-function ClockWidget({ token }: { token: string }) {
-  const [activeEntry, setActiveEntry] = useState<ClockEntry | null>(null);
-  const [todayTotal, setTodayTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [acting, setActing] = useState(false);
-  const [elapsed, setElapsed] = useState("");
-
-  const fetchStatus = useCallback(async () => {
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const res = await fetch(
-        `/api/time-entries?from=${today.toISOString()}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      const entries: ClockEntry[] = data.entries || [];
-      const open = entries.find((e) => !e.clock_out);
-      setActiveEntry(open || null);
-      const total = entries.reduce((sum, e) => sum + (e.duration_minutes || 0), 0);
-      setTodayTotal(total);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => { fetchStatus(); }, [fetchStatus]);
-
-  useEffect(() => {
-    if (!activeEntry) { setElapsed(""); return; }
-    setElapsed(formatClockElapsed(activeEntry.clock_in));
-    const interval = setInterval(() => {
-      setElapsed(formatClockElapsed(activeEntry.clock_in));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [activeEntry]);
-
-  async function clockIn() {
-    setActing(true);
-    try {
-      const res = await fetch("/api/time-entries", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setActiveEntry(data.entry);
-      }
-    } finally { setActing(false); }
-  }
-
-  async function clockOut() {
-    if (!activeEntry) return;
-    setActing(true);
-    try {
-      const res = await fetch("/api/time-entries", {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ entry_id: activeEntry.id, clock_out: new Date().toISOString() }),
-      });
-      if (res.ok) {
-        setActiveEntry(null);
-        fetchStatus();
-      }
-    } finally { setActing(false); }
-  }
-
-  if (loading) return null;
-
-  const todayH = Math.floor(todayTotal / 60);
-  const todayM = todayTotal % 60;
-
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 mb-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-            activeEntry ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
-          }`}>
-            <Timer className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">
-              {activeEntry ? "Clocked In" : "Clocked Out"}
-            </p>
-            <div className="flex items-center gap-3 text-xs text-gray-500">
-              {activeEntry && elapsed && (
-                <span className="font-medium text-green-600">{elapsed}</span>
-              )}
-              <span>Today: {todayH}h {todayM}m</span>
-            </div>
-          </div>
-        </div>
-        {activeEntry ? (
-          <button
-            type="button"
-            onClick={clockOut}
-            disabled={acting}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
-          >
-            {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
-            Clock Out
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={clockIn}
-            disabled={acting}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
-          >
-            {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            Clock In
-          </button>
-        )}
       </div>
     </div>
   );
@@ -310,7 +167,6 @@ export default function SalesDashboard() {
 
   return (
     <div className="p-6">
-      {token && <ClockWidget token={token} />}
       <div className="flex flex-col gap-3 mb-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
