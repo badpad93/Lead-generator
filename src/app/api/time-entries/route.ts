@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   const to = params.get("to");
   const status = params.get("status"); // "active" to find open entries only
   const page = Math.max(0, parseInt(params.get("page") || "0"));
-  const pageSize = 50;
+  const pageSize = Math.min(200, Math.max(1, parseInt(params.get("pageSize") || "200")));
 
   let query = supabaseAdmin
     .from("time_entries")
@@ -169,6 +169,10 @@ export async function PATCH(req: NextRequest) {
     updates.edited_by = userId;
   }
 
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ entry }, { status: 200 });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("time_entries")
     .update(updates)
@@ -207,21 +211,35 @@ export async function PUT(req: NextRequest) {
 
   const targetRole = await getUserRole(target_user_id);
 
+  const insertData: Record<string, unknown> = {
+    user_id: target_user_id,
+    clock_in,
+    clock_out,
+    notes: notes || null,
+    admin_edited: true,
+    edited_by: userId,
+  };
+  if (targetRole) insertData.role = targetRole;
+
   const { data, error } = await supabaseAdmin
     .from("time_entries")
-    .insert({
-      user_id: target_user_id,
-      role: targetRole,
-      clock_in,
-      clock_out,
-      notes: notes || null,
-      admin_edited: true,
-      edited_by: userId,
-    })
+    .insert(insertData)
     .select("*")
     .single();
 
   if (error) {
+    if (error.message.includes("role")) {
+      delete insertData.role;
+      const { data: retryData, error: retryError } = await supabaseAdmin
+        .from("time_entries")
+        .insert(insertData)
+        .select("*")
+        .single();
+      if (retryError) {
+        return NextResponse.json({ error: retryError.message }, { status: 500 });
+      }
+      return NextResponse.json({ entry: retryData }, { status: 201 });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

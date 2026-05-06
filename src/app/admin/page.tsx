@@ -3495,6 +3495,7 @@ interface TimeEntryRow {
 function TimeTrackingManager({ token }: { token: string }) {
   const [entries, setEntries] = useState<TimeEntryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [staffLoaded, setStaffLoaded] = useState(false);
   const [staffUsers, setStaffUsers] = useState<{ id: string; full_name: string; role: string }[]>([]);
   const [filterUser, setFilterUser] = useState("");
   const [filterFrom, setFilterFrom] = useState(() => {
@@ -3542,7 +3543,7 @@ function TimeTrackingManager({ token }: { token: string }) {
   }, [token, filterUser, filterFrom, filterTo]);
 
   const fetchStaff = useCallback(async () => {
-    const roles = ["sales", "market_leader", "director_of_sales"];
+    const roles = ["admin", "sales", "market_leader", "director_of_sales"];
     const results = await Promise.all(
       roles.map((r) =>
         fetch(`/api/admin/users?role=${r}&limit=200`, {
@@ -3552,6 +3553,7 @@ function TimeTrackingManager({ token }: { token: string }) {
     );
     const all = results.flatMap((r) => r.users || []);
     setStaffUsers(all);
+    setStaffLoaded(true);
   }, [token]);
 
   useEffect(() => {
@@ -3559,8 +3561,8 @@ function TimeTrackingManager({ token }: { token: string }) {
   }, [fetchStaff]);
 
   useEffect(() => {
-    fetchEntries();
-  }, [fetchEntries]);
+    if (staffLoaded) fetchEntries();
+  }, [fetchEntries, staffLoaded]);
 
   function openEdit(entry: TimeEntryRow) {
     setEditEntry(entry);
