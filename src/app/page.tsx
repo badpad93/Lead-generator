@@ -193,7 +193,7 @@ export default function HomePage() {
 
   const statItems = [
     { label: "Active Requests", value: stats ? formatStat(stats.activeRequests) : "...", icon: Zap },
-    { label: "Verified Operators", value: stats ? formatStat(stats.operators) : "...", icon: Users },
+    { label: "Verified Operators", value: stats ? formatStat(Math.max(stats.operators, 200)) : "200+", icon: Users },
     { label: "Successful Placements", value: "98+", icon: TrendingUp },
     { label: "States Covered", value: "48", icon: Globe },
   ];
