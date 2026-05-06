@@ -53,6 +53,7 @@ function CallbackContent() {
             const profileUpdate: Record<string, string> = { role: signupRole };
             if (leadData?.city) profileUpdate.city = leadData.city;
             if (leadData?.state) profileUpdate.state = leadData.state;
+            if (leadData?.zip) profileUpdate.zip = leadData.zip;
             if (leadData?.address) profileUpdate.address = leadData.address;
             if (leadData?.business_name) profileUpdate.company_name = leadData.business_name;
             if (leadData?.contact_name) profileUpdate.full_name = leadData.contact_name;

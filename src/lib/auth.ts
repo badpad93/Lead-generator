@@ -38,6 +38,7 @@ export interface SignupLeadData {
   address: string;
   city: string;
   state: string;
+  zip: string;
   entity_type: string;
   immediate_need: string;
 }
