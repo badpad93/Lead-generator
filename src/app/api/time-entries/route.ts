@@ -27,21 +27,26 @@ export async function GET(req: NextRequest) {
   const targetUserId = params.get("user_id");
   const from = params.get("from");
   const to = params.get("to");
+  const status = params.get("status"); // "active" to find open entries only
   const page = Math.max(0, parseInt(params.get("page") || "0"));
   const pageSize = 50;
 
   let query = supabaseAdmin
     .from("time_entries")
-    .select("*, profiles!user_id(id, full_name, role)", { count: "exact" });
+    .select("*", { count: "exact" });
 
   if (isAdmin && targetUserId) {
     query = query.eq("user_id", targetUserId);
-  } else if (isAdmin) {
+  } else if (isAdmin && !targetUserId) {
     // Admin sees all
   } else if (CLOCK_ROLES.includes(role || "")) {
     query = query.eq("user_id", userId);
   } else {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (status === "active") {
+    query = query.is("clock_out", null);
   }
 
   if (from) query = query.gte("clock_in", from);
@@ -53,6 +58,7 @@ export async function GET(req: NextRequest) {
     .range(offset, offset + pageSize - 1);
 
   if (error) {
+    console.error("[time-entries] GET error:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

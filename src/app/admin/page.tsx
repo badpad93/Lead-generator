@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Shield,
@@ -3490,7 +3490,6 @@ interface TimeEntryRow {
   notes: string | null;
   admin_edited: boolean;
   edited_by: string | null;
-  profiles?: { id: string; full_name: string; role: string };
 }
 
 function TimeTrackingManager({ token }: { token: string }) {
@@ -3514,6 +3513,10 @@ function TimeTrackingManager({ token }: { token: string }) {
   const [manualClockIn, setManualClockIn] = useState("");
   const [manualClockOut, setManualClockOut] = useState("");
   const [manualNotes, setManualNotes] = useState("");
+
+  const staffMap = useMemo(() => new Map(staffUsers.map(u => [u.id, u])), [staffUsers]);
+  const getStaffName = (userId: string) => staffMap.get(userId)?.full_name || "Unknown";
+  const getStaffRole = (userId: string) => staffMap.get(userId)?.role || "";
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
@@ -3646,8 +3649,8 @@ function TimeTrackingManager({ token }: { token: string }) {
     const uid = e.user_id;
     if (!acc[uid]) {
       acc[uid] = {
-        name: e.profiles?.full_name || "Unknown",
-        role: e.profiles?.role || "",
+        name: getStaffName(e.user_id),
+        role: getStaffRole(e.user_id),
         minutes: 0,
       };
     }
@@ -3660,8 +3663,8 @@ function TimeTrackingManager({ token }: { token: string }) {
     entries.forEach((e) => {
       const totalHrs = e.duration_minutes != null ? (e.duration_minutes / 60).toFixed(2) : "";
       rows.push([
-        e.profiles?.full_name || "",
-        e.profiles?.role || "",
+        getStaffName(e.user_id),
+        getStaffRole(e.user_id),
         new Date(e.clock_in).toLocaleDateString(),
         new Date(e.clock_in).toLocaleString(),
         e.clock_out ? new Date(e.clock_out).toLocaleString() : "Active",
@@ -3675,7 +3678,7 @@ function TimeTrackingManager({ token }: { token: string }) {
     const dailyTotals: Record<string, Record<string, number>> = {};
     entries.forEach((e) => {
       if (e.duration_minutes == null) return;
-      const name = e.profiles?.full_name || "Unknown";
+      const name = getStaffName(e.user_id);
       const date = new Date(e.clock_in).toLocaleDateString();
       const key = `${name}|||${date}`;
       dailyTotals[key] = dailyTotals[key] || { minutes: 0 };
@@ -3807,7 +3810,7 @@ function TimeTrackingManager({ token }: { token: string }) {
               {entries.map((e) => (
                 <tr key={e.id} className="border-b border-gray-50">
                   <td className="py-3 pr-3 font-medium text-black-primary">
-                    {e.profiles?.full_name || "—"}
+                    {getStaffName(e.user_id)}
                   </td>
                   <td className="py-3 pr-3 text-black-primary/60">
                     {new Date(e.clock_in).toLocaleDateString()}
@@ -3936,7 +3939,7 @@ function TimeTrackingManager({ token }: { token: string }) {
           <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             <h3 className="text-lg font-semibold text-black-primary mb-4">Edit Time Entry</h3>
             <p className="text-sm text-black-primary/50 mb-4">
-              {editEntry.profiles?.full_name || "Unknown"} — {new Date(editEntry.clock_in).toLocaleDateString()}
+              {getStaffName(editEntry.user_id)} — {new Date(editEntry.clock_in).toLocaleDateString()}
             </p>
             <div className="space-y-4">
               <div>

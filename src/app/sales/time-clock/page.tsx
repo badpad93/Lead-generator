@@ -70,22 +70,20 @@ export default function TimeClockPage() {
       const weekStart = new Date(today);
       weekStart.setDate(weekStart.getDate() - weekStart.getDay());
 
-      // Fetch today, this week, AND check for any open entry (no date filter)
-      const [todayRes, weekRes, openRes] = await Promise.all([
-        fetch(`/api/time-entries?from=${today.toISOString()}&user_id=${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`/api/time-entries?from=${weekStart.toISOString()}&user_id=${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`/api/time-entries?user_id=${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Three parallel fetches: today, this week, and active punch
+      const [todayRes, weekRes, activeRes] = await Promise.all([
+        fetch(`/api/time-entries?from=${today.toISOString()}&user_id=${userId}`, { headers }),
+        fetch(`/api/time-entries?from=${weekStart.toISOString()}&user_id=${userId}`, { headers }),
+        fetch(`/api/time-entries?user_id=${userId}&status=active`, { headers }),
       ]);
 
       if (todayRes.ok) {
         const data = await todayRes.json();
         setTodayEntries(data.entries || []);
+      } else {
+        console.error("[time-clock] today fetch failed:", todayRes.status, await todayRes.text());
       }
 
       if (weekRes.ok) {
@@ -93,12 +91,12 @@ export default function TimeClockPage() {
         setWeekEntries(data.entries || []);
       }
 
-      // Find active entry from ALL entries (not just today)
-      if (openRes.ok) {
-        const data = await openRes.json();
-        const allEntries: TimeEntry[] = data.entries || [];
-        const open = allEntries.find((e) => !e.clock_out);
-        setActiveEntry(open || null);
+      if (activeRes.ok) {
+        const data = await activeRes.json();
+        const openEntries: TimeEntry[] = data.entries || [];
+        setActiveEntry(openEntries.length > 0 ? openEntries[0] : null);
+      } else {
+        console.error("[time-clock] active fetch failed:", activeRes.status, await activeRes.text());
       }
     } finally {
       setLoading(false);
