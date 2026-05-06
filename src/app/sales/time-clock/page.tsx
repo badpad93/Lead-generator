@@ -70,26 +70,35 @@ export default function TimeClockPage() {
       const weekStart = new Date(today);
       weekStart.setDate(weekStart.getDate() - weekStart.getDay());
 
-      const [todayRes, weekRes] = await Promise.all([
+      // Fetch today, this week, AND check for any open entry (no date filter)
+      const [todayRes, weekRes, openRes] = await Promise.all([
         fetch(`/api/time-entries?from=${today.toISOString()}&user_id=${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`/api/time-entries?from=${weekStart.toISOString()}&user_id=${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        fetch(`/api/time-entries?user_id=${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
 
       if (todayRes.ok) {
         const data = await todayRes.json();
-        const entries: TimeEntry[] = data.entries || [];
-        setTodayEntries(entries);
-        const open = entries.find((e) => !e.clock_out);
-        setActiveEntry(open || null);
+        setTodayEntries(data.entries || []);
       }
 
       if (weekRes.ok) {
         const data = await weekRes.json();
         setWeekEntries(data.entries || []);
+      }
+
+      // Find active entry from ALL entries (not just today)
+      if (openRes.ok) {
+        const data = await openRes.json();
+        const allEntries: TimeEntry[] = data.entries || [];
+        const open = allEntries.find((e) => !e.clock_out);
+        setActiveEntry(open || null);
       }
     } finally {
       setLoading(false);
@@ -120,6 +129,9 @@ export default function TimeClockPage() {
         const data = await res.json();
         setActiveEntry(data.entry);
         fetchEntries();
+      } else if (res.status === 409) {
+        // Already clocked in — refresh to pick up the active entry
+        await fetchEntries();
       } else {
         const data = await res.json();
         setError(data.error || "Failed to clock in");
