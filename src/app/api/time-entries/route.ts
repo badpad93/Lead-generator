@@ -88,17 +88,31 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
 
+  const insertData: Record<string, unknown> = {
+    user_id: userId,
+    notes: body.notes || null,
+  };
+  if (role) insertData.role = role;
+
   const { data, error } = await supabaseAdmin
     .from("time_entries")
-    .insert({
-      user_id: userId,
-      role: role,
-      notes: body.notes || null,
-    })
+    .insert(insertData)
     .select("*")
     .single();
 
   if (error) {
+    // If role column doesn't exist, retry without it
+    if (error.message.includes("role")) {
+      const { data: retryData, error: retryError } = await supabaseAdmin
+        .from("time_entries")
+        .insert({ user_id: userId, notes: body.notes || null })
+        .select("*")
+        .single();
+      if (retryError) {
+        return NextResponse.json({ error: retryError.message }, { status: 500 });
+      }
+      return NextResponse.json({ entry: retryData }, { status: 201 });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

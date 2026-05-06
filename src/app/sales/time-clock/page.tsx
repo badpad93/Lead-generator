@@ -42,6 +42,7 @@ export default function TimeClockPage() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [elapsed, setElapsed] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"today" | "week">("today");
 
   useEffect(() => {
@@ -102,6 +103,7 @@ export default function TimeClockPage() {
 
   async function clockIn() {
     setActing(true);
+    setError(null);
     try {
       const res = await fetch("/api/time-entries", {
         method: "POST",
@@ -112,13 +114,19 @@ export default function TimeClockPage() {
         const data = await res.json();
         setActiveEntry(data.entry);
         fetchEntries();
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to clock in");
       }
+    } catch {
+      setError("Network error — please try again");
     } finally { setActing(false); }
   }
 
   async function clockOut() {
     if (!activeEntry) return;
     setActing(true);
+    setError(null);
     try {
       const res = await fetch("/api/time-entries", {
         method: "PATCH",
@@ -128,7 +136,12 @@ export default function TimeClockPage() {
       if (res.ok) {
         setActiveEntry(null);
         fetchEntries();
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to clock out");
       }
+    } catch {
+      setError("Network error — please try again");
     } finally { setActing(false); }
   }
 
@@ -215,6 +228,12 @@ export default function TimeClockPage() {
           )}
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4">
