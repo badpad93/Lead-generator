@@ -8,6 +8,8 @@ import {
   Square,
   Loader2,
   Download,
+  CircleDot,
+  CircleOff,
 } from "lucide-react";
 
 interface TimeEntry {
@@ -183,50 +185,70 @@ export default function TimeClockPage() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Time Clock</h1>
 
-      {/* Clock In/Out Card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${
-              activeEntry ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
-            }`}>
-              <Timer className="h-7 w-7" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold text-gray-900">
-                {activeEntry ? "Clocked In" : "Clocked Out"}
-              </p>
-              <div className="flex items-center gap-4 text-sm text-gray-500">
-                {activeEntry && elapsed && (
-                  <span className="font-semibold text-green-600 text-base">{elapsed}</span>
+      {/* Current Punch Status Table */}
+      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+              <th className="px-6 py-3 font-medium">Status</th>
+              <th className="px-6 py-3 font-medium">Punched In At</th>
+              <th className="px-6 py-3 font-medium">Elapsed</th>
+              <th className="px-6 py-3 font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className={`border-b ${activeEntry ? "bg-green-50/50" : "bg-white"}`}>
+              <td className="px-6 py-4">
+                {activeEntry ? (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-800">
+                    <CircleDot className="h-4 w-4 animate-pulse" />
+                    Clocked In
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-600">
+                    <CircleOff className="h-4 w-4" />
+                    Clocked Out
+                  </span>
                 )}
-                <span>Today: {formatDuration(todayTotal)}</span>
-                <span>This Week: {formatDuration(weekTotal)}</span>
-              </div>
-            </div>
-          </div>
-          {activeEntry ? (
-            <button
-              type="button"
-              onClick={clockOut}
-              disabled={acting}
-              className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
-            >
-              {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
-              Clock Out
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={clockIn}
-              disabled={acting}
-              className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
-            >
-              {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              Clock In
-            </button>
-          )}
-        </div>
+              </td>
+              <td className="px-6 py-4 text-gray-900 font-medium">
+                {activeEntry
+                  ? new Date(activeEntry.clock_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+                  : "—"}
+              </td>
+              <td className="px-6 py-4">
+                {activeEntry && elapsed ? (
+                  <span className="font-mono text-lg font-bold text-green-700">{elapsed}</span>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
+              </td>
+              <td className="px-6 py-4">
+                {activeEntry ? (
+                  <button
+                    type="button"
+                    onClick={clockOut}
+                    disabled={acting}
+                    className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer transition-colors"
+                  >
+                    {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
+                    Punch Out
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={clockIn}
+                    disabled={acting}
+                    className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer transition-colors"
+                  >
+                    {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                    Punch In
+                  </button>
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       {error && (
@@ -236,7 +258,23 @@ export default function TimeClockPage() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 text-center">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</p>
+          <div className="mt-2">
+            {activeEntry ? (
+              <span className="inline-flex items-center gap-1.5 text-green-700 font-bold text-lg">
+                <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
+                ON
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-gray-500 font-bold text-lg">
+                <span className="h-2.5 w-2.5 rounded-full bg-gray-300" />
+                OFF
+              </span>
+            )}
+          </div>
+        </div>
         <div className="rounded-xl border border-gray-200 bg-white p-5 text-center">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Today</p>
           <p className="mt-1 text-2xl font-bold text-gray-900">{formatDuration(todayTotal)}</p>
@@ -249,10 +287,11 @@ export default function TimeClockPage() {
         </div>
       </div>
 
-      {/* Entries Table */}
+      {/* Punch History Table */}
       <div className="rounded-xl border border-gray-200 bg-white">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-gray-900 mr-3">Punch History</h2>
             <button
               type="button"
               onClick={() => setView("today")}
@@ -284,24 +323,36 @@ export default function TimeClockPage() {
 
         {displayEntries.length === 0 ? (
           <p className="py-12 text-center text-sm text-gray-400">
-            No time entries {view === "today" ? "today" : "this week"}.
+            No punches recorded {view === "today" ? "today" : "this week"}.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-gray-100 text-xs text-gray-500">
+                  <th className="px-6 py-3 font-medium">Punch</th>
                   <th className="px-6 py-3 font-medium">Date</th>
-                  <th className="px-6 py-3 font-medium">Clock In</th>
-                  <th className="px-6 py-3 font-medium">Clock Out</th>
+                  <th className="px-6 py-3 font-medium">In</th>
+                  <th className="px-6 py-3 font-medium">Out</th>
                   <th className="px-6 py-3 font-medium">Duration</th>
                   <th className="px-6 py-3 font-medium">Hours</th>
-                  <th className="px-6 py-3 font-medium">Notes</th>
                 </tr>
               </thead>
               <tbody>
-                {displayEntries.map((e) => (
-                  <tr key={e.id} className="border-b border-gray-50">
+                {displayEntries.map((e, i) => (
+                  <tr key={e.id} className={`border-b border-gray-50 ${!e.clock_out ? "bg-green-50/30" : ""}`}>
+                    <td className="px-6 py-3">
+                      {!e.clock_out ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+                          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+                          #{displayEntries.length - i}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-6 py-3 text-gray-600">
                       {new Date(e.clock_in).toLocaleDateString()}
                     </td>
@@ -311,30 +362,26 @@ export default function TimeClockPage() {
                     <td className="px-6 py-3">
                       {e.clock_out
                         ? <span className="text-gray-900 font-medium">{new Date(e.clock_out).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                        : <span className="inline-flex items-center gap-1 text-green-600 font-medium"><span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />Active</span>}
+                        : <span className="text-green-600 font-medium">— Running —</span>}
                     </td>
-                    <td className="px-6 py-3 text-gray-900">
+                    <td className="px-6 py-3 text-gray-900 font-medium">
                       {e.duration_minutes != null ? formatDuration(e.duration_minutes) : "—"}
                     </td>
                     <td className="px-6 py-3 text-gray-500">
                       {e.duration_minutes != null ? (e.duration_minutes / 60).toFixed(2) : "—"}
-                    </td>
-                    <td className="px-6 py-3 text-gray-400 max-w-[200px] truncate">
-                      {e.notes || "—"}
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="bg-gray-50">
-                  <td className="px-6 py-3 text-sm font-semibold text-gray-700" colSpan={3}>Total</td>
+                  <td className="px-6 py-3 text-sm font-semibold text-gray-700" colSpan={4}>Total</td>
                   <td className="px-6 py-3 text-sm font-bold text-gray-900">
                     {formatDuration(displayEntries.reduce((s, e) => s + (e.duration_minutes || 0), 0))}
                   </td>
                   <td className="px-6 py-3 text-sm font-bold text-gray-900">
                     {(displayEntries.reduce((s, e) => s + (e.duration_minutes || 0), 0) / 60).toFixed(2)}
                   </td>
-                  <td />
                 </tr>
               </tfoot>
             </table>
