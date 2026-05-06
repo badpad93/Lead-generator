@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+const DEFAULT_ASSIGNEE_EMAIL = "james@apexaivending.com";
+
+async function getDefaultAssigneeId(): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("email", DEFAULT_ASSIGNEE_EMAIL)
+    .single();
+  return data?.id ?? null;
+}
+
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const token = authHeader?.replace("Bearer ", "");
@@ -36,6 +47,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const assigneeId = await getDefaultAssigneeId();
+
   const { data: account, error: acctErr } = await supabaseAdmin
     .from("sales_accounts")
     .insert({
@@ -45,6 +58,8 @@ export async function POST(req: NextRequest) {
       email: email || user.email || null,
       address: address || null,
       entity_type: entity_type || null,
+      assigned_to: assigneeId,
+      created_by: assigneeId,
     })
     .select("id")
     .single();
@@ -70,6 +85,8 @@ export async function POST(req: NextRequest) {
       entity_type: entity_type || null,
       immediate_need: immediate_need || null,
       account_id: account.id,
+      assigned_to: assigneeId,
+      created_by: assigneeId,
     })
     .select("*")
     .single();
