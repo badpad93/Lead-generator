@@ -65,7 +65,7 @@ export async function POST(
   }
 
   const stripe = new Stripe(process.env.STRIPE_CONNECT_SECRET_KEY!);
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
 
   const amountCents = Math.round(Number(listing.price) * 100);
   const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_RATE);

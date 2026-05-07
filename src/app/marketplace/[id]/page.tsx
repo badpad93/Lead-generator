@@ -94,9 +94,13 @@ export default function ListingDetailPage() {
 
     if (res.ok) {
       const { url } = await res.json();
-      window.location.href = url;
+      if (url) {
+        window.location.href = url;
+        return;
+      }
+      setError("Checkout session did not return a redirect URL. Please try again.");
     } else {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       setError(data.error || "Failed to start checkout");
     }
     setPurchasing(false);
