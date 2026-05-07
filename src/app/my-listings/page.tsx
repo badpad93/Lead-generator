@@ -126,17 +126,30 @@ export default function MyListingsPage() {
 
   async function handleConnectStripe() {
     setConnectLoading(true);
+    setError(null);
     const token = await getAccessToken();
-    const res = await fetch("/api/connect/onboard", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const { url } = await res.json();
-      window.location.href = url;
-    } else {
-      const data = await res.json();
-      setError(data.error || "Failed to start Stripe onboarding");
+    if (!token) {
+      router.push("/login?redirect=/my-listings");
+      return;
+    }
+    try {
+      const res = await fetch("/api/connect/onboard", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        if (url) {
+          window.location.href = url;
+          return;
+        }
+        setError("Stripe did not return a redirect URL. Please try again.");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Failed to start Stripe onboarding");
+      }
+    } catch {
+      setError("Network error. Please try again.");
     }
     setConnectLoading(false);
   }
@@ -245,11 +258,14 @@ export default function MyListingsPage() {
               <button
                 onClick={handleConnectStripe}
                 disabled={connectLoading}
-                className="mt-4 inline-flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors disabled:opacity-50"
+                className="mt-4 inline-flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {connectLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                 {connectStatus?.connected ? "Complete Stripe Setup" : "Connect Stripe"}
               </button>
+              {error && (
+                <p className="mt-2 text-sm text-red-600">{error}</p>
+              )}
             </div>
           </div>
         </div>
