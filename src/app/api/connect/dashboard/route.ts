@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  const stripe = new Stripe(process.env.STRIPE_CONNECT_SECRET_KEY!);
   const loginLink = await stripe.accounts.createLoginLink(
     profile.stripe_account_id
   );
