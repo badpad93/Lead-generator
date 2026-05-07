@@ -62,6 +62,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .limit(1)
     .maybeSingle();
 
+  // For location-type leads, the account is the location itself, not an
+  // operator. Don't assign it as the deal's account — operator gets picked
+  // later in the order flow.
+  const isLocationLead = lead.entity_type === "location";
+
   // Auto-create a deal for sales-type pipelines so the converted lead
   // shows up on the Deals page.
   let dealId: string | null = null;
@@ -74,7 +79,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         stage: "new",
         value: 0,
         lead_id: leadId,
-        account_id: accountId,
+        account_id: isLocationLead ? null : accountId,
         pipeline_id,
         immediate_need: lead.immediate_need || null,
       })
@@ -120,12 +125,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
+  const pipelineItemAccountId = isLocationLead ? null : accountId;
+
   // Create pipeline item
   const { data: pipelineItem, error: piErr } = await supabaseAdmin
     .from("pipeline_items")
     .insert({
       pipeline_id,
-      account_id: accountId,
+      account_id: pipelineItemAccountId,
       lead_id: leadId,
       location_id: locationId,
       name: lead.business_name || lead.contact_name || "Converted Lead",
