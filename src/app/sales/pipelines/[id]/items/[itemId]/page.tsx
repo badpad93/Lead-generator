@@ -363,37 +363,79 @@ export default function PipelineItemDetailPage() {
     loadGatingData();
   }
 
+  function findMatchingLocation(): Location | null {
+    if (!item) return null;
+    if (item.locations) return item.locations;
+    if (allLocations.length === 0) return null;
+
+    // Match by sales_lead_id
+    if (item.lead_id) {
+      const byLead = allLocations.find((l) => l.sales_lead_id === item.lead_id);
+      if (byLead) return byLead;
+    }
+
+    // Match by decision maker email from the account (location-type accounts
+    // store the decision maker info from the original lead)
+    const acct = item.sales_accounts;
+    if (acct?.entity_type === "location" && acct.email) {
+      const byEmail = allLocations.find(
+        (l) => l.decision_maker_email === acct.email
+      );
+      if (byEmail) return byEmail;
+    }
+
+    // Match by name
+    if (item.name) {
+      const byName = allLocations.find(
+        (l) => l.location_name?.toLowerCase() === item.name.toLowerCase()
+      );
+      if (byName) return byName;
+    }
+
+    // Match by account name (lead business_name becomes both the account
+    // business_name and the location_name)
+    if (acct?.business_name) {
+      const byAcctName = allLocations.find(
+        (l) => l.location_name?.toLowerCase() === acct.business_name.toLowerCase()
+      );
+      if (byAcctName) return byAcctName;
+    }
+
+    // Match by address
+    if (acct?.address) {
+      const byAddr = allLocations.find(
+        (l) => l.address && l.address.toLowerCase() === acct.address!.toLowerCase()
+      );
+      if (byAddr) return byAddr;
+    }
+
+    return null;
+  }
+
   function openCreateOrderModal() {
     setOrderError(null);
-    setOrderOperatorId(item?.account_id || null);
     setOrderOperatorSearch("");
     setOrderLocationSearch("");
 
-    // Try to find the linked location: first from the pipeline item's direct
-    // location join, then by matching lead_id → sales_lead_id in allLocations.
-    let loc: Location | null = item?.locations || null;
-    if (!loc && item?.lead_id && allLocations.length > 0) {
-      const matchByLead = allLocations.find(
-        (l) => l.sales_lead_id === item.lead_id
-      );
-      if (matchByLead) loc = matchByLead;
-    }
-    // Final fallback: match by name if the pipeline item name matches a location
-    if (!loc && item?.name && allLocations.length > 0) {
-      const matchByName = allLocations.find(
-        (l) => l.location_name?.toLowerCase() === item.name.toLowerCase()
-      );
-      if (matchByName) loc = matchByName;
+    const loc = findMatchingLocation();
+    setOrderSelectedLocation(loc);
+
+    // For operator, prefer an operator-type account if available;
+    // fall back to the pipeline item's account
+    const acct = item?.sales_accounts;
+    if (acct?.entity_type === "operator") {
+      setOrderOperatorId(item?.account_id || null);
+    } else {
+      setOrderOperatorId(null);
     }
 
-    setOrderSelectedLocation(loc);
-    const acct = item?.sales_accounts;
+    // Populate form from matched location — never fall back to operator data
     setOrderLocationForm({
-      location_name: loc?.location_name || acct?.business_name || "",
-      address: loc?.address || acct?.address || "",
-      phone: loc?.phone || acct?.phone || "",
-      decision_maker_name: loc?.decision_maker_name || acct?.contact_name || "",
-      decision_maker_email: loc?.decision_maker_email || acct?.email || "",
+      location_name: loc?.location_name || "",
+      address: loc?.address || "",
+      phone: loc?.phone || "",
+      decision_maker_name: loc?.decision_maker_name || "",
+      decision_maker_email: loc?.decision_maker_email || "",
       industry: loc?.industry || "",
       zip: loc?.zip || "",
       employee_count: loc?.employee_count != null ? String(loc.employee_count) : "",
