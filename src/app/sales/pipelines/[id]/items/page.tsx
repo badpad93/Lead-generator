@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
-import { Loader2, Plus, ChevronRight, Search, Building2, X } from "lucide-react";
+import { Loader2, Plus, ChevronRight, Search, Building2, X, Trash2, CheckSquare } from "lucide-react";
 
 interface Account {
   id: string;
@@ -42,10 +42,21 @@ export default function PipelineItemsPage() {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [showAccountList, setShowAccountList] = useState(false);
 
+  const [userRole, setUserRole] = useState<"admin" | "sales">("sales");
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   useEffect(() => {
     const supabase = createBrowserClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) setToken(session.access_token);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.access_token) return;
+      setToken(session.access_token);
+      const res = await fetch("/api/sales/users", { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) {
+        const users = await res.json();
+        const me = users.find((u: { id: string }) => u.id === session.user.id);
+        if (me?.role === "admin" || me?.role === "director_of_sales" || me?.role === "market_leader") setUserRole("admin");
+      }
     });
   }, []);
 
@@ -100,6 +111,45 @@ export default function PipelineItemsPage() {
       )
     : accounts;
 
+  function toggleSelectItem(id: string) {
+    setSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllItems() {
+    if (selectedItems.size === items.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(items.map((i) => i.id)));
+    }
+  }
+
+  async function handleBulkDeleteItems() {
+    if (selectedItems.size === 0) return;
+    if (!confirm(`Delete ${selectedItems.size} selected item${selectedItems.size > 1 ? "s" : ""}? Won/lost items will be skipped to preserve stats. This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    const res = await fetch("/api/pipeline-items/bulk-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ids: Array.from(selectedItems) }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Bulk delete failed");
+    } else {
+      const result = await res.json();
+      if (result.skipped > 0) {
+        alert(`Deleted ${result.deleted} item(s). ${result.skipped} won/lost item(s) were skipped.`);
+      }
+    }
+    setSelectedItems(new Set());
+    setBulkDeleting(false);
+    load();
+  }
+
   const statusColor = (s: string) => {
     if (s === "won") return "bg-green-50 text-green-700";
     if (s === "lost") return "bg-red-50 text-red-600";
@@ -122,6 +172,38 @@ export default function PipelineItemsPage() {
           <Plus className="h-4 w-4" /> Add Item
         </button>
       </div>
+
+      {/* Bulk selection banner */}
+      {selectedItems.size > 0 && userRole === "admin" && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5">
+          <CheckSquare className="h-4 w-4 text-red-600 shrink-0" />
+          <span className="text-sm font-medium text-red-800">{selectedItems.size} item{selectedItems.size > 1 ? "s" : ""} selected</span>
+          <button
+            onClick={handleBulkDeleteItems}
+            disabled={bulkDeleting}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+          >
+            {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            Delete Selected
+          </button>
+          <button onClick={() => setSelectedItems(new Set())} className="text-red-400 hover:text-red-600 cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Admin select-all toggle */}
+      {userRole === "admin" && items.length > 0 && (
+        <div className="mb-3 flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={items.length > 0 && selectedItems.size === items.length}
+            onChange={toggleSelectAllItems}
+            className="h-4 w-4 rounded border-gray-300 text-green-600 cursor-pointer"
+          />
+          <span className="text-xs text-gray-500">Select all ({items.length})</span>
+        </div>
+      )}
 
       {showAdd && (
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
@@ -217,18 +299,29 @@ export default function PipelineItemsPage() {
               </div>
               <div className="space-y-2">
                 {stepItems.map((item) => (
-                  <Link
-                    key={item.id}
-                    href={`/sales/pipelines/${pipelineId}/items/${item.id}`}
-                    className="block rounded-lg border border-gray-200 bg-white p-3 hover:border-green-200 transition-colors"
-                  >
-                    <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                    {item.sales_accounts && <p className="text-xs text-gray-400">{item.sales_accounts.business_name}</p>}
-                    <div className="flex items-center justify-between mt-2">
-                      {item.value > 0 && <span className="text-xs font-medium text-green-600">${Number(item.value).toLocaleString()}</span>}
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(item.status)}`}>{item.status}</span>
-                    </div>
-                  </Link>
+                  <div key={item.id} className="relative">
+                    {userRole === "admin" && (
+                      <div className="absolute top-2 right-2 z-10" onClick={(e) => e.preventDefault()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.has(item.id)}
+                          onChange={() => toggleSelectItem(item.id)}
+                          className="h-4 w-4 rounded border-gray-300 text-green-600 cursor-pointer"
+                        />
+                      </div>
+                    )}
+                    <Link
+                      href={`/sales/pipelines/${pipelineId}/items/${item.id}`}
+                      className={`block rounded-lg border bg-white p-3 hover:border-green-200 transition-colors ${selectedItems.has(item.id) ? "border-red-300 bg-red-50/30" : "border-gray-200"}`}
+                    >
+                      <p className="text-sm font-medium text-gray-900 pr-6">{item.name}</p>
+                      {item.sales_accounts && <p className="text-xs text-gray-400">{item.sales_accounts.business_name}</p>}
+                      <div className="flex items-center justify-between mt-2">
+                        {item.value > 0 && <span className="text-xs font-medium text-green-600">${Number(item.value).toLocaleString()}</span>}
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(item.status)}`}>{item.status}</span>
+                      </div>
+                    </Link>
+                  </div>
                 ))}
                 {stepItems.length === 0 && <p className="text-xs text-gray-300 text-center py-4">Empty</p>}
               </div>

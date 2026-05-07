@@ -15,6 +15,7 @@ import {
   X,
   TrendingUp,
   ChevronRight,
+  CheckSquare,
 } from "lucide-react";
 import type { SalesDeal } from "@/lib/salesTypes";
 
@@ -71,21 +72,31 @@ export default function DealDashboardPage() {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
 
+  const [userRole, setUserRole] = useState<"admin" | "sales">("sales");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   useEffect(() => {
     const supabase = createBrowserClient();
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) return;
       setToken(session.access_token);
-      const [pRes, aRes] = await Promise.all([
+      const [pRes, aRes, uRes] = await Promise.all([
         fetch("/api/pipelines?type=sales", { headers: { Authorization: `Bearer ${session.access_token}` } }),
         fetch("/api/sales/accounts", { headers: { Authorization: `Bearer ${session.access_token}` } }),
+        fetch("/api/sales/users", { headers: { Authorization: `Bearer ${session.access_token}` } }),
       ]);
       if (pRes.ok) {
         const data = await pRes.json();
         setPipelines(data);
       }
       if (aRes.ok) setAccounts(await aRes.json());
+      if (uRes.ok) {
+        const users = await uRes.json();
+        const me = users.find((u: { id: string }) => u.id === session.user.id);
+        if (me?.role === "admin" || me?.role === "director_of_sales" || me?.role === "market_leader") setUserRole("admin");
+      }
     }
     init();
   }, []);
@@ -179,6 +190,46 @@ export default function DealDashboardPage() {
         (a.email || "").toLowerCase().includes(accountSearch.toLowerCase())
       ).slice(0, 8)
     : [];
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === salesItems.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(salesItems.map((i) => i.id)));
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} selected item${selected.size > 1 ? "s" : ""}? Won/lost items will be skipped to preserve stats. This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    const res = await fetch("/api/pipeline-items/bulk-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ids: Array.from(selected) }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Bulk delete failed");
+    } else {
+      const result = await res.json();
+      if (result.skipped > 0) {
+        alert(`Deleted ${result.deleted} item(s). ${result.skipped} won/lost item(s) were skipped.`);
+      }
+    }
+    setSelected(new Set());
+    setBulkDeleting(false);
+    fetchDeals();
+    if (activeTab !== "all") fetchPipelineItems(activeTab);
+  }
 
   const statusColor = (s: string) => {
     if (s === "won") return "bg-green-50 text-green-700";
@@ -344,12 +395,41 @@ export default function DealDashboardPage() {
         </div>
       )}
 
+      {/* Bulk selection banner */}
+      {selected.size > 0 && userRole === "admin" && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5">
+          <CheckSquare className="h-4 w-4 text-red-600 shrink-0" />
+          <span className="text-sm font-medium text-red-800">{selected.size} item{selected.size > 1 ? "s" : ""} selected</span>
+          <button
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+          >
+            {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            Delete Selected
+          </button>
+          <button onClick={() => setSelected(new Set())} className="text-red-400 hover:text-red-600 cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* ============ ALL DEALS VIEW ============ */}
       {activeTab === "all" && (
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
+                {userRole === "admin" && (
+                  <th className="w-10 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={salesItems.length > 0 && selected.size === salesItems.length}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300 text-green-600 cursor-pointer"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Name</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Pipeline</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Current Step</th>
@@ -359,7 +439,7 @@ export default function DealDashboardPage() {
             </thead>
             <tbody>
               {salesItems.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No deals found</td></tr>
+                <tr><td colSpan={userRole === "admin" ? 6 : 5} className="px-4 py-8 text-center text-gray-400">No deals found</td></tr>
               )}
               {salesItems.map((item) => (
                 <tr
@@ -367,6 +447,16 @@ export default function DealDashboardPage() {
                   onClick={() => router.push(`/sales/pipelines/${item.pipeline_id}/items/${item.id}`)}
                   className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
                 >
+                  {userRole === "admin" && (
+                    <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(item.id)}
+                        onChange={() => toggleSelect(item.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-green-600 cursor-pointer"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium text-gray-900">{item.name}</td>
                   <td className="px-4 py-3">
                     {item.pipelines ? (
