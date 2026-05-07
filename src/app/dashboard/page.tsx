@@ -580,6 +580,25 @@ export default function DashboardPage() {
             </div>
             <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-purple-600" />
           </Link>
+          {(profile.role === "operator" || profile.role === "location_manager") && (
+            <Link
+              href="/my-listings"
+              className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
+                <HandCoins className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-semibold text-black-primary">
+                  My Listings
+                </p>
+                <p className="text-sm text-black-primary/50">
+                  Sell leads, locations, or routes on the marketplace
+                </p>
+              </div>
+              <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-emerald-600" />
+            </Link>
+          )}
         </div>
 
         {/* ------- RECENT REQUESTS ------- */}
