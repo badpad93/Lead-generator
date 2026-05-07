@@ -31,6 +31,10 @@ import {
 } from "lucide-react";
 import Tooltip from "@/app/components/Tooltip";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
+import ScrollProgress from "@/app/components/ScrollProgress";
+import AnimatedCounter from "@/app/components/AnimatedCounter";
+import { useScrollReveal, useScrollRevealGroup } from "@/hooks/useScrollReveal";
+import { useCardTilt } from "@/hooks/useCardTilt";
 
 /* ------------------------------------------------------------------ */
 /*  Data                                                               */
@@ -91,6 +95,14 @@ function formatStat(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k+`;
   if (n > 0) return `${n}+`;
   return "0";
+}
+
+function getStatNumber(s: string): number {
+  const match = s.replace(/[+,]/g, "").match(/[\d.]+/);
+  if (!match) return 0;
+  const num = parseFloat(match[0]);
+  if (s.includes("k")) return Math.round(num * 1000);
+  return Math.round(num);
 }
 
 const locationTypes = [
@@ -164,6 +176,62 @@ const testimonials = [
 ];
 
 /* ------------------------------------------------------------------ */
+/*  3D CTA Card                                                        */
+/* ------------------------------------------------------------------ */
+function CTACard({
+  href,
+  icon: Icon,
+  title,
+  description,
+  buttonText,
+  buttonStyle,
+  tooltip,
+  iconBg,
+}: {
+  href: string;
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  buttonText: string;
+  buttonStyle: string;
+  tooltip?: string;
+  iconBg: string;
+}) {
+  const { ref, handleMouseMove, handleMouseLeave } = useCardTilt(6);
+
+  const card = (
+    <Link
+      href={href}
+      className="group relative block rounded-2xl border border-green-200/60 bg-white p-7 shadow-lg shadow-green-primary/5 transition-shadow duration-300 hover:shadow-xl hover:shadow-green-primary/10"
+      aria-label={tooltip}
+    >
+      <div className="card-3d-shine rounded-2xl" />
+      <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl ${iconBg} transition-colors`}>
+        <Icon className="h-6 w-6" />
+      </div>
+      <h3 className="mb-1.5 text-lg font-bold text-black-primary">{title}</h3>
+      <p className="mb-5 text-sm leading-relaxed text-black-primary/60">{description}</p>
+      <span className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-sm transition-colors btn-press btn-ripple ${buttonStyle}`}>
+        {buttonText}
+        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+      </span>
+    </Link>
+  );
+
+  return (
+    <div
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="card-3d-inner"
+      style={{ transition: "transform 0.3s cubic-bezier(0.03, 0.98, 0.52, 0.99)" }}
+    >
+      {tooltip ? <Tooltip content={tooltip} position="top">{card}</Tooltip> : card}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -172,7 +240,19 @@ export default function HomePage() {
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Redirect authenticated users to dashboard
+  // Scroll reveal refs
+  const howItWorksRef = useScrollReveal<HTMLDivElement>();
+  const howItWorksGridRef = useScrollRevealGroup(".reveal-item");
+  const operatorRef = useScrollReveal<HTMLDivElement>();
+  const operatorGridRef = useScrollRevealGroup(".reveal-item");
+  const financingRef = useScrollReveal<HTMLDivElement>();
+  const statsRef = useScrollReveal<HTMLDivElement>();
+  const locationHeaderRef = useScrollReveal<HTMLDivElement>();
+  const locationGridRef = useScrollRevealGroup(".reveal-item");
+  const testimonialsHeaderRef = useScrollReveal<HTMLDivElement>();
+  const testimonialsGridRef = useScrollRevealGroup(".reveal-item");
+  const ctaRef = useScrollReveal<HTMLDivElement>();
+
   useEffect(() => {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -198,25 +278,27 @@ export default function HomePage() {
     { label: "States Covered", value: "48", icon: Globe },
   ];
 
-  // Show nothing while checking auth (prevents marketing page flash)
   if (!authChecked) {
     return <div className="min-h-screen" />;
   }
 
   return (
-    <div className="overflow-hidden">
+    <div className="overflow-hidden grain">
+      <ScrollProgress />
+
       {/* ============================================================ */}
       {/*  HERO                                                        */}
       {/* ============================================================ */}
       <section className="relative bg-gradient-to-b from-light to-light-warm">
-        {/* Decorative blurred circles */}
-        <div className="pointer-events-none absolute -top-32 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-green-100/60 blur-[120px]" />
-        <div className="pointer-events-none absolute -right-40 top-20 h-[350px] w-[350px] rounded-full bg-green-200/40 blur-[100px]" />
+        {/* Animated morphing blobs */}
+        <div className="pointer-events-none absolute -top-32 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-green-100/60 blur-[120px] animate-blob" />
+        <div className="pointer-events-none absolute -right-40 top-20 h-[350px] w-[350px] rounded-full bg-green-200/40 blur-[100px] animate-float" />
+        <div className="pointer-events-none absolute -left-20 top-60 h-[250px] w-[250px] rounded-full bg-green-100/30 blur-[80px] animate-float-delayed" />
 
         <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 sm:pb-28 sm:pt-24 lg:px-8 lg:pb-32 lg:pt-28">
           {/* Badge */}
           <div className="animate-fade-in mb-6 flex justify-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-green-primary shadow-sm backdrop-blur-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-green-primary shadow-sm backdrop-blur-sm btn-shimmer">
               <Star className="h-4 w-4 fill-green-primary text-green-primary" />
               The #1 Vending Machine Marketplace
             </span>
@@ -229,7 +311,7 @@ export default function HomePage() {
                 href="/request-location"
                 aria-label={TOOLTIP_COPY["Request Location Services"]}
                 title={TOOLTIP_COPY["Request Location Services"]}
-                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover"
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover btn-press btn-ripple btn-shimmer"
               >
                 <MapPin className="h-4 w-4" />
                 Request Location Services
@@ -238,7 +320,7 @@ export default function HomePage() {
             </Tooltip>
             <Link
               href="/machines-for-sale"
-              className="inline-flex items-center gap-2 rounded-xl border border-green-primary/40 bg-white px-6 py-3 text-sm font-semibold text-green-primary shadow-sm transition-all hover:-translate-y-0.5 hover:bg-green-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-green-primary/40 bg-white px-6 py-3 text-sm font-semibold text-green-primary shadow-sm transition-all hover:-translate-y-0.5 hover:bg-green-50 btn-press"
             >
               <Package className="h-4 w-4" />
               Shop Machines
@@ -252,7 +334,7 @@ export default function HomePage() {
             style={{ animationDelay: "0.1s" }}
           >
             The Smarter Way to Place{" "}
-            <span className="bg-gradient-to-r from-green-primary to-green-dark bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-green-primary via-green-dark to-green-primary bg-clip-text text-transparent animate-gradient">
               Vending Machines
             </span>
           </h1>
@@ -274,56 +356,31 @@ export default function HomePage() {
             &mdash; instantly.
           </p>
 
-          {/* CTA Cards */}
+          {/* CTA Cards with 3D tilt */}
           <div
             className="animate-slide-up mx-auto mt-12 grid max-w-3xl gap-5 sm:grid-cols-2"
             style={{ animationDelay: "0.3s" }}
           >
-            {/* Card — Location Owner */}
-            <Tooltip content={TOOLTIP_COPY["Post a Request"]} position="top">
-              <Link
-                href="/post-request"
-                className="group relative rounded-2xl border border-green-200/60 bg-white p-7 shadow-lg shadow-green-primary/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-green-primary/10"
-                aria-label={TOOLTIP_COPY["Post a Request"]}
-              >
-                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-100">
-                  <MapPin className="h-6 w-6" />
-                </div>
-                <h3 className="mb-1.5 text-lg font-bold text-black-primary">
-                  I Need a Vending Machine
-                </h3>
-                <p className="mb-5 text-sm leading-relaxed text-black-primary/60">
-                  Post your location and get matched with verified operators
-                </p>
-                <span className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors group-hover:bg-green-hover">
-                  Post a Request
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </span>
-              </Link>
-            </Tooltip>
-
-            {/* Card — Operator */}
-            <Tooltip content={TOOLTIP_COPY["Locations for Sale"]} position="top">
-              <Link
-                href="/browse-requests"
-                className="group relative rounded-2xl border border-navy/10 bg-white p-7 shadow-lg shadow-navy/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-navy/10"
-                aria-label={TOOLTIP_COPY["Locations for Sale"]}
-              >
-                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-black-primary/5 text-black-primary transition-colors group-hover:bg-black-primary/10">
-                  <Truck className="h-6 w-6" />
-                </div>
-                <h3 className="mb-1.5 text-lg font-bold text-black-primary">
-                  I&apos;m a Vending Operator
-                </h3>
-                <p className="mb-5 text-sm leading-relaxed text-black-primary/60">
-                  Browse open locations and grow your vending business
-                </p>
-                <span className="inline-flex items-center gap-2 rounded-xl bg-black-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors group-hover:bg-black-primary-light">
-                  Locations for Sale
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </span>
-              </Link>
-            </Tooltip>
+            <CTACard
+              href="/post-request"
+              icon={MapPin}
+              title="I Need a Vending Machine"
+              description="Post your location and get matched with verified operators"
+              buttonText="Post a Request"
+              buttonStyle="bg-green-primary text-white group-hover:bg-green-hover"
+              tooltip={TOOLTIP_COPY["Post a Request"]}
+              iconBg="bg-green-50 text-green-primary group-hover:bg-green-100"
+            />
+            <CTACard
+              href="/browse-requests"
+              icon={Truck}
+              title="I'm a Vending Operator"
+              description="Browse open locations and grow your vending business"
+              buttonText="Locations for Sale"
+              buttonStyle="bg-black-primary text-white group-hover:bg-black-light"
+              tooltip={TOOLTIP_COPY["Locations for Sale"]}
+              iconBg="bg-black-primary/5 text-black-primary group-hover:bg-black-primary/10"
+            />
           </div>
         </div>
 
@@ -349,7 +406,7 @@ export default function HomePage() {
       <section className="bg-light py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Header */}
-          <div className="animate-fade-in text-center">
+          <div ref={howItWorksRef} className="reveal text-center">
             <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
               How Vending Connector Works
             </h2>
@@ -359,14 +416,13 @@ export default function HomePage() {
           </div>
 
           {/* Steps */}
-          <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div ref={howItWorksGridRef} className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {steps.map((step, idx) => {
               const Icon = step.icon;
               return (
                 <div
                   key={step.title}
-                  className="animate-slide-up group relative text-center"
-                  style={{ animationDelay: `${idx * 0.1}s` }}
+                  className="reveal-item group relative text-center"
                 >
                   {/* Connector line (desktop only) */}
                   {idx < steps.length - 1 && (
@@ -375,7 +431,7 @@ export default function HomePage() {
 
                   {/* Numbered circle */}
                   <div className="relative mx-auto mb-5 flex h-20 w-20 items-center justify-center">
-                    <div className="absolute inset-0 rounded-2xl bg-green-50 transition-colors group-hover:bg-green-100" />
+                    <div className="absolute inset-0 rounded-2xl bg-green-50 transition-all duration-300 group-hover:bg-green-100 group-hover:scale-110" />
                     <Icon className="relative h-8 w-8 text-green-primary" />
                     <span className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-green-primary text-xs font-bold text-white shadow-sm">
                       {idx + 1}
@@ -400,7 +456,7 @@ export default function HomePage() {
       {/* ============================================================ */}
       <section className="bg-light-warm/50 py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="animate-fade-in text-center">
+          <div ref={operatorRef} className="reveal text-center">
             <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
               How It Works for Operators
             </h2>
@@ -409,20 +465,19 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="mt-16 grid gap-8 sm:grid-cols-3">
+          <div ref={operatorGridRef} className="mt-16 grid gap-8 sm:grid-cols-3">
             {operatorSteps.map((step, idx) => {
               const Icon = step.icon;
               return (
                 <div
                   key={step.title}
-                  className="animate-slide-up group relative text-center"
-                  style={{ animationDelay: `${idx * 0.1}s` }}
+                  className="reveal-item group relative text-center"
                 >
                   {idx < operatorSteps.length - 1 && (
                     <div className="pointer-events-none absolute left-[calc(50%+40px)] top-10 hidden h-0.5 w-[calc(100%-80px)] bg-gradient-to-r from-green-200 to-green-100 sm:block" />
                   )}
                   <div className="relative mx-auto mb-5 flex h-20 w-20 items-center justify-center">
-                    <div className="absolute inset-0 rounded-2xl bg-green-50 transition-colors group-hover:bg-green-100" />
+                    <div className="absolute inset-0 rounded-2xl bg-green-50 transition-all duration-300 group-hover:bg-green-100 group-hover:scale-110" />
                     <Icon className="relative h-8 w-8 text-green-primary" />
                     <span className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-green-primary text-xs font-bold text-white shadow-sm">
                       {idx + 1}
@@ -445,7 +500,7 @@ export default function HomePage() {
       {/*  FINANCING CTA                                                */}
       {/* ============================================================ */}
       <section className="bg-gradient-to-r from-green-primary to-green-dark py-14 sm:py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div ref={financingRef} className="reveal mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center text-center sm:flex-row sm:text-left sm:justify-between gap-6">
             <div>
               <div className="flex items-center justify-center sm:justify-start gap-2 mb-2">
@@ -460,7 +515,7 @@ export default function HomePage() {
             </div>
             <Link
               href="/financing"
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-sm font-semibold text-green-primary shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl shrink-0"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-sm font-semibold text-green-primary shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl shrink-0 btn-press btn-shimmer"
             >
               Pre-Qualify Now
               <ArrowRight className="h-4 w-4" />
@@ -473,15 +528,25 @@ export default function HomePage() {
       {/*  STATS BAR                                                    */}
       {/* ============================================================ */}
       <section className="bg-green-primary">
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-14 lg:px-8">
+        <div ref={statsRef} className="reveal mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-14 lg:px-8">
           <div className="grid grid-cols-2 gap-8 text-center sm:gap-4 lg:grid-cols-4">
             {statItems.map((stat) => {
               const Icon = stat.icon;
+              const numericValue = getStatNumber(stat.value);
+              const suffix = stat.value.includes("k") ? "k+" : stat.value.includes("+") ? "+" : "";
               return (
-                <div key={stat.label} className="animate-fade-in">
+                <div key={stat.label}>
                   <Icon className="mx-auto mb-2 h-6 w-6 text-white/80" />
                   <p className="text-3xl font-extrabold text-white sm:text-4xl">
-                    {stat.value}
+                    {numericValue > 0 ? (
+                      <AnimatedCounter
+                        target={numericValue}
+                        suffix={suffix}
+                        duration={2200}
+                      />
+                    ) : (
+                      stat.value
+                    )}
                   </p>
                   <p className="mt-1 text-sm font-medium text-white/80">
                     {stat.label}
@@ -499,7 +564,7 @@ export default function HomePage() {
       <section className="bg-light py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Header */}
-          <div className="animate-fade-in text-center">
+          <div ref={locationHeaderRef} className="reveal text-center">
             <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
               Every Location Type, Covered
             </h2>
@@ -510,16 +575,15 @@ export default function HomePage() {
           </div>
 
           {/* Grid */}
-          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {locationTypes.map((loc, idx) => {
+          <div ref={locationGridRef} className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {locationTypes.map((loc) => {
               const Icon = loc.icon;
               return (
                 <div
                   key={loc.name}
-                  className="animate-slide-up group rounded-2xl border border-green-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-green-200 hover:shadow-md"
-                  style={{ animationDelay: `${idx * 0.05}s` }}
+                  className="reveal-item group rounded-2xl border border-green-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-green-200 hover:shadow-md"
                 >
-                  <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-100">
+                  <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-all duration-300 group-hover:bg-green-100 group-hover:scale-110">
                     <Icon className="h-5 w-5" />
                   </div>
                   <h3 className="mb-1 text-base font-bold text-black-primary">
@@ -541,7 +605,7 @@ export default function HomePage() {
       <section className="bg-light-warm/50 py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Header */}
-          <div className="animate-fade-in text-center">
+          <div ref={testimonialsHeaderRef} className="reveal text-center">
             <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
               What Our Users Say
             </h2>
@@ -551,12 +615,11 @@ export default function HomePage() {
           </div>
 
           {/* Cards */}
-          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {testimonials.map((t, idx) => (
+          <div ref={testimonialsGridRef} className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {testimonials.map((t) => (
               <div
                 key={t.name}
-                className="animate-slide-up flex flex-col rounded-2xl border border-green-100 bg-white p-7 shadow-sm transition-shadow duration-300 hover:shadow-md"
-                style={{ animationDelay: `${idx * 0.1}s` }}
+                className="reveal-item flex flex-col rounded-2xl border border-green-100 bg-white p-7 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-1"
               >
                 {/* Stars */}
                 <div className="mb-4 flex gap-1">
@@ -598,11 +661,11 @@ export default function HomePage() {
       {/* ============================================================ */}
       <section className="relative overflow-hidden bg-black-primary">
         {/* Decorative elements */}
-        <div className="pointer-events-none absolute -left-40 -top-40 h-80 w-80 rounded-full bg-green-primary/10 blur-[100px]" />
-        <div className="pointer-events-none absolute -bottom-40 -right-40 h-80 w-80 rounded-full bg-green-primary/10 blur-[100px]" />
+        <div className="pointer-events-none absolute -left-40 -top-40 h-80 w-80 rounded-full bg-green-primary/10 blur-[100px] animate-float" />
+        <div className="pointer-events-none absolute -bottom-40 -right-40 h-80 w-80 rounded-full bg-green-primary/10 blur-[100px] animate-float-delayed" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
-          <div className="animate-fade-in mx-auto max-w-2xl text-center">
+          <div ref={ctaRef} className="reveal mx-auto max-w-2xl text-center">
             <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
               Ready to Get Started?
             </h2>
@@ -615,7 +678,7 @@ export default function HomePage() {
               <Tooltip content={TOOLTIP_COPY["Post a Request"]} position="top">
                 <Link
                   href="/post-request"
-                  className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover hover:shadow-xl hover:shadow-green-primary/30"
+                  className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover hover:shadow-xl hover:shadow-green-primary/30 btn-press btn-ripple btn-shimmer"
                   aria-label={TOOLTIP_COPY["Post a Request"]}
                 >
                   Post a Request
@@ -625,7 +688,7 @@ export default function HomePage() {
               <Tooltip content={TOOLTIP_COPY["Browse Operators"]} position="top">
                 <Link
                   href="/browse-operators"
-                  className="inline-flex items-center gap-2 rounded-xl border-2 border-white/20 bg-transparent px-7 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/5"
+                  className="inline-flex items-center gap-2 rounded-xl border-2 border-white/20 bg-transparent px-7 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/5 btn-press"
                   aria-label={TOOLTIP_COPY["Browse Operators"]}
                 >
                   Browse Operators
