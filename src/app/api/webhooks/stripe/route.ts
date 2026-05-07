@@ -79,6 +79,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
+    // Handle marketplace purchases (user listings via Stripe Connect)
+    if (session.metadata?.type === "marketplace_purchase") {
+      await handleMarketplacePurchase(session);
+      return NextResponse.json({ received: true });
+    }
+
     const userId = session.metadata?.user_id;
     const requestId = session.metadata?.request_id;
     const agreementId = session.metadata?.agreement_id;
@@ -239,6 +245,26 @@ export async function POST(req: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq("stripe_checkout_session_id", session.id);
+
+    await supabaseAdmin
+      .from("user_listing_purchases")
+      .update({
+        status: "failed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("stripe_checkout_session_id", session.id);
+  }
+
+  // Handle Stripe Connect account updates — mark onboarding complete
+  if (event.type === "account.updated") {
+    const account = event.data.object as Stripe.Account;
+    if (account.charges_enabled && account.payouts_enabled) {
+      await supabaseAdmin
+        .from("profiles")
+        .update({ stripe_onboarding_complete: true })
+        .eq("stripe_account_id", account.id);
+      console.log(`[stripe-webhook] Connect account ${account.id} onboarding complete`);
+    }
   }
 
   return NextResponse.json({ received: true });
@@ -578,4 +604,81 @@ async function handleFeaturedSubscription(session: Stripe.Checkout.Session) {
     .eq("id", userId);
 
   console.log(`[stripe-webhook] User ${userId} is now a featured operator in ${state}`);
+}
+
+async function handleMarketplacePurchase(session: Stripe.Checkout.Session) {
+  const listingId = session.metadata?.listing_id;
+  const buyerId = session.metadata?.buyer_id;
+  const sellerId = session.metadata?.seller_id;
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+
+  if (!listingId) return;
+
+  // Update purchase record
+  await supabaseAdmin
+    .from("user_listing_purchases")
+    .update({
+      status: "completed",
+      stripe_payment_intent_id: paymentIntentId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("stripe_checkout_session_id", session.id);
+
+  // Mark listing as sold
+  await supabaseAdmin
+    .from("user_listings")
+    .update({ status: "sold", is_public: false, updated_at: new Date().toISOString() })
+    .eq("id", listingId);
+
+  // Fetch listing details for notifications
+  const { data: listing } = await supabaseAdmin
+    .from("user_listings")
+    .select("title, listing_type, city, state, price")
+    .eq("id", listingId)
+    .single();
+
+  const buyerEmail = session.customer_details?.email;
+
+  // Fetch seller email
+  const { data: sellerUser } = sellerId
+    ? await supabaseAdmin.auth.admin.getUserById(sellerId)
+    : { data: null };
+
+  console.log(
+    `[stripe-webhook] Marketplace purchase completed: listing=${listingId}, buyer=${buyerId}, seller=${sellerId}, amount=$${listing?.price}`
+  );
+
+  // Notify seller that their listing sold
+  if (sellerUser?.user?.email && listing) {
+    try {
+      const { sendMarketplaceSaleEmail } = await import("@/lib/marketplaceEmail");
+      await sendMarketplaceSaleEmail({
+        to: sellerUser.user.email,
+        listingTitle: listing.title,
+        amount: Number(listing.price),
+        buyerEmail: buyerEmail || "a buyer",
+      });
+    } catch (e) {
+      console.error("[stripe-webhook] Failed to send marketplace sale email:", e);
+    }
+  }
+
+  // Notify buyer with listing details
+  if (buyerEmail && listing) {
+    try {
+      const { sendMarketplacePurchaseEmail } = await import("@/lib/marketplaceEmail");
+      await sendMarketplacePurchaseEmail({
+        to: buyerEmail,
+        listingTitle: listing.title,
+        amount: Number(listing.price),
+        listingType: listing.listing_type,
+        location: `${listing.city || ""}, ${listing.state}`.trim(),
+      });
+    } catch (e) {
+      console.error("[stripe-webhook] Failed to send marketplace purchase email:", e);
+    }
+  }
 }
