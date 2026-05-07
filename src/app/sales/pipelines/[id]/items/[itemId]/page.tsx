@@ -226,6 +226,29 @@ export default function PipelineItemDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Auto-link location when pipeline item has a lead but no location
+  useEffect(() => {
+    if (!token || !item || item.location_id || !item.lead_id || allLocations.length === 0) return;
+
+    const match =
+      allLocations.find((l) => l.sales_lead_id === item.lead_id) ||
+      allLocations.find((l) => l.location_name?.toLowerCase() === item.name.toLowerCase()) ||
+      (item.sales_accounts?.entity_type === "location" && item.sales_accounts.email
+        ? allLocations.find((l) => l.decision_maker_email === item.sales_accounts!.email)
+        : null) ||
+      (item.sales_accounts?.business_name
+        ? allLocations.find((l) => l.location_name?.toLowerCase() === item.sales_accounts!.business_name.toLowerCase())
+        : null);
+
+    if (match) {
+      fetch(`/api/pipeline-items/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ location_id: match.id }),
+      }).then(() => load());
+    }
+  }, [token, item?.id, item?.location_id, item?.lead_id, allLocations.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function handleMove(direction: "next" | "back") {
     setMoving(true);
     setMoveError(null);
@@ -468,8 +491,7 @@ export default function PipelineItemDetailPage() {
     const loc = findMatchingLocation();
     setOrderSelectedLocation(loc);
 
-    // For operator, prefer an operator-type account if available;
-    // fall back to the pipeline item's account
+    // For operator, prefer an operator-type account if available
     const acct = item?.sales_accounts;
     if (acct?.entity_type === "operator") {
       setOrderOperatorId(item?.account_id || null);
@@ -477,21 +499,56 @@ export default function PipelineItemDetailPage() {
       setOrderOperatorId(null);
     }
 
-    // Populate form from matched location — never fall back to operator data
-    setOrderLocationForm({
-      location_name: loc?.location_name || "",
-      address: loc?.address || "",
-      phone: loc?.phone || "",
-      decision_maker_name: loc?.decision_maker_name || "",
-      decision_maker_email: loc?.decision_maker_email || "",
-      industry: loc?.industry || "",
-      zip: loc?.zip || "",
-      employee_count: loc?.employee_count != null ? String(loc.employee_count) : "",
-      traffic_count: loc?.traffic_count != null ? String(loc.traffic_count) : "",
-      machine_type: loc?.machine_type || "",
-      business_hours: HOURS_TO_DISPLAY[loc?.business_hours || "low"] || "8",
-      machines_requested: loc?.machines_requested != null ? String(loc.machines_requested) : "1",
-    });
+    // Populate form from matched location
+    if (loc) {
+      setOrderLocationForm({
+        location_name: loc.location_name || "",
+        address: loc.address || "",
+        phone: loc.phone || "",
+        decision_maker_name: loc.decision_maker_name || "",
+        decision_maker_email: loc.decision_maker_email || "",
+        industry: loc.industry || "",
+        zip: loc.zip || "",
+        employee_count: loc.employee_count != null ? String(loc.employee_count) : "",
+        traffic_count: loc.traffic_count != null ? String(loc.traffic_count) : "",
+        machine_type: loc.machine_type || "",
+        business_hours: HOURS_TO_DISPLAY[loc.business_hours || "low"] || "8",
+        machines_requested: loc.machines_requested != null ? String(loc.machines_requested) : "1",
+      });
+    } else if (acct?.entity_type === "location") {
+      // No location record found but the linked account IS a location —
+      // populate what we can from the account data
+      setOrderLocationForm({
+        location_name: acct.business_name || item?.name || "",
+        address: acct.address || "",
+        phone: acct.phone || "",
+        decision_maker_name: acct.contact_name || "",
+        decision_maker_email: acct.email || "",
+        industry: "",
+        zip: "",
+        employee_count: "",
+        traffic_count: "",
+        machine_type: "",
+        business_hours: "8",
+        machines_requested: "1",
+      });
+    } else {
+      // No location at all — use pipeline item name as location name hint
+      setOrderLocationForm({
+        location_name: item?.name || "",
+        address: "",
+        phone: "",
+        decision_maker_name: "",
+        decision_maker_email: "",
+        industry: "",
+        zip: "",
+        employee_count: "",
+        traffic_count: "",
+        machine_type: "",
+        business_hours: "8",
+        machines_requested: "1",
+      });
+    }
     setShowCreateOrder(true);
   }
 
@@ -524,34 +581,40 @@ export default function PipelineItemDetailPage() {
     setOrderSaving(true);
     setOrderError(null);
     try {
-      const locRes = await fetch("/api/locations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          location_name: orderLocationForm.location_name,
-          address: orderLocationForm.address || null,
-          phone: orderLocationForm.phone || null,
-          decision_maker_name: orderLocationForm.decision_maker_name || null,
-          decision_maker_email: orderLocationForm.decision_maker_email || null,
-          industry: orderLocationForm.industry || null,
-          zip: orderLocationForm.zip || null,
-          employee_count: orderLocationForm.employee_count ? Number(orderLocationForm.employee_count) : null,
-          traffic_count: orderLocationForm.traffic_count ? Number(orderLocationForm.traffic_count) : null,
-          machine_type: orderLocationForm.machine_type || null,
-          business_hours: DISPLAY_TO_HOURS[orderLocationForm.business_hours] || orderLocationForm.business_hours || null,
-          machines_requested: orderLocationForm.machines_requested ? Number(orderLocationForm.machines_requested) : null,
-        }),
-      });
-      if (!locRes.ok) {
-        const err = await locRes.json();
-        throw new Error(err.error || "Failed to create location");
+      // Reuse existing location if one was selected, otherwise create new
+      let locationId = orderSelectedLocation?.id || null;
+
+      if (!locationId) {
+        const locRes = await fetch("/api/locations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            location_name: orderLocationForm.location_name,
+            address: orderLocationForm.address || null,
+            phone: orderLocationForm.phone || null,
+            decision_maker_name: orderLocationForm.decision_maker_name || null,
+            decision_maker_email: orderLocationForm.decision_maker_email || null,
+            industry: orderLocationForm.industry || null,
+            zip: orderLocationForm.zip || null,
+            employee_count: orderLocationForm.employee_count ? Number(orderLocationForm.employee_count) : null,
+            traffic_count: orderLocationForm.traffic_count ? Number(orderLocationForm.traffic_count) : null,
+            machine_type: orderLocationForm.machine_type || null,
+            business_hours: DISPLAY_TO_HOURS[orderLocationForm.business_hours] || orderLocationForm.business_hours || null,
+            machines_requested: orderLocationForm.machines_requested ? Number(orderLocationForm.machines_requested) : null,
+          }),
+        });
+        if (!locRes.ok) {
+          const err = await locRes.json();
+          throw new Error(err.error || "Failed to create location");
+        }
+        const newLocation = await locRes.json();
+        locationId = newLocation.id;
       }
-      const newLocation = await locRes.json();
 
       const patchRes = await fetch(`/api/pipeline-items/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ account_id: orderOperatorId, location_id: newLocation.id }),
+        body: JSON.stringify({ account_id: orderOperatorId, location_id: locationId }),
       });
       if (!patchRes.ok) {
         const err = await patchRes.json();
@@ -575,13 +638,20 @@ export default function PipelineItemDetailPage() {
         (a.contact_name || "").toLowerCase().includes(orderOperatorSearch.toLowerCase()))
     : operatorAccounts;
 
+  // Ensure item's linked location is always available in the list
+  const locationPool = (() => {
+    if (!item?.locations) return allLocations;
+    const alreadyIn = allLocations.some((l) => l.id === item.locations!.id);
+    return alreadyIn ? allLocations : [item.locations, ...allLocations];
+  })();
+
   const filteredLocations = orderLocationSearch.length > 0
-    ? allLocations.filter((l) =>
+    ? locationPool.filter((l) =>
         (l.location_name || "").toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
         (l.address || "").toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
         (l.industry || "").toLowerCase().includes(orderLocationSearch.toLowerCase()) ||
         (l.zip || "").toLowerCase().includes(orderLocationSearch.toLowerCase()))
-    : allLocations;
+    : locationPool;
 
   const selectedOperator = accounts.find((a) => a.id === orderOperatorId) || null;
 
@@ -690,7 +760,13 @@ export default function PipelineItemDetailPage() {
       (a.email || "").toLowerCase().includes(accountSearch.toLowerCase()))
   ).slice(0, 20);
 
-  const filteredLinkLocations = allLocations.filter((l) =>
+  const allLocationPool = (() => {
+    if (!item?.locations) return allLocations;
+    const alreadyIn = allLocations.some((l) => l.id === item.locations!.id);
+    return alreadyIn ? allLocations : [item.locations, ...allLocations];
+  })();
+
+  const filteredLinkLocations = allLocationPool.filter((l) =>
     locationLinkSearch.length === 0 ||
     (l.location_name || "").toLowerCase().includes(locationLinkSearch.toLowerCase()) ||
     (l.address || "").toLowerCase().includes(locationLinkSearch.toLowerCase()) ||
