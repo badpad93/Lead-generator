@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
   }
 
   const amountCents = Math.round(lead.price * 100);
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
 
   // Check if buyer is exempt from fees (sales team / admin)
   let feesExempt = false;
