@@ -27,43 +27,57 @@ export async function POST(req: NextRequest) {
 
   if (!profile || !ALLOWED_ROLES.includes(profile.role)) {
     return NextResponse.json(
-      { error: "Only operators and location managers can sell on the marketplace" },
+      { error: `Your role (${profile?.role || "unknown"}) is not allowed to sell on the marketplace.` },
       { status: 403 }
     );
   }
 
-  const stripe = new Stripe(process.env.STRIPE_CONNECT_SECRET_KEY!);
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
-
-  let accountId = profile.stripe_account_id;
-
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: "express",
-      email: profile.email || user.email || undefined,
-      metadata: { user_id: user.id },
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-      },
-      business_profile: {
-        name: profile.full_name || undefined,
-      },
-    });
-    accountId = account.id;
-
-    await supabaseAdmin
-      .from("profiles")
-      .update({ stripe_account_id: accountId })
-      .eq("id", user.id);
+  const stripeKey = process.env.STRIPE_CONNECT_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+  if (!stripeKey) {
+    return NextResponse.json(
+      { error: "Stripe is not configured. Please contact support." },
+      { status: 500 }
+    );
   }
 
-  const accountLink = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: `${siteUrl}/dashboard/profile?stripe=refresh`,
-    return_url: `${siteUrl}/dashboard/profile?stripe=complete`,
-    type: "account_onboarding",
-  });
+  const stripe = new Stripe(stripeKey);
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
 
-  return NextResponse.json({ url: accountLink.url });
+  try {
+    let accountId = profile.stripe_account_id;
+
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: "express",
+        email: profile.email || user.email || undefined,
+        metadata: { user_id: user.id },
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+        business_profile: {
+          name: profile.full_name || undefined,
+        },
+      });
+      accountId = account.id;
+
+      await supabaseAdmin
+        .from("profiles")
+        .update({ stripe_account_id: accountId })
+        .eq("id", user.id);
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${siteUrl}/my-listings?stripe=refresh`,
+      return_url: `${siteUrl}/my-listings?stripe=complete`,
+      type: "account_onboarding",
+    });
+
+    return NextResponse.json({ url: accountLink.url });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown Stripe error";
+    console.error("[connect/onboard] Stripe error:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
