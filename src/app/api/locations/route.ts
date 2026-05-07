@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     .from("locations")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(200);
 
   if (search) {
     const s = sanitizeSearch(search);
