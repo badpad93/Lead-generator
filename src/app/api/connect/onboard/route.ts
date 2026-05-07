@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const ALLOWED_ROLES = ["operator", "location_manager"];
+const ALLOWED_ROLES = ["operator", "location_manager", "admin", "director_of_sales", "market_leader", "sales"];
 
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
