@@ -90,7 +90,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .select("id")
     .eq("sales_lead_id", leadId)
     .maybeSingle();
-  if (linkedLocation) locationId = linkedLocation.id;
+  if (linkedLocation) {
+    locationId = linkedLocation.id;
+  } else if (lead.entity_type === "location") {
+    // Fallback: match by business name + email for locations created before
+    // the sales_lead_id column existed
+    let fallbackQuery = supabaseAdmin
+      .from("locations")
+      .select("id")
+      .is("sales_lead_id", null);
+
+    if (lead.email) {
+      fallbackQuery = fallbackQuery.eq("decision_maker_email", lead.email);
+    } else if (lead.business_name) {
+      fallbackQuery = fallbackQuery.eq("location_name", lead.business_name);
+    }
+
+    const { data: fallbackLocation } = await fallbackQuery.maybeSingle();
+    if (fallbackLocation) {
+      locationId = fallbackLocation.id;
+      // Repair the link for future lookups
+      await supabaseAdmin
+        .from("locations")
+        .update({ sales_lead_id: leadId })
+        .eq("id", fallbackLocation.id);
+    }
+  }
 
   // Create pipeline item
   const { data: pipelineItem, error: piErr } = await supabaseAdmin

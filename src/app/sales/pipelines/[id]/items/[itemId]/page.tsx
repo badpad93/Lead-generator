@@ -83,6 +83,7 @@ interface Location {
   business_hours: string | null;
   machines_requested: number | null;
   is_revealed: boolean;
+  sales_lead_id: string | null;
 }
 
 interface PricingData {
@@ -136,6 +137,7 @@ interface PipelineItem {
   pipeline_id: string;
   account_id: string | null;
   location_id: string | null;
+  lead_id: string | null;
   proposal_status: string;
   pipeline_steps: { id: string; name: string; order_index: number } | null;
   sales_accounts: Account | null;
@@ -366,8 +368,25 @@ export default function PipelineItemDetailPage() {
     setOrderOperatorId(item?.account_id || null);
     setOrderOperatorSearch("");
     setOrderLocationSearch("");
-    setOrderSelectedLocation(item?.locations || null);
-    const loc = item?.locations;
+
+    // Try to find the linked location: first from the pipeline item's direct
+    // location join, then by matching lead_id → sales_lead_id in allLocations.
+    let loc: Location | null = item?.locations || null;
+    if (!loc && item?.lead_id && allLocations.length > 0) {
+      const matchByLead = allLocations.find(
+        (l) => l.sales_lead_id === item.lead_id
+      );
+      if (matchByLead) loc = matchByLead;
+    }
+    // Final fallback: match by name if the pipeline item name matches a location
+    if (!loc && item?.name && allLocations.length > 0) {
+      const matchByName = allLocations.find(
+        (l) => l.location_name?.toLowerCase() === item.name.toLowerCase()
+      );
+      if (matchByName) loc = matchByName;
+    }
+
+    setOrderSelectedLocation(loc);
     const acct = item?.sales_accounts;
     setOrderLocationForm({
       location_name: loc?.location_name || acct?.business_name || "",
