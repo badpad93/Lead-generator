@@ -74,12 +74,3 @@ CREATE POLICY "Users can update own listings"
 CREATE POLICY "Users can read own purchases"
   ON user_listing_purchases FOR SELECT
   USING (buyer_id = auth.uid() OR seller_id = auth.uid());
-
--- Service role bypass (for webhook updates)
-CREATE POLICY "Service role full access to user_listings"
-  ON user_listings FOR ALL
-  USING (true) WITH CHECK (true);
-
-CREATE POLICY "Service role full access to user_listing_purchases"
-  ON user_listing_purchases FOR ALL
-  USING (true) WITH CHECK (true);
