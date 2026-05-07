@@ -174,8 +174,10 @@ export default function Navbar() {
 
   return (
     <header
-      className={`sticky top-0 z-50 bg-white transition-shadow duration-200 ${
-        scrolled ? "shadow-md" : "border-b border-gray-100"
+      className={`sticky top-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "glass-strong shadow-lg"
+          : "bg-white/90 backdrop-blur-sm border-b border-gray-100"
       }`}
     >
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -192,7 +194,7 @@ export default function Navbar() {
               <Tooltip content={TOOLTIP_COPY[link.label] ?? link.label}>
                 <Link
                   href={link.href}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                  className="nav-link-animated rounded-lg px-3 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
                   aria-label={TOOLTIP_COPY[link.label] ?? undefined}
                 >
                   {link.label}
@@ -207,7 +209,7 @@ export default function Navbar() {
           <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
             <Link
               href="/request-location"
-              className="rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+              className="rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
               aria-label={TOOLTIP_COPY["Request Location Services"]}
               title={TOOLTIP_COPY["Request Location Services"]}
             >
@@ -234,7 +236,7 @@ export default function Navbar() {
 
               {/* Dropdown */}
               {userMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-gray-100 bg-white/95 backdrop-blur-md py-1 shadow-xl animate-fade-in">
                   <Link
                     href="/dashboard"
                     onClick={() => setUserMenuOpen(false)}
@@ -339,7 +341,7 @@ export default function Navbar() {
               <Tooltip content={TOOLTIP_COPY["Get Started"]}>
                 <Link
                   href="/signup"
-                  className="rounded-lg bg-green-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                  className="rounded-lg bg-green-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
                   aria-label={TOOLTIP_COPY["Get Started"]}
                 >
                   Get Started
