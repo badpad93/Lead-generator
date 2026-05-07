@@ -166,6 +166,9 @@ export default function PipelineItemDetailPage() {
   const [accountSearch, setAccountSearch] = useState("");
   const [showAccountSearch, setShowAccountSearch] = useState(false);
   const [linkingAccount, setLinkingAccount] = useState(false);
+  const [showLocationLink, setShowLocationLink] = useState(false);
+  const [locationLinkSearch, setLocationLinkSearch] = useState("");
+  const [linkingLocation, setLinkingLocation] = useState(false);
   const [esignDocs, setEsignDocs] = useState<EsignDoc[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [gating, setGating] = useState<GatingStatus | null>(null);
@@ -268,12 +271,34 @@ export default function PipelineItemDetailPage() {
   }
 
   async function handleLinkAccount(accountId: string) {
+    const acct = accounts.find((a) => a.id === accountId);
     setLinkingAccount(true);
-    await fetch(`/api/pipeline-items/${itemId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ account_id: accountId }),
-    });
+
+    if (acct?.entity_type === "location") {
+      // Location-type account → find matching location and set location_id
+      const matchedLoc = allLocations.find(
+        (l) =>
+          (acct.email && l.decision_maker_email === acct.email) ||
+          (acct.business_name && l.location_name?.toLowerCase() === acct.business_name.toLowerCase()) ||
+          (acct.address && l.address?.toLowerCase() === acct.address.toLowerCase())
+      );
+      if (matchedLoc) {
+        await fetch(`/api/pipeline-items/${itemId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ location_id: matchedLoc.id }),
+        });
+      } else {
+        alert("Could not find a matching location record for this account. Use the Location section to link a location directly.");
+      }
+    } else {
+      await fetch(`/api/pipeline-items/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ account_id: accountId }),
+      });
+    }
+
     setShowAccountSearch(false);
     setAccountSearch("");
     setLinkingAccount(false);
@@ -286,6 +311,29 @@ export default function PipelineItemDetailPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ account_id: null }),
+    });
+    load();
+  }
+
+  async function handleLinkLocation(locationId: string) {
+    setLinkingLocation(true);
+    await fetch(`/api/pipeline-items/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ location_id: locationId }),
+    });
+    setShowLocationLink(false);
+    setLocationLinkSearch("");
+    setLinkingLocation(false);
+    load();
+  }
+
+  async function handleUnlinkLocation() {
+    if (!confirm("Unlink this location from the pipeline item?")) return;
+    await fetch(`/api/pipeline-items/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ location_id: null }),
     });
     load();
   }
@@ -636,11 +684,18 @@ export default function PipelineItemDetailPage() {
   }
 
   const filteredAccounts = accounts.filter((a) =>
-    a.entity_type === "operator" &&
     (accountSearch.length === 0 ||
       a.business_name.toLowerCase().includes(accountSearch.toLowerCase()) ||
       (a.contact_name || "").toLowerCase().includes(accountSearch.toLowerCase()) ||
       (a.email || "").toLowerCase().includes(accountSearch.toLowerCase()))
+  ).slice(0, 20);
+
+  const filteredLinkLocations = allLocations.filter((l) =>
+    locationLinkSearch.length === 0 ||
+    (l.location_name || "").toLowerCase().includes(locationLinkSearch.toLowerCase()) ||
+    (l.address || "").toLowerCase().includes(locationLinkSearch.toLowerCase()) ||
+    (l.decision_maker_name || "").toLowerCase().includes(locationLinkSearch.toLowerCase()) ||
+    (l.decision_maker_email || "").toLowerCase().includes(locationLinkSearch.toLowerCase())
   ).slice(0, 20);
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
@@ -684,7 +739,7 @@ export default function PipelineItemDetailPage() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
             <Building2 className="h-4 w-4 text-gray-400" />
-            Operator Account
+            Linked Account
           </h2>
           {item.sales_accounts ? (
             <div className="flex items-center gap-2">
@@ -709,7 +764,7 @@ export default function PipelineItemDetailPage() {
               <input
                 value={accountSearch}
                 onChange={(e) => setAccountSearch(e.target.value)}
-                placeholder="Search operator accounts..."
+                placeholder="Search accounts..."
                 className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-9 text-sm focus:border-green-500 focus:outline-none"
                 autoFocus
               />
@@ -729,8 +784,15 @@ export default function PipelineItemDetailPage() {
                     className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 border-b border-gray-100 last:border-b-0 cursor-pointer disabled:opacity-50"
                   >
                     <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="font-medium text-gray-900 truncate">{a.business_name}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900 truncate">{a.business_name}</p>
+                        {a.entity_type && (
+                          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${a.entity_type === "operator" ? "bg-blue-50 text-blue-600" : "bg-green-50 text-green-600"}`}>
+                            {a.entity_type}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-400 truncate">
                         {[a.contact_name, a.email, a.phone].filter(Boolean).join(" · ") || "No contact info"}
                       </p>
@@ -738,7 +800,7 @@ export default function PipelineItemDetailPage() {
                   </button>
                 ))
               ) : (
-                <div className="p-3 text-sm text-gray-400 text-center">No operator accounts found</div>
+                <div className="p-3 text-sm text-gray-400 text-center">No accounts found</div>
               )}
             </div>
           </div>
@@ -782,7 +844,7 @@ export default function PipelineItemDetailPage() {
             )}
           </div>
         ) : (
-          <p className="text-sm text-gray-400">No account linked. Link an account to auto-populate operator info.</p>
+          <p className="text-sm text-gray-400">No account linked. Link an operator or location account.</p>
         )}
       </div>
 
@@ -807,13 +869,72 @@ export default function PipelineItemDetailPage() {
         </div>
       )}
 
-      {/* Location Details */}
-      {item.locations && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+      {/* Location */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
             <MapPin className="h-4 w-4 text-gray-400" />
             Location
           </h2>
+          {item.locations ? (
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShowLocationLink(true)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 cursor-pointer">
+                <Link2 className="h-3 w-3" /> Change
+              </button>
+              <button onClick={handleUnlinkLocation} className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 cursor-pointer">
+                <Unlink className="h-3 w-3" /> Unlink
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setShowLocationLink(!showLocationLink)} className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 cursor-pointer">
+              <Link2 className="h-3 w-3" /> Link Location
+            </button>
+          )}
+        </div>
+
+        {showLocationLink && (
+          <div className="mb-3">
+            <div className="relative mb-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                value={locationLinkSearch}
+                onChange={(e) => setLocationLinkSearch(e.target.value)}
+                placeholder="Search locations..."
+                className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-9 text-sm focus:border-green-500 focus:outline-none"
+                autoFocus
+              />
+              {locationLinkSearch && (
+                <button onClick={() => { setLocationLinkSearch(""); setShowLocationLink(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white max-h-48 overflow-y-auto">
+              {filteredLinkLocations.length > 0 ? (
+                filteredLinkLocations.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => handleLinkLocation(l.id)}
+                    disabled={linkingLocation}
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-gray-50 border-b border-gray-100 last:border-b-0 cursor-pointer disabled:opacity-50"
+                  >
+                    <MapPin className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{l.location_name || "Unnamed"}</p>
+                      <p className="text-xs text-gray-400 truncate">
+                        {[l.address, l.industry, l.zip].filter(Boolean).join(" · ") || "No details"}
+                      </p>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="p-3 text-sm text-gray-400 text-center">No locations found</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {item.locations ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {item.locations.location_name && (
               <div>
@@ -888,8 +1009,10 @@ export default function PipelineItemDetailPage() {
               </div>
             )}
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="text-sm text-gray-400">No location linked. Link a location or create an order to add one.</p>
+        )}
+      </div>
 
       {/* Location Agreement Status */}
       {item.location_agreement && (
