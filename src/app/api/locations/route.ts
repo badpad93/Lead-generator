@@ -10,8 +10,8 @@ import {
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     .from("locations")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(200);
+    .limit(1000);
 
   if (search) {
     const s = sanitizeSearch(search);
