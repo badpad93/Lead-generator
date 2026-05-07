@@ -19,81 +19,54 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Max 500 items per request" }, { status: 400 });
   }
 
-  // Exclude won/lost items to preserve stats
+  // Fetch items to find linked deals
   const { data: items } = await supabaseAdmin
     .from("pipeline_items")
-    .select("id, status, deal_id")
+    .select("id, deal_id")
     .in("id", ids);
 
-  const protectedIds = new Set(
-    (items || []).filter((i) => i.status === "won" || i.status === "lost").map((i) => i.id)
-  );
-  const deletableItems = (items || []).filter((i) => !protectedIds.has(i.id));
-  const deletableIds = deletableItems.map((i) => i.id);
-
-  if (deletableIds.length === 0) {
-    return NextResponse.json({
-      deleted: 0,
-      skipped: protectedIds.size,
-      message: "All selected items are won/lost and were skipped to preserve stats.",
-    });
-  }
-
-  // Also delete linked deals (that aren't won/lost)
-  const linkedDealIds = deletableItems
+  const linkedDealIds = (items || [])
     .map((i) => i.deal_id)
     .filter((id): id is string => !!id);
 
   // Detach/clean up pipeline item FKs
   await Promise.all([
-    supabaseAdmin.from("step_approvals").delete().in("pipeline_item_id", deletableIds),
-    supabaseAdmin.from("pipeline_item_documents").delete().in("pipeline_item_id", deletableIds),
-    supabaseAdmin.from("esign_documents").delete().in("pipeline_item_id", deletableIds),
-    supabaseAdmin.from("pipeline_payments").delete().in("pipeline_item_id", deletableIds),
-    supabaseAdmin.from("agreement_tokens").delete().in("pipeline_item_id", deletableIds),
-    supabaseAdmin.from("sales_deals").update({ pipeline_item_id: null }).in("pipeline_item_id", deletableIds),
+    supabaseAdmin.from("step_approvals").delete().in("pipeline_item_id", ids),
+    supabaseAdmin.from("pipeline_item_documents").delete().in("pipeline_item_id", ids),
+    supabaseAdmin.from("esign_documents").delete().in("pipeline_item_id", ids),
+    supabaseAdmin.from("pipeline_payments").delete().in("pipeline_item_id", ids),
+    supabaseAdmin.from("agreement_tokens").delete().in("pipeline_item_id", ids),
+    supabaseAdmin.from("sales_deals").update({ pipeline_item_id: null }).in("pipeline_item_id", ids),
   ]);
 
   // Delete the pipeline items
   const { error: piErr, count: piCount } = await supabaseAdmin
     .from("pipeline_items")
     .delete({ count: "exact" })
-    .in("id", deletableIds);
+    .in("id", ids);
 
   if (piErr) {
     return NextResponse.json({ error: piErr.message }, { status: 500 });
   }
 
-  // Clean up linked deals (skip won/lost)
+  // Clean up linked deals
   let dealsDeleted = 0;
   if (linkedDealIds.length > 0) {
-    const { data: linkedDeals } = await supabaseAdmin
+    await Promise.all([
+      supabaseAdmin.from("sales_orders").update({ deal_id: null }).in("deal_id", linkedDealIds),
+      supabaseAdmin.from("sales_commissions").delete().in("deal_id", linkedDealIds),
+      supabaseAdmin.from("deal_services").delete().in("deal_id", linkedDealIds),
+    ]);
+
+    const { count } = await supabaseAdmin
       .from("sales_deals")
-      .select("id, stage")
+      .delete({ count: "exact" })
       .in("id", linkedDealIds);
-
-    const deletableDealIds = (linkedDeals || [])
-      .filter((d) => d.stage !== "won" && d.stage !== "lost")
-      .map((d) => d.id);
-
-    if (deletableDealIds.length > 0) {
-      await Promise.all([
-        supabaseAdmin.from("sales_orders").update({ deal_id: null }).in("deal_id", deletableDealIds),
-        supabaseAdmin.from("sales_commissions").delete().in("deal_id", deletableDealIds),
-        supabaseAdmin.from("deal_services").delete().in("deal_id", deletableDealIds),
-      ]);
-
-      const { count } = await supabaseAdmin
-        .from("sales_deals")
-        .delete({ count: "exact" })
-        .in("id", deletableDealIds);
-      dealsDeleted = count || deletableDealIds.length;
-    }
+    dealsDeleted = count || linkedDealIds.length;
   }
 
   return NextResponse.json({
-    deleted: piCount || deletableIds.length,
+    deleted: piCount || ids.length,
     deals_deleted: dealsDeleted,
-    skipped: protectedIds.size,
   });
 }

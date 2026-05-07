@@ -19,44 +19,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Max 500 deals per request" }, { status: 400 });
   }
 
-  // Exclude won/lost deals to preserve stats
-  const { data: deals } = await supabaseAdmin
-    .from("sales_deals")
-    .select("id, stage")
-    .in("id", ids);
-
-  const protectedIds = new Set(
-    (deals || []).filter((d) => d.stage === "won" || d.stage === "lost").map((d) => d.id)
-  );
-  const deletableIds = ids.filter((id: string) => !protectedIds.has(id));
-
-  if (deletableIds.length === 0) {
-    return NextResponse.json({
-      deleted: 0,
-      skipped: protectedIds.size,
-      message: "All selected deals are won/lost and were skipped to preserve stats.",
-    });
-  }
-
   // Detach FKs before deletion
   await Promise.all([
-    supabaseAdmin.from("sales_orders").update({ deal_id: null }).in("deal_id", deletableIds),
-    supabaseAdmin.from("sales_commissions").delete().in("deal_id", deletableIds),
-    supabaseAdmin.from("deal_services").delete().in("deal_id", deletableIds),
-    supabaseAdmin.from("pipeline_items").update({ deal_id: null }).in("deal_id", deletableIds),
+    supabaseAdmin.from("sales_orders").update({ deal_id: null }).in("deal_id", ids),
+    supabaseAdmin.from("sales_commissions").delete().in("deal_id", ids),
+    supabaseAdmin.from("deal_services").delete().in("deal_id", ids),
+    supabaseAdmin.from("pipeline_items").update({ deal_id: null }).in("deal_id", ids),
   ]);
 
   const { error, count } = await supabaseAdmin
     .from("sales_deals")
     .delete({ count: "exact" })
-    .in("id", deletableIds);
+    .in("id", ids);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({
-    deleted: count || deletableIds.length,
-    skipped: protectedIds.size,
-  });
+  return NextResponse.json({ deleted: count || ids.length });
 }
