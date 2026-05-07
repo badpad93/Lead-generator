@@ -129,7 +129,7 @@ export default function PipelineItemsPage() {
 
   async function handleBulkDeleteItems() {
     if (selectedItems.size === 0) return;
-    if (!confirm(`Delete ${selectedItems.size} selected item${selectedItems.size > 1 ? "s" : ""}? Won/lost items will be skipped to preserve stats. This cannot be undone.`)) return;
+    if (!confirm(`Delete ${selectedItems.size} selected item${selectedItems.size > 1 ? "s" : ""}? This cannot be undone.`)) return;
     setBulkDeleting(true);
     const res = await fetch("/api/pipeline-items/bulk-delete", {
       method: "POST",
@@ -139,11 +139,6 @@ export default function PipelineItemsPage() {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       alert(err.error || "Bulk delete failed");
-    } else {
-      const result = await res.json();
-      if (result.skipped > 0) {
-        alert(`Deleted ${result.deleted} item(s). ${result.skipped} won/lost item(s) were skipped.`);
-      }
     }
     setSelectedItems(new Set());
     setBulkDeleting(false);
