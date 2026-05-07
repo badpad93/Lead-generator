@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  const stripe = new Stripe(process.env.STRIPE_CONNECT_SECRET_KEY!);
 
   const account = await stripe.accounts.retrieve(profile.stripe_account_id);
   const onboardingComplete = account.charges_enabled && account.payouts_enabled;

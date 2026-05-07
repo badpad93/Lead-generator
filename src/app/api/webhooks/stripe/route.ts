@@ -22,22 +22,37 @@ function getStripeClient(): Stripe {
   return new Stripe(key);
 }
 
-function getWebhookSecret(): string {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) {
-    console.error("[stripe-webhook] STRIPE_WEBHOOK_SECRET is not configured");
-    throw new Error("Stripe webhook secret not configured");
+function getConnectStripeClient(): Stripe {
+  const key = process.env.STRIPE_CONNECT_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("Stripe Connect not configured");
+  return new Stripe(key);
+}
+
+/** Try to verify a webhook signature against multiple secrets (original + Connect account) */
+function verifyWebhookEvent(stripe: Stripe, body: string, signature: string): Stripe.Event {
+  const secrets = [
+    process.env.STRIPE_WEBHOOK_SECRET,
+    process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
+  ].filter(Boolean) as string[];
+
+  if (secrets.length === 0) throw new Error("No webhook secrets configured");
+
+  let lastError: Error | null = null;
+  for (const secret of secrets) {
+    try {
+      return stripe.webhooks.constructEvent(body, signature, secret);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error("Invalid signature");
+    }
   }
-  return secret;
+  throw lastError;
 }
 
 /** POST /api/webhooks/stripe — handle Stripe webhook events */
 export async function POST(req: NextRequest) {
   let stripe: Stripe;
-  let webhookSecret: string;
   try {
     stripe = getStripeClient();
-    webhookSecret = getWebhookSecret();
   } catch {
     return NextResponse.json({ error: "Stripe not configured" }, { status: 500 });
   }
@@ -51,7 +66,7 @@ export async function POST(req: NextRequest) {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    event = verifyWebhookEvent(stripe, body, signature);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Invalid signature";
     console.error("[stripe-webhook] Signature verification failed:", message);
