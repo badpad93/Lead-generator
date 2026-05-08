@@ -115,13 +115,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .maybeSingle();
       if (found) {
         locationId = found.id;
-        // Repair the link for future lookups
         await supabaseAdmin
           .from("locations")
           .update({ sales_lead_id: leadId })
           .eq("id", found.id);
         break;
       }
+    }
+
+    // No location record exists at all — create one from the lead data
+    if (!locationId) {
+      const { data: newLoc } = await supabaseAdmin
+        .from("locations")
+        .insert({
+          location_name: lead.business_name || lead.contact_name || "Unknown Location",
+          address: lead.address || null,
+          phone: lead.phone || null,
+          decision_maker_name: lead.contact_name || null,
+          decision_maker_email: lead.email || null,
+          sales_lead_id: leadId,
+        })
+        .select("id")
+        .single();
+      if (newLoc) locationId = newLoc.id;
     }
   }
 

@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
 
   if (entity_type === "location" && data) {
     const bh = HOURS_MAP[body.business_hours] || body.business_hours || "low";
-    const { data: location } = await supabaseAdmin
+    const { data: location, error: locErr } = await supabaseAdmin
       .from("locations")
       .insert({
         location_name: body.location_name || business_name,
@@ -132,6 +132,10 @@ export async function POST(req: NextRequest) {
       })
       .select("id")
       .single();
+
+    if (locErr) {
+      console.error("[leads] Failed to create location record:", locErr.message);
+    }
 
     if (location) {
       await supabaseAdmin

@@ -226,23 +226,27 @@ export default function PipelineItemDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-link location when pipeline item has no location_id yet
+  // Auto-link location when pipeline item has no location_id yet.
+  // If no existing location record matches, create one from account data.
   useEffect(() => {
-    if (!token || !item || item.location_id || allLocations.length === 0) return;
+    if (!token || !item || item.location_id) return;
 
     const acct = item.sales_accounts;
-    const match =
-      (item.lead_id ? allLocations.find((l) => l.sales_lead_id === item.lead_id) : null) ||
-      allLocations.find((l) => l.location_name && item.name && l.location_name.toLowerCase() === item.name.toLowerCase()) ||
-      (acct?.email
-        ? allLocations.find((l) => l.decision_maker_email && l.decision_maker_email.toLowerCase() === acct.email!.toLowerCase())
-        : null) ||
-      (acct?.business_name
-        ? allLocations.find((l) => l.location_name && l.location_name.toLowerCase() === acct.business_name.toLowerCase())
-        : null) ||
-      (acct?.address
-        ? allLocations.find((l) => l.address && l.address.toLowerCase() === acct.address!.toLowerCase())
-        : null);
+
+    // Try to find an existing location
+    const match = allLocations.length > 0
+      ? (item.lead_id ? allLocations.find((l) => l.sales_lead_id === item.lead_id) : null) ||
+        allLocations.find((l) => l.location_name && item.name && l.location_name.toLowerCase() === item.name.toLowerCase()) ||
+        (acct?.email
+          ? allLocations.find((l) => l.decision_maker_email && l.decision_maker_email.toLowerCase() === acct.email!.toLowerCase())
+          : null) ||
+        (acct?.business_name
+          ? allLocations.find((l) => l.location_name && l.location_name.toLowerCase() === acct.business_name.toLowerCase())
+          : null) ||
+        (acct?.address
+          ? allLocations.find((l) => l.address && l.address.toLowerCase() === acct.address!.toLowerCase())
+          : null)
+      : null;
 
     if (match) {
       fetch(`/api/pipeline-items/${itemId}`, {
@@ -250,7 +254,35 @@ export default function PipelineItemDetailPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ location_id: match.id }),
       }).then(() => load());
+      return;
     }
+
+    // No existing location found — create one from account/item data
+    const locName = acct?.business_name || item.name;
+    if (!locName || (acct?.entity_type !== "location" && !item.lead_id)) return;
+
+    fetch("/api/locations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        location_name: locName,
+        address: acct?.address || null,
+        phone: acct?.phone || null,
+        decision_maker_name: acct?.contact_name || null,
+        decision_maker_email: acct?.email || null,
+      }),
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((newLoc) => {
+        if (!newLoc?.id) return;
+        setAllLocations((prev) => [newLoc, ...prev]);
+        return fetch(`/api/pipeline-items/${itemId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ location_id: newLoc.id }),
+        });
+      })
+      .then(() => load());
   }, [token, item?.id, item?.location_id, allLocations.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleMove(direction: "next" | "back") {
