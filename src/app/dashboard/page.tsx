@@ -301,7 +301,7 @@ export default function DashboardPage() {
   const fetchOperators = useCallback(async () => {
     setLoadingOperators(true);
     try {
-      const res = await fetch("/api/operators?limit=4");
+      const res = await fetch("/api/operators?limit=4&featured=true");
       const data = await res.json();
       setOperators(data.listings || []);
     } catch {

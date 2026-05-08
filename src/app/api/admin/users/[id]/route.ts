@@ -64,6 +64,14 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Keep operator_listings.featured in sync with profiles.featured
+    if ("featured" in updates) {
+      await supabaseAdmin
+        .from("operator_listings")
+        .update({ featured: updates.featured as boolean })
+        .eq("operator_id", id);
+    }
+
     return NextResponse.json(data);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";

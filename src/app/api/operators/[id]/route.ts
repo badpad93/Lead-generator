@@ -19,7 +19,7 @@ export async function GET(
     return NextResponse.json({ error: "Operator not found" }, { status: 404 });
   }
 
-  const isFeatured = profile.featured === true && !!profile.stripe_subscription_id;
+  const isFeatured = profile.featured === true;
 
   // Never expose Stripe IDs
   const { stripe_subscription_id: _sid, stripe_customer_id: _cid, ...cleanProfile } = profile;
