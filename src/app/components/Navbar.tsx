@@ -188,7 +188,7 @@ export default function Navbar() {
         </Link>
 
         {/* Desktop Navigation */}
-        <ul className="hidden items-center gap-1 md:flex">
+        <ul className="hidden items-center gap-1 lg:flex">
           {(isLoggedIn ? authNavLinks : navLinks).map((link) => (
             <li key={link.href}>
               <Tooltip content={TOOLTIP_COPY[link.label] ?? link.label}>
@@ -205,7 +205,7 @@ export default function Navbar() {
         </ul>
 
         {/* Desktop Auth Buttons / User Menu */}
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-3 lg:flex">
           <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
             <Link
               href="/request-location"
@@ -355,7 +355,7 @@ export default function Navbar() {
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="inline-flex items-center justify-center rounded-lg p-2 text-black-primary transition-colors hover:bg-gray-100 md:hidden"
+          className="inline-flex items-center justify-center rounded-lg p-2 text-black-primary transition-colors hover:bg-gray-100 lg:hidden"
           aria-label="Open menu"
         >
           <Menu className="h-6 w-6" />
@@ -365,7 +365,7 @@ export default function Navbar() {
       {/* Mobile Overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
@@ -373,7 +373,7 @@ export default function Navbar() {
 
       {/* Mobile Slide-out Drawer */}
       <div
-        className={`fixed right-0 top-0 z-50 flex h-full w-72 flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out md:hidden ${
+        className={`fixed right-0 top-0 z-50 flex h-full w-72 flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
           mobileOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >

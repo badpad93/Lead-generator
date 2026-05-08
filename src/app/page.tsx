@@ -295,42 +295,10 @@ export default function HomePage() {
         <div className="pointer-events-none absolute -right-40 top-20 h-[350px] w-[350px] rounded-full bg-green-200/40 blur-[100px] animate-float" />
         <div className="pointer-events-none absolute -left-20 top-60 h-[250px] w-[250px] rounded-full bg-green-100/30 blur-[80px] animate-float-delayed" />
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 sm:pb-28 sm:pt-24 lg:px-8 lg:pb-32 lg:pt-28">
-          {/* Badge */}
-          <div className="animate-fade-in mb-6 flex justify-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-green-primary shadow-sm backdrop-blur-sm btn-shimmer">
-              <Star className="h-4 w-4 fill-green-primary text-green-primary" />
-              The #1 Vending Machine Marketplace
-            </span>
-          </div>
-
-          {/* Request Location Services + Buy Machines CTAs */}
-          <div className="animate-fade-in mb-6 flex flex-wrap items-center justify-center gap-3">
-            <Tooltip content={TOOLTIP_COPY["Request Location Services"]} position="top">
-              <Link
-                href="/request-location"
-                aria-label={TOOLTIP_COPY["Request Location Services"]}
-                title={TOOLTIP_COPY["Request Location Services"]}
-                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover btn-press btn-ripple btn-shimmer"
-              >
-                <MapPin className="h-4 w-4" />
-                Request Location Services
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Tooltip>
-            <Link
-              href="/machines-for-sale"
-              className="inline-flex items-center gap-2 rounded-xl border border-green-primary/40 bg-white px-6 py-3 text-sm font-semibold text-green-primary shadow-sm transition-all hover:-translate-y-0.5 hover:bg-green-50 btn-press"
-            >
-              <Package className="h-4 w-4" />
-              Shop Machines
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-
+        <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-20 sm:px-6 sm:pb-28 sm:pt-24 lg:px-8 lg:pb-32 lg:pt-28">
           {/* Headline */}
           <h1
-            className="animate-fade-in mx-auto max-w-4xl text-center text-4xl font-extrabold leading-tight tracking-tight text-black-primary sm:text-5xl lg:text-6xl"
+            className="animate-fade-in mx-auto max-w-4xl text-center text-3xl font-extrabold leading-tight tracking-tight text-black-primary sm:text-5xl lg:text-6xl"
             style={{ animationDelay: "0.1s" }}
           >
             The Smarter Way to Place{" "}
@@ -341,7 +309,7 @@ export default function HomePage() {
 
           {/* Catch phrase */}
           <p
-            className="animate-fade-in mx-auto mt-4 max-w-2xl text-center text-base font-semibold tracking-wide text-green-primary/80 uppercase sm:text-lg"
+            className="animate-fade-in mx-auto mt-4 max-w-2xl text-center text-sm font-semibold tracking-wide text-green-primary/80 uppercase sm:text-lg"
             style={{ animationDelay: "0.15s" }}
           >
             A World Class Vending Connection
@@ -349,12 +317,36 @@ export default function HomePage() {
 
           {/* Sub-headline */}
           <p
-            className="animate-fade-in mx-auto mt-3 max-w-2xl text-center text-lg leading-relaxed text-black-primary/70 sm:text-xl"
+            className="animate-fade-in mx-auto mt-3 max-w-2xl text-center text-base leading-relaxed text-black-primary/70 sm:text-xl"
             style={{ animationDelay: "0.2s" }}
           >
             Connect locations that need machines with operators ready to serve
             &mdash; instantly.
           </p>
+
+          {/* Request Location Services + Buy Machines CTAs */}
+          <div className="animate-fade-in mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row" style={{ animationDelay: "0.25s" }}>
+            <Tooltip content={TOOLTIP_COPY["Request Location Services"]} position="top">
+              <Link
+                href="/request-location"
+                aria-label={TOOLTIP_COPY["Request Location Services"]}
+                title={TOOLTIP_COPY["Request Location Services"]}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover sm:w-auto btn-press btn-ripple btn-shimmer"
+              >
+                <MapPin className="h-4 w-4" />
+                Request Location Services
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Tooltip>
+            <Link
+              href="/machines-for-sale"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-green-primary/40 bg-white px-6 py-3 text-sm font-semibold text-green-primary shadow-sm transition-all hover:-translate-y-0.5 hover:bg-green-50 sm:w-auto btn-press"
+            >
+              <Package className="h-4 w-4" />
+              Shop Machines
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
 
           {/* CTA Cards with 3D tilt */}
           <div
@@ -389,7 +381,7 @@ export default function HomePage() {
           <svg
             viewBox="0 0 1440 60"
             fill="none"
-            className="w-full text-cream"
+            className="w-full text-light"
             preserveAspectRatio="none"
           >
             <path
