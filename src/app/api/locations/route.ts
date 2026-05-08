@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
+import { getSalesUser } from "@/lib/salesAuth";
 import { sanitizeSearch } from "@/lib/sanitizeSearch";
 import {
   calculateLocationPrice,
@@ -39,8 +39,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   const body = await req.json();
