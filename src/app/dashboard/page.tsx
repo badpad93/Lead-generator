@@ -301,7 +301,9 @@ export default function DashboardPage() {
   const fetchOperators = useCallback(async () => {
     setLoadingOperators(true);
     try {
-      const res = await fetch("/api/operators?limit=4&featured=true");
+      const qs = new URLSearchParams({ limit: "4", featured: "true" });
+      if (profile?.state) qs.set("user_state", profile.state);
+      const res = await fetch(`/api/operators?${qs.toString()}`);
       const data = await res.json();
       setOperators(data.listings || []);
     } catch {
@@ -309,7 +311,7 @@ export default function DashboardPage() {
     } finally {
       setLoadingOperators(false);
     }
-  }, []);
+  }, [profile?.state]);
 
   useEffect(() => {
     if (!profile) return;
