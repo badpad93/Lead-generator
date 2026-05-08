@@ -14,13 +14,16 @@ import {
   Loader2,
   SearchX,
   PlusCircle,
-  Bookmark,
   MapPin,
   DollarSign,
   Tag,
   ArrowRight,
   Clock,
   Package,
+  LayoutGrid,
+  List,
+  Users,
+  HandCoins,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { VendingRequest, MachineType, LocationType, Urgency } from "@/lib/types";
@@ -395,6 +398,9 @@ export default function BrowseRequestsPage() {
   // Filters panel (mobile toggle)
   const [filtersVisible, setFiltersVisible] = useState(false);
 
+  // View mode
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
   // ---------- Check auth & fetch saved IDs ----------
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -680,20 +686,42 @@ export default function BrowseRequestsPage() {
               ))}
             </div>
 
-            {/* Mobile filter toggle */}
-            <button
-              type="button"
-              onClick={() => setFiltersVisible(!filtersVisible)}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 lg:hidden"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              Filters
-              {activeFilterCount > 0 && (
-                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-[11px] font-bold text-white">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* View mode toggle */}
+              <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  className={`rounded-md p-1.5 transition-colors cursor-pointer ${viewMode === "grid" ? "bg-green-primary text-white shadow-sm" : "text-black-primary/40 hover:text-black-primary/70"}`}
+                  title="Grid view"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={`rounded-md p-1.5 transition-colors cursor-pointer ${viewMode === "list" ? "bg-green-primary text-white shadow-sm" : "text-black-primary/40 hover:text-black-primary/70"}`}
+                  title="List view"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Mobile filter toggle */}
+              <button
+                type="button"
+                onClick={() => setFiltersVisible(!filtersVisible)}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 lg:hidden"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-green-primary px-1.5 text-[11px] font-bold text-white">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Desktop filters -- always visible on lg+ */}
@@ -846,71 +874,262 @@ export default function BrowseRequestsPage() {
           </div>
         )}
 
-        {/* Marketplace listings */}
-        {!loading && marketplaceListings.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <Package className="h-5 w-5 text-emerald-600" />
-              <h2 className="text-lg font-bold text-black-primary">Locations For Sale</h2>
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                {marketplaceListings.length}
-              </span>
-            </div>
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {marketplaceListings.map((listing) => (
-                <MarketplaceListingCard key={listing.id} listing={listing} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Request cards grid */}
-        {!loading && requests.length > 0 && (
+        {viewMode === "list" ? (
+          /* ============ LIST / TABLE VIEW ============ */
           <>
-            {marketplaceListings.length > 0 && (
-              <div className="flex items-center gap-2 mb-4">
-                <Search className="h-5 w-5 text-green-primary" />
-                <h2 className="text-lg font-bold text-black-primary">Vending Requests</h2>
+            {/* Marketplace Listings Table */}
+            {!loading && marketplaceListings.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <Package className="h-5 w-5 text-emerald-600" />
+                  <h2 className="text-lg font-bold text-black-primary">Locations For Sale</h2>
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    {marketplaceListings.length}
+                  </span>
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-gray-100 bg-gray-50/50">
+                      <tr>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Type</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Location</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Price</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Seller</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Posted</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {marketplaceListings.map((listing) => (
+                        <tr key={listing.id} className="hover:bg-gray-50/50">
+                          <td className="px-4 py-3 font-medium text-black-primary max-w-[200px] truncate">
+                            {listing.title}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+                              {LISTING_TYPE_LABELS[listing.listing_type] || listing.listing_type}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-black-primary/60 whitespace-nowrap">
+                            {[listing.city, listing.state].filter(Boolean).join(", ") || "—"}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-green-primary whitespace-nowrap">
+                            ${listing.price.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-black-primary/60">
+                            {listing.profiles?.company_name || listing.profiles?.full_name || "—"}
+                          </td>
+                          <td className="px-4 py-3 text-black-primary/40 text-xs whitespace-nowrap">
+                            {daysAgoStr(listing.created_at)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Link
+                              href={`/marketplace/${listing.id}`}
+                              className="inline-flex items-center gap-1 text-sm font-medium text-green-primary hover:text-green-hover transition-colors"
+                            >
+                              View <ArrowRight className="w-3.5 h-3.5" />
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {requests.map((req) => (
-                <RequestCard
-                  key={req.id}
-                  request={req}
-                  saved={savedIds.has(req.id)}
-                  onSave={() => handleSave(req.id)}
-                />
-              ))}
-            </div>
 
-            {/* Load more / pagination */}
-            {hasMore && (
-              <div className="mt-10 flex justify-center">
-                <button
-                  type="button"
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-8 py-3 text-sm font-semibold text-black-primary shadow-sm transition-all hover:border-green-primary/40 hover:shadow-md disabled:opacity-60"
-                >
-                  {loadingMore ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    <>Load More Requests</>
-                  )}
-                </button>
+            {/* Vending Requests Table */}
+            {!loading && requests.length > 0 && (
+              <>
+                {marketplaceListings.length > 0 && (
+                  <div className="flex items-center gap-2 mb-4">
+                    <Search className="h-5 w-5 text-green-primary" />
+                    <h2 className="text-lg font-bold text-black-primary">Vending Requests</h2>
+                  </div>
+                )}
+                <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-gray-100 bg-gray-50/50">
+                      <tr>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Location</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Machine Types</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Traffic</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Commission</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Price</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Urgency</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Posted</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {requests.map((req) => (
+                        <tr key={req.id} className="hover:bg-gray-50/50">
+                          <td className="px-4 py-3 font-medium text-black-primary max-w-[200px] truncate">
+                            {req.title}
+                          </td>
+                          <td className="px-4 py-3 text-black-primary/60 whitespace-nowrap">
+                            {req.city && req.state ? `${req.city}, ${req.state}` : req.state || "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1 max-w-[180px]">
+                              {(req.machine_types_wanted || []).slice(0, 3).map((mt) => (
+                                <span key={mt} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 ring-1 ring-inset ring-green-200 whitespace-nowrap">
+                                  {mt}
+                                </span>
+                              ))}
+                              {(req.machine_types_wanted || []).length > 3 && (
+                                <span className="text-[10px] text-gray-400">+{req.machine_types_wanted.length - 3}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-black-primary/60 whitespace-nowrap">
+                            {req.estimated_daily_traffic != null ? (
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3.5 h-3.5 text-gray-400" />
+                                {req.estimated_daily_traffic.toLocaleString()}
+                              </span>
+                            ) : "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            {req.commission_offered ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 ring-1 ring-inset ring-green-200">
+                                <HandCoins className="w-3 h-3" /> Yes
+                              </span>
+                            ) : (
+                              <span className="text-black-primary/30 text-xs">No</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-green-primary whitespace-nowrap">
+                            {req.price != null ? `$${req.price.toLocaleString()}` : "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${
+                              req.urgency === "asap" ? "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200" :
+                              req.urgency === "within_2_weeks" ? "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200" :
+                              req.urgency === "within_1_month" ? "bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-200" :
+                              "bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-200"
+                            }`}>
+                              {req.urgency.replace(/_/g, " ")}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-black-primary/40 text-xs whitespace-nowrap">
+                            {daysAgoStr(req.created_at)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Link
+                              href={`/requests/${req.id}`}
+                              className="inline-flex items-center gap-1 text-sm font-medium text-green-primary hover:text-green-hover transition-colors"
+                            >
+                              View <ArrowRight className="w-3.5 h-3.5" />
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Load more */}
+                {hasMore && (
+                  <div className="mt-6 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={handleLoadMore}
+                      disabled={loadingMore}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-8 py-3 text-sm font-semibold text-black-primary shadow-sm transition-all hover:border-green-primary/40 hover:shadow-md disabled:opacity-60"
+                    >
+                      {loadingMore ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>Load More Requests</>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {requests.length > 0 && (
+                  <p className="mt-4 text-center text-xs text-gray-400">
+                    Showing {requests.length} of {totalCount.toLocaleString()} requests
+                  </p>
+                )}
+              </>
+            )}
+          </>
+        ) : (
+          /* ============ GRID / CARD VIEW ============ */
+          <>
+            {/* Marketplace listings */}
+            {!loading && marketplaceListings.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <Package className="h-5 w-5 text-emerald-600" />
+                  <h2 className="text-lg font-bold text-black-primary">Locations For Sale</h2>
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    {marketplaceListings.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {marketplaceListings.map((listing) => (
+                    <MarketplaceListingCard key={listing.id} listing={listing} />
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Page indicator */}
-            {requests.length > 0 && (
-              <p className="mt-4 text-center text-xs text-gray-400">
-                Showing {requests.length} of {totalCount.toLocaleString()}{" "}
-                requests
-              </p>
+            {/* Request cards grid */}
+            {!loading && requests.length > 0 && (
+              <>
+                {marketplaceListings.length > 0 && (
+                  <div className="flex items-center gap-2 mb-4">
+                    <Search className="h-5 w-5 text-green-primary" />
+                    <h2 className="text-lg font-bold text-black-primary">Vending Requests</h2>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {requests.map((req) => (
+                    <RequestCard
+                      key={req.id}
+                      request={req}
+                      saved={savedIds.has(req.id)}
+                      onSave={() => handleSave(req.id)}
+                    />
+                  ))}
+                </div>
+
+                {/* Load more / pagination */}
+                {hasMore && (
+                  <div className="mt-10 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={handleLoadMore}
+                      disabled={loadingMore}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-8 py-3 text-sm font-semibold text-black-primary shadow-sm transition-all hover:border-green-primary/40 hover:shadow-md disabled:opacity-60"
+                    >
+                      {loadingMore ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>Load More Requests</>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {/* Page indicator */}
+                {requests.length > 0 && (
+                  <p className="mt-4 text-center text-xs text-gray-400">
+                    Showing {requests.length} of {totalCount.toLocaleString()}{" "}
+                    requests
+                  </p>
+                )}
+              </>
             )}
           </>
         )}
