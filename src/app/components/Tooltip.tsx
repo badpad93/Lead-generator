@@ -38,7 +38,7 @@ export default function Tooltip({
 
   return (
     <span
-      className="relative inline-flex"
+      className="relative inline-flex w-full sm:w-auto"
       onMouseEnter={show}
       onMouseLeave={hide}
       onFocus={show}
