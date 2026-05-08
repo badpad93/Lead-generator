@@ -18,6 +18,8 @@ import {
   Package,
   Plus,
   Tag,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import type { MachineType } from "@/lib/types";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
@@ -419,11 +421,14 @@ function ListingCard({ listing }: { listing: UserListing }) {
   );
 }
 
+type ViewMode = "grid" | "list";
+
 export default function YourLeadsPage() {
   const router = useRouter();
   const [purchases, setPurchases] = useState<PurchasedLead[]>([]);
   const [myListings, setMyListings] = useState<UserListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   const fetchPurchases = useCallback(async () => {
     try {
@@ -520,108 +525,288 @@ export default function YourLeadsPage() {
       {/* Header */}
       <div className="border-b border-gray-100 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50">
-              <ShoppingBag className="h-6 w-6 text-green-primary" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50">
+                <ShoppingBag className="h-6 w-6 text-green-primary" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-black-primary">
+                  Your Leads
+                </h1>
+                <p className="mt-1 text-sm text-black-primary/50">
+                  Your posted listings and purchased leads
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-black-primary">
-                Your Leads
-              </h1>
-              <p className="mt-1 text-sm text-black-primary/50">
-                Your posted listings and purchased leads
-              </p>
+            <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={`rounded-md p-2 transition-colors cursor-pointer ${viewMode === "grid" ? "bg-green-primary text-white shadow-sm" : "text-black-primary/40 hover:text-black-primary/70"}`}
+                title="Grid view"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                className={`rounded-md p-2 transition-colors cursor-pointer ${viewMode === "list" ? "bg-green-primary text-white shadow-sm" : "text-black-primary/40 hover:text-black-primary/70"}`}
+                title="List view"
+              >
+                <List className="h-4 w-4" />
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
-        {/* Your Listings Section */}
-        <section>
-          <div className="mb-5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-green-primary" />
-              <h2 className="text-lg font-bold text-black-primary">Your Listings</h2>
-              {myListings.length > 0 && (
-                <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-                  {myListings.length}
-                </span>
+        {viewMode === "list" ? (
+          /* ============ LIST / TABLE VIEW ============ */
+          <>
+            {/* Listings Table */}
+            <section>
+              <div className="mb-5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-green-primary" />
+                  <h2 className="text-lg font-bold text-black-primary">Your Listings</h2>
+                  {myListings.length > 0 && (
+                    <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                      {myListings.length}
+                    </span>
+                  )}
+                </div>
+                <Link
+                  href="/my-listings"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                >
+                  <Plus className="h-4 w-4" />
+                  Post a Listing
+                </Link>
+              </div>
+
+              {myListings.length === 0 ? (
+                <p className="rounded-xl border border-gray-100 bg-white px-6 py-8 text-center text-sm text-black-primary/40">No listings yet — post a location, lead, or route for sale.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-gray-100 bg-gray-50/50">
+                      <tr>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Type</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Location</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Price</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Status</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Posted</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {myListings.map((listing) => {
+                        const statusColors: Record<string, string> = {
+                          active: "bg-green-50 text-green-700",
+                          sold: "bg-blue-50 text-blue-700",
+                          expired: "bg-gray-100 text-gray-600",
+                        };
+                        return (
+                          <tr key={listing.id} className="hover:bg-gray-50/50">
+                            <td className="px-4 py-3">
+                              <Link href={`/marketplace/${listing.id}`} className="font-medium text-black-primary hover:text-green-primary transition-colors">
+                                {listing.title}
+                              </Link>
+                            </td>
+                            <td className="px-4 py-3 text-black-primary/60">
+                              {LISTING_TYPE_LABELS[listing.listing_type] || listing.listing_type}
+                            </td>
+                            <td className="px-4 py-3 text-black-primary/60">
+                              {[listing.city, listing.state].filter(Boolean).join(", ") || "—"}
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-green-primary">
+                              {formatPrice(listing.price)}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[listing.status] || "bg-gray-100 text-gray-600"}`}>
+                                {listing.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-black-primary/40 text-xs whitespace-nowrap">
+                              {formatDate(listing.created_at)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
-            </div>
-            <Link
-              href="/my-listings"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
-            >
-              <Plus className="h-4 w-4" />
-              Post a Listing
-            </Link>
-          </div>
+            </section>
 
-          {myListings.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 px-6 py-12 text-center">
-              <Package className="mb-3 h-10 w-10 text-black-primary/20" />
-              <h3 className="text-base font-semibold text-black-primary">
-                No listings yet
-              </h3>
-              <p className="mt-1 text-sm text-black-primary/50 max-w-md">
-                Post a location, lead, or route for sale and it will appear here.
-              </p>
-              <Link
-                href="/my-listings"
-                className="mt-4 inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-5 py-2 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100"
-              >
-                <Plus className="h-4 w-4" />
-                Sell a Location
-              </Link>
-            </div>
-          ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {myListings.map((listing) => (
-                <ListingCard key={listing.id} listing={listing} />
-              ))}
-            </div>
-          )}
-        </section>
+            {/* Purchased Leads Table */}
+            <section>
+              <div className="mb-5 flex items-center gap-2">
+                <ShoppingBag className="h-5 w-5 text-green-primary" />
+                <h2 className="text-lg font-bold text-black-primary">Purchased Leads</h2>
+                {purchases.length > 0 && (
+                  <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                    {purchases.length}
+                  </span>
+                )}
+              </div>
 
-        {/* Purchased Leads Section */}
-        <section>
-          <div className="mb-5 flex items-center gap-2">
-            <ShoppingBag className="h-5 w-5 text-green-primary" />
-            <h2 className="text-lg font-bold text-black-primary">Purchased Leads</h2>
-            {purchases.length > 0 && (
-              <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-                {purchases.length}
-              </span>
-            )}
-          </div>
+              {purchases.length === 0 ? (
+                <p className="rounded-xl border border-gray-100 bg-white px-6 py-8 text-center text-sm text-black-primary/40">No purchased leads yet.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-gray-100 bg-gray-50/50">
+                      <tr>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Location</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Address</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Contact</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Phone</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Email</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Machine Types</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Paid</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60">Purchased</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {purchases.map((purchase) => {
+                        const lead = purchase.vending_requests;
+                        if (!lead) return null;
+                        return (
+                          <tr key={purchase.id} className="hover:bg-gray-50/50">
+                            <td className="px-4 py-3 font-medium text-black-primary">
+                              {lead.location_name || lead.title}
+                            </td>
+                            <td className="px-4 py-3 text-black-primary/60 text-xs">
+                              {[lead.address, lead.city, lead.state, lead.zip].filter(Boolean).join(", ") || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-black-primary/70">
+                              {lead.decision_maker_name || "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              {lead.contact_phone ? (
+                                <a href={`tel:${lead.contact_phone}`} className="text-green-primary hover:underline whitespace-nowrap">{lead.contact_phone}</a>
+                              ) : "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              {lead.contact_email ? (
+                                <a href={`mailto:${lead.contact_email}`} className="text-green-primary hover:underline">{lead.contact_email}</a>
+                              ) : "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {(lead.machine_types_wanted || []).map((mt) => (
+                                  <MachineTypeBadge key={mt} type={mt} size="sm" />
+                                ))}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-black-primary whitespace-nowrap">
+                              {formatCurrency(purchase.amount_cents)}
+                            </td>
+                            <td className="px-4 py-3 text-black-primary/40 text-xs whitespace-nowrap">
+                              {formatDate(purchase.created_at)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
+        ) : (
+          /* ============ GRID / CARD VIEW ============ */
+          <>
+            {/* Your Listings Section */}
+            <section>
+              <div className="mb-5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-green-primary" />
+                  <h2 className="text-lg font-bold text-black-primary">Your Listings</h2>
+                  {myListings.length > 0 && (
+                    <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                      {myListings.length}
+                    </span>
+                  )}
+                </div>
+                <Link
+                  href="/my-listings"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                >
+                  <Plus className="h-4 w-4" />
+                  Post a Listing
+                </Link>
+              </div>
 
-          {purchases.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 px-6 py-12 text-center">
-              <ShoppingBag className="mb-3 h-10 w-10 text-black-primary/20" />
-              <h3 className="text-base font-semibold text-black-primary">
-                No purchased leads yet
-              </h3>
-              <p className="mt-1 text-sm text-black-primary/50 max-w-md">
-                Browse available requests and purchase leads to unlock full
-                location details and contact information.
-              </p>
-              <Link
-                href="/browse-requests"
-                className="mt-4 inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-5 py-2 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100"
-              >
-                <Search className="h-4 w-4" />
-                Locations for Sale
-              </Link>
-            </div>
-          ) : (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {purchases.map((purchase) => (
-                <LeadCard key={purchase.id} purchase={purchase} />
-              ))}
-            </div>
-          )}
-        </section>
+              {myListings.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 px-6 py-12 text-center">
+                  <Package className="mb-3 h-10 w-10 text-black-primary/20" />
+                  <h3 className="text-base font-semibold text-black-primary">
+                    No listings yet
+                  </h3>
+                  <p className="mt-1 text-sm text-black-primary/50 max-w-md">
+                    Post a location, lead, or route for sale and it will appear here.
+                  </p>
+                  <Link
+                    href="/my-listings"
+                    className="mt-4 inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-5 py-2 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Sell a Location
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {myListings.map((listing) => (
+                    <ListingCard key={listing.id} listing={listing} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Purchased Leads Section */}
+            <section>
+              <div className="mb-5 flex items-center gap-2">
+                <ShoppingBag className="h-5 w-5 text-green-primary" />
+                <h2 className="text-lg font-bold text-black-primary">Purchased Leads</h2>
+                {purchases.length > 0 && (
+                  <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                    {purchases.length}
+                  </span>
+                )}
+              </div>
+
+              {purchases.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 px-6 py-12 text-center">
+                  <ShoppingBag className="mb-3 h-10 w-10 text-black-primary/20" />
+                  <h3 className="text-base font-semibold text-black-primary">
+                    No purchased leads yet
+                  </h3>
+                  <p className="mt-1 text-sm text-black-primary/50 max-w-md">
+                    Browse available requests and purchase leads to unlock full
+                    location details and contact information.
+                  </p>
+                  <Link
+                    href="/browse-requests"
+                    className="mt-4 inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-5 py-2 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100"
+                  >
+                    <Search className="h-4 w-4" />
+                    Locations for Sale
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {purchases.map((purchase) => (
+                    <LeadCard key={purchase.id} purchase={purchase} />
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
       </div>
     </div>
   );
