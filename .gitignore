@@ -46,3 +46,5 @@ __pycache__/
 
 # legacy webapp directory (moved to root)
 /webapp/
+
+supabase/.temp/
