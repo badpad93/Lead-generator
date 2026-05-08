@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
+import { getSalesUser } from "@/lib/salesAuth";
 import { sanitizeSearch } from "@/lib/sanitizeSearch";
 import {
   calculateLocationPrice,
@@ -10,8 +10,8 @@ import {
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     .from("locations")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(200);
+    .limit(1000);
 
   if (search) {
     const s = sanitizeSearch(search);
@@ -39,19 +39,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await getSalesUser(req);
-  if (!user || !isElevatedRole(user.role)) {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   const body = await req.json();
 
-  const missing: string[] = [];
-  if (!body.industry) missing.push("industry");
-  if (!body.zip) missing.push("zip");
-  if (!body.employee_count) missing.push("employee_count");
-  if (!body.traffic_count) missing.push("traffic_count");
-  if (missing.length > 0) {
-    return NextResponse.json({ error: `Required fields missing: ${missing.join(", ")}` }, { status: 400 });
+  if (!body.location_name) {
+    return NextResponse.json({ error: "location_name is required" }, { status: 400 });
   }
 
   const employees = body.employee_count ? Number(body.employee_count) : null;

@@ -226,19 +226,27 @@ export default function PipelineItemDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-link location when pipeline item has a lead but no location
+  // Auto-link location when pipeline item has no location_id yet.
+  // If no existing location record matches, create one from account data.
   useEffect(() => {
-    if (!token || !item || item.location_id || !item.lead_id || allLocations.length === 0) return;
+    if (!token || !item || item.location_id) return;
 
-    const match =
-      allLocations.find((l) => l.sales_lead_id === item.lead_id) ||
-      allLocations.find((l) => l.location_name?.toLowerCase() === item.name.toLowerCase()) ||
-      (item.sales_accounts?.entity_type === "location" && item.sales_accounts.email
-        ? allLocations.find((l) => l.decision_maker_email === item.sales_accounts!.email)
-        : null) ||
-      (item.sales_accounts?.business_name
-        ? allLocations.find((l) => l.location_name?.toLowerCase() === item.sales_accounts!.business_name.toLowerCase())
-        : null);
+    const acct = item.sales_accounts;
+
+    // Try to find an existing location
+    const match = allLocations.length > 0
+      ? (item.lead_id ? allLocations.find((l) => l.sales_lead_id === item.lead_id) : null) ||
+        allLocations.find((l) => l.location_name && item.name && l.location_name.toLowerCase() === item.name.toLowerCase()) ||
+        (acct?.email
+          ? allLocations.find((l) => l.decision_maker_email && l.decision_maker_email.toLowerCase() === acct.email!.toLowerCase())
+          : null) ||
+        (acct?.business_name
+          ? allLocations.find((l) => l.location_name && l.location_name.toLowerCase() === acct.business_name.toLowerCase())
+          : null) ||
+        (acct?.address
+          ? allLocations.find((l) => l.address && l.address.toLowerCase() === acct.address!.toLowerCase())
+          : null)
+      : null;
 
     if (match) {
       fetch(`/api/pipeline-items/${itemId}`, {
@@ -246,8 +254,36 @@ export default function PipelineItemDetailPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ location_id: match.id }),
       }).then(() => load());
+      return;
     }
-  }, [token, item?.id, item?.location_id, item?.lead_id, allLocations.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // No existing location found — create one from account/item data
+    const locName = acct?.business_name || item.name;
+    if (!locName || (acct?.entity_type !== "location" && !item.lead_id)) return;
+
+    fetch("/api/locations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        location_name: locName,
+        address: acct?.address || null,
+        phone: acct?.phone || null,
+        decision_maker_name: acct?.contact_name || null,
+        decision_maker_email: acct?.email || null,
+      }),
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((newLoc) => {
+        if (!newLoc?.id) return;
+        setAllLocations((prev) => [newLoc, ...prev]);
+        return fetch(`/api/pipeline-items/${itemId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ location_id: newLoc.id }),
+        });
+      })
+      .then(() => load());
+  }, [token, item?.id, item?.location_id, allLocations.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleMove(direction: "next" | "back") {
     setMoving(true);
@@ -439,37 +475,46 @@ export default function PipelineItemDetailPage() {
     if (item.locations) return item.locations;
     if (allLocations.length === 0) return null;
 
+    // Direct ID lookup (safety net if API join returned null)
+    if (item.location_id) {
+      const byId = allLocations.find((l) => l.id === item.location_id);
+      if (byId) return byId;
+    }
+
     // Match by sales_lead_id
     if (item.lead_id) {
       const byLead = allLocations.find((l) => l.sales_lead_id === item.lead_id);
       if (byLead) return byLead;
     }
 
-    // Match by decision maker email from the account (location-type accounts
-    // store the decision maker info from the original lead)
     const acct = item.sales_accounts;
-    if (acct?.entity_type === "location" && acct.email) {
+
+    // Match by decision maker email from the account
+    if (acct?.email) {
       const byEmail = allLocations.find(
-        (l) => l.decision_maker_email === acct.email
+        (l) => l.decision_maker_email && l.decision_maker_email.toLowerCase() === acct.email!.toLowerCase()
       );
       if (byEmail) return byEmail;
     }
 
-    // Match by name
-    if (item.name) {
+    // Match by name (item name or account business_name)
+    const names = [item.name, acct?.business_name].filter(Boolean) as string[];
+    for (const n of names) {
       const byName = allLocations.find(
-        (l) => l.location_name?.toLowerCase() === item.name.toLowerCase()
+        (l) => l.location_name && l.location_name.toLowerCase() === n.toLowerCase()
       );
       if (byName) return byName;
     }
 
-    // Match by account name (lead business_name becomes both the account
-    // business_name and the location_name)
-    if (acct?.business_name) {
-      const byAcctName = allLocations.find(
-        (l) => l.location_name?.toLowerCase() === acct.business_name.toLowerCase()
+    // Partial name match (location name contains item/account name or vice versa)
+    for (const n of names) {
+      const partial = allLocations.find(
+        (l) => l.location_name && (
+          l.location_name.toLowerCase().includes(n.toLowerCase()) ||
+          n.toLowerCase().includes(l.location_name.toLowerCase())
+        )
       );
-      if (byAcctName) return byAcctName;
+      if (partial) return partial;
     }
 
     // Match by address
@@ -488,72 +533,76 @@ export default function PipelineItemDetailPage() {
     setOrderOperatorSearch("");
     setOrderLocationSearch("");
 
-    const loc = findMatchingLocation();
-    setOrderSelectedLocation(loc);
-
-    // For operator, prefer an operator-type account if available
     const acct = item?.sales_accounts;
+
+    // Auto-select operator: if linked account is operator, use it;
+    // otherwise scan all accounts for an operator linked to this pipeline
     if (acct?.entity_type === "operator") {
       setOrderOperatorId(item?.account_id || null);
     } else {
       setOrderOperatorId(null);
     }
 
-    // Populate form from matched location
+    const loc = findMatchingLocation();
+
     if (loc) {
-      setOrderLocationForm({
-        location_name: loc.location_name || "",
-        address: loc.address || "",
-        phone: loc.phone || "",
-        decision_maker_name: loc.decision_maker_name || "",
-        decision_maker_email: loc.decision_maker_email || "",
-        industry: loc.industry || "",
-        zip: loc.zip || "",
-        employee_count: loc.employee_count != null ? String(loc.employee_count) : "",
-        traffic_count: loc.traffic_count != null ? String(loc.traffic_count) : "",
-        machine_type: loc.machine_type || "",
-        business_hours: HOURS_TO_DISPLAY[loc.business_hours || "low"] || "8",
-        machines_requested: loc.machines_requested != null ? String(loc.machines_requested) : "1",
-      });
+      // Found a matching location record — use it
+      setOrderSelectedLocation(loc);
+      populateLocationForm(loc);
     } else if (acct?.entity_type === "location") {
-      // No location record found but the linked account IS a location —
-      // populate what we can from the account data
-      setOrderLocationForm({
-        location_name: acct.business_name || item?.name || "",
-        address: acct.address || "",
-        phone: acct.phone || "",
-        decision_maker_name: acct.contact_name || "",
-        decision_maker_email: acct.email || "",
-        industry: "",
-        zip: "",
-        employee_count: "",
-        traffic_count: "",
-        machine_type: "",
-        business_hours: "8",
-        machines_requested: "1",
-      });
+      // No location record exists but the linked account IS the location.
+      // Build a virtual Location so the UI shows it as "selected" (green card)
+      // and populate all available fields from the account data.
+      const virtualLoc: Location = {
+        id: "",
+        location_name: acct.business_name || item?.name || null,
+        address: acct.address || null,
+        phone: acct.phone || null,
+        decision_maker_name: acct.contact_name || null,
+        decision_maker_email: acct.email || null,
+        industry: null,
+        zip: null,
+        employee_count: null,
+        traffic_count: null,
+        machine_type: null,
+        business_hours: null,
+        machines_requested: null,
+        is_revealed: false,
+        sales_lead_id: null,
+      };
+      setOrderSelectedLocation(virtualLoc);
+      populateLocationForm(virtualLoc);
     } else {
-      // No location at all — use pipeline item name as location name hint
-      setOrderLocationForm({
-        location_name: item?.name || "",
-        address: "",
-        phone: "",
-        decision_maker_name: "",
-        decision_maker_email: "",
-        industry: "",
-        zip: "",
-        employee_count: "",
-        traffic_count: "",
-        machine_type: "",
-        business_hours: "8",
-        machines_requested: "1",
-      });
+      // No location at all — use pipeline item name as a hint.
+      // Also check if the item name matches a location and auto-select it.
+      const byItemName = item?.name
+        ? allLocations.find((l) => l.location_name?.toLowerCase() === item.name.toLowerCase())
+        : null;
+      if (byItemName) {
+        setOrderSelectedLocation(byItemName);
+        populateLocationForm(byItemName);
+      } else {
+        setOrderSelectedLocation(null);
+        setOrderLocationForm({
+          location_name: item?.name || "",
+          address: "",
+          phone: "",
+          decision_maker_name: "",
+          decision_maker_email: "",
+          industry: "",
+          zip: "",
+          employee_count: "",
+          traffic_count: "",
+          machine_type: "",
+          business_hours: "8",
+          machines_requested: "1",
+        });
+      }
     }
     setShowCreateOrder(true);
   }
 
-  function handleSelectLocation(loc: Location) {
-    setOrderSelectedLocation(loc);
+  function populateLocationForm(loc: Location) {
     setOrderLocationForm({
       location_name: loc.location_name || "",
       address: loc.address || "",
@@ -565,9 +614,14 @@ export default function PipelineItemDetailPage() {
       employee_count: loc.employee_count != null ? String(loc.employee_count) : "",
       traffic_count: loc.traffic_count != null ? String(loc.traffic_count) : "",
       machine_type: loc.machine_type || "",
-      business_hours: HOURS_TO_DISPLAY[loc.business_hours || "low"] || "8",
+      business_hours: HOURS_TO_DISPLAY[loc.business_hours || ""] || (loc.business_hours ? loc.business_hours : "8"),
       machines_requested: loc.machines_requested != null ? String(loc.machines_requested) : "1",
     });
+  }
+
+  function handleSelectLocation(loc: Location) {
+    setOrderSelectedLocation(loc);
+    populateLocationForm(loc);
     setOrderLocationSearch("");
   }
 
