@@ -4,8 +4,8 @@ import { sanitizeSearch } from "@/lib/sanitizeSearch";
 
 const PAGE_SIZE = 12;
 
-function isPaidFeatured(profile: Record<string, unknown> | null): boolean {
-  return profile?.featured === true && !!profile?.stripe_subscription_id;
+function isFeaturedOperator(profile: Record<string, unknown> | null): boolean {
+  return profile?.featured === true;
 }
 
 /**
@@ -18,7 +18,7 @@ function stripOperatorProfile(
   isFeatured: boolean
 ): Record<string, unknown> | null {
   if (!profile) return null;
-  const { stripe_subscription_id: _sid, stripe_customer_id: _cid, ...clean } = profile;
+  const { stripe_subscription_id: _sid, stripe_customer_id: _cid, ...clean } = profile as Record<string, unknown>;
   if (isFeatured) return { ...clean, featured: true };
   return {
     id: profile.id,
@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
   const machineTypes = params.get("machine_types");
   const state = params.get("state");
   const commission = params.get("commission");
+  const featured = params.get("featured");
   const page = Math.max(0, parseInt(params.get("page") || "0"));
   const mine = params.get("mine");
   const userId = params.get("user_id");
@@ -65,6 +66,7 @@ export async function GET(req: NextRequest) {
       }
     }
     if (state) query = query.eq("state", state);
+    if (featured === "true") query = query.eq("featured", true);
 
     const from = page * PAGE_SIZE;
     const { data, error, count } = await query
@@ -75,7 +77,7 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     const operators = (data || []).map((op: Record<string, unknown>) =>
-      stripOperatorProfile(op, isPaidFeatured(op))
+      stripOperatorProfile(op, isFeaturedOperator(op))
     );
 
     return NextResponse.json({ operators, total: count || 0 });
@@ -84,7 +86,7 @@ export async function GET(req: NextRequest) {
   // Listings mode
   let query = supabaseAdmin
     .from("operator_listings")
-    .select("*, profiles!operator_id(id, full_name, company_name, verified, rating, review_count, address, city, state, zip, featured, stripe_subscription_id)", { count: "exact" });
+    .select("*, profiles!operator_id(id, full_name, company_name, verified, rating, review_count, address, city, state, zip, featured)", { count: "exact" });
 
   if (mine === "true" && userId) {
     query = query.eq("operator_id", userId);
@@ -103,6 +105,9 @@ export async function GET(req: NextRequest) {
   if (commission === "true") {
     query = query.eq("accepts_commission", true);
   }
+  if (featured === "true") {
+    query = query.eq("featured", true);
+  }
 
   const from = page * PAGE_SIZE;
   const { data, error, count } = await query
@@ -114,7 +119,7 @@ export async function GET(req: NextRequest) {
 
   const listings = (data || []).map((listing: Record<string, unknown>) => {
     const profile = listing.profiles as Record<string, unknown> | null;
-    const isFeatured = isPaidFeatured(profile);
+    const isFeatured = isFeaturedOperator(profile);
     return {
       ...listing,
       profiles: stripOperatorProfile(profile, isFeatured),
