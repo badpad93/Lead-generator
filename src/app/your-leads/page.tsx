@@ -15,10 +15,14 @@ import {
   User,
   Building2,
   DollarSign,
+  Package,
+  Plus,
+  Tag,
 } from "lucide-react";
 import type { MachineType } from "@/lib/types";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
 import { useRealtimeSubscription } from "@/lib/useRealtimeSubscription";
+import { getAccessToken } from "@/lib/auth";
 
 interface PurchasedLead {
   id: string;
@@ -47,6 +51,33 @@ interface PurchasedLead {
     contact_email: string | null;
     decision_maker_name: string | null;
   } | null;
+}
+
+interface UserListing {
+  id: string;
+  title: string;
+  description: string | null;
+  listing_type: "lead" | "location" | "route";
+  price: number;
+  city: string | null;
+  state: string | null;
+  status: string;
+  is_public: boolean;
+  created_at: string;
+}
+
+const LISTING_TYPE_LABELS: Record<string, string> = {
+  lead: "Vending Lead",
+  location: "Location",
+  route: "Route",
+};
+
+function formatPrice(val: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(val);
 }
 
 function formatDate(dateStr: string): string {
@@ -341,9 +372,57 @@ function LeadCard({ purchase }: { purchase: PurchasedLead }) {
   );
 }
 
+function ListingCard({ listing }: { listing: UserListing }) {
+  const statusColors: Record<string, string> = {
+    active: "bg-green-50 text-green-700",
+    sold: "bg-blue-50 text-blue-700",
+    expired: "bg-gray-100 text-gray-600",
+  };
+
+  return (
+    <Link
+      href={`/marketplace/${listing.id}`}
+      className="group rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5"
+    >
+      <div className="p-5">
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <h3 className="font-semibold text-black-primary group-hover:text-green-primary transition-colors line-clamp-2">
+            {listing.title}
+          </h3>
+          <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[listing.status] || "bg-gray-100 text-gray-600"}`}>
+            {listing.status}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1 text-sm text-black-primary/50">
+          <Tag className="h-3.5 w-3.5" />
+          {LISTING_TYPE_LABELS[listing.listing_type] || listing.listing_type}
+        </div>
+
+        {(listing.city || listing.state) && (
+          <div className="mt-1.5 flex items-center gap-1 text-sm text-black-primary/50">
+            <MapPin className="h-3.5 w-3.5" />
+            {[listing.city, listing.state].filter(Boolean).join(", ")}
+          </div>
+        )}
+
+        <div className="mt-3 flex items-center justify-between">
+          <span className="text-lg font-bold text-green-primary">
+            {formatPrice(listing.price)}
+          </span>
+          <span className="text-xs text-black-primary/40">
+            {formatDate(listing.created_at)}
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 export default function YourLeadsPage() {
   const router = useRouter();
   const [purchases, setPurchases] = useState<PurchasedLead[]>([]);
+  const [myListings, setMyListings] = useState<UserListing[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchPurchases = useCallback(async () => {
@@ -366,9 +445,26 @@ export default function YourLeadsPage() {
     }
   }, [router]);
 
+  const fetchMyListings = useCallback(async () => {
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+      const res = await fetch("/api/user-listings?seller_id=me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyListings(data.listings ?? []);
+      }
+    } catch {
+      // silently fail
+    }
+  }, []);
+
   useEffect(() => {
     fetchPurchases();
-  }, [fetchPurchases]);
+    fetchMyListings();
+  }, [fetchPurchases, fetchMyListings]);
 
   // Live-update when admin edits contact info or a new purchase completes
   useRealtimeSubscription(
@@ -383,8 +479,13 @@ export default function YourLeadsPage() {
         event: "UPDATE",
         onEvent: () => fetchPurchases(),
       },
+      {
+        table: "user_listings",
+        event: "*",
+        onEvent: () => fetchMyListings(),
+      },
     ],
-    [fetchPurchases]
+    [fetchPurchases, fetchMyListings]
   );
 
   if (loading) {
@@ -428,40 +529,99 @@ export default function YourLeadsPage() {
                 Your Leads
               </h1>
               <p className="mt-1 text-sm text-black-primary/50">
-                All leads you have purchased — full details unlocked
+                Your posted listings and purchased leads
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {purchases.length === 0 ? (
-          /* Empty state */
-          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 px-6 py-16 text-center">
-            <ShoppingBag className="mb-4 h-12 w-12 text-black-primary/20" />
-            <h2 className="text-lg font-semibold text-black-primary">
-              You haven&apos;t purchased any leads yet.
-            </h2>
-            <p className="mt-2 text-sm text-black-primary/50 max-w-md">
-              Browse available requests and purchase leads to unlock full
-              location details and contact information.
-            </p>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
+        {/* Your Listings Section */}
+        <section>
+          <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-green-primary" />
+              <h2 className="text-lg font-bold text-black-primary">Your Listings</h2>
+              {myListings.length > 0 && (
+                <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                  {myListings.length}
+                </span>
+              )}
+            </div>
             <Link
-              href="/browse-requests"
-              className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+              href="/my-listings"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
             >
-              <Search className="h-4 w-4" />
-              Locations for Sale
+              <Plus className="h-4 w-4" />
+              Post a Listing
             </Link>
           </div>
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {purchases.map((purchase) => (
-              <LeadCard key={purchase.id} purchase={purchase} />
-            ))}
+
+          {myListings.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 px-6 py-12 text-center">
+              <Package className="mb-3 h-10 w-10 text-black-primary/20" />
+              <h3 className="text-base font-semibold text-black-primary">
+                No listings yet
+              </h3>
+              <p className="mt-1 text-sm text-black-primary/50 max-w-md">
+                Post a location, lead, or route for sale and it will appear here.
+              </p>
+              <Link
+                href="/my-listings"
+                className="mt-4 inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-5 py-2 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100"
+              >
+                <Plus className="h-4 w-4" />
+                Sell a Location
+              </Link>
+            </div>
+          ) : (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {myListings.map((listing) => (
+                <ListingCard key={listing.id} listing={listing} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Purchased Leads Section */}
+        <section>
+          <div className="mb-5 flex items-center gap-2">
+            <ShoppingBag className="h-5 w-5 text-green-primary" />
+            <h2 className="text-lg font-bold text-black-primary">Purchased Leads</h2>
+            {purchases.length > 0 && (
+              <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                {purchases.length}
+              </span>
+            )}
           </div>
-        )}
+
+          {purchases.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white/50 px-6 py-12 text-center">
+              <ShoppingBag className="mb-3 h-10 w-10 text-black-primary/20" />
+              <h3 className="text-base font-semibold text-black-primary">
+                No purchased leads yet
+              </h3>
+              <p className="mt-1 text-sm text-black-primary/50 max-w-md">
+                Browse available requests and purchase leads to unlock full
+                location details and contact information.
+              </p>
+              <Link
+                href="/browse-requests"
+                className="mt-4 inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-5 py-2 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100"
+              >
+                <Search className="h-4 w-4" />
+                Locations for Sale
+              </Link>
+            </div>
+          ) : (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {purchases.map((purchase) => (
+                <LeadCard key={purchase.id} purchase={purchase} />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

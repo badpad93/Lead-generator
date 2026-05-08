@@ -183,14 +183,7 @@ export default function MyListingsPage() {
     });
 
     if (res.ok) {
-      setShowCreate(false);
-      setForm({
-        title: "", description: "", listing_type: "lead", price: "", city: "", state: "", zip: "",
-        entity_type: "", business_type: "", foot_traffic: "", square_footage: "",
-        contact_name: "", contact_phone: "", contact_email: "",
-      });
-      setToast("Listing created!");
-      fetchData();
+      router.push("/your-leads");
     } else {
       const data = await res.json();
       setError(data.error || "Failed to create listing");
