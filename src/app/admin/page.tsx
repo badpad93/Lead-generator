@@ -25,6 +25,7 @@ import {
   Package,
   Timer,
   Download,
+  Star,
 } from "lucide-react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
@@ -215,7 +216,7 @@ function UsersManager({ token }: { token: string }) {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
-  const [editForm, setEditForm] = useState({ role: "", verified: false, full_name: "", email: "", address: "", city: "", state: "", zip: "" });
+  const [editForm, setEditForm] = useState({ role: "", verified: false, featured: false, full_name: "", email: "", address: "", city: "", state: "", zip: "" });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -250,6 +251,7 @@ function UsersManager({ token }: { token: string }) {
     setEditForm({
       role: user.role,
       verified: user.verified,
+      featured: user.featured,
       full_name: user.full_name,
       email: user.email,
       address: user.address || "",
@@ -257,6 +259,22 @@ function UsersManager({ token }: { token: string }) {
       state: user.state || "",
       zip: user.zip || "",
     });
+  }
+
+  async function toggleFeatured(user: Profile) {
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ featured: !user.featured }),
+      });
+      if (res.ok) fetchUsers();
+    } catch {
+      /* noop */
+    }
   }
 
   async function handleSaveUser() {
@@ -369,6 +387,7 @@ function UsersManager({ token }: { token: string }) {
                 <th className="px-4 py-3 font-medium text-black-primary/60">Location</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Role</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Verified</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Featured</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Joined</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Actions</th>
               </tr>
@@ -392,6 +411,20 @@ function UsersManager({ token }: { token: string }) {
                     ) : (
                       <span className="text-xs text-black-primary/30">No</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleFeatured(user)}
+                      className={`rounded-lg p-1.5 transition-colors cursor-pointer ${
+                        user.featured
+                          ? "text-amber-500 hover:bg-amber-50"
+                          : "text-black-primary/20 hover:bg-gray-50 hover:text-amber-400"
+                      }`}
+                      title={user.featured ? "Remove featured status" : "Make featured"}
+                    >
+                      <Star className={`h-5 w-5 ${user.featured ? "fill-amber-500" : ""}`} />
+                    </button>
                   </td>
                   <td className="px-4 py-3 text-black-primary/40 text-xs">
                     {new Date(user.created_at).toLocaleDateString()}
@@ -469,17 +502,31 @@ function UsersManager({ token }: { token: string }) {
                   <option value="admin">Admin</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="edit_verified"
-                  checked={editForm.verified}
-                  onChange={(e) => setEditForm((f) => ({ ...f, verified: e.target.checked }))}
-                  className="h-4 w-4 rounded border-gray-300"
-                />
-                <label htmlFor="edit_verified" className="text-sm text-black-primary">
-                  Verified
-                </label>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="edit_verified"
+                    checked={editForm.verified}
+                    onChange={(e) => setEditForm((f) => ({ ...f, verified: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <label htmlFor="edit_verified" className="text-sm text-black-primary">
+                    Verified
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="edit_featured"
+                    checked={editForm.featured}
+                    onChange={(e) => setEditForm((f) => ({ ...f, featured: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <label htmlFor="edit_featured" className="text-sm text-black-primary">
+                    Featured Operator
+                  </label>
+                </div>
               </div>
               <hr className="border-gray-100" />
               <p className="text-xs font-medium text-black-primary/50 uppercase tracking-wide">Location Info</p>
