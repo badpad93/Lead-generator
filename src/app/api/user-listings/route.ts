@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 const ALLOWED_SELLER_ROLES = ["operator", "location_manager"];
 const MIN_PRICE = 100;
@@ -13,15 +14,9 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, parseInt(params.get("page") || "1"));
   const perPage = Math.min(50, Math.max(1, parseInt(params.get("per_page") || "20")));
 
-  // "me" means fetch this user's own listings (all statuses)
   let resolvedSellerId: string | null = null;
   if (sellerIdParam === "me") {
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "");
-    if (token) {
-      const { data: { user } } = await supabaseAdmin.auth.getUser(token);
-      resolvedSellerId = user?.id || null;
-    }
+    resolvedSellerId = await getUserIdFromRequest(req);
     if (!resolvedSellerId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -56,24 +51,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabaseAdmin.auth.getUser(token);
-  if (authError || !user) {
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("role, stripe_account_id, stripe_onboarding_complete")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
 
   if (!profile || !ALLOWED_SELLER_ROLES.includes(profile.role)) {
@@ -127,7 +113,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from("user_listings")
     .insert({
-      seller_id: user.id,
+      seller_id: userId,
       title: title.trim(),
       description: description?.trim() || null,
       listing_type,

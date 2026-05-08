@@ -15,6 +15,12 @@ import {
   SearchX,
   PlusCircle,
   Bookmark,
+  MapPin,
+  DollarSign,
+  Tag,
+  ArrowRight,
+  Clock,
+  Package,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { VendingRequest, MachineType, LocationType, Urgency } from "@/lib/types";
@@ -254,6 +260,108 @@ function SkeletonCard() {
 }
 
 // ---------------------------------------------------------------------------
+// Marketplace listing types + card
+// ---------------------------------------------------------------------------
+
+interface MarketplaceListing {
+  id: string;
+  title: string;
+  description: string | null;
+  listing_type: "lead" | "location" | "route";
+  price: number;
+  city: string | null;
+  state: string | null;
+  status: string;
+  created_at: string;
+  profiles?: { full_name: string | null; company_name: string | null } | null;
+}
+
+const LISTING_TYPE_LABELS: Record<string, string> = {
+  lead: "Vending Lead",
+  location: "Location",
+  route: "Route",
+};
+
+function daysAgoStr(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
+}
+
+function MarketplaceListingCard({ listing }: { listing: MarketplaceListing }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 transition-shadow hover:shadow-lg hover:shadow-green-primary/5 group">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
+            <Package className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-black-primary text-base leading-snug truncate">
+              {listing.title}
+            </h3>
+            {listing.city && listing.state && (
+              <div className="flex items-center gap-1 mt-0.5 text-sm text-gray-500">
+                <MapPin className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
+                  {listing.city}, {listing.state}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200">
+          <Tag className="w-3 h-3" />
+          For Sale
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mt-3">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+          {LISTING_TYPE_LABELS[listing.listing_type] || listing.listing_type}
+        </span>
+        {listing.profiles?.company_name && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+            {listing.profiles.company_name}
+          </span>
+        )}
+      </div>
+
+      {listing.price != null && (
+        <div className="flex items-center gap-1.5 mt-3">
+          <DollarSign className="w-4 h-4 text-green-600" />
+          <span className="text-lg font-bold text-green-700">
+            {listing.price.toLocaleString()}
+          </span>
+        </div>
+      )}
+
+      {listing.description && (
+        <p className="mt-3 text-sm text-gray-500 line-clamp-2">
+          {listing.description}
+        </p>
+      )}
+
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+        <span className="flex items-center gap-1 text-xs text-gray-400">
+          <Clock className="w-3 h-3" />
+          {daysAgoStr(listing.created_at)}
+        </span>
+        <Link
+          href={`/marketplace/${listing.id}`}
+          className="inline-flex items-center gap-1 text-sm font-medium text-green-primary hover:text-green-hover transition-colors group/link"
+        >
+          View Details
+          <ArrowRight className="w-4 h-4 transition-transform group-hover/link:translate-x-0.5" />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page Component
 // ---------------------------------------------------------------------------
 
@@ -266,6 +374,7 @@ export default function BrowseRequestsPage() {
 
   // Data state
   const [requests, setRequests] = useState<VendingRequest[]>([]);
+  const [marketplaceListings, setMarketplaceListings] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -394,9 +503,25 @@ export default function BrowseRequestsPage() {
     ]
   );
 
+  // ---------- Fetch marketplace listings ----------
+  const fetchMarketplaceListings = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (stateFilter) params.set("state", stateFilter);
+      const res = await fetch(`/api/user-listings?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMarketplaceListings(data.listings ?? []);
+      }
+    } catch {
+      // silently fail
+    }
+  }, [stateFilter]);
+
   useEffect(() => {
     fetchRequests(0);
-  }, [fetchRequests]);
+    fetchMarketplaceListings();
+  }, [fetchRequests, fetchMarketplaceListings]);
 
   // Live-remove leads when they become purchased (is_public → false)
   // and add new leads that appear
@@ -406,20 +531,23 @@ export default function BrowseRequestsPage() {
         table: "vending_requests",
         onEvent: ({ eventType, new: row }) => {
           if (eventType === "UPDATE" && row) {
-            // Remove leads that are no longer public or changed to matched/closed
             if (!row.is_public || row.status === "matched" || row.status === "closed") {
               setRequests((prev) => prev.filter((r) => r.id !== row.id));
               setTotalCount((prev) => Math.max(0, prev - 1));
             }
           }
           if (eventType === "INSERT") {
-            // New lead posted — re-fetch current page to include it
             fetchRequests(0);
           }
         },
       },
+      {
+        table: "user_listings",
+        event: "*" as const,
+        onEvent: () => fetchMarketplaceListings(),
+      },
     ],
-    [fetchRequests]
+    [fetchRequests, fetchMarketplaceListings]
   );
 
   function handleLoadMore() {
@@ -685,7 +813,7 @@ export default function BrowseRequestsPage() {
         )}
 
         {/* Empty state */}
-        {!loading && requests.length === 0 && (
+        {!loading && requests.length === 0 && marketplaceListings.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white px-6 py-16 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
               <SearchX className="h-7 w-7 text-green-primary" />
@@ -718,9 +846,33 @@ export default function BrowseRequestsPage() {
           </div>
         )}
 
+        {/* Marketplace listings */}
+        {!loading && marketplaceListings.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <Package className="h-5 w-5 text-emerald-600" />
+              <h2 className="text-lg font-bold text-black-primary">Locations For Sale</h2>
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                {marketplaceListings.length}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {marketplaceListings.map((listing) => (
+                <MarketplaceListingCard key={listing.id} listing={listing} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Request cards grid */}
         {!loading && requests.length > 0 && (
           <>
+            {marketplaceListings.length > 0 && (
+              <div className="flex items-center gap-2 mb-4">
+                <Search className="h-5 w-5 text-green-primary" />
+                <h2 className="text-lg font-bold text-black-primary">Vending Requests</h2>
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {requests.map((req) => (
                 <RequestCard
