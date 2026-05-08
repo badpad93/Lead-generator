@@ -210,7 +210,7 @@ function ConfirmModal({
 /*  Users Management                                                   */
 /* ------------------------------------------------------------------ */
 
-function UsersManager({ token }: { token: string }) {
+function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: string) => void }) {
   const [users, setUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -218,6 +218,7 @@ function UsersManager({ token }: { token: string }) {
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
   const [editForm, setEditForm] = useState({ role: "", verified: false, featured: false, full_name: "", email: "", address: "", city: "", state: "", zip: "" });
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [total, setTotal] = useState(0);
@@ -280,6 +281,7 @@ function UsersManager({ token }: { token: string }) {
   async function handleSaveUser() {
     if (!editingUser) return;
     setSaving(true);
+    setSaveError("");
     try {
       const res = await fetch(`/api/admin/users/${editingUser.id}`, {
         method: "PATCH",
@@ -291,10 +293,14 @@ function UsersManager({ token }: { token: string }) {
       });
       if (res.ok) {
         setEditingUser(null);
+        onSuccess("User updated successfully");
         fetchUsers();
+      } else {
+        const data = await res.json().catch(() => ({ error: "Save failed" }));
+        setSaveError(data.error || "Failed to save changes");
       }
     } catch {
-      /* noop */
+      setSaveError("Network error — please try again");
     } finally {
       setSaving(false);
     }
@@ -321,14 +327,20 @@ function UsersManager({ token }: { token: string }) {
     const colors: Record<string, string> = {
       operator: "bg-blue-50 text-blue-700 ring-blue-200",
       location_manager: "bg-purple-50 text-purple-700 ring-purple-200",
+      requestor: "bg-gray-50 text-gray-700 ring-gray-200",
       admin: "bg-red-50 text-red-700 ring-red-200",
       sales: "bg-amber-50 text-amber-700 ring-amber-200",
+      director_of_sales: "bg-orange-50 text-orange-700 ring-orange-200",
+      market_leader: "bg-teal-50 text-teal-700 ring-teal-200",
     };
     const labels: Record<string, string> = {
       operator: "Operator",
-      location_manager: "Location",
+      location_manager: "Location Mgr",
+      requestor: "Requestor",
       admin: "Admin",
       sales: "Sales",
+      director_of_sales: "Dir. of Sales",
+      market_leader: "Market Leader",
     };
     return (
       <span
@@ -362,9 +374,12 @@ function UsersManager({ token }: { token: string }) {
         >
           <option value="">All Roles</option>
           <option value="admin">Admins</option>
-          <option value="sales">Sales Team</option>
+          <option value="director_of_sales">Directors of Sales</option>
+          <option value="market_leader">Market Leaders</option>
+          <option value="sales">Sales Reps</option>
           <option value="operator">Operators</option>
-          <option value="location_manager">Locations</option>
+          <option value="location_manager">Location Managers</option>
+          <option value="requestor">Requestors</option>
         </select>
       </div>
 
@@ -497,8 +512,11 @@ function UsersManager({ token }: { token: string }) {
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
                 >
                   <option value="operator">Operator</option>
-                  <option value="location_manager">Location</option>
-                  <option value="sales">Sales Team Member</option>
+                  <option value="location_manager">Location Manager</option>
+                  <option value="requestor">Requestor</option>
+                  <option value="sales">Sales Rep</option>
+                  <option value="market_leader">Market Leader</option>
+                  <option value="director_of_sales">Director of Sales</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
@@ -576,10 +594,13 @@ function UsersManager({ token }: { token: string }) {
                 </div>
               </div>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            {saveError && (
+              <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{saveError}</p>
+            )}
+            <div className="mt-4 flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setEditingUser(null)}
+                onClick={() => { setEditingUser(null); setSaveError(""); }}
                 className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-black-primary hover:bg-gray-50 cursor-pointer"
               >
                 Cancel
@@ -4174,7 +4195,7 @@ export default function AdminPage() {
 
         {/* Content */}
         <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
-          {activeTab === "users" && <UsersManager token={token} />}
+          {activeTab === "users" && <UsersManager token={token} onSuccess={handleSuccess} />}
           {activeTab === "operators" && (
             <ListingsManager token={token} onSuccess={handleSuccess} />
           )}
