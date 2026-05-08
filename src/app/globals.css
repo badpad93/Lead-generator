@@ -142,8 +142,8 @@ tr:hover td { background: #f0fdf4; }
   50% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
 }
 
-.animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
-.animate-slide-up { animation: slide-up 0.5s ease-out forwards; }
+.animate-fade-in { animation: fade-in 0.4s ease-out both; }
+.animate-slide-up { animation: slide-up 0.5s ease-out both; }
 .animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
 .animate-float { animation: float 6s ease-in-out infinite; }
 .animate-float-delayed { animation: float-delayed 7s ease-in-out infinite 1s; }
