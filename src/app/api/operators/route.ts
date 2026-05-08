@@ -48,6 +48,8 @@ export async function GET(req: NextRequest) {
   const state = params.get("state");
   const commission = params.get("commission");
   const featured = params.get("featured");
+  const userState = params.get("user_state");
+  const limit = params.get("limit") ? parseInt(params.get("limit")!) : null;
   const page = Math.max(0, parseInt(params.get("page") || "0"));
   const mine = params.get("mine");
   const userId = params.get("user_id");
@@ -68,11 +70,12 @@ export async function GET(req: NextRequest) {
     if (state) query = query.eq("state", state);
     if (featured === "true") query = query.eq("featured", true);
 
-    const from = page * PAGE_SIZE;
+    const effectiveLimit = limit ?? PAGE_SIZE;
+    const from = page * effectiveLimit;
     const { data, error, count } = await query
       .order("featured", { ascending: false })
       .order("rating", { ascending: false })
-      .range(from, from + PAGE_SIZE - 1);
+      .range(from, from + effectiveLimit - 1);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -84,9 +87,54 @@ export async function GET(req: NextRequest) {
   }
 
   // Listings mode
+  const profileSelect = "id, full_name, company_name, verified, rating, review_count, address, city, state, zip, featured";
+  const effectiveLimit = limit ?? PAGE_SIZE;
+
+  // State-prioritised featured query: fetch from user's state first, backfill with others
+  if (featured === "true" && userState) {
+    const buildQuery = (stateFilter: "match" | "other") => {
+      let q = supabaseAdmin
+        .from("operator_listings")
+        .select(`*, profiles!operator_id(${profileSelect})`)
+        .eq("featured", true);
+
+      if (stateFilter === "match") {
+        q = q.contains("states_served", [userState]);
+      } else {
+        q = q.not("states_served", "cs", `{${userState}}`);
+      }
+
+      if (mine === "true" && userId) q = q.eq("operator_id", userId);
+      if (search) { const s = sanitizeSearch(search); if (s) q = q.or(`title.ilike.%${s}%`); }
+      if (machineTypes) q = q.overlaps("machine_types", machineTypes.split(","));
+      if (state) q = q.contains("states_served", [state]);
+      if (commission === "true") q = q.eq("accepts_commission", true);
+
+      return q.order("rating", { ascending: false, referencedTable: "profiles" })
+              .order("created_at", { ascending: false });
+    };
+
+    const { data: local, error: localErr } = await buildQuery("match").limit(effectiveLimit);
+    if (localErr) return NextResponse.json({ error: localErr.message }, { status: 500 });
+
+    let combined = local || [];
+    if (combined.length < effectiveLimit) {
+      const remaining = effectiveLimit - combined.length;
+      const { data: others } = await buildQuery("other").limit(remaining);
+      if (others) combined = [...combined, ...others];
+    }
+
+    const listings = combined.map((listing: Record<string, unknown>) => {
+      const profile = listing.profiles as Record<string, unknown> | null;
+      return { ...listing, profiles: stripOperatorProfile(profile, isFeaturedOperator(profile)) };
+    });
+
+    return NextResponse.json({ listings, total: listings.length });
+  }
+
   let query = supabaseAdmin
     .from("operator_listings")
-    .select("*, profiles!operator_id(id, full_name, company_name, verified, rating, review_count, address, city, state, zip, featured)", { count: "exact" });
+    .select(`*, profiles!operator_id(${profileSelect})`, { count: "exact" });
 
   if (mine === "true" && userId) {
     query = query.eq("operator_id", userId);
@@ -109,11 +157,11 @@ export async function GET(req: NextRequest) {
     query = query.eq("featured", true);
   }
 
-  const from = page * PAGE_SIZE;
+  const from = page * effectiveLimit;
   const { data, error, count } = await query
     .order("featured", { ascending: false })
     .order("created_at", { ascending: false })
-    .range(from, from + PAGE_SIZE - 1);
+    .range(from, from + effectiveLimit - 1);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
