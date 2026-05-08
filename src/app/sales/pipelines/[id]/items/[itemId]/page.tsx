@@ -836,6 +836,7 @@ export default function PipelineItemDetailPage() {
   const isFirst = currentStepIdx === 0;
   const isLast = currentStepIdx === item.all_steps.length - 1;
   const isCompleted = item.status === "won" || item.status === "lost";
+  const hasOperatorAccount = item.sales_accounts?.entity_type === "operator";
 
   // Check which docs are completed for current step
   const uploadedDocIds = new Set(
@@ -979,14 +980,20 @@ export default function PipelineItemDetailPage() {
       </div>
 
       {/* Create Order */}
-      {(!item.account_id || !item.location_id) && !isCompleted && (
+      {(!hasOperatorAccount || !item.location_id) && !isCompleted && (
         <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-6 mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5 text-amber-600" />
               <div>
                 <p className="text-sm font-semibold text-amber-900">Order not created</p>
-                <p className="text-xs text-amber-600">Attach an operator account and location to create the order.</p>
+                <p className="text-xs text-amber-600">
+                  {!hasOperatorAccount && !item.location_id
+                    ? "Attach an operator account and location to create the order."
+                    : !hasOperatorAccount
+                    ? "Attach an operator account to create the order."
+                    : "Attach a location to create the order."}
+                </p>
               </div>
             </div>
             <button
