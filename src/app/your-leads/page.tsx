@@ -24,7 +24,7 @@ import {
 import type { MachineType } from "@/lib/types";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
 import { useRealtimeSubscription } from "@/lib/useRealtimeSubscription";
-import { getAccessToken } from "@/lib/auth";
+
 
 interface PurchasedLead {
   id: string;
@@ -452,11 +452,7 @@ export default function YourLeadsPage() {
 
   const fetchMyListings = useCallback(async () => {
     try {
-      const token = await getAccessToken();
-      if (!token) return;
-      const res = await fetch("/api/user-listings?seller_id=me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch("/api/user-listings?seller_id=me");
       if (res.ok) {
         const data = await res.json();
         setMyListings(data.listings ?? []);
