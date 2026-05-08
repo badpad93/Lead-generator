@@ -20,6 +20,7 @@ import {
   Tag,
   LayoutGrid,
   List,
+  Trash2,
 } from "lucide-react";
 import type { MachineType } from "@/lib/types";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
@@ -374,7 +375,7 @@ function LeadCard({ purchase }: { purchase: PurchasedLead }) {
   );
 }
 
-function ListingCard({ listing }: { listing: UserListing }) {
+function ListingCard({ listing, onRemove }: { listing: UserListing; onRemove?: () => void }) {
   const statusColors: Record<string, string> = {
     active: "bg-green-50 text-green-700",
     sold: "bg-blue-50 text-blue-700",
@@ -382,11 +383,8 @@ function ListingCard({ listing }: { listing: UserListing }) {
   };
 
   return (
-    <Link
-      href={`/marketplace/${listing.id}`}
-      className="group rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5"
-    >
-      <div className="p-5">
+    <div className="group rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5">
+      <Link href={`/marketplace/${listing.id}`} className="block p-5">
         <div className="mb-3 flex items-start justify-between gap-2">
           <h3 className="font-semibold text-black-primary group-hover:text-green-primary transition-colors line-clamp-2">
             {listing.title}
@@ -416,8 +414,20 @@ function ListingCard({ listing }: { listing: UserListing }) {
             {formatDate(listing.created_at)}
           </span>
         </div>
-      </div>
-    </Link>
+      </Link>
+      {listing.status === "active" && onRemove && (
+        <div className="border-t border-gray-100 px-5 py-3">
+          <button
+            type="button"
+            onClick={onRemove}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Remove Listing
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -456,6 +466,18 @@ export default function YourLeadsPage() {
       if (res.ok) {
         const data = await res.json();
         setMyListings(data.listings ?? []);
+      }
+    } catch {
+      // silently fail
+    }
+  }, []);
+
+  const handleRemoveListing = useCallback(async (id: string) => {
+    if (!confirm("Remove this listing? It will no longer be visible on the marketplace.")) return;
+    try {
+      const res = await fetch(`/api/user-listings/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setMyListings((prev) => prev.filter((l) => l.id !== id));
       }
     } catch {
       // silently fail
@@ -595,6 +617,7 @@ export default function YourLeadsPage() {
                         <th className="px-4 py-3 font-medium text-black-primary/60">Price</th>
                         <th className="px-4 py-3 font-medium text-black-primary/60">Status</th>
                         <th className="px-4 py-3 font-medium text-black-primary/60">Posted</th>
+                        <th className="px-4 py-3 font-medium text-black-primary/60"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -627,6 +650,18 @@ export default function YourLeadsPage() {
                             </td>
                             <td className="px-4 py-3 text-black-primary/40 text-xs whitespace-nowrap">
                               {formatDate(listing.created_at)}
+                            </td>
+                            <td className="px-4 py-3">
+                              {listing.status === "active" && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveListing(listing.id)}
+                                  className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                                  title="Remove listing"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -757,7 +792,7 @@ export default function YourLeadsPage() {
               ) : (
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {myListings.map((listing) => (
-                    <ListingCard key={listing.id} listing={listing} />
+                    <ListingCard key={listing.id} listing={listing} onRemove={() => handleRemoveListing(listing.id)} />
                   ))}
                 </div>
               )}

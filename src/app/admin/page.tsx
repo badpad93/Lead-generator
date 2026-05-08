@@ -26,6 +26,8 @@ import {
   Timer,
   Download,
   Star,
+  ShoppingBag,
+  DollarSign,
 } from "lucide-react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
@@ -46,6 +48,7 @@ type Tab =
   | "operators"
   | "locations"
   | "routes"
+  | "marketplace"
   | "agreements"
   | "sales_results"
   | "machine_listings"
@@ -4067,6 +4070,196 @@ function TimeTrackingManager({ token }: { token: string }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Marketplace Listings Manager (user_listings)                       */
+/* ------------------------------------------------------------------ */
+
+interface MarketplaceListingRow {
+  id: string;
+  title: string;
+  listing_type: string;
+  price: number;
+  city: string | null;
+  state: string | null;
+  status: string;
+  is_public: boolean;
+  created_at: string;
+  profiles?: { full_name: string | null; company_name: string | null } | null;
+}
+
+const MTYPE_LABELS: Record<string, string> = {
+  lead: "Lead",
+  location: "Location",
+  route: "Route",
+};
+
+function MarketplaceManager({
+  token,
+  onSuccess,
+}: {
+  token: string;
+  onSuccess: (msg: string) => void;
+}) {
+  const [listings, setListings] = useState<MarketplaceListingRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const fetchListings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/user-listings?per_page=50", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setListings(data.listings || []);
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchListings();
+  }, [fetchListings]);
+
+  async function handleRemove(id: string) {
+    if (!confirm("Remove this marketplace listing?")) return;
+    setDeleting(id);
+    try {
+      const res = await fetch(`/api/user-listings/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchListings();
+        onSuccess("Listing removed!");
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  const filtered = statusFilter === "all"
+    ? listings
+    : listings.filter((l) => l.status === statusFilter);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-green-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-black-primary">Marketplace Listings</h2>
+          <p className="text-sm text-black-primary/50 mt-1">
+            Leads, locations, and routes posted for sale by users
+          </p>
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="sold">Sold</option>
+          <option value="removed">Removed</option>
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-center text-sm text-black-primary/40 py-12">
+          No marketplace listings{statusFilter !== "all" ? ` with status "${statusFilter}"` : ""}.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-gray-100">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-gray-100 bg-gray-50/50">
+              <tr>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Type</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Seller</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Location</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Price</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Status</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Posted</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map((l) => {
+                const statusColors: Record<string, string> = {
+                  active: "bg-green-50 text-green-700",
+                  sold: "bg-blue-50 text-blue-700",
+                  removed: "bg-red-50 text-red-600",
+                  expired: "bg-gray-100 text-gray-600",
+                };
+                return (
+                  <tr key={l.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3 font-medium text-black-primary max-w-[200px] truncate">
+                      {l.title}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                        {MTYPE_LABELS[l.listing_type] || l.listing_type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-black-primary/60">
+                      {l.profiles?.company_name || l.profiles?.full_name || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-black-primary/60 whitespace-nowrap">
+                      {[l.city, l.state].filter(Boolean).join(", ") || "—"}
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-green-primary whitespace-nowrap">
+                      ${Number(l.price).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[l.status] || "bg-gray-100 text-gray-600"}`}>
+                        {l.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-black-primary/40 text-xs whitespace-nowrap">
+                      {new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </td>
+                    <td className="px-4 py-3">
+                      {l.status === "active" && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemove(l.id)}
+                          disabled={deleting === l.id}
+                          className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50"
+                          title="Remove listing"
+                        >
+                          {deleting === l.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Admin Page                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -4133,6 +4326,7 @@ export default function AdminPage() {
     { key: "operators", label: "Operator Listings", icon: Building2 },
     { key: "locations", label: "Location Requests", icon: MapPin },
     { key: "routes", label: "Routes For Sale", icon: Route },
+    { key: "marketplace", label: "Marketplace", icon: ShoppingBag },
     { key: "agreements", label: "Signed Agreements", icon: ScrollText },
     { key: "sales_results", label: "Sales Results", icon: TrendingUp },
     { key: "machine_listings", label: "Machines For Sale", icon: Package },
@@ -4204,6 +4398,9 @@ export default function AdminPage() {
           )}
           {activeTab === "routes" && (
             <RoutesManager token={token} onSuccess={handleSuccess} />
+          )}
+          {activeTab === "marketplace" && (
+            <MarketplaceManager token={token} onSuccess={handleSuccess} />
           )}
           {activeTab === "agreements" && (
             <AgreementsManager token={token} />

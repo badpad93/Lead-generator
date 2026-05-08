@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 export async function GET(
   req: NextRequest,
@@ -26,19 +27,18 @@ export async function PATCH(
 ) {
   const { id } = await params;
 
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  if (!token) {
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabaseAdmin.auth.getUser(token);
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single();
+
+  const isAdmin = profile?.role === "admin";
 
   const { data: listing } = await supabaseAdmin
     .from("user_listings")
@@ -46,7 +46,7 @@ export async function PATCH(
     .eq("id", id)
     .single();
 
-  if (!listing || listing.seller_id !== user.id) {
+  if (!listing || (!isAdmin && listing.seller_id !== userId)) {
     return NextResponse.json({ error: "Not found or not your listing" }, { status: 404 });
   }
 
@@ -89,27 +89,29 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  if (!token) {
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabaseAdmin.auth.getUser(token);
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single();
 
-  const { data, error } = await supabaseAdmin
+  const isAdmin = profile?.role === "admin";
+
+  let query = supabaseAdmin
     .from("user_listings")
     .update({ status: "removed", is_public: false, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("seller_id", user.id)
-    .select("id")
-    .single();
+    .eq("id", id);
+
+  if (!isAdmin) {
+    query = query.eq("seller_id", userId);
+  }
+
+  const { data, error } = await query.select("id").single();
 
   if (error || !data) {
     return NextResponse.json({ error: "Not found or not your listing" }, { status: 404 });
