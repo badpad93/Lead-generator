@@ -30,7 +30,7 @@ export async function POST(
 
   const { data: agreement } = await supabaseAdmin
     .from("location_agreements")
-    .select("id, status, lead_id")
+    .select("id, status, lead_id, listing_id")
     .eq("token", token)
     .single();
 
@@ -78,6 +78,19 @@ export async function POST(
     if (Object.keys(leadUpdates).length > 0) {
       await supabaseAdmin.from("sales_leads").update(leadUpdates).eq("id", agreement.lead_id);
     }
+  }
+
+  // Auto-publish the marketplace listing once the owner signs
+  if (agreement.listing_id) {
+    await supabaseAdmin
+      .from("user_listings")
+      .update({
+        status: "active",
+        is_public: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", agreement.listing_id)
+      .eq("status", "pending_verification");
   }
 
   return NextResponse.json({ ok: true, status: "signed" });

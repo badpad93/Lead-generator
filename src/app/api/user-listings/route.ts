@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { sendLocationAgreementEmail } from "@/lib/locationAgreementEmail";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
 
 const ALLOWED_SELLER_ROLES = ["operator", "location_manager"];
 const MIN_PRICE = 100;
@@ -92,6 +95,8 @@ export async function POST(req: NextRequest) {
     contact_name,
     contact_phone,
     contact_email,
+    owner_name,
+    owner_email,
   } = body;
 
   if (!title?.trim()) {
@@ -108,6 +113,12 @@ export async function POST(req: NextRequest) {
   }
   if (!state?.trim()) {
     return NextResponse.json({ error: "State is required" }, { status: 400 });
+  }
+  if (!owner_name?.trim() || !owner_email?.trim()) {
+    return NextResponse.json(
+      { error: "Location owner name and email are required for verification" },
+      { status: 400 }
+    );
   }
 
   const { data, error } = await supabaseAdmin
@@ -128,12 +139,42 @@ export async function POST(req: NextRequest) {
       contact_name: contact_name?.trim() || null,
       contact_phone: contact_phone?.trim() || null,
       contact_email: contact_email?.trim() || null,
+      owner_name: owner_name.trim(),
+      owner_email: owner_email.trim().toLowerCase(),
+      status: "pending_verification",
+      is_public: false,
     })
     .select("*")
     .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Create location agreement and send verification email to the location owner
+  try {
+    const { data: agreement } = await supabaseAdmin
+      .from("location_agreements")
+      .insert({
+        listing_id: data.id,
+        business_name: title.trim(),
+        contact_name: owner_name.trim(),
+        email: owner_email.trim().toLowerCase(),
+        address: [city?.trim(), state.trim(), zip?.trim()].filter(Boolean).join(", ") || null,
+      })
+      .select("token")
+      .single();
+
+    if (agreement) {
+      await sendLocationAgreementEmail({
+        to: owner_email.trim().toLowerCase(),
+        recipientName: owner_name.trim(),
+        businessName: title.trim(),
+        agreementUrl: `${APP_URL}/location-agreement/${agreement.token}`,
+      });
+    }
+  } catch (emailErr) {
+    console.error("[user-listings] Failed to send verification email:", emailErr);
   }
 
   return NextResponse.json(data, { status: 201 });
