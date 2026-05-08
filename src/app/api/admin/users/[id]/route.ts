@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAdminUserId } from "@/lib/adminAuth";
 
@@ -19,7 +20,7 @@ export async function PATCH(
     const allowedFields = [
       "full_name", "email", "role", "company_name", "phone",
       "website", "bio", "address", "city", "state", "zip", "country",
-      "verified",
+      "verified", "featured",
     ];
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {
@@ -28,6 +29,28 @@ export async function PATCH(
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+    }
+
+    // When admin removes featured status, cancel the Stripe subscription and clear the ID
+    if (updates.featured === false) {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("stripe_subscription_id")
+        .eq("id", id)
+        .single();
+
+      if (profile?.stripe_subscription_id) {
+        const stripeKey = process.env.STRIPE_CONNECT_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+        if (stripeKey) {
+          try {
+            const stripe = new Stripe(stripeKey);
+            await stripe.subscriptions.cancel(profile.stripe_subscription_id);
+          } catch {
+            // Subscription may already be cancelled — proceed anyway
+          }
+        }
+        updates.stripe_subscription_id = null;
+      }
     }
 
     const { data, error } = await supabaseAdmin
