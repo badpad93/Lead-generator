@@ -227,14 +227,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { id } = await params;
 
   if (!isElevatedRole(user.role)) {
-    const { data: lead } = await supabaseAdmin
-      .from("sales_leads")
-      .select("assigned_to, created_by")
-      .eq("id", id)
-      .single();
-    if (!lead || (lead.assigned_to !== user.id && lead.created_by !== user.id)) {
-      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
-    }
+    return NextResponse.json({ error: "Only admins can delete leads" }, { status: 403 });
   }
 
   // Detach related records so FK constraints don't block deletion.

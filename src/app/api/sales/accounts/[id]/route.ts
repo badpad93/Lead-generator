@@ -55,16 +55,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
 
-  // Sales reps can only delete accounts they own; admins can delete any.
   if (!isElevatedRole(user.role)) {
-    const { data: acct } = await supabaseAdmin
-      .from("sales_accounts")
-      .select("assigned_to, created_by")
-      .eq("id", id)
-      .single();
-    if (!acct || (acct.assigned_to !== user.id && acct.created_by !== user.id)) {
-      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
-    }
+    return NextResponse.json({ error: "Only admins can delete accounts" }, { status: 403 });
   }
 
   // Detach related records so FK constraints don't block the delete.

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string; serviceId: string }> }) {
   const user = await getSalesUser(req);
@@ -38,6 +38,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string; serviceId: string }> }) {
   const user = await getSalesUser(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isElevatedRole(user.role)) {
+    return NextResponse.json({ error: "Only admins can delete deal services" }, { status: 403 });
+  }
   const { id: dealId, serviceId } = await params;
 
   const { error } = await supabaseAdmin
