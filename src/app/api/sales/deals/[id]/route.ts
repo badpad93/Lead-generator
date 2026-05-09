@@ -184,14 +184,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { id } = await params;
 
   if (!isElevatedRole(user.role)) {
-    const { data: deal } = await supabaseAdmin
-      .from("sales_deals")
-      .select("assigned_to")
-      .eq("id", id)
-      .single();
-    if (!deal || deal.assigned_to !== user.id) {
-      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
-    }
+    return NextResponse.json({ error: "Only admins can delete deals" }, { status: 403 });
   }
 
   // Detach orders so the FK doesn't block deletion

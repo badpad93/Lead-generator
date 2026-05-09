@@ -46,14 +46,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { id } = await params;
 
   if (!isElevatedRole(user.role)) {
-    const { data: order } = await supabaseAdmin
-      .from("sales_orders")
-      .select("created_by")
-      .eq("id", id)
-      .single();
-    if (!order || order.created_by !== user.id) {
-      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
-    }
+    return NextResponse.json({ error: "Only admins can delete orders" }, { status: 403 });
   }
 
   // order_items cascade via FK; documents linked to order are removed
