@@ -48,7 +48,7 @@ export default function CallListsPage() {
     title: "",
     description: "",
     sheet_url: "",
-    assigned_to: "",
+    assigned_to: "all",
     file: null as File | null,
   });
 
@@ -134,7 +134,7 @@ export default function CallListsPage() {
         alert(err.error || "Failed to save");
         return;
       }
-      setForm({ title: "", description: "", sheet_url: "", assigned_to: "", file: null });
+      setForm({ title: "", description: "", sheet_url: "", assigned_to: "all", file: null });
       setShowAdd(false);
       fetchLists();
     } finally {
@@ -229,7 +229,6 @@ export default function CallListsPage() {
               onChange={(e) => setForm((f) => ({ ...f, assigned_to: e.target.value }))}
               className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
             >
-              <option value="">Unassigned</option>
               <option value="all">All (DOS, Market Leaders &amp; Sales)</option>
               {salesOnly.map((u) => (
                 <option key={u.id} value={u.id}>
@@ -341,11 +340,10 @@ export default function CallListsPage() {
                   <td className="px-4 py-3 text-xs text-gray-600">
                     {isAdmin ? (
                       <select
-                        value={list.assigned_to || ""}
+                        value={list.assigned_to || "all"}
                         onChange={(e) => handleAssign(list.id, e.target.value)}
                         className="rounded border border-gray-200 px-2 py-1 text-xs cursor-pointer"
                       >
-                        <option value="">Unassigned</option>
                         <option value="all">All (DOS, Market Leaders &amp; Sales)</option>
                         {salesOnly.map((u) => (
                           <option key={u.id} value={u.id}>
@@ -354,7 +352,7 @@ export default function CallListsPage() {
                         ))}
                       </select>
                     ) : (
-                      list.assigned_profile?.full_name || "Unassigned"
+                      list.assigned_profile?.full_name || "All"
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-400">
