@@ -19,7 +19,7 @@ export async function POST(
 
   const { data: agreement } = await supabaseAdmin
     .from("agreement_tokens")
-    .select("id, pipeline_item_id, step_id, recipient_email, recipient_name, pricing_price, status, sales_accounts(business_name)")
+    .select("id, pipeline_item_id, step_id, recipient_email, recipient_name, pricing_price, status, location_id, sales_accounts(business_name)")
     .eq("token", token)
     .single();
 
@@ -33,6 +33,29 @@ export async function POST(
 
   if (agreement.status !== "signed") {
     return NextResponse.json({ error: "Please sign the agreement before paying" }, { status: 400 });
+  }
+
+  // Verify the location owner has signed their agreement
+  const { data: location } = await supabaseAdmin
+    .from("locations")
+    .select("sales_lead_id")
+    .eq("id", agreement.location_id)
+    .single();
+
+  if (location?.sales_lead_id) {
+    const { data: ownerAgreement } = await supabaseAdmin
+      .from("location_agreements")
+      .select("id")
+      .eq("lead_id", location.sales_lead_id)
+      .eq("status", "signed")
+      .maybeSingle();
+
+    if (!ownerAgreement) {
+      return NextResponse.json(
+        { error: "The location owner has not yet signed their agreement. Payment cannot proceed until they do." },
+        { status: 400 }
+      );
+    }
   }
 
   const stripe = new Stripe(stripeKey);
