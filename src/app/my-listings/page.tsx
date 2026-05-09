@@ -89,6 +89,8 @@ export default function MyListingsPage() {
     contact_name: "",
     contact_phone: "",
     contact_email: "",
+    owner_name: "",
+    owner_email: "",
   });
 
   const fetchData = useCallback(async () => {
@@ -119,7 +121,7 @@ export default function MyListingsPage() {
 
   useEffect(() => {
     if (toast) {
-      const t = setTimeout(() => setToast(null), 3000);
+      const t = setTimeout(() => setToast(null), 6000);
       return () => clearTimeout(t);
     }
   }, [toast]);
@@ -173,6 +175,8 @@ export default function MyListingsPage() {
       return;
     }
     if (!form.state) { setError("State is required"); return; }
+    if (!form.owner_name.trim()) { setError("Location owner name is required"); return; }
+    if (!form.owner_email.trim()) { setError("Location owner email is required"); return; }
 
     setCreating(true);
     const token = await getAccessToken();
@@ -183,7 +187,10 @@ export default function MyListingsPage() {
     });
 
     if (res.ok) {
-      router.push("/your-leads");
+      setShowCreate(false);
+      setToast("Verification email sent to the location owner. Your listing will go live once they sign.");
+      setForm({ title: "", description: "", listing_type: "lead", price: "", city: "", state: "", zip: "", entity_type: "", business_type: "", foot_traffic: "", square_footage: "", contact_name: "", contact_phone: "", contact_email: "", owner_name: "", owner_email: "" });
+      fetchData();
     } else {
       const data = await res.json();
       setError(data.error || "Failed to create listing");
@@ -358,6 +365,15 @@ export default function MyListingsPage() {
               </div>
 
               <div className="border-t pt-4">
+                <p className="text-xs font-medium text-gray-500 mb-1">Location Owner Verification <span className="text-red-500">*</span></p>
+                <p className="text-xs text-gray-400 mb-3">An agreement will be emailed to the location owner. Your listing goes live once they sign.</p>
+                <div className="space-y-3">
+                  <input value={form.owner_name} onChange={(e) => setForm(f => ({ ...f, owner_name: e.target.value }))} placeholder="Owner full name" className={inputClass} />
+                  <input type="email" value={form.owner_email} onChange={(e) => setForm(f => ({ ...f, owner_email: e.target.value }))} placeholder="Owner email address" className={inputClass} />
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
                 <p className="text-xs font-medium text-gray-500 mb-3">Contact Info (shared with buyer after purchase)</p>
                 <div className="space-y-3">
                   <input value={form.contact_name} onChange={(e) => setForm(f => ({ ...f, contact_name: e.target.value }))} placeholder="Contact name" className={inputClass} />
@@ -375,7 +391,7 @@ export default function MyListingsPage() {
               </button>
               <button onClick={handleCreate} disabled={creating} className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
                 {creating && <Loader2 className="h-4 w-4 animate-spin" />}
-                Post Listing
+                Submit for Verification
               </button>
             </div>
           </div>
@@ -401,9 +417,10 @@ export default function MyListingsPage() {
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                   l.status === "active" ? "bg-green-100 text-green-700" :
                   l.status === "sold" ? "bg-blue-100 text-blue-700" :
+                  l.status === "pending_verification" ? "bg-amber-100 text-amber-700" :
                   "bg-gray-100 text-gray-600"
                 }`}>
-                  {l.status === "active" ? "Active" : l.status === "sold" ? "Sold" : l.status}
+                  {l.status === "active" ? "Active" : l.status === "sold" ? "Sold" : l.status === "pending_verification" ? "Pending Verification" : l.status}
                 </span>
                 <span className="text-xs text-gray-400">{daysAgo(l.created_at)}</span>
               </div>

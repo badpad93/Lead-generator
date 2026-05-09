@@ -380,6 +380,7 @@ function ListingCard({ listing, onRemove }: { listing: UserListing; onRemove?: (
     active: "bg-green-50 text-green-700",
     sold: "bg-blue-50 text-blue-700",
     expired: "bg-gray-100 text-gray-600",
+    pending_verification: "bg-amber-50 text-amber-700",
   };
 
   return (
@@ -390,7 +391,7 @@ function ListingCard({ listing, onRemove }: { listing: UserListing; onRemove?: (
             {listing.title}
           </h3>
           <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[listing.status] || "bg-gray-100 text-gray-600"}`}>
-            {listing.status}
+            {listing.status === "pending_verification" ? "Pending Verification" : listing.status}
           </span>
         </div>
 
@@ -645,7 +646,7 @@ export default function YourLeadsPage() {
                             </td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[listing.status] || "bg-gray-100 text-gray-600"}`}>
-                                {listing.status}
+                                {listing.status === "pending_verification" ? "Pending Verification" : listing.status}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-black-primary/40 text-xs whitespace-nowrap">

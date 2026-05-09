@@ -3,6 +3,10 @@
     {
       "path": "/api/digest/send",
       "schedule": "0 14 * * 1"
+    },
+    {
+      "path": "/api/cron/verification-reminders",
+      "schedule": "0 * * * *"
     }
   ]
 }
