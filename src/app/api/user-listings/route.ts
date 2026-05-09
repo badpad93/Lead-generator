@@ -50,7 +50,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ listings: data, total: count });
+  const isOwnerQuery = resolvedSellerId && sellerIdParam === "me";
+  const listings = isOwnerQuery
+    ? data
+    : (data || []).map((listing: Record<string, unknown>) => {
+        const { contact_name: _cn, contact_phone: _cp, contact_email: _ce, owner_name: _on, owner_email: _oe, ...safe } = listing;
+        return safe;
+      });
+
+  return NextResponse.json({ listings, total: count });
 }
 
 export async function POST(req: NextRequest) {
