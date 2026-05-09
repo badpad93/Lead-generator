@@ -62,6 +62,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "sheet_url or file_url required" }, { status: 400 });
   }
 
+  if (assigned_to === "all") {
+    const { data: eligibleUsers } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .in("role", ["admin", "director_of_sales", "market_leader", "sales"]);
+
+    const users = eligibleUsers || [];
+    if (users.length === 0) {
+      return NextResponse.json({ error: "No eligible users found" }, { status: 400 });
+    }
+
+    const rows = users.map((u) => ({
+      title,
+      description: description || null,
+      category,
+      sheet_url: sheet_url || null,
+      file_url: file_url || null,
+      file_name: file_name || null,
+      assigned_to: u.id,
+      created_by: user.id,
+    }));
+
+    const { data, error } = await supabaseAdmin
+      .from("sales_call_lists")
+      .insert(rows)
+      .select("*");
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data, { status: 201 });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("sales_call_lists")
     .insert({
