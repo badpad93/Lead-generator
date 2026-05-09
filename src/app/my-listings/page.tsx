@@ -11,6 +11,8 @@ import {
   Trash2,
   Edit3,
   Eye,
+  EyeOff,
+  Lock,
   Package,
   AlertCircle,
   ExternalLink,
@@ -301,9 +303,16 @@ export default function MyListingsPage() {
               </div>
             )}
 
+            {/* Visibility legend */}
+            <div className="mb-4 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2.5 flex items-center gap-4 text-xs">
+              <span className="flex items-center gap-1 text-green-700"><Eye className="h-3 w-3" /> Public — visible to all browsers</span>
+              <span className="flex items-center gap-1 text-amber-600"><Lock className="h-3 w-3" /> Hidden — revealed after purchase</span>
+              <span className="flex items-center gap-1 text-gray-400"><EyeOff className="h-3 w-3" /> Private — never shown publicly</span>
+            </div>
+
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Listing Type <span className="text-red-500">*</span></label>
+                <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">Listing Type <span className="text-red-500">*</span> <Eye className="h-3 w-3 text-green-600" /></label>
                 <select value={form.listing_type} onChange={(e) => setForm(f => ({ ...f, listing_type: e.target.value as "lead" | "location" | "route" }))} className={inputClass}>
                   <option value="lead">Vending Lead</option>
                   <option value="location">Location</option>
@@ -312,17 +321,17 @@ export default function MyListingsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Title <span className="text-red-500">*</span></label>
+                <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">Title <span className="text-red-500">*</span> <Eye className="h-3 w-3 text-green-600" /></label>
                 <input value={form.title} onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. High-traffic gym location in Dallas" className={inputClass} />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
+                <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">Description <Eye className="h-3 w-3 text-green-600" /></label>
                 <textarea value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} rows={3} placeholder="Describe the opportunity..." className={inputClass} />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Price ($100 – $10,000) <span className="text-red-500">*</span></label>
+                <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">Price ($100 – $10,000) <span className="text-red-500">*</span> <Eye className="h-3 w-3 text-green-600" /></label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input type="number" min={100} max={10000} value={form.price} onChange={(e) => setForm(f => ({ ...f, price: e.target.value }))} placeholder="500" className={`${inputClass} pl-8`} />
@@ -332,40 +341,43 @@ export default function MyListingsPage() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">City</label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">City <Eye className="h-3 w-3 text-green-600" /></label>
                   <input value={form.city} onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">State <span className="text-red-500">*</span></label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">State <span className="text-red-500">*</span> <Eye className="h-3 w-3 text-green-600" /></label>
                   <select value={form.state} onChange={(e) => setForm(f => ({ ...f, state: e.target.value }))} className={inputClass}>
                     <option value="">Select</option>
                     {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Zip</label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">Zip <Eye className="h-3 w-3 text-green-600" /></label>
                   <input value={form.zip} onChange={(e) => setForm(f => ({ ...f, zip: e.target.value }))} maxLength={10} className={inputClass} />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Business Type</label>
+                <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">Business Type <Eye className="h-3 w-3 text-green-600" /></label>
                 <input value={form.business_type} onChange={(e) => setForm(f => ({ ...f, business_type: e.target.value }))} placeholder="e.g. Gym, Office, Hospital" className={inputClass} />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Foot Traffic</label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">Foot Traffic <Eye className="h-3 w-3 text-green-600" /></label>
                   <input value={form.foot_traffic} onChange={(e) => setForm(f => ({ ...f, foot_traffic: e.target.value }))} placeholder="e.g. 500/day" className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Square Footage</label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">Square Footage <Eye className="h-3 w-3 text-green-600" /></label>
                   <input value={form.square_footage} onChange={(e) => setForm(f => ({ ...f, square_footage: e.target.value }))} placeholder="e.g. 5000 sq ft" className={inputClass} />
                 </div>
               </div>
 
               <div className="border-t pt-4">
-                <p className="text-xs font-medium text-gray-500 mb-1">Location Owner Verification <span className="text-red-500">*</span></p>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-xs font-medium text-gray-500">Location Owner Verification <span className="text-red-500">*</span></p>
+                  <span className="flex items-center gap-0.5 text-[10px] text-gray-400"><EyeOff className="h-3 w-3" /> Private</span>
+                </div>
                 <p className="text-xs text-gray-400 mb-3">An agreement will be emailed to the location owner. Your listing goes live once they sign.</p>
                 <div className="space-y-3">
                   <input value={form.owner_name} onChange={(e) => setForm(f => ({ ...f, owner_name: e.target.value }))} placeholder="Owner full name" className={inputClass} />
@@ -374,7 +386,10 @@ export default function MyListingsPage() {
               </div>
 
               <div className="border-t pt-4">
-                <p className="text-xs font-medium text-gray-500 mb-3">Contact Info (shared with buyer after purchase)</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <p className="text-xs font-medium text-gray-500">Contact Info</p>
+                  <span className="flex items-center gap-0.5 text-[10px] text-amber-600"><Lock className="h-3 w-3" /> Hidden until purchase</span>
+                </div>
                 <div className="space-y-3">
                   <input value={form.contact_name} onChange={(e) => setForm(f => ({ ...f, contact_name: e.target.value }))} placeholder="Contact name" className={inputClass} />
                   <div className="grid grid-cols-2 gap-3">

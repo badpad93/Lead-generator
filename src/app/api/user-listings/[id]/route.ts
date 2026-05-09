@@ -18,6 +18,30 @@ export async function GET(
     return NextResponse.json({ error: "Listing not found" }, { status: 404 });
   }
 
+  // Check if the viewer is the seller or has purchased this listing
+  const userId = await getUserIdFromRequest(req);
+  const isSeller = userId && data.seller_id === userId;
+
+  let hasPurchased = false;
+  if (userId && !isSeller) {
+    const { data: purchase } = await supabaseAdmin
+      .from("user_listing_purchases")
+      .select("id")
+      .eq("listing_id", id)
+      .eq("buyer_id", userId)
+      .eq("status", "completed")
+      .maybeSingle();
+    hasPurchased = !!purchase;
+  }
+
+  if (!isSeller && !hasPurchased) {
+    data.contact_name = null;
+    data.contact_phone = null;
+    data.contact_email = null;
+    data.owner_name = null;
+    data.owner_email = null;
+  }
+
   return NextResponse.json(data);
 }
 
