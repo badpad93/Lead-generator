@@ -170,7 +170,7 @@ export default function CallListsPage() {
     { value: "operators", label: "Vending Machine Operators", icon: UsersIcon },
   ];
 
-  const salesOnly = salesUsers.filter((u) => u.role === "sales" || u.role === "admin" || u.role === "director_of_sales");
+  const salesOnly = salesUsers.filter((u) => u.role === "sales" || u.role === "admin" || u.role === "director_of_sales" || u.role === "market_leader");
 
   return (
     <div className="p-6">
@@ -230,6 +230,7 @@ export default function CallListsPage() {
               className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
             >
               <option value="">Unassigned</option>
+              <option value="all">All (DOS, Market Leaders &amp; Sales)</option>
               {salesOnly.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.full_name || u.email}
@@ -345,6 +346,7 @@ export default function CallListsPage() {
                         className="rounded border border-gray-200 px-2 py-1 text-xs cursor-pointer"
                       >
                         <option value="">Unassigned</option>
+                        <option value="all">All (DOS, Market Leaders &amp; Sales)</option>
                         {salesOnly.map((u) => (
                           <option key={u.id} value={u.id}>
                             {u.full_name || u.email}
