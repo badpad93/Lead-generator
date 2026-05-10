@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
 
-const VALID_ENTITY_TYPES = ["operator", "location", "machine_sales", "vending_maintenance"];
+const VALID_ENTITY_TYPES = ["operator", "location", "machine_sales", "vending_maintenance", "micromarket"];
 const VALID_IMMEDIATE_NEEDS = ["location", "machine", "digital", "llc_compliance", "coffee", "financing", "total_operator_package"];
 
 interface ImportRow {

@@ -28,6 +28,7 @@ const ENTITY_TYPES = [
   { value: "location", label: "Location" },
   { value: "machine_sales", label: "Machine Sales" },
   { value: "vending_maintenance", label: "Vending Maintenance" },
+  { value: "micromarket", label: "Micromarket" },
 ];
 
 const IMMEDIATE_NEEDS = [

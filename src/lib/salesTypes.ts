@@ -1,10 +1,11 @@
-export type EntityType = "operator" | "location" | "machine_sales" | "vending_maintenance";
+export type EntityType = "operator" | "location" | "machine_sales" | "vending_maintenance" | "micromarket";
 
 export const ENTITY_TYPES: { value: EntityType; label: string }[] = [
   { value: "location", label: "Location" },
   { value: "operator", label: "Operator" },
   { value: "machine_sales", label: "Machine Sales Company" },
   { value: "vending_maintenance", label: "Vending Maintenance" },
+  { value: "micromarket", label: "Micromarket" },
 ];
 
 export type ImmediateNeed =
