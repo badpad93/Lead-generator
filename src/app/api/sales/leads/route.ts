@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser } from "@/lib/salesAuth";
+import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 import { createAndSendAgreement } from "@/lib/locationAgreement";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("sales_leads")
     .select("*")
     .order("created_at", { ascending: false })
     .limit(500);
+
+  if (!isElevatedRole(user.role)) {
+    query = query.eq("assigned_to", user.id);
+  }
+
+  const { data, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
