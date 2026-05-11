@@ -23,54 +23,62 @@ async function isElevatedOrSiteAdmin(req: NextRequest, role: string | null): Pro
 
 /** GET /api/time-entries — list time entries (own or all for admin) */
 export async function GET(req: NextRequest) {
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const userId = await getUserIdFromRequest(req);
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const role = await getUserRole(userId);
+    const isElevated = await isElevatedOrSiteAdmin(req, role);
+    console.log("[time-entries] GET userId:", userId, "role:", role, "isElevated:", isElevated);
+    const params = req.nextUrl.searchParams;
+
+    const targetUserId = params.get("user_id");
+    const from = params.get("from");
+    const to = params.get("to");
+    const status = params.get("status");
+    const page = Math.max(0, parseInt(params.get("page") || "0"));
+    const pageSize = Math.min(200, Math.max(1, parseInt(params.get("pageSize") || "200")));
+
+    let query = supabaseAdmin
+      .from("time_entries")
+      .select("*", { count: "exact" });
+
+    if (isElevated && targetUserId) {
+      query = query.eq("user_id", targetUserId);
+    } else if (isElevated && !targetUserId) {
+      // Elevated roles / site admins see all
+    } else if (CLOCK_ROLES.includes(role || "")) {
+      query = query.eq("user_id", userId);
+    } else {
+      console.log("[time-entries] Forbidden — role:", role, "userId:", userId);
+      return NextResponse.json({ error: `Forbidden — your profile role is '${role}', which does not have time entry access. Contact an admin to update your role.` }, { status: 403 });
+    }
+
+    if (status === "active") {
+      query = query.is("clock_out", null);
+    }
+
+    if (from) query = query.gte("clock_in", from);
+    if (to) query = query.lte("clock_in", to);
+
+    const offset = page * pageSize;
+    const { data, error, count } = await query
+      .order("clock_in", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("[time-entries] GET query error:", error.message, error.code, error.details);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    console.log("[time-entries] GET returning", (data || []).length, "entries, total:", count);
+    return NextResponse.json({ entries: data || [], total: count || 0 });
+  } catch (err) {
+    console.error("[time-entries] GET unexpected error:", err);
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Unexpected server error" }, { status: 500 });
   }
-
-  const role = await getUserRole(userId);
-  const isElevated = await isElevatedOrSiteAdmin(req, role);
-  const params = req.nextUrl.searchParams;
-
-  const targetUserId = params.get("user_id");
-  const from = params.get("from");
-  const to = params.get("to");
-  const status = params.get("status"); // "active" to find open entries only
-  const page = Math.max(0, parseInt(params.get("page") || "0"));
-  const pageSize = Math.min(200, Math.max(1, parseInt(params.get("pageSize") || "200")));
-
-  let query = supabaseAdmin
-    .from("time_entries")
-    .select("*", { count: "exact" });
-
-  if (isElevated && targetUserId) {
-    query = query.eq("user_id", targetUserId);
-  } else if (isElevated && !targetUserId) {
-    // Elevated roles / site admins see all
-  } else if (CLOCK_ROLES.includes(role || "")) {
-    query = query.eq("user_id", userId);
-  } else {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  if (status === "active") {
-    query = query.is("clock_out", null);
-  }
-
-  if (from) query = query.gte("clock_in", from);
-  if (to) query = query.lte("clock_in", to);
-
-  const offset = page * pageSize;
-  const { data, error, count } = await query
-    .order("clock_in", { ascending: false })
-    .range(offset, offset + pageSize - 1);
-
-  if (error) {
-    console.error("[time-entries] GET error:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ entries: data || [], total: count || 0 });
 }
 
 /** POST /api/time-entries — clock in (creates a new open entry) */
