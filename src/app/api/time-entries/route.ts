@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 
 const CLOCK_ROLES = ["admin", "sales", "market_leader", "director_of_sales"];
+const ELEVATED_ROLES = ["admin", "director_of_sales", "market_leader"];
 
 async function getUserRole(userId: string): Promise<string | null> {
   const { data } = await supabaseAdmin
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
   }
 
   const role = await getUserRole(userId);
-  const isAdmin = role === "admin";
+  const isElevated = ELEVATED_ROLES.includes(role || "");
   const params = req.nextUrl.searchParams;
 
   const targetUserId = params.get("user_id");
@@ -35,10 +36,10 @@ export async function GET(req: NextRequest) {
     .from("time_entries")
     .select("*", { count: "exact" });
 
-  if (isAdmin && targetUserId) {
+  if (isElevated && targetUserId) {
     query = query.eq("user_id", targetUserId);
-  } else if (isAdmin && !targetUserId) {
-    // Admin sees all
+  } else if (isElevated && !targetUserId) {
+    // Elevated roles see all
   } else if (CLOCK_ROLES.includes(role || "")) {
     query = query.eq("user_id", userId);
   } else {
@@ -133,7 +134,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const role = await getUserRole(userId);
-  const isAdmin = role === "admin";
+  const isAdmin = ELEVATED_ROLES.includes(role || "");
 
   const body = await req.json();
   const { entry_id, clock_out, clock_in, notes } = body;
@@ -195,7 +196,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const role = await getUserRole(userId);
-  if (role !== "admin") {
+  if (!ELEVATED_ROLES.includes(role || "")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -254,7 +255,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   const role = await getUserRole(userId);
-  if (role !== "admin") {
+  if (!ELEVATED_ROLES.includes(role || "")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
