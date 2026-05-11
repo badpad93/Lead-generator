@@ -68,17 +68,17 @@ export default function TimeClockPage() {
     if (!token || !userId) return;
     setLoading(true);
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const weekStart = new Date(today);
+      const now = new Date();
+      const todayStr = now.toISOString().split("T")[0];
+      const weekStart = new Date(now);
       weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const weekStartStr = weekStart.toISOString().split("T")[0];
 
       const headers = { Authorization: `Bearer ${token}` };
 
       const [todayRes, weekRes, activeRes] = await Promise.all([
-        fetch(`/api/time-entries?from=${today.toISOString()}&user_id=${userId}`, { headers }),
-        fetch(`/api/time-entries?from=${weekStart.toISOString()}&user_id=${userId}`, { headers }),
+        fetch(`/api/time-entries?from=${todayStr}T00:00:00.000Z&user_id=${userId}`, { headers }),
+        fetch(`/api/time-entries?from=${weekStartStr}T00:00:00.000Z&user_id=${userId}`, { headers }),
         fetch(`/api/time-entries?user_id=${userId}&status=active`, { headers }),
       ]);
 
