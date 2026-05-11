@@ -16,6 +16,7 @@ import {
   GraduationCap,
   File,
   X,
+  Send,
 } from "lucide-react";
 
 interface Resource {
@@ -65,6 +66,11 @@ export default function ResourcesPage() {
     category: "marketing",
     file: null as File | null,
   });
+  const [sendModal, setSendModal] = useState<Resource | null>(null);
+  const [sendEmail, setSendEmail] = useState("");
+  const [sendMessage, setSendMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -161,6 +167,32 @@ export default function ResourcesPage() {
       return;
     }
     fetchResources();
+  }
+
+  async function handleSend() {
+    if (!sendModal || !sendEmail.trim()) return;
+    setSending(true);
+    setSendResult(null);
+    try {
+      const res = await fetch(`/api/sales/resources/${sendModal.id}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ to: sendEmail.trim(), message: sendMessage.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSendResult({ ok: true, text: `Sent to ${sendEmail.trim()}` });
+        setSendEmail("");
+        setSendMessage("");
+        setTimeout(() => { setSendModal(null); setSendResult(null); }, 1500);
+      } else {
+        setSendResult({ ok: false, text: data.error || "Failed to send" });
+      }
+    } catch {
+      setSendResult({ ok: false, text: "Network error" });
+    } finally {
+      setSending(false);
+    }
   }
 
   const filtered = filter === "all" ? resources : resources.filter((r) => r.category === filter);
@@ -306,20 +338,81 @@ export default function ResourcesPage() {
                   <span className="text-xs text-gray-400 capitalize">
                     {r.category} {fmtSize(r.file_size) && `· ${fmtSize(r.file_size)}`}
                   </span>
-                  <a
-                    href={r.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download={r.file_name || undefined}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Download
-                  </a>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => { setSendModal(r); setSendEmail(""); setSendMessage(""); setSendResult(null); }}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      Send
+                    </button>
+                    <a
+                      href={r.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={r.file_name || undefined}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download
+                    </a>
+                  </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Send modal */}
+      {sendModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-900">Send Resource</h3>
+              <button onClick={() => setSendModal(null)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Send <span className="font-medium text-gray-700">{sendModal.title}</span> as an email attachment.
+            </p>
+            <input
+              type="email"
+              placeholder="Recipient email *"
+              value={sendEmail}
+              onChange={(e) => setSendEmail(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none mb-3"
+            />
+            <textarea
+              placeholder="Message (optional)"
+              value={sendMessage}
+              onChange={(e) => setSendMessage(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none mb-3"
+            />
+            {sendResult && (
+              <div className={`mb-3 rounded-lg px-3 py-2 text-sm ${sendResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                {sendResult.text}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={handleSend}
+                disabled={sending || !sendEmail.trim()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+              >
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {sending ? "Sending..." : "Send"}
+              </button>
+              <button
+                onClick={() => setSendModal(null)}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
