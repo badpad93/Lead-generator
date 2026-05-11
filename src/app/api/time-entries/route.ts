@@ -41,6 +41,13 @@ export async function GET(req: NextRequest) {
     const page = Math.max(0, parseInt(params.get("page") || "0"));
     const pageSize = Math.min(200, Math.max(1, parseInt(params.get("pageSize") || "200")));
 
+    // Diagnostic: count all rows in the table regardless of filters
+    const { count: totalRows, error: countErr } = await supabaseAdmin
+      .from("time_entries")
+      .select("*", { count: "exact", head: true });
+    console.log("[time-entries] Total rows in table (unfiltered):", totalRows, "error:", countErr?.message || "none");
+    console.log("[time-entries] Filters — from:", from, "to:", to, "user_id:", targetUserId, "status:", status);
+
     let query = supabaseAdmin
       .from("time_entries")
       .select("*", { count: "exact" });
