@@ -3597,12 +3597,8 @@ function TimeTrackingManager({ token }: { token: string }) {
     try {
       const params = new URLSearchParams();
       if (filterUser) params.set("user_id", filterUser);
-      if (filterFrom) params.set("from", new Date(filterFrom).toISOString());
-      if (filterTo) {
-        const to = new Date(filterTo);
-        to.setHours(23, 59, 59, 999);
-        params.set("to", to.toISOString());
-      }
+      if (filterFrom) params.set("from", `${filterFrom}T00:00:00.000Z`);
+      if (filterTo) params.set("to", `${filterTo}T23:59:59.999Z`);
       const res = await fetch(`/api/time-entries?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
