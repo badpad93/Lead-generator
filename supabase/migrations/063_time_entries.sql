@@ -23,25 +23,13 @@ CREATE INDEX IF NOT EXISTS idx_time_entries_user_date ON public.time_entries(use
 
 ALTER TABLE public.time_entries ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view own time entries"
-  ON public.time_entries FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own time entries"
-  ON public.time_entries FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own time entries"
-  ON public.time_entries FOR UPDATE
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Admins have full access to time entries"
+-- Service role (used by the API) needs full access
+CREATE POLICY "service_role_full_access_time_entries"
   ON public.time_entries FOR ALL
-  USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  USING (true)
+  WITH CHECK (true);
 
 CREATE OR REPLACE TRIGGER time_entries_updated_at
   BEFORE UPDATE ON public.time_entries
   FOR EACH ROW
-  EXECUTE FUNCTION public.handle_updated_at();
+  EXECUTE FUNCTION public.set_updated_at();
