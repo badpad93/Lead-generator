@@ -3585,6 +3585,7 @@ function TimeTrackingManager({ token }: { token: string }) {
   const [manualClockIn, setManualClockIn] = useState("");
   const [manualClockOut, setManualClockOut] = useState("");
   const [manualNotes, setManualNotes] = useState("");
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const staffMap = useMemo(() => new Map(staffUsers.map(u => [u.id, u])), [staffUsers]);
   const getStaffName = (userId: string) => staffMap.get(userId)?.full_name || "Unknown";
@@ -3592,6 +3593,7 @@ function TimeTrackingManager({ token }: { token: string }) {
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const params = new URLSearchParams();
       if (filterUser) params.set("user_id", filterUser);
@@ -3604,10 +3606,14 @@ function TimeTrackingManager({ token }: { token: string }) {
       const res = await fetch(`/api/time-entries?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         setEntries(data.entries || []);
+      } else {
+        setFetchError(data.error || `Error ${res.status}`);
       }
+    } catch {
+      setFetchError("Network error fetching time entries");
     } finally {
       setLoading(false);
     }
@@ -3855,12 +3861,18 @@ function TimeTrackingManager({ token }: { token: string }) {
         </div>
       )}
 
+      {fetchError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {fetchError}
+        </div>
+      )}
+
       {/* Entries table */}
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-green-primary" />
         </div>
-      ) : entries.length === 0 ? (
+      ) : entries.length === 0 && !fetchError ? (
         <p className="py-8 text-center text-sm text-black-primary/50">
           No time entries found for this period.
         </p>
