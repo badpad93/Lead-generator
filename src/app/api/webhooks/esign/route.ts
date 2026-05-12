@@ -132,6 +132,34 @@ export async function POST(req: NextRequest) {
         // PDF download failure shouldn't block status update
       }
 
+      // Create a sales_documents record so signed e-sign docs appear in the CRM account
+      try {
+        const { data: pipelineItem } = await supabaseAdmin
+          .from("pipeline_items")
+          .select("account_id")
+          .eq("id", esignDoc.pipeline_item_id)
+          .single();
+
+        if (pipelineItem?.account_id) {
+          let fileUrl = `esign://${esignDoc.id}`;
+          if (updates.signed_pdf_url) {
+            const { data: urlData } = supabaseAdmin.storage
+              .from("sales-documents")
+              .getPublicUrl(updates.signed_pdf_url as string);
+            if (urlData?.publicUrl) fileUrl = urlData.publicUrl;
+          }
+
+          await supabaseAdmin.from("sales_documents").insert({
+            account_id: pipelineItem.account_id,
+            file_url: fileUrl,
+            file_name: `${esignDoc.document_name} (signed).pdf`,
+            type: "esign",
+          });
+        }
+      } catch {
+        // Don't block webhook processing
+      }
+
       // Phase 2: If this is a preliminary proposal with PandaDoc+Stripe payment,
       // handle location reveal and full document generation
       const metadata = esignDoc.metadata as Record<string, unknown> | null;
