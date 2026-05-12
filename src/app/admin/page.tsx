@@ -949,7 +949,7 @@ function ListingsManager({
       {/* Edit Modal */}
       {editingListing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-4 sm:p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-black-primary">Edit Listing</h3>
               <button
@@ -2294,7 +2294,7 @@ function RoutesManager({
       {/* Edit Modal */}
       {editingRoute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-4 sm:p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-black-primary">Edit Route</h3>
               <button
@@ -2807,7 +2807,7 @@ function AgreementsManager({ token }: { token: string }) {
       {/* Detail Modal */}
       {viewingAgreement && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-8">
-          <div className="mx-4 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] flex flex-col">
+          <div className="mx-4 w-full max-w-2xl rounded-2xl bg-white p-4 sm:p-6 shadow-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between mb-4 shrink-0">
               <h3 className="text-lg font-semibold text-black-primary">Agreement Details</h3>
               <button
@@ -3446,8 +3446,8 @@ function MachineListingsManager({
       {/* Edit Modal */}
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-4 sm:p-6 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
               <h3 className="text-lg font-semibold text-black-primary">
                 Edit Machine Listing
               </h3>
@@ -3459,7 +3459,7 @@ function MachineListingsManager({
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="mb-1 block text-sm font-medium text-black-primary">
                   Title
@@ -3559,7 +3559,7 @@ function MachineListingsManager({
                 )}
               </div>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex justify-end gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setEditing(null)}
