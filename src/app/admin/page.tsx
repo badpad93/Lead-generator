@@ -405,7 +405,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
         <p className="py-8 text-center text-sm text-black-primary/40">No users found</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[800px] text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Name</th>
@@ -874,7 +874,7 @@ function ListingsManager({
         <p className="py-8 text-center text-sm text-black-primary/40">No listings yet</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
@@ -1264,7 +1264,7 @@ function RequestsManager({
         <p className="py-8 text-center text-sm text-black-primary/40">No requests yet</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[800px] text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
@@ -1354,7 +1354,7 @@ function RequestsManager({
 
       {/* Pagination & count */}
       {!loading && requests.length > 0 && (
-        <div className="mt-4 flex items-center justify-between">
+        <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <p className="text-xs text-gray-500">
             Showing {adminPage * PER_PAGE_ADMIN + 1}–{Math.min((adminPage + 1) * PER_PAGE_ADMIN, totalCount)} of {totalCount}
           </p>
@@ -2223,7 +2223,7 @@ function RoutesManager({
         <p className="py-8 text-center text-sm text-black-primary/40">No route listings yet</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
@@ -2748,7 +2748,7 @@ function AgreementsManager({ token }: { token: string }) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[800px] text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">User Email</th>
@@ -3326,7 +3326,7 @@ function MachineListingsManager({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-black-primary">
           User-Submitted Machines
         </h2>
@@ -3345,7 +3345,7 @@ function MachineListingsManager({
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">
@@ -3832,7 +3832,7 @@ function TimeTrackingManager({ token }: { token: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h2 className="text-lg font-bold text-black-primary">Time Tracking</h2>
         <div className="flex items-center gap-2">
           <button
@@ -3920,7 +3920,7 @@ function TimeTrackingManager({ token }: { token: string }) {
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[700px] text-left text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-xs text-black-primary/50">
                 <th className="pb-3 font-medium">Name</th>
@@ -3991,7 +3991,7 @@ function TimeTrackingManager({ token }: { token: string }) {
       {/* Add manual entry modal */}
       {addingManual && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-4 sm:p-6 shadow-2xl">
             <h3 className="text-lg font-semibold text-black-primary mb-4">Add Manual Time Entry</h3>
             <div className="space-y-4">
               <div>
@@ -4063,7 +4063,7 @@ function TimeTrackingManager({ token }: { token: string }) {
       {/* Edit modal */}
       {editEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-4 sm:p-6 shadow-2xl">
             <h3 className="text-lg font-semibold text-black-primary mb-4">Edit Time Entry</h3>
             <p className="text-sm text-black-primary/50 mb-4">
               {getStaffName(editEntry.user_id)} — {new Date(editEntry.clock_in).toLocaleDateString()}
@@ -4212,7 +4212,7 @@ function MarketplaceManager({
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-black-primary">Marketplace Listings</h2>
           <p className="text-sm text-black-primary/50 mt-1">
@@ -4237,7 +4237,7 @@ function MarketplaceManager({
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[800px] text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
@@ -4418,7 +4418,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl px-4 py-5 sm:py-8 sm:px-6 lg:px-8">
         {/* Tabs */}
         <div className="mb-8 flex gap-1 overflow-x-auto whitespace-nowrap rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
           {tabs.map((tab) => {
