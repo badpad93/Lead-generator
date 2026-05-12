@@ -254,14 +254,20 @@ export default function HomePage() {
   const ctaRef = useScrollReveal<HTMLDivElement>();
 
   useEffect(() => {
-    const supabase = createBrowserClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        router.replace("/dashboard");
-      } else {
+    try {
+      const supabase = createBrowserClient();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          router.replace("/dashboard");
+        } else {
+          setAuthChecked(true);
+        }
+      }).catch(() => {
         setAuthChecked(true);
-      }
-    });
+      });
+    } catch {
+      setAuthChecked(true);
+    }
   }, [router]);
 
   useEffect(() => {
