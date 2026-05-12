@@ -238,7 +238,6 @@ function CTACard({
 export default function HomePage() {
   const router = useRouter();
   const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
 
   // Scroll reveal refs
   const howItWorksRef = useScrollReveal<HTMLDivElement>();
@@ -257,17 +256,9 @@ export default function HomePage() {
     try {
       const supabase = createBrowserClient();
       supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          router.replace("/dashboard");
-        } else {
-          setAuthChecked(true);
-        }
-      }).catch(() => {
-        setAuthChecked(true);
-      });
-    } catch {
-      setAuthChecked(true);
-    }
+        if (session) router.replace("/dashboard");
+      }).catch(() => {});
+    } catch {}
   }, [router]);
 
   useEffect(() => {
@@ -283,10 +274,6 @@ export default function HomePage() {
     { label: "Successful Placements", value: "98+", icon: TrendingUp },
     { label: "States Covered", value: "48", icon: Globe },
   ];
-
-  if (!authChecked) {
-    return <div className="min-h-screen" />;
-  }
 
   return (
     <div className="overflow-hidden grain">
