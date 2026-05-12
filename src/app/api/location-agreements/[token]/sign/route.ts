@@ -80,6 +80,25 @@ export async function POST(
     }
   }
 
+  // Create a sales_documents record so the signed agreement shows in the CRM account
+  if (agreement.lead_id) {
+    const { data: lead } = await supabaseAdmin
+      .from("sales_leads")
+      .select("account_id")
+      .eq("id", agreement.lead_id)
+      .single();
+
+    if (lead?.account_id) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
+      await supabaseAdmin.from("sales_documents").insert({
+        account_id: lead.account_id,
+        file_url: `${appUrl}/location-agreement/${token}`,
+        file_name: `Location Agreement — ${business_name?.trim() || "Signed"}`,
+        type: "location_agreement",
+      });
+    }
+  }
+
   // Auto-publish the marketplace listing once the owner signs
   if (agreement.listing_id) {
     await supabaseAdmin
