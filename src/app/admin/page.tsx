@@ -219,7 +219,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
-  const [editForm, setEditForm] = useState({ role: "", verified: false, featured: false, full_name: "", email: "", address: "", city: "", state: "", zip: "" });
+  const [editForm, setEditForm] = useState({ role: "", verified: false, featured: false, full_name: "", email: "", company_name: "", phone: "", address: "", city: "", state: "", zip: "" });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
@@ -258,6 +258,8 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
       featured: user.featured,
       full_name: user.full_name,
       email: user.email,
+      company_name: user.company_name || "",
+      phone: user.phone || "",
       address: user.address || "",
       city: user.city || "",
       state: user.state || "",
@@ -313,14 +315,20 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await fetch(`/api/admin/users/${deleteTarget.id}`, {
+      const res = await fetch(`/api/admin/users/${deleteTarget.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      setDeleteTarget(null);
-      fetchUsers();
+      if (res.ok) {
+        setDeleteTarget(null);
+        onSuccess("User deleted successfully");
+        fetchUsers();
+      } else {
+        const data = await res.json().catch(() => ({ error: "Delete failed" }));
+        alert(data.error || "Failed to delete user");
+      }
     } catch {
-      /* noop */
+      alert("Network error — please try again");
     } finally {
       setDeleting(false);
     }
@@ -424,11 +432,27 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                   </td>
                   <td className="px-4 py-3">{roleBadge(user.role)}</td>
                   <td className="px-4 py-3">
-                    {user.verified ? (
-                      <BadgeCheck className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <span className="text-xs text-black-primary/30">No</span>
-                    )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/admin/users/${user.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                            body: JSON.stringify({ verified: !user.verified }),
+                          });
+                          if (res.ok) fetchUsers();
+                        } catch {}
+                      }}
+                      className={`rounded-lg p-1.5 transition-colors cursor-pointer ${
+                        user.verified
+                          ? "text-green-500 hover:bg-green-50"
+                          : "text-black-primary/20 hover:bg-gray-50 hover:text-green-400"
+                      }`}
+                      title={user.verified ? "Remove verification" : "Verify user"}
+                    >
+                      <BadgeCheck className={`h-5 w-5`} />
+                    </button>
                   </td>
                   <td className="px-4 py-3">
                     <button
@@ -506,6 +530,28 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                   onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-black-primary">Company</label>
+                  <input
+                    type="text"
+                    value={editForm.company_name}
+                    onChange={(e) => setEditForm((f) => ({ ...f, company_name: e.target.value }))}
+                    placeholder="Company name"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-black-primary">Phone</label>
+                  <input
+                    type="text"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
+                    placeholder="(555) 123-4567"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                  />
+                </div>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-black-primary">Role</label>
