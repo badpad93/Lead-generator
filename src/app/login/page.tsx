@@ -64,12 +64,12 @@ function LoginContent() {
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-black-primary">Welcome Back</h1>
+          <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">Welcome Back</h1>
           <p className="text-black-primary/60 mt-2">Sign in to your Vending Connector account</p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8">
           {/* Error alert */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">

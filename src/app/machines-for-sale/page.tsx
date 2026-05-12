@@ -273,7 +273,7 @@ export default function MachinesForSalePage() {
       <section className="border-b border-green-100 bg-gradient-to-b from-light-warm to-light">
         <div className="mx-auto max-w-7xl px-4 pb-8 pt-12 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-3xl font-bold tracking-tight text-black-primary sm:text-4xl">
+            <h1 className="text-2xl font-bold tracking-tight text-black-primary sm:text-3xl md:text-4xl">
               Machines for Sale
             </h1>
             <p className="mx-auto mt-3 max-w-2xl text-base text-gray-600 sm:text-lg">
@@ -283,7 +283,7 @@ export default function MachinesForSalePage() {
             <div className="mt-5 flex flex-wrap justify-center gap-3">
               <Link
                 href="/post-machine"
-                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
               >
                 <Plus className="h-4 w-4" />
                 Post a Machine for Sale
@@ -319,11 +319,11 @@ export default function MachinesForSalePage() {
       {/* Filter bar */}
       <section className="sticky top-16 z-20 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
         <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <select
               value={stateFilter}
               onChange={(e) => setStateFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-black-primary focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
+              className="w-full sm:w-auto rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-black-primary focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
             >
               <option value="">All States</option>
               {US_STATES.map((s) => (
@@ -336,7 +336,7 @@ export default function MachinesForSalePage() {
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-black-primary focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
+              className="w-[calc(50%-4px)] sm:w-auto rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-black-primary focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
             >
               <option value="">All Types</option>
               {MACHINE_TYPE_OPTIONS.map((t) => (
@@ -349,7 +349,7 @@ export default function MachinesForSalePage() {
             <select
               value={conditionFilter}
               onChange={(e) => setConditionFilter(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-black-primary focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
+              className="w-[calc(50%-4px)] sm:w-auto rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-black-primary focus:border-green-primary focus:ring-2 focus:ring-green-primary/20"
             >
               <option value="">Any Condition</option>
               {Object.entries(CONDITION_LABELS).map(([v, l]) => (
@@ -400,7 +400,7 @@ export default function MachinesForSalePage() {
         )}
 
         {loading && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -408,7 +408,7 @@ export default function MachinesForSalePage() {
         )}
 
         {!loading && listings.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white px-6 py-16 text-center">
+          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-white px-4 py-10 sm:px-6 sm:py-16 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
               <SearchX className="h-7 w-7 text-green-primary" />
             </div>
@@ -421,7 +421,7 @@ export default function MachinesForSalePage() {
             </p>
             <Link
               href="/post-machine"
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+              className="mt-6 inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
             >
               <Plus className="h-4 w-4" />
               Be the first to post
@@ -431,7 +431,7 @@ export default function MachinesForSalePage() {
 
         {!loading && listings.length > 0 && (
           <>
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {listings.map((listing) => (
                 <MachineCard key={listing.id} listing={listing} />
               ))}

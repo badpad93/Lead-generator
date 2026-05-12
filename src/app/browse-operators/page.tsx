@@ -104,7 +104,7 @@ function MachineTypeMultiSelect({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-64 rounded-xl border border-gray-200 bg-white py-2 shadow-xl animate-fade-in">
+        <div className="absolute left-0 top-full z-30 mt-1 w-[calc(100vw-2rem)] sm:w-64 rounded-xl border border-gray-200 bg-white py-2 shadow-xl animate-fade-in">
           {MACHINE_TYPES.map((mt) => {
             const isChecked = selected.includes(mt.value);
             return (
@@ -196,7 +196,7 @@ function FilterDropdown({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 max-h-60 w-56 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-xl animate-fade-in">
+        <div className="absolute left-0 top-full z-30 mt-1 max-h-60 w-[calc(100vw-2rem)] sm:w-56 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-xl animate-fade-in">
           <button
             type="button"
             onClick={() => {
@@ -695,7 +695,7 @@ export default function BrowseOperatorsPage() {
       <section className="border-b border-green-100 bg-gradient-to-b from-light-warm to-light">
         <div className="mx-auto max-w-7xl px-4 pb-8 pt-12 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-3xl font-bold tracking-tight text-black-primary sm:text-4xl">
+            <h1 className="text-2xl font-bold tracking-tight text-black-primary sm:text-3xl md:text-4xl">
               Browse Vending Operators
             </h1>
             <p className="mx-auto mt-3 max-w-2xl text-base text-gray-600 sm:text-lg">
@@ -848,7 +848,7 @@ export default function BrowseOperatorsPage() {
 
         {/* Loading skeleton */}
         {loading && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <OperatorCardSkeleton key={i} />
             ))}
@@ -891,7 +891,7 @@ export default function BrowseOperatorsPage() {
         {/* Operator cards grid */}
         {!loading && operators.length > 0 && (
           <>
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {operators.map((op) => (
                 <OperatorCard key={op.id} operator={op} onViewProfile={(id) => router.push(`/operators/${id}`)} />
               ))}

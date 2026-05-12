@@ -387,7 +387,7 @@ export default function PostRequestPage() {
       <div className="mx-auto max-w-2xl">
         {/* ---- Page title ---- */}
         <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-black-primary">Post a Vending Request</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-black-primary">Post a Vending Request</h1>
           <p className="text-black-primary/60 mt-2">
             Tell operators about your location and what you need.
           </p>
@@ -621,7 +621,7 @@ export default function PostRequestPage() {
                 <label className="block text-sm font-medium text-black-primary mb-3">
                   Machine Types Wanted <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                   {MACHINE_TYPES.map(({ label, icon: Icon }) => {
                     const selected = formData.machineTypes.includes(label);
                     return (
@@ -630,7 +630,7 @@ export default function PostRequestPage() {
                         type="button"
                         onClick={() => toggleMachineType(label)}
                         className={`
-                          flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer
+                          flex flex-col items-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer
                           ${
                             selected
                               ? "border-green-primary bg-light-warm shadow-sm"
@@ -775,14 +775,14 @@ export default function PostRequestPage() {
                 <label className="block text-sm font-medium text-black-primary mb-3">
                   Urgency <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                   {URGENCY_OPTIONS.map(({ value, label, description, icon: Icon }) => {
                     const selected = formData.urgency === value;
                     return (
                       <label
                         key={value}
                         className={`
-                          flex flex-col items-center gap-1.5 p-4 rounded-xl border-2 cursor-pointer transition-all text-center
+                          flex flex-col items-center gap-1 sm:gap-1.5 p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all text-center
                           ${
                             selected
                               ? "border-green-primary bg-light-warm shadow-sm"
@@ -1050,9 +1050,9 @@ function ReviewSection({
 
 function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs text-black-primary/50">{label}</p>
-      <p className="text-sm text-black-primary font-medium mt-0.5">{value}</p>
+      <p className="text-sm text-black-primary font-medium mt-0.5 break-words">{value}</p>
     </div>
   );
 }

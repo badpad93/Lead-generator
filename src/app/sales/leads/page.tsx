@@ -1000,7 +1000,7 @@ export default function LeadsPage() {
       </div>
 
       {selected.size > 0 && (
-        <div className="mb-3 flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5">
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 sm:gap-3 sm:px-4">
           <CheckSquare className="h-4 w-4 text-gray-600 shrink-0" />
           <span className="text-sm font-medium text-gray-800">{selected.size} lead{selected.size > 1 ? "s" : ""} selected</span>
           <button
@@ -1033,7 +1033,7 @@ export default function LeadsPage() {
         <p className="py-12 text-center text-sm text-gray-400">No leads found</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[700px] text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 {userRole === "admin" && (

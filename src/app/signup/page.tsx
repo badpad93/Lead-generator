@@ -199,7 +199,7 @@ export default function SignupPage() {
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-black-primary">Join Vending Connector</h1>
+          <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">Join Vending Connector</h1>
           <p className="text-black-primary/60 mt-2">
             {step === 1
               ? "Select your role to get started"
@@ -232,7 +232,7 @@ export default function SignupPage() {
         )}
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8">
           {/* Error alert */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
@@ -314,7 +314,7 @@ export default function SignupPage() {
                   <label className="block text-xs font-medium text-gray-500 mb-1">Business Name *</label>
                   <input value={leadForm.business_name} onChange={(e) => setLeadForm((f) => ({ ...f, business_name: e.target.value }))} placeholder="Your business name" className={inputClass} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Contact Name *</label>
                     <input value={leadForm.contact_name} onChange={(e) => setLeadForm((f) => ({ ...f, contact_name: e.target.value }))} placeholder="Full name" className={inputClass} />
@@ -328,7 +328,7 @@ export default function SignupPage() {
                   <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
                   <input value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} placeholder="Street address" className={inputClass} />
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">City <span className="text-red-500">*</span></label>
                     <input value={leadForm.city} onChange={(e) => setLeadForm((f) => ({ ...f, city: e.target.value }))} placeholder="City" className={inputClass} />
@@ -342,7 +342,7 @@ export default function SignupPage() {
                     <input value={leadForm.zip} onChange={(e) => setLeadForm((f) => ({ ...f, zip: e.target.value }))} placeholder="e.g. 75001" maxLength={10} className={inputClass} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
                     <select value={leadForm.entity_type} onChange={(e) => setLeadForm((f) => ({ ...f, entity_type: e.target.value }))} className={selectClass}>

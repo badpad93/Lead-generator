@@ -29,7 +29,7 @@ export default function PricingPage() {
       {/* Hero */}
       <section className="border-b border-green-100 bg-gradient-to-b from-light-warm to-light">
         <div className="mx-auto max-w-3xl px-4 pb-10 pt-14 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-black-primary sm:text-4xl">
+          <h1 className="text-2xl font-bold tracking-tight text-black-primary sm:text-4xl">
             Purchase Individual Leads
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-base text-gray-600 sm:text-lg">
@@ -42,7 +42,7 @@ export default function PricingPage() {
       <section className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
         <div className="grid gap-6 md:grid-cols-2">
           {/* Free tier */}
-          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-8">
             <div className="text-center mb-6">
               <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">
                 Free Access
@@ -75,7 +75,7 @@ export default function PricingPage() {
           </div>
 
           {/* Per-lead purchase */}
-          <div className="rounded-2xl border-2 border-green-primary bg-white p-8 shadow-lg shadow-green-primary/5">
+          <div className="rounded-2xl border-2 border-green-primary bg-white p-5 shadow-lg shadow-green-primary/5 sm:p-8">
             <div className="text-center mb-6">
               <p className="text-sm font-medium text-green-primary uppercase tracking-wide">
                 Per-Lead Purchase
@@ -114,7 +114,7 @@ export default function PricingPage() {
         </div>
 
         {/* How it works */}
-        <div className="mt-12 rounded-2xl border border-gray-200 bg-white p-8">
+        <div className="mt-12 rounded-2xl border border-gray-200 bg-white p-5 sm:p-8">
           <h2 className="text-xl font-bold text-black-primary text-center mb-6">
             How It Works
           </h2>

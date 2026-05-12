@@ -501,8 +501,8 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
       {/* Edit Modal */}
       {editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-4 sm:p-6 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
               <h3 className="text-lg font-semibold text-black-primary">Edit User</h3>
               <button
                 type="button"
@@ -512,7 +512,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="mb-1 block text-sm font-medium text-black-primary">Name</label>
                 <input
@@ -531,7 +531,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-black-primary">Company</label>
                   <input
@@ -607,7 +607,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
                 />
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-black-primary">City</label>
                   <input
@@ -646,7 +646,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
             {saveError && (
               <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{saveError}</p>
             )}
-            <div className="mt-4 flex justify-end gap-3">
+            <div className="mt-4 flex justify-end gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => { setEditingUser(null); setSaveError(""); }}
@@ -1383,7 +1383,7 @@ function RequestsManager({
       {viewingRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-8">
           <div className="mx-4 w-full max-w-2xl rounded-2xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 shrink-0">
+            <div className="flex items-center justify-between border-b border-gray-100 px-4 sm:px-6 py-4 shrink-0">
               <h3 className="text-lg font-semibold text-black-primary">Lead Details</h3>
               <div className="flex items-center gap-2">
                 <button
@@ -1403,13 +1403,13 @@ function RequestsManager({
                 </button>
               </div>
             </div>
-            <div className="overflow-y-auto px-6 py-4 space-y-4">
+            <div className="overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
               <div>
                 <h4 className="text-xl font-bold text-black-primary">{viewingRequest.title}</h4>
                 <p className="text-xs text-gray-400 mt-1">ID: {viewingRequest.id}</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <DetailField label="Status" value={viewingRequest.status} />
                 <DetailField label="Visibility" value={viewingRequest.is_public ? "Public" : "Pending"} />
                 <DetailField label="Price" value={viewingRequest.price != null ? `$${Number(viewingRequest.price).toLocaleString()}` : "Not set"} />
@@ -1418,7 +1418,7 @@ function RequestsManager({
 
               <hr className="border-gray-100" />
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Location</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <DetailField label="Business Name" value={viewingRequest.location_name} />
                 <DetailField label="City" value={viewingRequest.city} />
                 <DetailField label="State" value={viewingRequest.state} />
@@ -1429,7 +1429,7 @@ function RequestsManager({
 
               <hr className="border-gray-100" />
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact Info</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <DetailField label="Decision Maker" value={viewingRequest.decision_maker_name} />
                 <DetailField label="Phone" value={viewingRequest.contact_phone} />
                 <DetailField label="Email" value={viewingRequest.contact_email} />
@@ -1440,7 +1440,7 @@ function RequestsManager({
 
               <hr className="border-gray-100" />
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Details</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <DetailField label="Machine Types" value={viewingRequest.machine_types_wanted?.map((mt: string) => MACHINE_TYPES.find((m) => m.value === mt)?.label || mt).join(", ")} />
                 <DetailField label="Daily Traffic" value={viewingRequest.estimated_daily_traffic != null ? String(viewingRequest.estimated_daily_traffic) : null} />
                 <DetailField label="Commission Offered" value={viewingRequest.commission_offered ? "Yes" : "No"} />
@@ -1461,8 +1461,8 @@ function RequestsManager({
       {/* Edit Modal */}
       {editingRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-8">
-          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-4 sm:p-6 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
               <h3 className="text-lg font-semibold text-black-primary">Edit Request</h3>
               <button
                 type="button"
@@ -1739,7 +1739,7 @@ function OperatorForm({
         selected={form.machine_types}
         onChange={(val) => setForm((f) => ({ ...f, machine_types: val }))}
       />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-black-primary">Machines Available</label>
           <input
@@ -1932,7 +1932,7 @@ function LocationForm({
           className={inputClass}
         />
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-black-primary">City *</label>
           <input
@@ -1986,7 +1986,7 @@ function LocationForm({
         selected={form.machine_types_wanted}
         onChange={(val) => setForm((f) => ({ ...f, machine_types_wanted: val }))}
       />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-black-primary">Est. Daily Traffic</label>
           <input
@@ -2505,7 +2505,7 @@ function RouteForm({
           className={inputClass}
         />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-black-primary">City *</label>
           <input
@@ -2531,7 +2531,7 @@ function RouteForm({
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-black-primary">Number of Machines *</label>
           <input
@@ -2553,7 +2553,7 @@ function RouteForm({
           />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-black-primary">Monthly Revenue ($)</label>
           <input
@@ -2613,7 +2613,7 @@ function RouteForm({
           </label>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-black-primary">Contact Email</label>
           <input
@@ -2821,7 +2821,7 @@ function AgreementsManager({ token }: { token: string }) {
 
             <div className="overflow-y-auto flex-1 space-y-4">
               {/* Signer Info */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-lg bg-gray-50 p-3">
                   <p className="text-xs font-medium text-gray-400 uppercase">Full Name</p>
                   <p className="text-sm font-semibold text-black-primary mt-1">{viewingAgreement.full_name}</p>
@@ -4391,14 +4391,14 @@ export default function AdminPage() {
     <div className="min-h-[calc(100vh-160px)] bg-light">
       {/* Header */}
       <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl px-4 py-5 sm:py-8 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50">
+              <div className="hidden sm:flex h-12 w-12 items-center justify-center rounded-xl bg-green-50">
                 <Shield className="h-6 w-6 text-green-primary" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-black-primary">
+                <h1 className="text-xl sm:text-2xl font-bold text-black-primary">
                   Admin Panel
                 </h1>
                 <p className="text-sm text-black-primary/50">
@@ -4420,7 +4420,7 @@ export default function AdminPage() {
 
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Tabs */}
-        <div className="mb-8 flex gap-1 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="mb-8 flex gap-1 overflow-x-auto whitespace-nowrap rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (

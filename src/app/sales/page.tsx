@@ -298,7 +298,7 @@ export default function SalesDashboard() {
                     )}
                   </h2>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
                   <div className="rounded-lg bg-gray-50 p-4">
                     <p className="text-xs text-gray-500">Leads Worked</p>
                     <p className="text-xl font-bold text-gray-900">{results.metrics.leads_total}</p>
