@@ -4,19 +4,12 @@ import type { Database } from "./types";
 
 /**
  * Browser client that syncs session to cookies (for middleware auth checks).
- * Uses implicit flow to avoid PKCE code verifier cookie issues during OAuth.
  * Use this in client components.
  */
 export function createBrowserClient() {
   return createSSRBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        flowType: "implicit",
-        detectSessionInUrl: true,
-      },
-    }
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 }
 
