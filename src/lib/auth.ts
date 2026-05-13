@@ -1,5 +1,5 @@
 import type { Profile } from "./types";
-import { createBrowserClient, createPlainBrowserClient } from "./supabase";
+import { createBrowserClient } from "./supabase";
 
 const SIGNUP_ROLE_KEY = "vc_signup_role";
 const REDIRECT_KEY = "vc_redirect_after_login";
@@ -65,16 +65,11 @@ export function consumeAuthFlow(): "login" | "signup" | null {
   return flow;
 }
 
-/** Get the current Supabase session access token (checks both cookie and localStorage) */
+/** Get the current Supabase session access token */
 export async function getAccessToken(): Promise<string | null> {
-  const ssrClient = createBrowserClient();
-  const { data: { session } } = await ssrClient.auth.getSession();
-  if (session?.access_token) return session.access_token;
-
-  // Fallback: check localStorage-based client (session may not have synced to cookies)
-  const plainClient = createPlainBrowserClient();
-  const { data: { session: plainSession } } = await plainClient.auth.getSession();
-  return plainSession?.access_token || null;
+  const supabase = createBrowserClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
 }
 
 /** Get the base site URL (prefer env var, fall back to window.location.origin) */
@@ -90,29 +85,18 @@ function getSiteUrl(): string {
 
 /**
  * Fully clear any existing Supabase session and verify it's gone.
- * Clears both cookie-based (SSR) and localStorage-based (plain) sessions.
  * Returns true if session is confirmed cleared.
  */
 export async function ensureSignedOut(): Promise<boolean> {
-  const ssrClient = createBrowserClient();
-  const plainClient = createPlainBrowserClient();
-  await Promise.all([
-    ssrClient.auth.signOut(),
-    plainClient.auth.signOut(),
-  ]);
-  const { data: { session } } = await ssrClient.auth.getSession();
+  const supabase = createBrowserClient();
+  await supabase.auth.signOut();
+  const { data: { session } } = await supabase.auth.getSession();
   return session === null;
 }
 
-/**
- * Use the plain (localStorage-based) client for all OAuth flows.
- * The SSR client stores the PKCE code verifier in cookies, which get lost
- * during cross-domain OAuth redirects. localStorage persists reliably.
- */
-
 /** Sign in with Google OAuth for LOGIN flow */
 export async function signInWithGoogle(): Promise<void> {
-  const supabase = createPlainBrowserClient();
+  const supabase = createBrowserClient();
   storeAuthFlow("login");
   await supabase.auth.signInWithOAuth({
     provider: "google",
@@ -128,7 +112,7 @@ export async function signInWithGoogle(): Promise<void> {
 
 /** Sign in with Google OAuth for SIGNUP flow (forces account selection) */
 export async function signUpWithGoogle(): Promise<void> {
-  const supabase = createPlainBrowserClient();
+  const supabase = createBrowserClient();
   storeAuthFlow("signup");
   await supabase.auth.signInWithOAuth({
     provider: "google",
@@ -144,7 +128,7 @@ export async function signUpWithGoogle(): Promise<void> {
 
 /** Sign in with Microsoft OAuth for LOGIN flow */
 export async function signInWithMicrosoft(): Promise<void> {
-  const supabase = createPlainBrowserClient();
+  const supabase = createBrowserClient();
   storeAuthFlow("login");
   await supabase.auth.signInWithOAuth({
     provider: "azure",
@@ -158,7 +142,7 @@ export async function signInWithMicrosoft(): Promise<void> {
 
 /** Sign in with Microsoft OAuth for SIGNUP flow */
 export async function signUpWithMicrosoft(): Promise<void> {
-  const supabase = createPlainBrowserClient();
+  const supabase = createBrowserClient();
   storeAuthFlow("signup");
   await supabase.auth.signInWithOAuth({
     provider: "azure",

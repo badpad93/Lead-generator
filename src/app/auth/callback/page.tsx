@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
-import { createBrowserClient, createPlainBrowserClient } from "@/lib/supabase";
+import { createBrowserClient } from "@/lib/supabase";
 import { consumeSignupRole, consumeRedirectAfterLogin, consumeAuthFlow, consumeSignupLead } from "@/lib/auth";
 
 function CallbackContent() {
@@ -21,11 +21,6 @@ function CallbackContent() {
       const flow = flowParam || storedFlow || "login";
       const isSignup = flow === "signup";
 
-      // Exchange the OAuth code for a session using the plain
-      // (localStorage-based) client. The PKCE code verifier was stored in
-      // localStorage by the OAuth initiation functions in auth.ts. The SSR
-      // client (cookie-based) loses the verifier during cross-domain
-      // redirects, so we must use the same storage layer that wrote it.
       const code = searchParams.get("code");
       if (!code) {
         setError("Missing authorization code. Please try again.");
@@ -35,8 +30,8 @@ function CallbackContent() {
         return;
       }
 
-      const plainClient = createPlainBrowserClient();
-      const { data, error: exchangeErr } = await plainClient.auth.exchangeCodeForSession(code);
+      const supabase = createBrowserClient();
+      const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
       if (cancelled) return;
 
       if (exchangeErr || !data.session) {
@@ -49,19 +44,6 @@ function CallbackContent() {
       }
 
       const session = data.session;
-
-      // Sync the session to the SSR (cookie-based) client so the rest of
-      // the app can read it via createBrowserClient / getAccessToken.
-      try {
-        const ssrClient = createBrowserClient();
-        await ssrClient.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-      } catch {
-        // Best-effort — the plain client session in localStorage is the
-        // primary fallback; cookie sync failing is non-fatal.
-      }
 
       // Ensure the profile exists (auto-creates for new users via GET)
       try {
