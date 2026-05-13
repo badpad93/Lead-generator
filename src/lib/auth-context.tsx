@@ -49,42 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [sessionUser, setSessionUser] = useState<{ email: string; name: string } | null>(null);
-  const fetchInFlight = useRef(false);
-
-  const fetchProfile = useCallback(async (accessToken: string) => {
-    if (fetchInFlight.current) return;
-    fetchInFlight.current = true;
-    try {
-      const [profileRes, adminRes] = await Promise.all([
-        fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }),
-        fetch("/api/admin/check", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }),
-      ]);
-      if (profileRes.ok) {
-        const data = await profileRes.json();
-        setProfile(data);
-        setToken(accessToken);
-        setIsLoading(false);
-      } else if (profileRes.status === 401) {
-        setProfile(null);
-        setSessionUser(null);
-        setToken("");
-        setIsLoading(false);
-        return;
-      }
-      if (adminRes.ok) {
-        const data = await adminRes.json();
-        setIsAdmin(!!data.isAdmin);
-      }
-    } catch {
-      // keep existing state on network error
-    } finally {
-      fetchInFlight.current = false;
-    }
-  }, []);
+  const tokenRef = useRef("");
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -100,34 +65,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setSessionUser(extractSessionUser(session));
-      await fetchProfile(session.access_token);
+
+      try {
+        const [profileRes, adminRes] = await Promise.all([
+          fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }),
+          fetch("/api/admin/check", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }),
+        ]);
+        if (!mounted) return;
+
+        if (profileRes.ok) {
+          setProfile(await profileRes.json());
+          setToken(session.access_token);
+          tokenRef.current = session.access_token;
+        } else if (profileRes.status === 401) {
+          setSessionUser(null);
+        }
+        if (adminRes.ok) {
+          const data = await adminRes.json();
+          setIsAdmin(!!data.isAdmin);
+        }
+      } catch {
+        // keep sessionUser on network error so Navbar still shows logged-in
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
     }
 
     init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!mounted) return;
 
         if (event === "TOKEN_REFRESHED" && session?.access_token) {
           setToken(session.access_token);
-          if (!profile) {
-            setSessionUser(extractSessionUser(session));
-            await fetchProfile(session.access_token);
-          }
-          return;
-        }
-
-        if (event === "SIGNED_IN" && session?.access_token) {
-          setSessionUser(extractSessionUser(session));
-          await fetchProfile(session.access_token);
-          return;
-        }
-
-        if (event === "SIGNED_OUT") {
+          tokenRef.current = session.access_token;
+        } else if (event === "SIGNED_OUT") {
           setProfile(null);
           setSessionUser(null);
           setToken("");
+          tokenRef.current = "";
           setIsAdmin(false);
           setIsLoading(false);
         }
@@ -138,7 +119,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const signOut = useCallback(async () => {
@@ -147,14 +127,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
     setSessionUser(null);
     setToken("");
+    tokenRef.current = "";
     setIsAdmin(false);
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (!token) return;
-    fetchInFlight.current = false;
-    await fetchProfile(token);
-  }, [token, fetchProfile]);
+    const t = tokenRef.current;
+    if (!t) return;
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (res.ok) {
+        setProfile(await res.json());
+      }
+    } catch {
+      // best-effort
+    }
+  }, []);
 
   return (
     <AuthContext.Provider
