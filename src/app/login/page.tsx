@@ -14,6 +14,14 @@ function LoginContent() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    // If redirected here after an auth failure, show the error and don't auto-redirect
+    const authError = searchParams.get("error");
+    if (authError) {
+      setError(authError);
+      setChecking(false);
+      return;
+    }
+
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {

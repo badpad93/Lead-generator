@@ -32,15 +32,20 @@ function CallbackContent() {
       const code = searchParams.get("code");
       if (!code) {
         setError("Missing authorization code. Please try again.");
-        setTimeout(() => { window.location.href = "/login"; }, 2000);
+        setTimeout(() => {
+          window.location.href = "/login?error=" + encodeURIComponent("Missing authorization code. Please try signing in again.");
+        }, 2000);
         return;
       }
 
       const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
       if (cancelled) return;
       if (exchangeErr || !data.session) {
-        setError(exchangeErr?.message || "Failed to complete sign-in.");
-        setTimeout(() => { window.location.href = "/login"; }, 2000);
+        const msg = exchangeErr?.message || "Failed to complete sign-in.";
+        setError(msg);
+        setTimeout(() => {
+          window.location.href = "/login?error=" + encodeURIComponent("Sign-in failed: " + msg + ". Please try again.");
+        }, 2000);
         return;
       }
 
