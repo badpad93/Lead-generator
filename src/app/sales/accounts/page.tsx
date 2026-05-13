@@ -204,7 +204,7 @@ export default function AccountsPage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[700px] text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 {userRole === "admin" && (
@@ -220,8 +220,8 @@ export default function AccountsPage() {
                 <th className="px-4 py-3 font-medium text-gray-500">Business</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Type</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Contact</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Phone</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Email</th>
+                <th className="hidden px-4 py-3 font-medium text-gray-500 sm:table-cell">Phone</th>
+                <th className="hidden px-4 py-3 font-medium text-gray-500 sm:table-cell">Email</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Created</th>
                 <th className="px-4 py-3 font-medium text-gray-500"></th>
               </tr>
@@ -257,8 +257,8 @@ export default function AccountsPage() {
                     </select>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{acct.contact_name || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{acct.phone || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{acct.email || "—"}</td>
+                  <td className="hidden px-4 py-3 text-gray-600 sm:table-cell">{acct.phone || "—"}</td>
+                  <td className="hidden px-4 py-3 text-gray-600 sm:table-cell">{acct.email || "—"}</td>
                   <td className="px-4 py-3 text-xs text-gray-400">{new Date(acct.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
                     <button

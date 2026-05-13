@@ -65,12 +65,12 @@ export default function Footer() {
               <h3 className="text-sm font-semibold uppercase tracking-wider text-white">
                 {column.title}
               </h3>
-              <ul className="mt-4 space-y-2.5">
+              <ul className="mt-4 space-y-1">
                 {column.links.map((link) => (
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="text-sm text-gray-400 transition-colors hover:text-green-primary"
+                      className="inline-block py-1.5 text-sm text-gray-400 transition-colors hover:text-green-primary"
                       title={TOOLTIP_COPY[link.label]}
                       aria-label={TOOLTIP_COPY[link.label]}
                     >

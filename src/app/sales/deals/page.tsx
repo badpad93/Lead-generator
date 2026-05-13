@@ -265,23 +265,23 @@ export default function DealDashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-          <p className="text-xs text-gray-400">Total Deals</p>
-          <p className="text-lg font-bold text-gray-900">{totalDeals}</p>
+      <div className="grid grid-cols-3 gap-2 mb-6 sm:gap-3">
+        <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-3">
+          <p className="text-[10px] text-gray-400 sm:text-xs">Total Deals</p>
+          <p className="text-base font-bold text-gray-900 sm:text-lg">{totalDeals}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-          <p className="text-xs text-gray-400">Open</p>
-          <p className="text-lg font-bold text-blue-600">{openDeals}</p>
+        <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-3">
+          <p className="text-[10px] text-gray-400 sm:text-xs">Open</p>
+          <p className="text-base font-bold text-blue-600 sm:text-lg">{openDeals}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-          <p className="text-xs text-gray-400">Won</p>
-          <p className="text-lg font-bold text-green-600">{wonDeals}</p>
+        <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-3">
+          <p className="text-[10px] text-gray-400 sm:text-xs">Won</p>
+          <p className="text-base font-bold text-green-600 sm:text-lg">{wonDeals}</p>
         </div>
       </div>
 
       {/* Pipeline Tabs */}
-      <div className="mb-4 flex flex-wrap gap-2 border-b border-gray-200 pb-3">
+      <div className="mb-4 flex gap-2 overflow-x-auto border-b border-gray-200 pb-3 sm:flex-wrap">
         <button
           onClick={() => setActiveTab("all")}
           className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors cursor-pointer ${
@@ -411,8 +411,8 @@ export default function DealDashboardPage() {
 
       {/* ============ ALL DEALS VIEW ============ */}
       {activeTab === "all" && (
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-xl border border-gray-200 bg-white overflow-x-auto">
+          <table className="w-full min-w-[600px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
                 {userRole === "admin" && (
@@ -498,7 +498,7 @@ export default function DealDashboardPage() {
                   return itemStep?.id === step.id && item.status !== "won" && item.status !== "lost";
                 });
                 return (
-                  <div key={step.id} className="min-w-[260px] flex-shrink-0">
+                  <div key={step.id} className="min-w-[220px] flex-shrink-0 sm:min-w-[260px]">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-xs font-semibold text-gray-500 uppercase">{step.name}</h3>
                       <span className="text-xs text-gray-300">{stepItems.length}</span>

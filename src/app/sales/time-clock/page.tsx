@@ -287,7 +287,7 @@ export default function TimeClockPage() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <div className="rounded-xl border border-gray-200 bg-white p-5 text-center">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</p>
           <div className="mt-2">

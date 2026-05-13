@@ -116,13 +116,13 @@ export default function MarketplacePage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Marketplace</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Marketplace</h1>
         <p className="text-gray-500 text-sm mt-1">Browse vending leads, locations, and routes posted by operators and location managers</p>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-6">
+        <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             value={search}
@@ -146,7 +146,7 @@ export default function MarketplacePage() {
           {US_STATES.map(s => <option key={s} value={s}>{US_STATE_NAMES[s] || s}</option>)}
         </select>
 
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+        <div className="flex rounded-lg border border-gray-200 overflow-x-auto">
           {TYPE_TABS.map(t => (
             <button
               key={t.value}
@@ -165,7 +165,7 @@ export default function MarketplacePage() {
 
       {/* Results */}
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : filtered.length === 0 ? (
@@ -176,7 +176,7 @@ export default function MarketplacePage() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((l) => (
               <Link
                 key={l.id}
@@ -242,9 +242,9 @@ export default function MarketplacePage() {
       )}
 
       {/* CTA for sellers */}
-      <div className="mt-12 rounded-2xl bg-gradient-to-r from-green-600 to-green-700 p-8 text-white text-center">
+      <div className="mt-12 rounded-2xl bg-gradient-to-r from-green-600 to-green-700 px-4 py-6 sm:p-8 text-white text-center">
         <ShoppingBag className="h-10 w-10 mx-auto mb-3 opacity-80" />
-        <h2 className="text-xl font-bold mb-2">Have Leads or Locations to Sell?</h2>
+        <h2 className="text-lg sm:text-xl font-bold mb-2">Have Leads or Locations to Sell?</h2>
         <p className="text-green-100 text-sm mb-4 max-w-md mx-auto">
           Connect your Stripe account and start earning. You set the price — we handle the payment. You keep 85%.
         </p>

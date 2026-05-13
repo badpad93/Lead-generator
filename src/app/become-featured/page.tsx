@@ -139,7 +139,7 @@ export default function BecomeFeaturedPage() {
             <span className="text-sm font-semibold text-amber-700">Featured Operator Program</span>
           </div>
 
-          <h1 className="text-4xl font-bold tracking-tight text-black-primary sm:text-5xl">
+          <h1 className="text-2xl font-bold tracking-tight text-black-primary sm:text-5xl">
             Get More Leads.<br />
             <span className="text-green-primary">Get Found First.</span>
           </h1>
@@ -368,26 +368,26 @@ export default function BecomeFeaturedPage() {
       {/* Social proof / stats */}
       <section className="bg-gradient-to-b from-green-50 to-light border-t border-green-100">
         <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="grid gap-8 sm:grid-cols-3 text-center">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-8 text-center">
             <div>
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Users className="h-6 w-6 text-green-primary" />
               </div>
-              <p className="text-3xl font-bold text-black-primary">3 max</p>
+              <p className="text-2xl font-bold text-black-primary sm:text-3xl">3 max</p>
               <p className="text-sm text-gray-600 mt-1">Featured operators per state — exclusive, limited spots</p>
             </div>
             <div>
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Zap className="h-6 w-6 text-green-primary" />
               </div>
-              <p className="text-3xl font-bold text-black-primary">$29.99</p>
+              <p className="text-2xl font-bold text-black-primary sm:text-3xl">$29.99</p>
               <p className="text-sm text-gray-600 mt-1">Per month — cancel anytime, no long-term contracts</p>
             </div>
             <div>
               <div className="flex items-center justify-center gap-2 mb-2">
                 <TrendingUp className="h-6 w-6 text-green-primary" />
               </div>
-              <p className="text-3xl font-bold text-black-primary">Top of results</p>
+              <p className="text-2xl font-bold text-black-primary sm:text-3xl">Top of results</p>
               <p className="text-sm text-gray-600 mt-1">Featured operators always appear before free listings</p>
             </div>
           </div>

@@ -288,10 +288,10 @@ export default function HomePage() {
         <div className="pointer-events-none absolute -right-40 top-20 h-[350px] w-[350px] rounded-full bg-green-200/40 blur-[100px] animate-float" />
         <div className="pointer-events-none absolute -left-20 top-60 h-[250px] w-[250px] rounded-full bg-green-100/30 blur-[80px] animate-float-delayed" />
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-20 sm:px-6 sm:pb-28 sm:pt-24 lg:px-8 lg:pb-32 lg:pt-28">
+        <div className="relative mx-auto max-w-7xl px-4 pb-14 pt-14 sm:px-6 sm:pb-28 sm:pt-24 lg:px-8 lg:pb-32 lg:pt-28">
           {/* Headline */}
           <h1
-            className="animate-fade-in mx-auto max-w-4xl text-center text-3xl font-extrabold leading-tight tracking-tight text-black-primary sm:text-5xl lg:text-6xl"
+            className="animate-fade-in mx-auto max-w-4xl text-center text-2xl font-extrabold leading-tight tracking-tight text-black-primary sm:text-5xl lg:text-6xl"
             style={{ animationDelay: "0.1s" }}
           >
             The Smarter Way to Place{" "}
@@ -302,7 +302,7 @@ export default function HomePage() {
 
           {/* Catch phrase */}
           <p
-            className="animate-fade-in mx-auto mt-4 max-w-2xl text-center text-sm font-semibold tracking-wide text-green-primary/80 uppercase sm:text-lg"
+            className="animate-fade-in mx-auto mt-4 max-w-2xl text-center text-xs font-semibold tracking-wide text-green-primary/80 uppercase sm:text-lg"
             style={{ animationDelay: "0.15s" }}
           >
             A World Class Vending Connection
@@ -343,7 +343,7 @@ export default function HomePage() {
 
           {/* CTA Cards with 3D tilt */}
           <div
-            className="animate-slide-up mx-auto mt-12 grid max-w-3xl gap-5 sm:grid-cols-2"
+            className="animate-slide-up mx-auto mt-10 grid max-w-3xl grid-cols-1 gap-4 sm:mt-12 sm:gap-5 sm:grid-cols-2"
             style={{ animationDelay: "0.3s" }}
           >
             <CTACard
@@ -388,11 +388,11 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/*  HOW IT WORKS                                                 */}
       {/* ============================================================ */}
-      <section className="bg-light py-20 sm:py-28">
+      <section className="bg-light py-14 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div ref={howItWorksRef} className="reveal text-center">
-            <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
+            <h2 className="text-2xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
               How Vending Connector Works
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-base text-black-primary/60 sm:text-lg">
@@ -401,7 +401,7 @@ export default function HomePage() {
           </div>
 
           {/* Steps */}
-          <div ref={howItWorksGridRef} className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div ref={howItWorksGridRef} className="mt-10 grid grid-cols-1 gap-6 sm:mt-16 sm:gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {steps.map((step, idx) => {
               const Icon = step.icon;
               return (
@@ -439,10 +439,10 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/*  HOW IT WORKS — OPERATORS                                     */}
       {/* ============================================================ */}
-      <section className="bg-light-warm/50 py-20 sm:py-28">
+      <section className="bg-light-warm/50 py-14 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div ref={operatorRef} className="reveal text-center">
-            <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
+            <h2 className="text-2xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
               How It Works for Operators
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-base text-black-primary/60 sm:text-lg">
@@ -450,7 +450,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div ref={operatorGridRef} className="mt-16 grid gap-8 sm:grid-cols-3">
+          <div ref={operatorGridRef} className="mt-10 grid grid-cols-1 gap-6 sm:mt-16 sm:gap-8 sm:grid-cols-3">
             {operatorSteps.map((step, idx) => {
               const Icon = step.icon;
               return (
@@ -500,7 +500,7 @@ export default function HomePage() {
             </div>
             <Link
               href="/financing"
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-sm font-semibold text-green-primary shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl shrink-0 btn-press btn-shimmer"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-7 py-3.5 text-sm font-semibold text-green-primary shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl sm:w-auto shrink-0 btn-press btn-shimmer"
             >
               Pre-Qualify Now
               <ArrowRight className="h-4 w-4" />
@@ -514,7 +514,7 @@ export default function HomePage() {
       {/* ============================================================ */}
       <section className="bg-green-primary">
         <div ref={statsRef} className="reveal mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-14 lg:px-8">
-          <div className="grid grid-cols-2 gap-8 text-center sm:gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 text-center sm:gap-4 lg:grid-cols-4">
             {statItems.map((stat) => {
               const Icon = stat.icon;
               const numericValue = getStatNumber(stat.value);
@@ -522,7 +522,7 @@ export default function HomePage() {
               return (
                 <div key={stat.label}>
                   <Icon className="mx-auto mb-2 h-6 w-6 text-white/80" />
-                  <p className="text-3xl font-extrabold text-white sm:text-4xl">
+                  <p className="text-2xl font-extrabold text-white sm:text-4xl">
                     {numericValue > 0 ? (
                       <AnimatedCounter
                         target={numericValue}
@@ -546,11 +546,11 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/*  LOCATION TYPES                                               */}
       {/* ============================================================ */}
-      <section className="bg-light py-20 sm:py-28">
+      <section className="bg-light py-14 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div ref={locationHeaderRef} className="reveal text-center">
-            <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
+            <h2 className="text-2xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
               Every Location Type, Covered
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-base text-black-primary/60 sm:text-lg">
@@ -560,7 +560,7 @@ export default function HomePage() {
           </div>
 
           {/* Grid */}
-          <div ref={locationGridRef} className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div ref={locationGridRef} className="mt-10 grid grid-cols-2 gap-3 sm:mt-14 sm:gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {locationTypes.map((loc) => {
               const Icon = loc.icon;
               return (
@@ -587,11 +587,11 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/*  TESTIMONIALS                                                 */}
       {/* ============================================================ */}
-      <section className="bg-light-warm/50 py-20 sm:py-28">
+      <section className="bg-light-warm/50 py-14 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div ref={testimonialsHeaderRef} className="reveal text-center">
-            <h2 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
+            <h2 className="text-2xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
               What Our Users Say
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-base text-black-primary/60 sm:text-lg">
@@ -600,7 +600,7 @@ export default function HomePage() {
           </div>
 
           {/* Cards */}
-          <div ref={testimonialsGridRef} className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div ref={testimonialsGridRef} className="mt-10 grid grid-cols-1 gap-4 sm:mt-14 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {testimonials.map((t) => (
               <div
                 key={t.name}
@@ -651,7 +651,7 @@ export default function HomePage() {
 
         <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
           <div ref={ctaRef} className="reveal mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
+            <h2 className="text-2xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
               Ready to Get Started?
             </h2>
             <p className="mx-auto mt-4 max-w-lg text-base leading-relaxed text-white/60 sm:text-lg">
@@ -663,7 +663,7 @@ export default function HomePage() {
               <Tooltip content={TOOLTIP_COPY["Post a Request"]} position="top">
                 <Link
                   href="/post-request"
-                  className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover hover:shadow-xl hover:shadow-green-primary/30 btn-press btn-ripple btn-shimmer"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-green-primary px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover hover:shadow-xl hover:shadow-green-primary/30 sm:w-auto btn-press btn-ripple btn-shimmer"
                   aria-label={TOOLTIP_COPY["Post a Request"]}
                 >
                   Post a Request
@@ -673,7 +673,7 @@ export default function HomePage() {
               <Tooltip content={TOOLTIP_COPY["Browse Operators"]} position="top">
                 <Link
                   href="/browse-operators"
-                  className="inline-flex items-center gap-2 rounded-xl border-2 border-white/20 bg-transparent px-7 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/5 btn-press"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-white/20 bg-transparent px-7 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/5 sm:w-auto btn-press"
                   aria-label={TOOLTIP_COPY["Browse Operators"]}
                 >
                   Browse Operators

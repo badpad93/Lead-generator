@@ -102,7 +102,7 @@ function MachineTypeMultiSelect({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-64 rounded-xl border border-gray-200 bg-white py-2 shadow-xl animate-fade-in">
+        <div className="absolute left-0 top-full z-30 mt-1 w-[calc(100vw-2rem)] sm:w-64 max-w-64 rounded-xl border border-gray-200 bg-white py-2 shadow-xl animate-fade-in">
           {MACHINE_TYPES.map((mt) => {
             const isChecked = selected.includes(mt.value);
             return (
@@ -194,7 +194,7 @@ function FilterDropdown({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 max-h-60 w-56 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-xl animate-fade-in">
+        <div className="absolute left-0 top-full z-30 mt-1 max-h-60 w-[calc(100vw-2rem)] sm:w-56 max-w-56 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-xl animate-fade-in">
           <button
             type="button"
             onClick={() => {
@@ -666,13 +666,13 @@ export default function BrowseRequestsPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Status tabs */}
           <div className="flex items-center justify-between border-b border-gray-100">
-            <div className="flex -mb-px">
+            <div className="flex -mb-px overflow-x-auto">
               {STATUS_TABS.map((tab) => (
                 <button
                   key={tab.value}
                   type="button"
                   onClick={() => setStatusFilter(tab.value)}
-                  className={`relative px-4 py-3 text-sm font-medium transition-colors ${
+                  className={`relative px-2.5 py-2 sm:px-4 sm:py-3 text-sm font-medium transition-colors whitespace-nowrap ${
                     statusFilter === tab.value
                       ? "text-green-primary"
                       : "text-gray-500 hover:text-black-primary"
@@ -833,7 +833,7 @@ export default function BrowseRequestsPage() {
 
         {/* Loading skeleton */}
         {loading && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -882,7 +882,7 @@ export default function BrowseRequestsPage() {
               <div className="mb-8">
                 <div className="flex items-center gap-2 mb-4">
                   <Package className="h-5 w-5 text-emerald-600" />
-                  <h2 className="text-lg font-bold text-black-primary">Locations For Sale</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-black-primary">Locations For Sale</h2>
                   <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
                     {marketplaceListings.length}
                   </span>
@@ -945,7 +945,7 @@ export default function BrowseRequestsPage() {
                 {marketplaceListings.length > 0 && (
                   <div className="flex items-center gap-2 mb-4">
                     <Search className="h-5 w-5 text-green-primary" />
-                    <h2 className="text-lg font-bold text-black-primary">Vending Requests</h2>
+                    <h2 className="text-base sm:text-lg font-bold text-black-primary">Vending Requests</h2>
                   </div>
                 )}
                 <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white">
@@ -1068,12 +1068,12 @@ export default function BrowseRequestsPage() {
               <div className="mb-8">
                 <div className="flex items-center gap-2 mb-4">
                   <Package className="h-5 w-5 text-emerald-600" />
-                  <h2 className="text-lg font-bold text-black-primary">Locations For Sale</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-black-primary">Locations For Sale</h2>
                   <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
                     {marketplaceListings.length}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {marketplaceListings.map((listing) => (
                     <MarketplaceListingCard key={listing.id} listing={listing} />
                   ))}
@@ -1087,10 +1087,10 @@ export default function BrowseRequestsPage() {
                 {marketplaceListings.length > 0 && (
                   <div className="flex items-center gap-2 mb-4">
                     <Search className="h-5 w-5 text-green-primary" />
-                    <h2 className="text-lg font-bold text-black-primary">Vending Requests</h2>
+                    <h2 className="text-base sm:text-lg font-bold text-black-primary">Vending Requests</h2>
                   </div>
                 )}
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {requests.map((req) => (
                     <RequestCard
                       key={req.id}

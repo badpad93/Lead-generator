@@ -115,7 +115,7 @@ export default function HowItWorksPage() {
       {/* Hero */}
       <section className="bg-gradient-to-b from-light-warm to-light py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl font-bold text-black-primary mb-4">
+          <h1 className="text-2xl font-bold text-black-primary mb-4 sm:text-4xl">
             How Vending Connector Works
           </h1>
           <p className="text-lg text-slate-600 max-w-2xl mx-auto">

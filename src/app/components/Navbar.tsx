@@ -373,7 +373,7 @@ export default function Navbar() {
 
       {/* Mobile Slide-out Drawer */}
       <div
-        className={`fixed right-0 top-0 z-50 flex h-full w-72 flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
+        className={`fixed right-0 top-0 z-50 flex h-full w-[85vw] max-w-72 flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
           mobileOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >

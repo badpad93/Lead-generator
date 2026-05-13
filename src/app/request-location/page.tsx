@@ -130,7 +130,7 @@ function RequestLocationInner() {
           <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-primary">
             <MapPin className="h-6 w-6" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
+          <h1 className="text-2xl font-extrabold tracking-tight text-black-primary sm:text-4xl">
             Request Location Services
           </h1>
           <p className="mt-3 text-base text-black-primary/60 sm:text-lg">

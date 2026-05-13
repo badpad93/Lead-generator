@@ -426,7 +426,7 @@ export default function DashboardPage() {
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-black-primary sm:text-4xl">
+              <h1 className="text-2xl font-bold text-black-primary sm:text-4xl">
                 Welcome, {firstName}
               </h1>
               <p className="mt-2 text-lg text-black-primary/50">
@@ -479,7 +479,7 @@ export default function DashboardPage() {
         )}
 
         {/* ------- QUICK ACTIONS ------- */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           {isOperator ? (
             <>
               <Link
@@ -624,7 +624,7 @@ export default function DashboardPage() {
           </div>
 
           {loadingRequests ? (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
               <SkeletonCard />
               <SkeletonCard />
               <SkeletonCard />
@@ -641,7 +641,7 @@ export default function DashboardPage() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
               {requests.slice(0, 4).map((req) => (
                 <Link
                   key={req.id}
@@ -731,7 +731,7 @@ export default function DashboardPage() {
           </div>
 
           {loadingOperators ? (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
               <SkeletonCard />
               <SkeletonCard />
               <SkeletonCard />
@@ -748,7 +748,7 @@ export default function DashboardPage() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
               {operators.slice(0, 4).map((op) => {
                 const opProfile = op.profiles;
                 const initials = opProfile?.full_name
