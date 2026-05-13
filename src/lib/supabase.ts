@@ -1,25 +1,20 @@
-import { createBrowserClient as createSSRBrowserClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 
 /**
- * Browser client that syncs session to cookies (for middleware auth checks).
- * Use this in client components.
+ * Browser client using localStorage for session and PKCE storage.
+ * localStorage persists reliably across OAuth redirects, unlike the
+ * cookie-based SSR client which loses the PKCE code verifier during
+ * cross-domain redirects.
  */
 export function createBrowserClient() {
-  return createSSRBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
-
-/**
- * Plain browser client without cookie sync.
- * Only needed if you explicitly want localStorage-only behavior.
- */
-export function createPlainBrowserClient() {
   return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 }
+
+/**
+ * Alias kept for call-sites that reference it explicitly.
+ */
+export const createPlainBrowserClient = createBrowserClient;
