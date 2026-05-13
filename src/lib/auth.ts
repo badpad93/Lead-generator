@@ -98,7 +98,7 @@ export async function ensureSignedOut(): Promise<boolean> {
 export async function signInWithGoogle(): Promise<void> {
   const supabase = createBrowserClient();
   storeAuthFlow("login");
-  await supabase.auth.signInWithOAuth({
+  const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
       redirectTo: `${getSiteUrl()}/auth/callback?flow=login`,
@@ -108,13 +108,14 @@ export async function signInWithGoogle(): Promise<void> {
       },
     },
   });
+  if (error) throw error;
 }
 
 /** Sign in with Google OAuth for SIGNUP flow (forces account selection) */
 export async function signUpWithGoogle(): Promise<void> {
   const supabase = createBrowserClient();
   storeAuthFlow("signup");
-  await supabase.auth.signInWithOAuth({
+  const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
       redirectTo: `${getSiteUrl()}/auth/callback?flow=signup`,
@@ -124,13 +125,14 @@ export async function signUpWithGoogle(): Promise<void> {
       },
     },
   });
+  if (error) throw error;
 }
 
 /** Sign in with Microsoft OAuth for LOGIN flow */
 export async function signInWithMicrosoft(): Promise<void> {
   const supabase = createBrowserClient();
   storeAuthFlow("login");
-  await supabase.auth.signInWithOAuth({
+  const { error } = await supabase.auth.signInWithOAuth({
     provider: "azure",
     options: {
       redirectTo: `${getSiteUrl()}/auth/callback?flow=login`,
@@ -138,13 +140,14 @@ export async function signInWithMicrosoft(): Promise<void> {
       scopes: "email",
     },
   });
+  if (error) throw error;
 }
 
 /** Sign in with Microsoft OAuth for SIGNUP flow */
 export async function signUpWithMicrosoft(): Promise<void> {
   const supabase = createBrowserClient();
   storeAuthFlow("signup");
-  await supabase.auth.signInWithOAuth({
+  const { error } = await supabase.auth.signInWithOAuth({
     provider: "azure",
     options: {
       redirectTo: `${getSiteUrl()}/auth/callback?flow=signup`,
@@ -152,6 +155,7 @@ export async function signUpWithMicrosoft(): Promise<void> {
       scopes: "email",
     },
   });
+  if (error) throw error;
 }
 
 /** Sign out */

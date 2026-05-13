@@ -21,6 +21,15 @@ function CallbackContent() {
       const flow = flowParam || storedFlow || "login";
       const isSignup = flow === "signup";
 
+      const urlError = searchParams.get("error_description") || searchParams.get("error");
+      if (urlError) {
+        setError(urlError);
+        setTimeout(() => {
+          window.location.href = "/login?error=" + encodeURIComponent(urlError);
+        }, 2000);
+        return;
+      }
+
       const code = searchParams.get("code");
       if (!code) {
         setError("Missing authorization code. Please try again.");
@@ -35,10 +44,13 @@ function CallbackContent() {
       if (cancelled) return;
 
       if (exchangeErr || !data.session) {
-        const msg = exchangeErr?.message || "Failed to complete sign-in.";
+        const raw = exchangeErr?.message || "Failed to complete sign-in.";
+        const msg = raw.includes("code verifier")
+          ? "Session expired. Please try signing in again."
+          : raw;
         setError(msg);
         setTimeout(() => {
-          window.location.href = "/login?error=" + encodeURIComponent("Sign-in failed: " + msg + ". Please try again.");
+          window.location.href = "/login?error=" + encodeURIComponent(msg);
         }, 2000);
         return;
       }
