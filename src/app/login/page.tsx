@@ -16,33 +16,54 @@ function LoginContent() {
   useEffect(() => {
     const authError = searchParams.get("error");
     if (authError) {
+      const supabase = createBrowserClient();
+      supabase.auth.signOut().catch(() => {});
       setError(authError);
       setChecking(false);
       return;
     }
 
     const supabase = createBrowserClient();
+    let timeout: ReturnType<typeof setTimeout>;
 
     async function checkSession() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
-        setChecking(false);
-        return;
-      }
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          setChecking(false);
+          return;
+        }
 
-      const { error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        await supabase.auth.signOut();
-        setChecking(false);
-        return;
-      }
+        const { error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          await supabase.auth.signOut();
+          setChecking(false);
+          return;
+        }
 
-      const redirect = searchParams.get("redirect") || "/dashboard";
-      window.location.href = redirect;
+        const redirect = searchParams.get("redirect") || "/dashboard";
+        window.location.href = redirect;
+      } catch {
+        await supabase.auth.signOut().catch(() => {});
+        setChecking(false);
+      }
     }
 
-    checkSession();
+    timeout = setTimeout(() => {
+      setChecking(false);
+    }, 3000);
+
+    checkSession().finally(() => clearTimeout(timeout));
+
+    return () => clearTimeout(timeout);
   }, [searchParams]);
+
+  async function handleClearSession() {
+    const supabase = createBrowserClient();
+    await supabase.auth.signOut();
+    setError(null);
+    setChecking(false);
+  }
 
   async function handleGoogleLogin() {
     setLoading("google");
@@ -164,12 +185,21 @@ function LoginContent() {
           </div>
         </div>
 
-        {/* Footer link */}
+        {/* Footer links */}
         <p className="text-center mt-6 text-sm text-black-primary/60">
           Don&apos;t have an account?{" "}
           <Link href="/signup" className="text-green-primary hover:underline font-medium">
             Create one
           </Link>
+        </p>
+        <p className="text-center mt-2">
+          <button
+            type="button"
+            onClick={handleClearSession}
+            className="text-xs text-black-primary/30 hover:text-black-primary/60 underline cursor-pointer"
+          >
+            Trouble signing in? Reset session
+          </button>
         </p>
       </div>
     </div>
