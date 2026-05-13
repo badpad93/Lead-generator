@@ -14,54 +14,16 @@ function LoginContent() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const authError = searchParams.get("error");
-    if (authError) {
-      setError(authError);
-      setChecking(false);
-      return;
-    }
-
     const supabase = createBrowserClient();
-    let timeout: ReturnType<typeof setTimeout>;
-
-    async function checkSession() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          setChecking(false);
-          return;
-        }
-
-        const res = await fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!res.ok) {
-          setChecking(false);
-          return;
-        }
-
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
         const redirect = searchParams.get("redirect") || "/dashboard";
         window.location.href = redirect;
-      } catch {
+      } else {
         setChecking(false);
       }
-    }
-
-    timeout = setTimeout(() => {
-      setChecking(false);
-    }, 3000);
-
-    checkSession().finally(() => clearTimeout(timeout));
-
-    return () => clearTimeout(timeout);
+    });
   }, [searchParams]);
-
-  async function handleClearSession() {
-    const supabase = createBrowserClient();
-    await supabase.auth.signOut();
-    setError(null);
-    setChecking(false);
-  }
 
   async function handleGoogleLogin() {
     setLoading("google");
@@ -183,21 +145,12 @@ function LoginContent() {
           </div>
         </div>
 
-        {/* Footer links */}
+        {/* Footer link */}
         <p className="text-center mt-6 text-sm text-black-primary/60">
           Don&apos;t have an account?{" "}
           <Link href="/signup" className="text-green-primary hover:underline font-medium">
             Create one
           </Link>
-        </p>
-        <p className="text-center mt-2">
-          <button
-            type="button"
-            onClick={handleClearSession}
-            className="text-xs text-black-primary/30 hover:text-black-primary/60 underline cursor-pointer"
-          >
-            Trouble signing in? Reset session
-          </button>
         </p>
       </div>
     </div>
