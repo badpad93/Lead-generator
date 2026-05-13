@@ -23,28 +23,51 @@ function CallbackContent() {
       const flow = flowParam || storedFlow || "login";
       const isSignup = flow === "signup";
 
-      // Explicitly exchange the OAuth code for a session. Doing this
-      // synchronously (instead of relying on detectSessionInUrl +
-      // onAuthStateChange) guarantees that the auth cookies are fully
-      // written before we navigate, so the middleware sees the session on
-      // the very next request. Without this, the user had to log in twice
-      // because the first redirect raced the cookie write.
+      // Obtain the session. The client uses implicit flow (session arrives
+      // in the URL hash and is auto-detected by the Supabase client).
+      // We also handle the legacy PKCE flow (code in query string) as a
+      // fallback in case old links or cached redirects still use it.
+      let session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"] = null;
+
       const code = searchParams.get("code");
-      if (!code) {
-        setError("Missing authorization code. Please try again.");
-        setTimeout(() => {
-          window.location.href = "/login?error=" + encodeURIComponent("Missing authorization code. Please try signing in again.");
-        }, 2000);
-        return;
+      if (code) {
+        // PKCE fallback: try to exchange the code for a session
+        const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (cancelled) return;
+        if (!exchangeErr && data.session) {
+          session = data.session;
+        }
       }
 
-      const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+      if (!session) {
+        // Implicit flow: the Supabase client auto-detects the session
+        // from the URL hash. Give it a moment to process, then read it.
+        if (cancelled) return;
+        const { data: { session: detected } } = await supabase.auth.getSession();
+        session = detected;
+      }
+
+      if (!session) {
+        // Last resort: wait briefly for onAuthStateChange to fire
+        if (cancelled) return;
+        session = await new Promise((resolve) => {
+          const timeout = setTimeout(() => resolve(null), 3000);
+          const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+            if (s) {
+              clearTimeout(timeout);
+              subscription.unsubscribe();
+              resolve(s);
+            }
+          });
+        });
+      }
+
       if (cancelled) return;
-      if (exchangeErr || !data.session) {
-        const msg = exchangeErr?.message || "Failed to complete sign-in.";
-        setError(msg);
+
+      if (!session) {
+        setError("Failed to complete sign-in. Please try again.");
         setTimeout(() => {
-          window.location.href = "/login?error=" + encodeURIComponent("Sign-in failed: " + msg + ". Please try again.");
+          window.location.href = "/login?error=" + encodeURIComponent("Sign-in failed. Please try again.");
         }, 2000);
         return;
       }
@@ -52,7 +75,7 @@ function CallbackContent() {
       // Ensure the profile exists (auto-creates for new users via GET)
       try {
         await fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${data.session.access_token}` },
+          headers: { Authorization: `Bearer ${session.access_token}` },
         });
       } catch {
         // Best-effort — profile will be created on next page load
@@ -77,7 +100,7 @@ function CallbackContent() {
               method: "PATCH",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${data.session.access_token}`,
+                Authorization: `Bearer ${session.access_token}`,
               },
               body: JSON.stringify(profileUpdate),
             });
@@ -91,11 +114,11 @@ function CallbackContent() {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${data.session.access_token}`,
+                Authorization: `Bearer ${session.access_token}`,
               },
               body: JSON.stringify({
                 ...leadData,
-                email: leadData.email || data.session.user.email,
+                email: leadData.email || session.user.email,
               }),
             });
           } catch {
