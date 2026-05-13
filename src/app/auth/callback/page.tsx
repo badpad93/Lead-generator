@@ -44,6 +44,15 @@ function CallbackContent() {
         return;
       }
 
+      // Ensure the profile exists (auto-creates for new users via GET)
+      try {
+        await fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${data.session.access_token}` },
+        });
+      } catch {
+        // Best-effort — profile will be created on next page load
+      }
+
       if (isSignup) {
         const signupRole = consumeSignupRole();
         const leadData = consumeSignupLead();
@@ -68,7 +77,7 @@ function CallbackContent() {
               body: JSON.stringify(profileUpdate),
             });
           } catch {
-            // Profile might not exist yet — ignore
+            // Profile update is best-effort
           }
         }
         if (leadData) {
