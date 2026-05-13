@@ -118,7 +118,8 @@ export default function CheckoutFormPage() {
       try {
         const { createBrowserClient } = await import("@/lib/supabase");
         const supabase = createBrowserClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
         if (user) {
           const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single() as { data: { role: string } | null };
           if (profile?.role && FEE_EXEMPT_ROLES.includes(profile.role)) setFeesExempt(true);
