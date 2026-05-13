@@ -373,20 +373,20 @@ export default function Navbar() {
 
       {/* Mobile Slide-out Drawer */}
       <div
-        className={`fixed right-0 top-0 z-50 flex h-full w-[85vw] max-w-72 flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
+        className={`fixed right-0 top-0 z-50 flex h-full w-[85vw] max-w-72 flex-col bg-green-primary shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
           mobileOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         {/* Drawer Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-4">
+        <div className="flex items-center justify-between border-b border-white/20 px-4 py-4">
           <div className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-green-600" />
-            <span className="text-base font-bold text-gray-900">Vending Connector</span>
+            <Zap className="h-5 w-5 text-white" />
+            <span className="text-base font-bold text-white">Vending Connector</span>
           </div>
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="rounded-lg p-2 text-black-primary transition-colors hover:bg-gray-100"
+            className="rounded-lg p-2 text-white/80 transition-colors hover:bg-white/10"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" />
@@ -397,15 +397,15 @@ export default function Navbar() {
         <div className="flex-1 overflow-y-auto px-3 py-4">
           {/* User info if logged in */}
           {isLoggedIn && (
-            <div className="mb-4 flex items-center gap-3 rounded-xl bg-light-warm px-3 py-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-primary text-sm font-bold text-white">
+            <div className="mb-4 flex items-center gap-3 rounded-xl bg-white/15 px-3 py-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-bold text-green-primary">
                 {initials}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-black-primary">
+                <p className="truncate text-sm font-semibold text-white">
                   {displayName}
                 </p>
-                <p className="truncate text-xs text-black-primary/50">
+                <p className="truncate text-xs text-white/60">
                   {displayEmail}
                 </p>
               </div>
@@ -418,11 +418,11 @@ export default function Navbar() {
                 <Link
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                  className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15"
                   aria-label={TOOLTIP_COPY[link.label] ?? undefined}
                 >
                   {link.label}
-                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                  <ChevronRight className="h-4 w-4 text-white/40" />
                 </Link>
               </li>
             ))}
@@ -432,10 +432,10 @@ export default function Navbar() {
                 <Link
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                  className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15"
                 >
                   {link.label}
-                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                  <ChevronRight className="h-4 w-4 text-white/40" />
                 </Link>
               </li>
             ))}
@@ -446,70 +446,70 @@ export default function Navbar() {
                   <Link
                     href="/dashboard"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15"
                     aria-label={TOOLTIP_COPY["Dashboard"]}
                   >
                     <span className="flex items-center gap-2">
                       <LayoutDashboard className="h-4 w-4" />
                       Dashboard
                     </span>
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                    <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/your-leads"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15"
                     aria-label={TOOLTIP_COPY["Your Leads"]}
                   >
                     <span className="flex items-center gap-2">
                       <ShoppingBag className="h-4 w-4" />
                       Your Leads
                     </span>
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                    <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/saved-requests"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15"
                     aria-label="View your saved requests"
                   >
                     <span className="flex items-center gap-2">
                       <Heart className="h-4 w-4" />
                       Saved Requests
                     </span>
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                    <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/routes-for-sale"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15"
                     aria-label={TOOLTIP_COPY["Routes for Sale"]}
                   >
                     <span className="flex items-center gap-2">
                       <Route className="h-4 w-4" />
                       Routes for Sale
                     </span>
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                    <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/account/agreements"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                    className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15"
                     aria-label="View and download your signed agreements"
                   >
                     <span className="flex items-center gap-2">
                       <ScrollText className="h-4 w-4" />
                       My Agreements
                     </span>
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                    <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
                 </li>
                 {(isAdmin || profile?.role === "sales" || profile?.role === "director_of_sales" || profile?.role === "market_leader") && (
@@ -517,13 +517,13 @@ export default function Navbar() {
                     <Link
                       href="/sales"
                       onClick={() => setMobileOpen(false)}
-                      className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-green-primary transition-colors hover:bg-green-50"
+                      className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15"
                     >
                       <span className="flex items-center gap-2">
                         <Briefcase className="h-4 w-4" />
                         CRM
                       </span>
-                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                      <ChevronRight className="h-4 w-4 text-white/40" />
                     </Link>
                   </li>
                 )}
@@ -532,13 +532,13 @@ export default function Navbar() {
                     <Link
                       href="/admin"
                       onClick={() => setMobileOpen(false)}
-                      className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-green-primary transition-colors hover:bg-green-50"
+                      className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15"
                     >
                       <span className="flex items-center gap-2">
                         <Shield className="h-4 w-4" />
                         Admin Panel
                       </span>
-                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                      <ChevronRight className="h-4 w-4 text-white/40" />
                     </Link>
                   </li>
                 )}
@@ -548,7 +548,7 @@ export default function Navbar() {
         </div>
 
         {/* Drawer Auth Buttons */}
-        <div className="border-t border-gray-100 px-4 py-4 space-y-3">
+        <div className="border-t border-white/20 px-4 py-4 space-y-3">
           {isLoggedIn ? (
             <button
               type="button"
@@ -556,7 +556,7 @@ export default function Navbar() {
                 setMobileOpen(false);
                 handleLogout();
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 cursor-pointer"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/20 cursor-pointer"
             >
               <LogOut className="h-4 w-4" />
               Sign Out
@@ -566,7 +566,7 @@ export default function Navbar() {
               <Link
                 href="/login"
                 onClick={() => setMobileOpen(false)}
-                className="block w-full rounded-lg border border-gray-200 px-4 py-2.5 text-center text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
+                className="block w-full rounded-lg border border-white/30 bg-white/10 px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-white/20"
                 aria-label={TOOLTIP_COPY["Login"]}
               >
                 Login
@@ -574,7 +574,7 @@ export default function Navbar() {
               <Link
                 href="/signup"
                 onClick={() => setMobileOpen(false)}
-                className="block w-full rounded-lg bg-green-primary px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                className="block w-full rounded-lg bg-white px-4 py-2.5 text-center text-sm font-semibold text-green-primary shadow-sm transition-colors hover:bg-white/90"
                 aria-label={TOOLTIP_COPY["Get Started"]}
               >
                 Get Started
