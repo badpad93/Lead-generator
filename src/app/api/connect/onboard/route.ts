@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const ALLOWED_ROLES = ["operator", "location_manager", "admin", "director_of_sales", "market_leader", "sales"];
-
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const token = authHeader?.replace("Bearer ", "");
@@ -21,13 +19,13 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("role, stripe_account_id, stripe_onboarding_complete, email, full_name")
+    .select("stripe_account_id, stripe_onboarding_complete, email, full_name")
     .eq("id", user.id)
     .single();
 
-  if (!profile || !ALLOWED_ROLES.includes(profile.role)) {
+  if (!profile) {
     return NextResponse.json(
-      { error: `Your role (${profile?.role || "unknown"}) is not allowed to sell on the marketplace.` },
+      { error: "Profile not found. Please complete your account setup first." },
       { status: 403 }
     );
   }

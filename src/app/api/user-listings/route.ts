@@ -5,7 +5,6 @@ import { sendLocationAgreementEmail } from "@/lib/locationAgreementEmail";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
 
-const ALLOWED_SELLER_ROLES = ["operator", "location_manager"];
 const MIN_PRICE = 100;
 const MAX_PRICE = 10000;
 
@@ -73,9 +72,9 @@ export async function POST(req: NextRequest) {
     .eq("id", userId)
     .single();
 
-  if (!profile || !ALLOWED_SELLER_ROLES.includes(profile.role)) {
+  if (!profile) {
     return NextResponse.json(
-      { error: "Only operators and location managers can create listings" },
+      { error: "Profile not found. Please complete your account setup first." },
       { status: 403 }
     );
   }
