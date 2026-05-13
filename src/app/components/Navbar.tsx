@@ -57,35 +57,40 @@ export default function Navbar() {
     const supabase = createBrowserClient();
 
     async function checkAuth() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        // Set basic session info immediately so navbar shows logged-in state
-        const meta = session.user?.user_metadata || {};
-        setSessionUser({
-          email: session.user?.email || "",
-          name: meta.full_name || meta.name || meta.custom_claims?.global_name || session.user?.email?.split("@")[0] || "User",
-        });
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        await supabase.auth.signOut().catch(() => {});
+        return;
+      }
 
-        try {
-          const [profileRes, adminRes] = await Promise.all([
-            fetch("/api/auth/me", {
-              headers: { Authorization: `Bearer ${session.access_token}` },
-            }),
-            fetch("/api/admin/check", {
-              headers: { Authorization: `Bearer ${session.access_token}` },
-            }),
-          ]);
-          if (profileRes.ok) {
-            const data = await profileRes.json();
-            setProfile(data);
-          }
-          if (adminRes.ok) {
-            const data = await adminRes.json();
-            setIsAdmin(!!data.isAdmin);
-          }
-        } catch {
-          // ignore — sessionUser still shows logged-in state
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      const meta = user.user_metadata || {};
+      setSessionUser({
+        email: user.email || "",
+        name: meta.full_name || meta.name || meta.custom_claims?.global_name || user.email?.split("@")[0] || "User",
+      });
+
+      try {
+        const [profileRes, adminRes] = await Promise.all([
+          fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }),
+          fetch("/api/admin/check", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }),
+        ]);
+        if (profileRes.ok) {
+          const data = await profileRes.json();
+          setProfile(data);
         }
+        if (adminRes.ok) {
+          const data = await adminRes.json();
+          setIsAdmin(!!data.isAdmin);
+        }
+      } catch {
+        // ignore — sessionUser still shows logged-in state
       }
     }
 

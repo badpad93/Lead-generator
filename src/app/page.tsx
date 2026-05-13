@@ -265,8 +265,9 @@ export default function HomePage() {
 
     try {
       const supabase = createBrowserClient();
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) router.replace("/dashboard");
+      supabase.auth.getUser().then(({ data: { user }, error }) => {
+        if (user && !error) router.replace("/dashboard");
+        else if (error) supabase.auth.signOut().catch(() => {});
       }).catch(() => {});
     } catch {}
   }, [router]);

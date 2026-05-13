@@ -14,7 +14,6 @@ function LoginContent() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // If redirected here after an auth failure, show the error and don't auto-redirect
     const authError = searchParams.get("error");
     if (authError) {
       setError(authError);
@@ -23,14 +22,26 @@ function LoginContent() {
     }
 
     const supabase = createBrowserClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        const redirect = searchParams.get("redirect") || "/dashboard";
-        window.location.href = redirect;
-      } else {
+
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
         setChecking(false);
+        return;
       }
-    });
+
+      const { error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        await supabase.auth.signOut();
+        setChecking(false);
+        return;
+      }
+
+      const redirect = searchParams.get("redirect") || "/dashboard";
+      window.location.href = redirect;
+    }
+
+    checkSession();
   }, [searchParams]);
 
   async function handleGoogleLogin() {
