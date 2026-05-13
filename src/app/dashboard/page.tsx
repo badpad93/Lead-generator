@@ -243,42 +243,81 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const supabase = createBrowserClient();
+    let mounted = true;
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (
-        event === "INITIAL_SESSION" ||
-        event === "SIGNED_IN" ||
-        event === "TOKEN_REFRESHED"
-      ) {
-        if (!session) {
+    async function initAuth() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      if (!session?.access_token) {
+        setNotLoggedIn(true);
+        setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!mounted) return;
+        if (!res.ok) {
           setNotLoggedIn(true);
           setAuthLoading(false);
           return;
         }
+        const data = await res.json();
+        setProfile(data);
+        setToken(session.access_token);
+      } catch {
+        if (mounted) setNotLoggedIn(true);
+      } finally {
+        if (mounted) setAuthLoading(false);
+      }
+    }
 
+    initAuth();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      if (event === "TOKEN_REFRESHED" && session?.access_token) {
+        setToken(session.access_token);
+        return;
+      }
+
+      if (event === "SIGNED_IN" && session?.access_token) {
         try {
           const res = await fetch("/api/auth/me", {
             headers: { Authorization: `Bearer ${session.access_token}` },
           });
-          if (!res.ok) {
-            setNotLoggedIn(true);
+          if (!mounted) return;
+          if (res.ok) {
+            const data = await res.json();
+            setProfile(data);
+            setToken(session.access_token);
+            setNotLoggedIn(false);
             setAuthLoading(false);
-            return;
           }
-          const data = await res.json();
-          setProfile(data);
-          setToken(session.access_token);
         } catch {
-          setNotLoggedIn(true);
-        } finally {
-          setAuthLoading(false);
+          // keep existing state
         }
+        return;
+      }
+
+      if (event === "SIGNED_OUT") {
+        setProfile(null);
+        setToken("");
+        setNotLoggedIn(true);
+        setAuthLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   /* ============================================================== */
