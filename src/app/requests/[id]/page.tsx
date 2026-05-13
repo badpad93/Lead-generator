@@ -262,7 +262,8 @@ export default function RequestDetailPage() {
       try {
         const { createBrowserClient } = await import("@/lib/supabase");
         const supabase = createBrowserClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
         if (user) {
           const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single() as { data: { role: string } | null };
           if (profile?.role && FEE_EXEMPT_ROLES.includes(profile.role)) setFeesExempt(true);
@@ -391,7 +392,8 @@ export default function RequestDetailPage() {
       // Fetch user email for the agreement form
       const { createBrowserClient } = await import("@/lib/supabase");
       const supabase = createBrowserClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user ?? null;
       setCurrentUserEmail(user?.email || "");
     } catch {
       // continue without email - user can see it in the form

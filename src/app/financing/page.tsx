@@ -122,7 +122,8 @@ export default function FinancingPage() {
     async function prefill() {
       try {
         const supabase = createBrowserClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
         if (user) {
           setEmail(user.email || "");
           const meta = user.user_metadata || {};
