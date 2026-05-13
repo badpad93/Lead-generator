@@ -32,7 +32,7 @@ import type {
   MachineType,
 } from "@/lib/types";
 import { MACHINE_TYPES } from "@/lib/types";
-import { useAuth } from "@/lib/auth-context";
+import { createBrowserClient } from "@/lib/supabase";
 import LocationTypeIcon from "@/app/components/LocationTypeIcon";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
 import UrgencyBadge from "@/app/components/UrgencyBadge";
@@ -225,14 +225,61 @@ interface OperatorWithProfile extends OperatorListing {
 /* ------------------------------------------------------------------ */
 
 export default function DashboardPage() {
-  /* ---- Auth (from shared context) ---- */
-  const { profile, token, isLoading: authLoading, isAuthenticated } = useAuth();
+  /* ---- Auth ---- */
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [token, setToken] = useState<string>("");
+  const [authLoading, setAuthLoading] = useState(true);
+  const [notLoggedIn, setNotLoggedIn] = useState(false);
 
   /* ---- Data ---- */
   const [requests, setRequests] = useState<VendingRequest[]>([]);
   const [operators, setOperators] = useState<OperatorWithProfile[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [loadingOperators, setLoadingOperators] = useState(false);
+
+  /* ============================================================== */
+  /*  Auth                                                           */
+  /* ============================================================== */
+
+  useEffect(() => {
+    const supabase = createBrowserClient();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (
+        event === "INITIAL_SESSION" ||
+        event === "SIGNED_IN" ||
+        event === "TOKEN_REFRESHED"
+      ) {
+        if (!session) {
+          setNotLoggedIn(true);
+          setAuthLoading(false);
+          return;
+        }
+
+        try {
+          const res = await fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (!res.ok) {
+            setNotLoggedIn(true);
+            setAuthLoading(false);
+            return;
+          }
+          const data = await res.json();
+          setProfile(data);
+          setToken(session.access_token);
+        } catch {
+          setNotLoggedIn(true);
+        } finally {
+          setAuthLoading(false);
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   /* ============================================================== */
   /*  Fetch preview data                                             */
@@ -276,9 +323,9 @@ export default function DashboardPage() {
   /*  Sign Out                                                       */
   /* ============================================================== */
 
-  const { signOut, refreshProfile } = useAuth();
   async function handleSignOut() {
-    await signOut();
+    const supabase = createBrowserClient();
+    await supabase.auth.signOut();
     window.location.href = "/login";
   }
 
@@ -307,7 +354,7 @@ export default function DashboardPage() {
   /*  Not logged in                                                  */
   /* ============================================================== */
 
-  if (!isAuthenticated || !profile) {
+  if (notLoggedIn || !profile) {
     return (
       <div className="flex min-h-[calc(100vh-160px)] items-center justify-center px-4">
         <div className="mx-auto max-w-md text-center">
@@ -362,7 +409,12 @@ export default function DashboardPage() {
           state: profile.state || "",
           zip: profile.zip || "",
         }}
-        onComplete={refreshProfile}
+        onComplete={async () => {
+          const res = await fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) setProfile(await res.json());
+        }}
       />
     );
   }

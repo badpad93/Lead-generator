@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText, Heart, Briefcase, Zap } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { createBrowserClient } from "@/lib/supabase";
+import type { Profile } from "@/lib/types";
 import Tooltip from "@/app/components/Tooltip";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
@@ -31,17 +32,104 @@ const sidebarExtraLinks = [
   { label: "How It Works", href: "/how-it-works" },
 ];
 
+interface SessionUser {
+  email: string;
+  name: string;
+}
+
 export default function Navbar() {
   const router = useRouter();
-  const { profile, sessionUser, isAdmin, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Check auth state
+  useEffect(() => {
+    const supabase = createBrowserClient();
+
+    async function checkAuth() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        // Set basic session info immediately so navbar shows logged-in state
+        const meta = session.user?.user_metadata || {};
+        setSessionUser({
+          email: session.user?.email || "",
+          name: meta.full_name || meta.name || meta.custom_claims?.global_name || session.user?.email?.split("@")[0] || "User",
+        });
+
+        try {
+          const [profileRes, adminRes] = await Promise.all([
+            fetch("/api/auth/me", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            }),
+            fetch("/api/admin/check", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            }),
+          ]);
+          if (profileRes.ok) {
+            const data = await profileRes.json();
+            setProfile(data);
+          }
+          if (adminRes.ok) {
+            const data = await adminRes.json();
+            setIsAdmin(!!data.isAdmin);
+          }
+        } catch {
+          // ignore — sessionUser still shows logged-in state
+        }
+      }
+    }
+
+    checkAuth();
+
+    // Listen for auth state changes (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === "SIGNED_IN" && session?.access_token) {
+          const meta = session.user?.user_metadata || {};
+          setSessionUser({
+            email: session.user?.email || "",
+            name: meta.full_name || meta.name || meta.custom_claims?.global_name || session.user?.email?.split("@")[0] || "User",
+          });
+
+          try {
+            const [profileRes, adminRes] = await Promise.all([
+              fetch("/api/auth/me", {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              }),
+              fetch("/api/admin/check", {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              }),
+            ]);
+            if (profileRes.ok) {
+              const data = await profileRes.json();
+              setProfile(data);
+            }
+            if (adminRes.ok) {
+              const data = await adminRes.json();
+              setIsAdmin(!!data.isAdmin);
+            }
+          } catch {
+            // ignore
+          }
+        } else if (event === "SIGNED_OUT") {
+          setSessionUser(null);
+          setProfile(null);
+          setIsAdmin(false);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // Lock body scroll when mobile drawer is open
@@ -65,7 +153,11 @@ export default function Navbar() {
   }, [userMenuOpen]);
 
   async function handleLogout() {
-    await signOut();
+    const supabase = createBrowserClient();
+    await supabase.auth.signOut();
+    setSessionUser(null);
+    setProfile(null);
+    setIsAdmin(false);
     setUserMenuOpen(false);
     router.push("/");
   }
@@ -281,15 +373,15 @@ export default function Navbar() {
 
       {/* Mobile Slide-out Drawer */}
       <div
-        className={`fixed inset-0 z-50 flex flex-col bg-green-primary shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
+        className={`fixed right-0 top-0 z-50 flex h-full w-[90vw] max-w-80 flex-col bg-green-primary shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
           mobileOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         {/* Drawer Header */}
-        <div className="flex items-center justify-between border-b border-white/20 px-5 py-5">
+        <div className="flex items-center justify-between border-b border-white/20 px-4 py-4">
           <div className="flex items-center gap-2">
-            <Zap className="h-6 w-6 text-white" />
-            <span className="text-lg font-bold text-white">Vending Connector</span>
+            <Zap className="h-5 w-5 text-white" />
+            <span className="text-base font-bold text-white">Vending Connector</span>
           </div>
           <button
             type="button"
@@ -302,7 +394,7 @@ export default function Navbar() {
         </div>
 
         {/* Drawer Navigation Links */}
-        <div className="flex-1 overflow-y-auto px-5 py-6">
+        <div className="flex-1 overflow-y-auto px-3 py-4">
           {/* User info if logged in */}
           {isLoggedIn && (
             <div className="mb-4 flex items-center gap-3 rounded-xl bg-white/15 px-3 py-3">
@@ -320,13 +412,13 @@ export default function Navbar() {
             </div>
           )}
 
-          <ul className="space-y-3">
+          <ul className="space-y-2">
             {(isLoggedIn ? authNavLinks : navLinks).map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-4 py-4 text-lg font-medium text-white transition-colors hover:bg-white/15"
+                  className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
                   aria-label={TOOLTIP_COPY[link.label] ?? undefined}
                 >
                   {link.label}
@@ -340,7 +432,7 @@ export default function Navbar() {
                 <Link
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-4 py-4 text-lg font-medium text-white transition-colors hover:bg-white/15"
+                  className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
                 >
                   {link.label}
                   <ChevronRight className="h-5 w-5 text-white/40" />
@@ -354,7 +446,7 @@ export default function Navbar() {
                   <Link
                     href="/dashboard"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-4 py-4 text-lg font-medium text-white transition-colors hover:bg-white/15"
+                    className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
                     aria-label={TOOLTIP_COPY["Dashboard"]}
                   >
                     <span className="flex items-center gap-2">
@@ -368,7 +460,7 @@ export default function Navbar() {
                   <Link
                     href="/your-leads"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-4 py-4 text-lg font-medium text-white transition-colors hover:bg-white/15"
+                    className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
                     aria-label={TOOLTIP_COPY["Your Leads"]}
                   >
                     <span className="flex items-center gap-2">
@@ -382,7 +474,7 @@ export default function Navbar() {
                   <Link
                     href="/saved-requests"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-4 py-4 text-lg font-medium text-white transition-colors hover:bg-white/15"
+                    className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
                     aria-label="View your saved requests"
                   >
                     <span className="flex items-center gap-2">
@@ -396,7 +488,7 @@ export default function Navbar() {
                   <Link
                     href="/routes-for-sale"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-4 py-4 text-lg font-medium text-white transition-colors hover:bg-white/15"
+                    className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
                     aria-label={TOOLTIP_COPY["Routes for Sale"]}
                   >
                     <span className="flex items-center gap-2">
@@ -410,7 +502,7 @@ export default function Navbar() {
                   <Link
                     href="/account/agreements"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-4 py-4 text-lg font-medium text-white transition-colors hover:bg-white/15"
+                    className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
                     aria-label="View and download your signed agreements"
                   >
                     <span className="flex items-center gap-2">
@@ -425,7 +517,7 @@ export default function Navbar() {
                     <Link
                       href="/sales"
                       onClick={() => setMobileOpen(false)}
-                      className="flex items-center justify-between rounded-lg px-4 py-4 text-lg font-medium text-white transition-colors hover:bg-white/15"
+                      className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
                     >
                       <span className="flex items-center gap-2">
                         <Briefcase className="h-5 w-5" />
@@ -440,7 +532,7 @@ export default function Navbar() {
                     <Link
                       href="/admin"
                       onClick={() => setMobileOpen(false)}
-                      className="flex items-center justify-between rounded-lg px-4 py-4 text-lg font-medium text-white transition-colors hover:bg-white/15"
+                      className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
                     >
                       <span className="flex items-center gap-2">
                         <Shield className="h-5 w-5" />
@@ -456,7 +548,7 @@ export default function Navbar() {
         </div>
 
         {/* Drawer Auth Buttons */}
-        <div className="border-t border-white/20 px-5 py-5 space-y-3">
+        <div className="border-t border-white/20 px-4 py-4 space-y-3">
           {isLoggedIn ? (
             <button
               type="button"
@@ -464,7 +556,7 @@ export default function Navbar() {
                 setMobileOpen(false);
                 handleLogout();
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-4 text-lg font-medium text-white transition-colors hover:bg-white/20 cursor-pointer"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/20 cursor-pointer"
             >
               <LogOut className="h-4 w-4" />
               Sign Out
@@ -474,7 +566,7 @@ export default function Navbar() {
               <Link
                 href="/login"
                 onClick={() => setMobileOpen(false)}
-                className="block w-full rounded-xl bg-white px-4 py-4 text-center text-lg font-semibold text-green-primary shadow-sm transition-colors hover:bg-white/90"
+                className="block w-full rounded-lg border border-white/30 bg-white/10 px-4 py-3.5 text-center text-base font-medium text-white transition-colors hover:bg-white/20"
                 aria-label={TOOLTIP_COPY["Login"]}
               >
                 Login
@@ -482,7 +574,7 @@ export default function Navbar() {
               <Link
                 href="/signup"
                 onClick={() => setMobileOpen(false)}
-                className="block w-full rounded-xl bg-white px-4 py-4 text-center text-lg font-semibold text-green-primary shadow-sm transition-colors hover:bg-white/90"
+                className="block w-full rounded-lg bg-white px-4 py-3.5 text-center text-base font-semibold text-green-primary shadow-sm transition-colors hover:bg-white/90"
                 aria-label={TOOLTIP_COPY["Get Started"]}
               >
                 Get Started

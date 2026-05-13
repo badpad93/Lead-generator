@@ -253,26 +253,10 @@ export default function HomePage() {
   const ctaRef = useScrollReveal<HTMLDivElement>();
 
   useEffect(() => {
-    // If Supabase redirected here with an OAuth code (misconfigured redirect URL),
-    // forward to the auth callback so the code can be exchanged for a session.
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("code")) {
-        window.location.href = `/auth/callback${window.location.search}`;
-        return;
-      }
-    }
-
     try {
       const supabase = createBrowserClient();
       supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.access_token) {
-          fetch("/api/auth/me", {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          }).then((res) => {
-            if (res.ok) router.replace("/dashboard");
-          }).catch(() => {});
-        }
+        if (session) router.replace("/dashboard");
       }).catch(() => {});
     } catch {}
   }, [router]);
