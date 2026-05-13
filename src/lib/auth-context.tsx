@@ -1,0 +1,175 @@
+"use client";
+
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import type { Profile } from "@/lib/types";
+import { createBrowserClient } from "@/lib/supabase";
+
+interface AuthState {
+  profile: Profile | null;
+  token: string;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  sessionUser: { email: string; name: string } | null;
+  signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthState>({
+  profile: null,
+  token: "",
+  isLoading: true,
+  isAuthenticated: false,
+  isAdmin: false,
+  sessionUser: null,
+  signOut: async () => {},
+  refreshProfile: async () => {},
+});
+
+export function useAuth() {
+  return useContext(AuthContext);
+}
+
+function extractSessionUser(session: { user?: { email?: string; user_metadata?: Record<string, unknown> } }) {
+  const meta = session.user?.user_metadata || {};
+  return {
+    email: session.user?.email || "",
+    name:
+      (meta.full_name as string) ||
+      (meta.name as string) ||
+      ((meta.custom_claims as Record<string, string>)?.global_name) ||
+      session.user?.email?.split("@")[0] ||
+      "User",
+  };
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [token, setToken] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [sessionUser, setSessionUser] = useState<{ email: string; name: string } | null>(null);
+  const fetchInFlight = useRef(false);
+
+  const fetchProfile = useCallback(async (accessToken: string) => {
+    if (fetchInFlight.current) return;
+    fetchInFlight.current = true;
+    try {
+      const [profileRes, adminRes] = await Promise.all([
+        fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }),
+        fetch("/api/admin/check", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }),
+      ]);
+      if (profileRes.ok) {
+        const data = await profileRes.json();
+        setProfile(data);
+        setToken(accessToken);
+        setIsLoading(false);
+      } else if (profileRes.status === 401) {
+        setProfile(null);
+        setSessionUser(null);
+        setToken("");
+        setIsLoading(false);
+        return;
+      }
+      if (adminRes.ok) {
+        const data = await adminRes.json();
+        setIsAdmin(!!data.isAdmin);
+      }
+    } catch {
+      // keep existing state on network error
+    } finally {
+      fetchInFlight.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    const supabase = createBrowserClient();
+    let mounted = true;
+
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      if (!session?.access_token) {
+        setIsLoading(false);
+        return;
+      }
+
+      setSessionUser(extractSessionUser(session));
+      await fetchProfile(session.access_token);
+    }
+
+    init();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return;
+
+        if (event === "TOKEN_REFRESHED" && session?.access_token) {
+          setToken(session.access_token);
+          if (!profile) {
+            setSessionUser(extractSessionUser(session));
+            await fetchProfile(session.access_token);
+          }
+          return;
+        }
+
+        if (event === "SIGNED_IN" && session?.access_token) {
+          setSessionUser(extractSessionUser(session));
+          await fetchProfile(session.access_token);
+          return;
+        }
+
+        if (event === "SIGNED_OUT") {
+          setProfile(null);
+          setSessionUser(null);
+          setToken("");
+          setIsAdmin(false);
+          setIsLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const signOut = useCallback(async () => {
+    const supabase = createBrowserClient();
+    await supabase.auth.signOut();
+    setProfile(null);
+    setSessionUser(null);
+    setToken("");
+    setIsAdmin(false);
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (!token) return;
+    fetchInFlight.current = false;
+    await fetchProfile(token);
+  }, [token, fetchProfile]);
+
+  return (
+    <AuthContext.Provider
+      value={{
+        profile,
+        token,
+        isLoading,
+        isAuthenticated: !!sessionUser,
+        isAdmin,
+        sessionUser,
+        signOut,
+        refreshProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
