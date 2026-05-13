@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText, Heart, Briefcase, Zap } from "lucide-react";
-import { createBrowserClient } from "@/lib/supabase";
-import type { Profile } from "@/lib/types";
+import { useAuth } from "@/lib/auth-context";
 import Tooltip from "@/app/components/Tooltip";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
@@ -32,105 +31,17 @@ const sidebarExtraLinks = [
   { label: "How It Works", href: "/how-it-works" },
 ];
 
-interface SessionUser {
-  email: string;
-  name: string;
-}
-
 export default function Navbar() {
   const router = useRouter();
+  const { profile, sessionUser, isAdmin, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Check auth state
-  useEffect(() => {
-    const supabase = createBrowserClient();
-
-    async function checkAuth() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
-
-      const meta = session.user?.user_metadata || {};
-      setSessionUser({
-        email: session.user?.email || "",
-        name: meta.full_name || meta.name || meta.custom_claims?.global_name || session.user?.email?.split("@")[0] || "User",
-      });
-
-      try {
-        const [profileRes, adminRes] = await Promise.all([
-          fetch("/api/auth/me", {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          }),
-          fetch("/api/admin/check", {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          }),
-        ]);
-        if (profileRes.ok) {
-          const data = await profileRes.json();
-          setProfile(data);
-        } else if (profileRes.status === 401) {
-          setSessionUser(null);
-        }
-        if (adminRes.ok) {
-          const data = await adminRes.json();
-          setIsAdmin(!!data.isAdmin);
-        }
-      } catch {
-        // ignore — sessionUser still shows logged-in state
-      }
-    }
-
-    checkAuth();
-
-    // Listen for auth state changes (login/logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === "SIGNED_IN" && session?.access_token) {
-          const meta = session.user?.user_metadata || {};
-          setSessionUser({
-            email: session.user?.email || "",
-            name: meta.full_name || meta.name || meta.custom_claims?.global_name || session.user?.email?.split("@")[0] || "User",
-          });
-
-          try {
-            const [profileRes, adminRes] = await Promise.all([
-              fetch("/api/auth/me", {
-                headers: { Authorization: `Bearer ${session.access_token}` },
-              }),
-              fetch("/api/admin/check", {
-                headers: { Authorization: `Bearer ${session.access_token}` },
-              }),
-            ]);
-            if (profileRes.ok) {
-              const data = await profileRes.json();
-              setProfile(data);
-            }
-            if (adminRes.ok) {
-              const data = await adminRes.json();
-              setIsAdmin(!!data.isAdmin);
-            }
-          } catch {
-            // ignore
-          }
-        } else if (event === "SIGNED_OUT") {
-          setSessionUser(null);
-          setProfile(null);
-          setIsAdmin(false);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
   }, []);
 
   // Lock body scroll when mobile drawer is open
@@ -154,11 +65,7 @@ export default function Navbar() {
   }, [userMenuOpen]);
 
   async function handleLogout() {
-    const supabase = createBrowserClient();
-    await supabase.auth.signOut();
-    setSessionUser(null);
-    setProfile(null);
-    setIsAdmin(false);
+    await signOut();
     setUserMenuOpen(false);
     router.push("/");
   }

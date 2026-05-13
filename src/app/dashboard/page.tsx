@@ -32,7 +32,7 @@ import type {
   MachineType,
 } from "@/lib/types";
 import { MACHINE_TYPES } from "@/lib/types";
-import { createBrowserClient } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth-context";
 import LocationTypeIcon from "@/app/components/LocationTypeIcon";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
 import UrgencyBadge from "@/app/components/UrgencyBadge";
@@ -225,100 +225,14 @@ interface OperatorWithProfile extends OperatorListing {
 /* ------------------------------------------------------------------ */
 
 export default function DashboardPage() {
-  /* ---- Auth ---- */
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [token, setToken] = useState<string>("");
-  const [authLoading, setAuthLoading] = useState(true);
-  const [notLoggedIn, setNotLoggedIn] = useState(false);
+  /* ---- Auth (from shared context) ---- */
+  const { profile, token, isLoading: authLoading, isAuthenticated } = useAuth();
 
   /* ---- Data ---- */
   const [requests, setRequests] = useState<VendingRequest[]>([]);
   const [operators, setOperators] = useState<OperatorWithProfile[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [loadingOperators, setLoadingOperators] = useState(false);
-
-  /* ============================================================== */
-  /*  Auth                                                           */
-  /* ============================================================== */
-
-  useEffect(() => {
-    const supabase = createBrowserClient();
-    let mounted = true;
-
-    async function initAuth() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!mounted) return;
-
-      if (!session?.access_token) {
-        setNotLoggedIn(true);
-        setAuthLoading(false);
-        return;
-      }
-
-      try {
-        const res = await fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!mounted) return;
-        if (!res.ok) {
-          setNotLoggedIn(true);
-          setAuthLoading(false);
-          return;
-        }
-        const data = await res.json();
-        setProfile(data);
-        setToken(session.access_token);
-      } catch {
-        if (mounted) setNotLoggedIn(true);
-      } finally {
-        if (mounted) setAuthLoading(false);
-      }
-    }
-
-    initAuth();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      if (event === "TOKEN_REFRESHED" && session?.access_token) {
-        setToken(session.access_token);
-        return;
-      }
-
-      if (event === "SIGNED_IN" && session?.access_token) {
-        try {
-          const res = await fetch("/api/auth/me", {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-          if (!mounted) return;
-          if (res.ok) {
-            const data = await res.json();
-            setProfile(data);
-            setToken(session.access_token);
-            setNotLoggedIn(false);
-            setAuthLoading(false);
-          }
-        } catch {
-          // keep existing state
-        }
-        return;
-      }
-
-      if (event === "SIGNED_OUT") {
-        setProfile(null);
-        setToken("");
-        setNotLoggedIn(true);
-        setAuthLoading(false);
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
 
   /* ============================================================== */
   /*  Fetch preview data                                             */
@@ -362,9 +276,9 @@ export default function DashboardPage() {
   /*  Sign Out                                                       */
   /* ============================================================== */
 
+  const { signOut, refreshProfile } = useAuth();
   async function handleSignOut() {
-    const supabase = createBrowserClient();
-    await supabase.auth.signOut();
+    await signOut();
     window.location.href = "/login";
   }
 
@@ -393,7 +307,7 @@ export default function DashboardPage() {
   /*  Not logged in                                                  */
   /* ============================================================== */
 
-  if (notLoggedIn || !profile) {
+  if (!isAuthenticated || !profile) {
     return (
       <div className="flex min-h-[calc(100vh-160px)] items-center justify-center px-4">
         <div className="mx-auto max-w-md text-center">
@@ -448,12 +362,7 @@ export default function DashboardPage() {
           state: profile.state || "",
           zip: profile.zip || "",
         }}
-        onComplete={async () => {
-          const res = await fetch("/api/auth/me", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) setProfile(await res.json());
-        }}
+        onComplete={refreshProfile}
       />
     );
   }
