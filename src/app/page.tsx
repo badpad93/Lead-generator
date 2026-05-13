@@ -265,9 +265,14 @@ export default function HomePage() {
 
     try {
       const supabase = createBrowserClient();
-      supabase.auth.getUser().then(({ data: { user }, error }) => {
-        if (user && !error) router.replace("/dashboard");
-        else if (error) supabase.auth.signOut().catch(() => {});
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.access_token) {
+          fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }).then((res) => {
+            if (res.ok) router.replace("/dashboard");
+          }).catch(() => {});
+        }
       }).catch(() => {});
     } catch {}
   }, [router]);

@@ -16,8 +16,6 @@ function LoginContent() {
   useEffect(() => {
     const authError = searchParams.get("error");
     if (authError) {
-      const supabase = createBrowserClient();
-      supabase.auth.signOut().catch(() => {});
       setError(authError);
       setChecking(false);
       return;
@@ -29,14 +27,15 @@ function LoginContent() {
     async function checkSession() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
+        if (!session?.access_token) {
           setChecking(false);
           return;
         }
 
-        const { error: userError } = await supabase.auth.getUser();
-        if (userError) {
-          await supabase.auth.signOut();
+        const res = await fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) {
           setChecking(false);
           return;
         }
@@ -44,7 +43,6 @@ function LoginContent() {
         const redirect = searchParams.get("redirect") || "/dashboard";
         window.location.href = redirect;
       } catch {
-        await supabase.auth.signOut().catch(() => {});
         setChecking(false);
       }
     }
