@@ -566,7 +566,7 @@ export default function Navbar() {
               <Link
                 href="/login"
                 onClick={() => setMobileOpen(false)}
-                className="block w-full rounded-xl border border-white/30 bg-white/10 px-4 py-4 text-center text-lg font-medium text-white transition-colors hover:bg-white/20"
+                className="block w-full rounded-xl bg-white px-4 py-4 text-center text-lg font-semibold text-green-primary shadow-sm transition-colors hover:bg-white/90"
                 aria-label={TOOLTIP_COPY["Login"]}
               >
                 Login
