@@ -9,7 +9,7 @@ export async function GET(
 
   const { data, error } = await supabaseAdmin
     .from("agreement_tokens")
-    .select("id, token, recipient_name, recipient_email, industry, zip, pricing_score, pricing_tier, pricing_price, status, signature_name, signed_at, paid_at, pdf_url, created_at, sales_accounts(business_name)")
+    .select("id, token, recipient_name, recipient_email, industry, zip, pricing_score, pricing_tier, pricing_price, status, signature_name, signed_at, paid_at, pdf_url, full_details_pdf_url, location_id, created_at, sales_accounts(business_name)")
     .eq("token", token)
     .single();
 
@@ -25,5 +25,15 @@ export async function GET(
       .eq("status", "pending");
   }
 
-  return NextResponse.json(data);
+  let location = null;
+  if (data.status === "paid" && data.location_id) {
+    const { data: loc } = await supabaseAdmin
+      .from("locations")
+      .select("location_name, address, phone, decision_maker_name, decision_maker_email, industry, zip, employee_count, traffic_count, machine_type, machines_requested, business_hours")
+      .eq("id", data.location_id)
+      .single();
+    location = loc;
+  }
+
+  return NextResponse.json({ ...data, location });
 }

@@ -3,7 +3,22 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { Loader2, CheckCircle2, FileText, Shield, CreditCard, PenTool } from "lucide-react";
+import { Loader2, CheckCircle2, FileText, Shield, CreditCard, PenTool, MapPin, Phone, Mail, User, Building2, Clock, Download } from "lucide-react";
+
+interface LocationDetails {
+  location_name: string | null;
+  address: string | null;
+  phone: string | null;
+  decision_maker_name: string | null;
+  decision_maker_email: string | null;
+  industry: string | null;
+  zip: string | null;
+  employee_count: number | null;
+  traffic_count: number | null;
+  machine_type: string | null;
+  machines_requested: number | null;
+  business_hours: string | null;
+}
 
 interface Agreement {
   id: string;
@@ -20,8 +35,10 @@ interface Agreement {
   signed_at: string | null;
   paid_at: string | null;
   pdf_url: string | null;
+  full_details_pdf_url: string | null;
   created_at: string;
   sales_accounts: { business_name: string } | null;
+  location: LocationDetails | null;
 }
 
 const TIER_LABELS: Record<number, string> = { 1: "Tier 1", 2: "Tier 2", 3: "Tier 3", 4: "Tier 4", 5: "Tier 5" };
@@ -43,14 +60,18 @@ function AgreementContent() {
     async function load() {
       const res = await fetch(`/api/agreements/token/${token}`);
       if (res.ok) {
-        setAgreement(await res.json());
+        const data = await res.json();
+        setAgreement(data);
+        if (justPaid && data.status !== "paid") {
+          setTimeout(load, 3000);
+        }
       } else {
         setError("Agreement not found or has expired.");
       }
       setLoading(false);
     }
     load();
-  }, [token]);
+  }, [token, justPaid]);
 
   async function handleSign() {
     if (!signatureName.trim() || signatureName.trim().length < 2) {
@@ -280,19 +301,163 @@ function AgreementContent() {
           </div>
         </div>
 
-        {/* PDF Download */}
-        {agreement.pdf_url && (
-          <div className="mt-4 text-center">
+        {/* Full Site Details (shown after payment) */}
+        {isPaid && agreement.location && (
+          <div className="mt-6 rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
+            <div className="px-6 py-4 bg-green-50 border-b border-green-200">
+              <h2 className="text-lg font-bold text-green-800 flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Full Site Details
+              </h2>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {agreement.location.location_name && (
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider">Location Name</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-0.5">{agreement.location.location_name}</p>
+                </div>
+              )}
+
+              {agreement.location.address && (
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider">Address</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-0.5 flex items-start gap-1.5">
+                    <MapPin className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                    {agreement.location.address}
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                {agreement.location.decision_maker_name && (
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Decision Maker</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-0.5 flex items-center gap-1.5">
+                      <User className="h-4 w-4 text-green-600 flex-shrink-0" />
+                      {agreement.location.decision_maker_name}
+                    </p>
+                  </div>
+                )}
+
+                {agreement.location.decision_maker_email && (
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Email</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-0.5 flex items-center gap-1.5">
+                      <Mail className="h-4 w-4 text-green-600 flex-shrink-0" />
+                      <a href={`mailto:${agreement.location.decision_maker_email}`} className="text-green-700 hover:underline">
+                        {agreement.location.decision_maker_email}
+                      </a>
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {agreement.location.phone && (
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider">Phone</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-0.5 flex items-center gap-1.5">
+                    <Phone className="h-4 w-4 text-green-600 flex-shrink-0" />
+                    <a href={`tel:${agreement.location.phone}`} className="text-green-700 hover:underline">
+                      {agreement.location.phone}
+                    </a>
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                {agreement.location.industry && (
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Industry</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-0.5 flex items-center gap-1.5">
+                      <Building2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+                      {agreement.location.industry}
+                    </p>
+                  </div>
+                )}
+
+                {agreement.location.employee_count != null && agreement.location.employee_count > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Employees</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-0.5">{agreement.location.employee_count}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {agreement.location.traffic_count != null && agreement.location.traffic_count > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Daily Traffic</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-0.5">{agreement.location.traffic_count}</p>
+                  </div>
+                )}
+
+                {agreement.location.machine_type && (
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Machine Type</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-0.5">{agreement.location.machine_type}</p>
+                  </div>
+                )}
+              </div>
+
+              {agreement.location.business_hours && (
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider">Business Hours</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-0.5 flex items-center gap-1.5">
+                    <Clock className="h-4 w-4 text-green-600 flex-shrink-0" />
+                    {agreement.location.business_hours}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {agreement.full_details_pdf_url && (
+              <div className="px-6 py-4 border-t border-green-100 bg-green-50/50">
+                <a
+                  href={agreement.full_details_pdf_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Full Site Details PDF
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isPaid && !agreement.location && (
+          <div className="mt-6 rounded-2xl border border-gray-200 bg-white shadow-sm p-6 text-center">
+            <Loader2 className="mx-auto h-6 w-6 animate-spin text-green-600 mb-3" />
+            <p className="text-sm text-gray-600">Processing your payment — site details will appear here shortly.</p>
+            <p className="text-xs text-gray-400 mt-1">Details are also being sent to {agreement.recipient_email}</p>
+          </div>
+        )}
+
+        {/* PDF Downloads */}
+        <div className="mt-4 text-center flex flex-col items-center gap-2">
+          {agreement.full_details_pdf_url && (
+            <a
+              href={agreement.full_details_pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-green-600 hover:text-green-700 font-medium underline"
+            >
+              Download Full Site Details PDF
+            </a>
+          )}
+          {agreement.pdf_url && (
             <a
               href={agreement.pdf_url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-gray-400 hover:text-gray-600 underline"
             >
-              Download PDF
+              Download Agreement PDF
             </a>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Footer */}
         <div className="mt-8 text-center">
