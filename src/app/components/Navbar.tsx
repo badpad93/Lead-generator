@@ -57,19 +57,13 @@ export default function Navbar() {
     const supabase = createBrowserClient();
 
     async function checkAuth() {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        await supabase.auth.signOut().catch(() => {});
-        return;
-      }
-
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) return;
 
-      const meta = user.user_metadata || {};
+      const meta = session.user?.user_metadata || {};
       setSessionUser({
-        email: user.email || "",
-        name: meta.full_name || meta.name || meta.custom_claims?.global_name || user.email?.split("@")[0] || "User",
+        email: session.user?.email || "",
+        name: meta.full_name || meta.name || meta.custom_claims?.global_name || session.user?.email?.split("@")[0] || "User",
       });
 
       try {
@@ -84,6 +78,8 @@ export default function Navbar() {
         if (profileRes.ok) {
           const data = await profileRes.json();
           setProfile(data);
+        } else if (profileRes.status === 401) {
+          setSessionUser(null);
         }
         if (adminRes.ok) {
           const data = await adminRes.json();
