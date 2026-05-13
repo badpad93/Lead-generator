@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
-import { createBrowserClient } from "@/lib/supabase";
+import { createBrowserClient, createPlainBrowserClient } from "@/lib/supabase";
 import { consumeSignupRole, consumeRedirectAfterLogin, consumeAuthFlow, consumeSignupLead } from "@/lib/auth";
 
 function CallbackContent() {
@@ -15,61 +15,52 @@ function CallbackContent() {
     let cancelled = false;
 
     async function handleCallback() {
-      const supabase = createBrowserClient();
-
       // Determine the flow from URL param (primary) or localStorage fallback.
       const flowParam = searchParams.get("flow");
       const storedFlow = consumeAuthFlow();
       const flow = flowParam || storedFlow || "login";
       const isSignup = flow === "signup";
 
-      // Obtain the session. The client uses implicit flow (session arrives
-      // in the URL hash and is auto-detected by the Supabase client).
-      // We also handle the legacy PKCE flow (code in query string) as a
-      // fallback in case old links or cached redirects still use it.
-      let session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"] = null;
-
+      // Exchange the OAuth code for a session using the plain
+      // (localStorage-based) client. The PKCE code verifier was stored in
+      // localStorage by the OAuth initiation functions in auth.ts. The SSR
+      // client (cookie-based) loses the verifier during cross-domain
+      // redirects, so we must use the same storage layer that wrote it.
       const code = searchParams.get("code");
-      if (code) {
-        // PKCE fallback: try to exchange the code for a session
-        const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-        if (cancelled) return;
-        if (!exchangeErr && data.session) {
-          session = data.session;
-        }
-      }
-
-      if (!session) {
-        // Implicit flow: the Supabase client auto-detects the session
-        // from the URL hash. Give it a moment to process, then read it.
-        if (cancelled) return;
-        const { data: { session: detected } } = await supabase.auth.getSession();
-        session = detected;
-      }
-
-      if (!session) {
-        // Last resort: wait briefly for onAuthStateChange to fire
-        if (cancelled) return;
-        session = await new Promise((resolve) => {
-          const timeout = setTimeout(() => resolve(null), 3000);
-          const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
-            if (s) {
-              clearTimeout(timeout);
-              subscription.unsubscribe();
-              resolve(s);
-            }
-          });
-        });
-      }
-
-      if (cancelled) return;
-
-      if (!session) {
-        setError("Failed to complete sign-in. Please try again.");
+      if (!code) {
+        setError("Missing authorization code. Please try again.");
         setTimeout(() => {
-          window.location.href = "/login?error=" + encodeURIComponent("Sign-in failed. Please try again.");
+          window.location.href = "/login?error=" + encodeURIComponent("Missing authorization code. Please try signing in again.");
         }, 2000);
         return;
+      }
+
+      const plainClient = createPlainBrowserClient();
+      const { data, error: exchangeErr } = await plainClient.auth.exchangeCodeForSession(code);
+      if (cancelled) return;
+
+      if (exchangeErr || !data.session) {
+        const msg = exchangeErr?.message || "Failed to complete sign-in.";
+        setError(msg);
+        setTimeout(() => {
+          window.location.href = "/login?error=" + encodeURIComponent("Sign-in failed: " + msg + ". Please try again.");
+        }, 2000);
+        return;
+      }
+
+      const session = data.session;
+
+      // Sync the session to the SSR (cookie-based) client so the rest of
+      // the app can read it via createBrowserClient / getAccessToken.
+      try {
+        const ssrClient = createBrowserClient();
+        await ssrClient.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+      } catch {
+        // Best-effort — the plain client session in localStorage is the
+        // primary fallback; cookie sync failing is non-fatal.
       }
 
       // Ensure the profile exists (auto-creates for new users via GET)
