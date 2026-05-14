@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -66,6 +66,14 @@ function daysAgo(dateStr: string): string {
 }
 
 export default function MyListingsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[calc(100vh-160px)] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-green-primary" /></div>}>
+      <MyListingsContent />
+    </Suspense>
+  );
+}
+
+function MyListingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
