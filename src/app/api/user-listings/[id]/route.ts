@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { getAdminUserId } from "@/lib/adminAuth";
 
 export async function GET(
   req: NextRequest,
@@ -56,13 +57,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .single();
-
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = !!(await getAdminUserId(req));
 
   const { data: listing } = await supabaseAdmin
     .from("user_listings")
@@ -118,13 +113,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .single();
-
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = !!(await getAdminUserId(req));
 
   let query = supabaseAdmin
     .from("user_listings")
