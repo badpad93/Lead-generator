@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { getAdminUserId } from "@/lib/adminAuth";
 import { sendLocationAgreementEmail } from "@/lib/locationAgreementEmail";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
@@ -32,17 +33,9 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false })
     .range((page - 1) * perPage, page * perPage - 1);
 
-  // Check if requester is admin
-  const requesterId = await getUserIdFromRequest(req);
-  let isAdmin = false;
-  if (requesterId) {
-    const { data: reqProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", requesterId)
-      .single();
-    isAdmin = reqProfile?.role === "admin";
-  }
+  // Check if requester is admin (email-based)
+  const adminId = await getAdminUserId(req);
+  const isAdmin = !!adminId;
 
   if (resolvedSellerId && sellerIdParam === "me") {
     query = query.eq("seller_id", resolvedSellerId).neq("status", "removed");
