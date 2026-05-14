@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
   Loader2,
@@ -67,10 +67,12 @@ function daysAgo(dateStr: string): string {
 
 export default function MyListingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [listings, setListings] = useState<UserListing[]>([]);
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
   const [connectLoading, setConnectLoading] = useState(false);
+  const [stripePolling, setStripePolling] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +122,51 @@ export default function MyListingsPage() {
   }, [router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    const stripeParam = searchParams.get("stripe");
+    if (stripeParam !== "complete" && stripeParam !== "refresh") return;
+
+    window.history.replaceState({}, "", "/my-listings");
+
+    let cancelled = false;
+    async function pollStripeStatus() {
+      setStripePolling(true);
+      const token = await getAccessToken();
+      if (!token) return;
+
+      for (let attempt = 0; attempt < 6; attempt++) {
+        if (cancelled) return;
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+        try {
+          const res = await fetch("/api/connect/status", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const status: ConnectStatus = await res.json();
+            setConnectStatus(status);
+            if (status.onboarding_complete) {
+              setStripePolling(false);
+              setToast("Stripe connected — you can now create listings!");
+              return;
+            }
+          }
+        } catch {
+          // retry
+        }
+      }
+
+      if (!cancelled) {
+        setStripePolling(false);
+        setToast("Stripe setup is processing — it may take a minute. Refresh the page shortly.");
+      }
+    }
+
+    pollStripeStatus();
+    return () => { cancelled = true; };
+  }, [searchParams]);
 
   useEffect(() => {
     if (toast) {
@@ -248,29 +295,43 @@ export default function MyListingsPage() {
 
       {/* Stripe Connect Status */}
       {!connectStatus?.onboarding_complete && (
-        <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-6">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="font-semibold text-amber-900">Connect Your Stripe Account</h3>
-              <p className="text-amber-800 text-sm mt-1">
-                To sell on the marketplace, you need to connect a Stripe account so you can receive payouts.
-                VendingConnector takes a 15% platform fee — the rest goes directly to your bank.
-              </p>
-              <button
-                onClick={handleConnectStripe}
-                disabled={connectLoading}
-                className="mt-4 inline-flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                {connectLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                {connectStatus?.connected ? "Complete Stripe Setup" : "Connect Stripe"}
-              </button>
-              {error && (
-                <p className="mt-2 text-sm text-red-600">{error}</p>
-              )}
+        stripePolling ? (
+          <div className="mb-8 rounded-xl border border-blue-200 bg-blue-50 p-6">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 text-blue-600 animate-spin flex-shrink-0" />
+              <div>
+                <h3 className="font-semibold text-blue-900">Finishing Stripe Setup...</h3>
+                <p className="text-blue-800 text-sm mt-1">
+                  We're confirming your account with Stripe. This usually takes a few seconds.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h3 className="font-semibold text-amber-900">Connect Your Stripe Account</h3>
+                <p className="text-amber-800 text-sm mt-1">
+                  To sell on the marketplace, you need to connect a Stripe account so you can receive payouts.
+                  VendingConnector takes a 15% platform fee — the rest goes directly to your bank.
+                </p>
+                <button
+                  onClick={handleConnectStripe}
+                  disabled={connectLoading}
+                  className="mt-4 inline-flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {connectLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                  {connectStatus?.connected ? "Complete Stripe Setup" : "Connect Stripe"}
+                </button>
+                {error && (
+                  <p className="mt-2 text-sm text-red-600">{error}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )
       )}
 
       {connectStatus?.onboarding_complete && (
