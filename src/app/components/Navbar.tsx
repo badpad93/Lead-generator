@@ -10,12 +10,12 @@ import Tooltip from "@/app/components/Tooltip";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
 const navLinks = [
-  { label: "Locations for Sale", href: "/browse-requests" },
-  { label: "Sell a Location", href: "/marketplace" },
-  { label: "Machines for Sale", href: "/machines-for-sale" },
-  { label: "Routes for Sale", href: "/routes-for-sale" },
-  { label: "Browse Operators", href: "/browse-operators" },
-  { label: "Financing", href: "/financing" },
+  { label: "Locations for Sale", href: "/signup?redirect=/browse-requests" },
+  { label: "Sell a Location", href: "/signup?redirect=/marketplace" },
+  { label: "Machines for Sale", href: "/signup?redirect=/machines-for-sale" },
+  { label: "Routes for Sale", href: "/signup?redirect=/routes-for-sale" },
+  { label: "Browse Operators", href: "/signup?redirect=/browse-operators" },
+  { label: "Financing", href: "/signup?redirect=/financing" },
 ];
 
 const authNavLinks = [
@@ -208,7 +208,7 @@ export default function Navbar() {
         <div className="hidden items-center gap-3 lg:flex">
           <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
             <Link
-              href="/request-location"
+              href={isLoggedIn ? "/request-location" : "/signup?redirect=/request-location"}
               className="rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
               aria-label={TOOLTIP_COPY["Request Location Services"]}
               title={TOOLTIP_COPY["Request Location Services"]}
