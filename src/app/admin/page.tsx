@@ -4156,6 +4156,7 @@ function MarketplaceManager({
   const [listings, setListings] = useState<MarketplaceListingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
 
   const fetchListings = useCallback(async () => {
@@ -4198,6 +4199,45 @@ function MarketplaceManager({
     }
   }
 
+  async function handleApprove(id: string) {
+    setApproving(id);
+    try {
+      const res = await fetch(`/api/user-listings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: "active", is_public: true }),
+      });
+      if (res.ok) {
+        fetchListings();
+        onSuccess("Listing approved and published!");
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setApproving(null);
+    }
+  }
+
+  async function handleReject(id: string) {
+    if (!confirm("Reject this listing? It will be removed.")) return;
+    setApproving(id);
+    try {
+      const res = await fetch(`/api/user-listings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: "removed", is_public: false }),
+      });
+      if (res.ok) {
+        fetchListings();
+        onSuccess("Listing rejected.");
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setApproving(null);
+    }
+  }
+
   const filtered = statusFilter === "all"
     ? listings
     : listings.filter((l) => l.status === statusFilter);
@@ -4225,6 +4265,8 @@ function MarketplaceManager({
           className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
         >
           <option value="all">All statuses</option>
+          <option value="pending_approval">Pending Approval</option>
+          <option value="pending_verification">Pending Verification</option>
           <option value="active">Active</option>
           <option value="sold">Sold</option>
           <option value="removed">Removed</option>
@@ -4257,6 +4299,8 @@ function MarketplaceManager({
                   sold: "bg-blue-50 text-blue-700",
                   removed: "bg-red-50 text-red-600",
                   expired: "bg-gray-100 text-gray-600",
+                  pending_approval: "bg-amber-50 text-amber-700",
+                  pending_verification: "bg-purple-50 text-purple-700",
                 };
                 return (
                   <tr key={l.id} className="hover:bg-gray-50/50">
@@ -4279,28 +4323,50 @@ function MarketplaceManager({
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[l.status] || "bg-gray-100 text-gray-600"}`}>
-                        {l.status}
+                        {l.status === "pending_approval" ? "Pending Approval" : l.status === "pending_verification" ? "Pending Verification" : l.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-black-primary/40 text-xs whitespace-nowrap">
                       {new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </td>
                     <td className="px-4 py-3">
-                      {l.status === "active" && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemove(l.id)}
-                          disabled={deleting === l.id}
-                          className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50"
-                          title="Remove listing"
-                        >
-                          {deleting === l.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {l.status === "pending_approval" && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleApprove(l.id)}
+                              disabled={approving === l.id}
+                              className="rounded-lg px-2.5 py-1 text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
+                            >
+                              {approving === l.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Approve"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleReject(l.id)}
+                              disabled={approving === l.id}
+                              className="rounded-lg px-2.5 py-1 text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {l.status === "active" && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(l.id)}
+                            disabled={deleting === l.id}
+                            className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50"
+                            title="Remove listing"
+                          >
+                            {deleting === l.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

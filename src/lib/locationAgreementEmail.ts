@@ -2,6 +2,7 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.FROM_EMAIL || "sales@bytebitevending.com";
+const ADMIN_EMAIL = "james@apexaivending.com";
 const PHONE = "(888) 851-1462";
 
 export async function sendLocationAgreementEmail(params: {
@@ -121,6 +122,56 @@ export async function sendLocationDealClosedEmail(params: {
         </div>
         <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
         <p style="color:#9ca3af;font-size:11px;">Apex AI Vending — vendingconnector.com</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendListingPendingApprovalEmail(params: {
+  listingTitle: string;
+  listingType: string;
+  sellerName: string;
+  sellerEmail: string;
+  city: string;
+  state: string;
+  price: number;
+}) {
+  const { listingTitle, listingType, sellerName, sellerEmail, city, state, price } = params;
+  const adminUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com"}/admin`;
+  const location = [city, state].filter(Boolean).join(", ") || "N/A";
+
+  await resend.emails.send({
+    from: FROM,
+    to: ADMIN_EMAIL,
+    subject: `New marketplace listing pending approval — ${listingTitle}`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+        <div style="margin-bottom:24px;">
+          <span style="font-size:20px;font-weight:700;color:#16a34a;">Vending Connector</span>
+        </div>
+        <p style="color:#111827;font-size:15px;line-height:1.6;font-weight:600;">
+          New Marketplace Listing Pending Your Approval
+        </p>
+        <div style="margin:16px 0;padding:16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;">
+          <table style="width:100%;font-size:14px;color:#374151;border-collapse:collapse;">
+            <tr><td style="padding:4px 8px;font-weight:600;">Title</td><td style="padding:4px 8px;">${listingTitle}</td></tr>
+            <tr><td style="padding:4px 8px;font-weight:600;">Type</td><td style="padding:4px 8px;">${listingType}</td></tr>
+            <tr><td style="padding:4px 8px;font-weight:600;">Seller</td><td style="padding:4px 8px;">${sellerName} (${sellerEmail})</td></tr>
+            <tr><td style="padding:4px 8px;font-weight:600;">Location</td><td style="padding:4px 8px;">${location}</td></tr>
+            <tr><td style="padding:4px 8px;font-weight:600;">Price</td><td style="padding:4px 8px;">$${price.toLocaleString()}</td></tr>
+          </table>
+        </div>
+        <p style="color:#374151;font-size:14px;line-height:1.6;">
+          The location owner has signed the agreement. Please review and approve or reject this listing
+          in the admin panel.
+        </p>
+        <div style="margin:24px 0;">
+          <a href="${adminUrl}" style="display:inline-block;background:#16a34a;color:#fff;font-weight:600;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
+            Review in Admin Panel
+          </a>
+        </div>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+        <p style="color:#9ca3af;font-size:11px;">Vending Connector — vendingconnector.com</p>
       </div>
     `,
   });

@@ -78,7 +78,7 @@ export async function PATCH(
   const allowed = [
     "title", "description", "price", "city", "state", "zip",
     "entity_type", "foot_traffic", "square_footage", "business_type",
-    "contact_name", "contact_phone", "contact_email", "status",
+    "contact_name", "contact_phone", "contact_email", "status", "is_public",
   ];
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };

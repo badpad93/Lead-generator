@@ -22,6 +22,7 @@ import {
   Download,
   Phone,
   User,
+  UserPlus,
 } from "lucide-react";
 import type { VendingRequest, Profile } from "@/lib/types";
 import { LOCATION_TYPES } from "@/lib/types";
@@ -225,6 +226,7 @@ export default function RequestDetailPage() {
   const [showAgreement, setShowAgreement] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
   const [feesExempt, setFeesExempt] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const justPurchased = searchParams.get("purchased") === "true";
 
   // Fetch main request — re-fetch when purchase is detected to get full data
@@ -265,6 +267,7 @@ export default function RequestDetailPage() {
         const { data: { session } } = await supabase.auth.getSession();
         const user = session?.user ?? null;
         if (user) {
+          setIsLoggedIn(true);
           const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single() as { data: { role: string } | null };
           if (profile?.role && FEE_EXEMPT_ROLES.includes(profile.role)) setFeesExempt(true);
         }
@@ -386,17 +389,19 @@ export default function RequestDetailPage() {
   );
 
   async function handlePurchase() {
-    // Show agreement modal instead of going directly to checkout
+    if (!isLoggedIn) {
+      window.location.href = `/signup?redirect=/requests/${id}`;
+      return;
+    }
     setPurchaseError(null);
     try {
-      // Fetch user email for the agreement form
       const { createBrowserClient } = await import("@/lib/supabase");
       const supabase = createBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user ?? null;
       setCurrentUserEmail(user?.email || "");
     } catch {
-      // continue without email - user can see it in the form
+      // continue without email
     }
     setShowAgreement(true);
   }
@@ -955,92 +960,126 @@ export default function RequestDetailPage() {
                   <h3 className="text-lg font-bold text-black-primary">
                     Interested in this location?
                   </h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    This is a contracted lead. Call or email to inquire about this location opportunity.
-                  </p>
-                  {request.price != null && (
-                    <p className="mt-2 text-xl font-bold text-green-700">
-                      ${request.price.toLocaleString()}
-                    </p>
+                  {!isLoggedIn ? (
+                    <>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Sign up for Vending Connector to inquire about this location opportunity.
+                      </p>
+                      <a
+                        href={`/signup?redirect=/requests/${id}`}
+                        className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        Sign Up to Inquire
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-1 text-sm text-gray-500">
+                        This is a contracted lead. Call or email to inquire about this location opportunity.
+                      </p>
+                      {request.price != null && (
+                        <p className="mt-2 text-xl font-bold text-green-700">
+                          ${request.price.toLocaleString()}
+                        </p>
+                      )}
+                      <a
+                        href="tel:+18888511462"
+                        className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                      >
+                        <Phone className="h-4 w-4" />
+                        Call to Inquire — (888) 851-1462
+                      </a>
+                      <a
+                        href={`mailto:james@apexaivending.com?subject=Location%20Inquiry%20—%20${encodeURIComponent(request.title)}&body=I%20am%20interested%20in%20the%20location%20lead%20in%20${encodeURIComponent(request.city)}%2C%20${encodeURIComponent(request.state)}.%0A%0ARequest%20ID:%20${id}`}
+                        className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Email to Inquire
+                      </a>
+                    </>
                   )}
-                  <a
-                    href="tel:+18888511462"
-                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
-                  >
-                    <Phone className="h-4 w-4" />
-                    Call to Inquire — (888) 851-1462
-                  </a>
-                  <a
-                    href={`mailto:james@apexaivending.com?subject=Location%20Inquiry%20—%20${encodeURIComponent(request.title)}&body=I%20am%20interested%20in%20the%20location%20lead%20in%20${encodeURIComponent(request.city)}%2C%20${encodeURIComponent(request.state)}.%0A%0ARequest%20ID:%20${id}`}
-                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
-                  >
-                    <Mail className="h-4 w-4" />
-                    Email to Inquire
-                  </a>
                 </>
               ) : (
                 <>
                   <h3 className="text-lg font-bold text-black-primary">
                     Interested in this location?
                   </h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Purchase this lead to unlock full location details, or contact the admin to get connected.
-                  </p>
-
-                  {request.price != null && request.price > 0 ? (
+                  {!isLoggedIn ? (
                     <>
-                      {(() => {
-                        const btnPriceCents = Math.round(request.price * 100);
-                        const btnFees = !feesExempt ? calculateFees(btnPriceCents) : { totalFeeCents: 0 };
-                        const btnTotal = (btnPriceCents + btnFees.totalFeeCents) / 100;
-                        return (
-                          <button
-                            onClick={handlePurchase}
-                            disabled={purchasing}
-                            className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {purchasing ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Redirecting to payment...
-                              </>
-                            ) : (
-                              <>
-                                <CreditCard className="h-4 w-4" />
-                                Purchase This Lead — ${btnTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                              </>
-                            )}
-                          </button>
-                        );
-                      })()}
-                      {purchaseError && (
-                        <p className="mt-2 text-xs text-red-600">{purchaseError}</p>
-                      )}
+                      <p className="mt-1 text-sm text-gray-500">
+                        Sign up for Vending Connector to purchase this lead and unlock full location details.
+                      </p>
+                      <a
+                        href={`/signup?redirect=/requests/${id}`}
+                        className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        Sign Up to Inquire
+                      </a>
                     </>
                   ) : (
-                    <a
-                      href="mailto:james@apexaivending.com?subject=Lead%20Purchase%20Inquiry&body=I%20am%20interested%20in%20purchasing%20a%20lead.%20Request%20ID:%20${id}"
-                      className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
-                    >
-                      <Mail className="h-4 w-4" />
-                      Contact Admin for Pricing
-                    </a>
-                  )}
+                    <>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Purchase this lead to unlock full location details, or contact the admin to get connected.
+                      </p>
 
-                  <a
-                    href="mailto:james@apexaivending.com"
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
-                  >
-                    <Mail className="h-4 w-4" />
-                    Contact Admin
-                  </a>
-                  <a
-                    href="tel:+18888511462"
-                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
-                  >
-                    <Phone className="h-4 w-4" />
-                    (888) 851-1462
-                  </a>
+                      {request.price != null && request.price > 0 ? (
+                        <>
+                          {(() => {
+                            const btnPriceCents = Math.round(request.price * 100);
+                            const btnFees = !feesExempt ? calculateFees(btnPriceCents) : { totalFeeCents: 0 };
+                            const btnTotal = (btnPriceCents + btnFees.totalFeeCents) / 100;
+                            return (
+                              <button
+                                onClick={handlePurchase}
+                                disabled={purchasing}
+                                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {purchasing ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Redirecting to payment...
+                                  </>
+                                ) : (
+                                  <>
+                                    <CreditCard className="h-4 w-4" />
+                                    Purchase This Lead — ${btnTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  </>
+                                )}
+                              </button>
+                            );
+                          })()}
+                          {purchaseError && (
+                            <p className="mt-2 text-xs text-red-600">{purchaseError}</p>
+                          )}
+                        </>
+                      ) : (
+                        <a
+                          href="mailto:james@apexaivending.com?subject=Lead%20Purchase%20Inquiry&body=I%20am%20interested%20in%20purchasing%20a%20lead.%20Request%20ID:%20${id}"
+                          className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                        >
+                          <Mail className="h-4 w-4" />
+                          Contact Admin for Pricing
+                        </a>
+                      )}
+
+                      <a
+                        href="mailto:james@apexaivending.com"
+                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Contact Admin
+                      </a>
+                      <a
+                        href="tel:+18888511462"
+                        className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black-primary transition-colors hover:border-green-primary/40 hover:bg-green-50"
+                      >
+                        <Phone className="h-4 w-4" />
+                        (888) 851-1462
+                      </a>
+                    </>
+                  )}
                 </>
               )}
 

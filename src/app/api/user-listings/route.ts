@@ -32,9 +32,22 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false })
     .range((page - 1) * perPage, page * perPage - 1);
 
+  // Check if requester is admin
+  const requesterId = await getUserIdFromRequest(req);
+  let isAdmin = false;
+  if (requesterId) {
+    const { data: reqProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", requesterId)
+      .single();
+    isAdmin = reqProfile?.role === "admin";
+  }
+
   if (resolvedSellerId && sellerIdParam === "me") {
-    // Show all statuses for the owner (not just active/public)
     query = query.eq("seller_id", resolvedSellerId).neq("status", "removed");
+  } else if (isAdmin) {
+    query = query.neq("status", "removed");
   } else {
     query = query.eq("status", "active").eq("is_public", true);
     if (resolvedSellerId) query = query.eq("seller_id", resolvedSellerId);

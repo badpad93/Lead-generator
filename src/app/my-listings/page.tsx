@@ -502,9 +502,10 @@ function MyListingsContent() {
                   l.status === "active" ? "bg-green-100 text-green-700" :
                   l.status === "sold" ? "bg-blue-100 text-blue-700" :
                   l.status === "pending_verification" ? "bg-amber-100 text-amber-700" :
+                  l.status === "pending_approval" ? "bg-blue-100 text-blue-700" :
                   "bg-gray-100 text-gray-600"
                 }`}>
-                  {l.status === "active" ? "Active" : l.status === "sold" ? "Sold" : l.status === "pending_verification" ? "Pending Verification" : l.status}
+                  {l.status === "active" ? "Active" : l.status === "sold" ? "Sold" : l.status === "pending_verification" ? "Pending Verification" : l.status === "pending_approval" ? "Pending Approval" : l.status}
                 </span>
                 <span className="text-xs text-gray-400">{daysAgo(l.created_at)}</span>
               </div>
