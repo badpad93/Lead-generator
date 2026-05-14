@@ -25,6 +25,48 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data || []);
 }
 
+export async function POST(req: NextRequest) {
+  const user = await getSalesUser(req);
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isElevatedRole(user.role)) {
+    return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  }
+
+  const body = await req.json();
+  const { user_id, deal_value, commission_rate, notes, deal_id } = body;
+
+  if (!user_id || deal_value == null || commission_rate == null) {
+    return NextResponse.json({ error: "user_id, deal_value, and commission_rate are required" }, { status: 400 });
+  }
+
+  const rate = Number(commission_rate);
+  const value = Number(deal_value);
+  if (rate < 0 || rate > 1) {
+    return NextResponse.json({ error: "commission_rate must be between 0 and 1" }, { status: 400 });
+  }
+  if (value <= 0) {
+    return NextResponse.json({ error: "deal_value must be positive" }, { status: 400 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("sales_commissions")
+    .insert({
+      user_id,
+      deal_id: deal_id || null,
+      order_id: null,
+      commission_rate: rate,
+      deal_value: value,
+      commission_amount: value * rate,
+      status: "pending",
+      notes: notes || null,
+    })
+    .select("*")
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data, { status: 201 });
+}
+
 export async function PATCH(req: NextRequest) {
   const user = await getSalesUser(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
