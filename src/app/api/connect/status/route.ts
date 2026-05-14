@@ -35,7 +35,10 @@ export async function GET(req: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_CONNECT_SECRET_KEY!);
 
   const account = await stripe.accounts.retrieve(profile.stripe_account_id);
-  const onboardingComplete = account.charges_enabled && account.payouts_enabled;
+  // details_submitted is true once the user finishes the onboarding form.
+  // charges_enabled/payouts_enabled may lag behind while Stripe verifies.
+  const onboardingComplete =
+    account.details_submitted || (account.charges_enabled && account.payouts_enabled);
 
   if (onboardingComplete && !profile.stripe_onboarding_complete) {
     await supabaseAdmin
@@ -47,7 +50,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     connected: true,
     onboarding_complete: onboardingComplete,
-    charges_enabled: account.charges_enabled,
-    payouts_enabled: account.payouts_enabled,
+    charges_enabled: account.charges_enabled ?? false,
+    payouts_enabled: account.payouts_enabled ?? false,
+    details_submitted: account.details_submitted ?? false,
   });
 }
