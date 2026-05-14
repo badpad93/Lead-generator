@@ -321,7 +321,7 @@ export default function HomePage() {
           <div className="animate-fade-in mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row" style={{ animationDelay: "0.25s" }}>
             <Tooltip content={TOOLTIP_COPY["Request Location Services"]} position="top">
               <Link
-                href="/request-location"
+                href="/signup?redirect=/request-location"
                 aria-label={TOOLTIP_COPY["Request Location Services"]}
                 title={TOOLTIP_COPY["Request Location Services"]}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover sm:w-auto btn-press btn-ripple btn-shimmer"
@@ -332,7 +332,7 @@ export default function HomePage() {
               </Link>
             </Tooltip>
             <Link
-              href="/machines-for-sale"
+              href="/signup?redirect=/machines-for-sale"
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-green-primary/40 bg-white px-6 py-3 text-sm font-semibold text-green-primary shadow-sm transition-all hover:-translate-y-0.5 hover:bg-green-50 sm:w-auto btn-press"
             >
               <Package className="h-4 w-4" />
@@ -347,7 +347,7 @@ export default function HomePage() {
             style={{ animationDelay: "0.3s" }}
           >
             <CTACard
-              href="/post-request"
+              href="/signup?redirect=/post-request"
               icon={MapPin}
               title="I Need a Vending Machine"
               description="Post your location and get matched with verified operators"
@@ -357,7 +357,7 @@ export default function HomePage() {
               iconBg="bg-green-50 text-green-primary group-hover:bg-green-100"
             />
             <CTACard
-              href="/browse-requests"
+              href="/signup?redirect=/browse-requests"
               icon={Truck}
               title="I'm a Vending Operator"
               description="Browse open locations and grow your vending business"
@@ -499,7 +499,7 @@ export default function HomePage() {
               </p>
             </div>
             <Link
-              href="/financing"
+              href="/signup?redirect=/financing"
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-7 py-3.5 text-sm font-semibold text-green-primary shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl sm:w-auto shrink-0 btn-press btn-shimmer"
             >
               Pre-Qualify Now
@@ -662,7 +662,7 @@ export default function HomePage() {
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Tooltip content={TOOLTIP_COPY["Post a Request"]} position="top">
                 <Link
-                  href="/post-request"
+                  href="/signup?redirect=/post-request"
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-green-primary px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-primary/25 transition-all hover:-translate-y-0.5 hover:bg-green-hover hover:shadow-xl hover:shadow-green-primary/30 sm:w-auto btn-press btn-ripple btn-shimmer"
                   aria-label={TOOLTIP_COPY["Post a Request"]}
                 >
@@ -672,7 +672,7 @@ export default function HomePage() {
               </Tooltip>
               <Tooltip content={TOOLTIP_COPY["Browse Operators"]} position="top">
                 <Link
-                  href="/browse-operators"
+                  href="/signup?redirect=/browse-operators"
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-white/20 bg-transparent px-7 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/5 sm:w-auto btn-press"
                   aria-label={TOOLTIP_COPY["Browse Operators"]}
                 >
