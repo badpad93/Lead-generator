@@ -326,6 +326,70 @@ async function handleAgreementPayment(session: Stripe.Checkout.Session) {
       .from("pipeline_items")
       .update({ proposal_status: "paid", updated_at: new Date().toISOString() })
       .eq("id", pipelineItemId);
+
+    // Auto-create commission for the assigned sales rep
+    try {
+      const { data: pipelineItem } = await supabaseAdmin
+        .from("pipeline_items")
+        .select("deal_id, assigned_to, value")
+        .eq("id", pipelineItemId)
+        .single();
+
+      const dealId = pipelineItem?.deal_id;
+      let repId = pipelineItem?.assigned_to;
+      let dealValue = Number(pipelineItem?.value) || 0;
+
+      // If pipeline item links to a deal, prefer the deal's assigned rep and value
+      if (dealId) {
+        const { data: deal } = await supabaseAdmin
+          .from("sales_deals")
+          .select("assigned_to, deal_services(price)")
+          .eq("id", dealId)
+          .single();
+        if (deal?.assigned_to) repId = deal.assigned_to;
+        if (deal?.deal_services?.length) {
+          dealValue = deal.deal_services.reduce(
+            (sum: number, s: { price: number }) => sum + Number(s.price), 0
+          );
+        }
+      }
+
+      // Fall back to agreement pricing_price if no deal value
+      if (!dealValue) {
+        const { data: agr } = await supabaseAdmin
+          .from("agreement_tokens")
+          .select("pricing_price")
+          .eq("id", agreementTokenId)
+          .single();
+        dealValue = Number(agr?.pricing_price) || 0;
+      }
+
+      if (repId && dealValue > 0) {
+        const COMMISSION_RATE = 0.10;
+        const existing = await supabaseAdmin
+          .from("sales_commissions")
+          .select("id")
+          .eq("deal_id", dealId || pipelineItemId)
+          .eq("user_id", repId)
+          .maybeSingle();
+
+        if (!existing.data) {
+          await supabaseAdmin.from("sales_commissions").insert({
+            deal_id: dealId || null,
+            order_id: null,
+            user_id: repId,
+            commission_rate: COMMISSION_RATE,
+            deal_value: dealValue,
+            commission_amount: dealValue * COMMISSION_RATE,
+            status: "pending",
+            notes: `Auto-created from agreement payment (${agreementTokenId})`,
+          });
+          console.log(`[stripe-webhook] Created commission for rep ${repId}, value ${dealValue}`);
+        }
+      }
+    } catch (commErr) {
+      console.error("[stripe-webhook] Failed to create commission:", commErr);
+    }
   }
 
   // Fetch agreement + location + account for full site details
