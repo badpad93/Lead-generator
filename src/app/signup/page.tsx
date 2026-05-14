@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Truck, Building2, UserPlus, ArrowLeft, Loader2, LogOut } from "lucide-react";
 import { signUpWithGoogle, signUpWithMicrosoft, storeSignupRole, storeSignupLead, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
@@ -42,6 +43,16 @@ const IMMEDIATE_NEEDS = [
 ];
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[calc(100vh-160px)] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-green-primary" /></div>}>
+      <SignupContent />
+    </Suspense>
+  );
+}
+
+function SignupContent() {
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/dashboard";
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [role, setRole] = useState<Role | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +62,9 @@ export default function SignupPage() {
 
   const [leadForm, setLeadForm] = useState({
     business_name: "",
-    contact_name: "",
+    first_name: "",
+    last_name: "",
+    email: "",
     phone: "",
     address: "",
     city: "",
@@ -101,30 +114,15 @@ export default function SignupPage() {
   }
 
   function handleContinueToAuth() {
-    if (!leadForm.business_name.trim()) {
-      setError("Business name is required");
-      return;
-    }
-    if (!leadForm.contact_name.trim()) {
-      setError("Contact name is required");
-      return;
-    }
-    if (!leadForm.phone.trim()) {
-      setError("Phone number is required");
-      return;
-    }
-    if (!leadForm.city.trim()) {
-      setError("City is required");
-      return;
-    }
-    if (!leadForm.state.trim()) {
-      setError("State is required");
-      return;
-    }
-    if (!leadForm.zip.trim()) {
-      setError("Zip code is required");
-      return;
-    }
+    if (!leadForm.business_name.trim()) { setError("Business name is required"); return; }
+    if (!leadForm.first_name.trim()) { setError("First name is required"); return; }
+    if (!leadForm.last_name.trim()) { setError("Last name is required"); return; }
+    if (!leadForm.email.trim()) { setError("Email is required"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadForm.email.trim())) { setError("Please enter a valid email address"); return; }
+    if (!leadForm.phone.trim()) { setError("Phone number is required"); return; }
+    if (!leadForm.city.trim()) { setError("City is required"); return; }
+    if (!leadForm.state.trim()) { setError("State is required"); return; }
+    if (!leadForm.zip.trim()) { setError("Zip code is required"); return; }
     setError(null);
     setStep(3);
   }
@@ -132,7 +130,8 @@ export default function SignupPage() {
   function storeLead() {
     storeSignupLead({
       business_name: leadForm.business_name.trim(),
-      contact_name: leadForm.contact_name.trim(),
+      contact_name: `${leadForm.first_name.trim()} ${leadForm.last_name.trim()}`,
+      email: leadForm.email.trim(),
       phone: leadForm.phone.trim(),
       address: leadForm.address.trim(),
       city: leadForm.city.trim(),
@@ -159,7 +158,7 @@ export default function SignupPage() {
 
       storeSignupRole(role);
       storeLead();
-      storeRedirectAfterLogin("/dashboard");
+      storeRedirectAfterLogin(redirectTo);
       await signUpWithGoogle();
     } catch {
       setError("Failed to connect to Google. Please try again.");
@@ -183,7 +182,7 @@ export default function SignupPage() {
 
       storeSignupRole(role);
       storeLead();
-      storeRedirectAfterLogin("/dashboard");
+      storeRedirectAfterLogin(redirectTo);
       await signUpWithMicrosoft();
     } catch {
       setError("Failed to connect to Microsoft. Please try again.");
@@ -311,16 +310,26 @@ export default function SignupPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Business Name *</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Business Name <span className="text-red-500">*</span></label>
                   <input value={leadForm.business_name} onChange={(e) => setLeadForm((f) => ({ ...f, business_name: e.target.value }))} placeholder="Your business name" className={inputClass} />
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Contact Name *</label>
-                    <input value={leadForm.contact_name} onChange={(e) => setLeadForm((f) => ({ ...f, contact_name: e.target.value }))} placeholder="Full name" className={inputClass} />
+                    <label className="block text-xs font-medium text-gray-500 mb-1">First Name <span className="text-red-500">*</span></label>
+                    <input value={leadForm.first_name} onChange={(e) => setLeadForm((f) => ({ ...f, first_name: e.target.value }))} placeholder="First name" className={inputClass} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Phone *</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Last Name <span className="text-red-500">*</span></label>
+                    <input value={leadForm.last_name} onChange={(e) => setLeadForm((f) => ({ ...f, last_name: e.target.value }))} placeholder="Last name" className={inputClass} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Email <span className="text-red-500">*</span></label>
+                    <input value={leadForm.email} onChange={(e) => setLeadForm((f) => ({ ...f, email: e.target.value }))} placeholder="you@company.com" type="email" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Phone <span className="text-red-500">*</span></label>
                     <input value={leadForm.phone} onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))} placeholder="(555) 555-5555" type="tel" className={inputClass} />
                   </div>
                 </div>
@@ -393,7 +402,7 @@ export default function SignupPage() {
                     <>
                       <Icon className="w-4 h-4 text-green-primary" />
                       <span className="text-sm font-medium text-black-primary">{selected.label}</span>
-                      <span className="text-xs text-black-primary/40 ml-1">· {leadForm.business_name}</span>
+                      <span className="text-xs text-black-primary/40 ml-1">· {leadForm.first_name} {leadForm.last_name} — {leadForm.business_name}</span>
                     </>
                   );
                 })()}
