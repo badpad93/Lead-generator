@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { sendListingPendingApprovalEmail } from "@/lib/locationAgreementEmail";
 
 export async function POST(
   req: NextRequest,
@@ -99,17 +100,39 @@ export async function POST(
     }
   }
 
-  // Auto-publish the marketplace listing once the owner signs
+  // Move listing to pending_approval so admin can review before it goes live
   if (agreement.listing_id) {
     await supabaseAdmin
       .from("user_listings")
       .update({
-        status: "active",
-        is_public: true,
+        status: "pending_approval",
         updated_at: new Date().toISOString(),
       })
       .eq("id", agreement.listing_id)
       .eq("status", "pending_verification");
+
+    const { data: listing } = await supabaseAdmin
+      .from("user_listings")
+      .select("title, city, state, price, listing_type, profiles!seller_id(full_name, email)")
+      .eq("id", agreement.listing_id)
+      .single();
+
+    if (listing) {
+      const sellerProfile = listing.profiles as unknown as { full_name: string; email: string } | null;
+      try {
+        await sendListingPendingApprovalEmail({
+          listingTitle: listing.title,
+          listingType: listing.listing_type,
+          sellerName: sellerProfile?.full_name || "Unknown",
+          sellerEmail: sellerProfile?.email || "",
+          city: listing.city || "",
+          state: listing.state || "",
+          price: Number(listing.price),
+        });
+      } catch (emailErr) {
+        console.error("[location-agreement] Failed to send approval notification:", emailErr);
+      }
+    }
   }
 
   return NextResponse.json({ ok: true, status: "signed" });
