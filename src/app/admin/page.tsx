@@ -4302,6 +4302,14 @@ function MarketplaceManager({
                   pending_approval: "bg-amber-50 text-amber-700",
                   pending_verification: "bg-purple-50 text-purple-700",
                 };
+                const statusLabels: Record<string, string> = {
+                  active: "Active",
+                  sold: "Sold",
+                  removed: "Removed",
+                  expired: "Expired",
+                  pending_approval: "Pending Approval",
+                  pending_verification: "Pending Verification",
+                };
                 return (
                   <tr key={l.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-medium text-black-primary max-w-[200px] truncate">
@@ -4323,7 +4331,7 @@ function MarketplaceManager({
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[l.status] || "bg-gray-100 text-gray-600"}`}>
-                        {l.status === "pending_approval" ? "Pending Approval" : l.status === "pending_verification" ? "Pending Verification" : l.status}
+                        {statusLabels[l.status] || l.status || "Unknown"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-black-primary/40 text-xs whitespace-nowrap">
@@ -4331,7 +4339,7 @@ function MarketplaceManager({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        {l.status === "pending_approval" && (
+                        {(l.status === "pending_approval" || l.status === "pending_verification") && (
                           <>
                             <button
                               type="button"

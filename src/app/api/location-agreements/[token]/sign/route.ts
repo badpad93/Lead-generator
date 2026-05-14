@@ -102,7 +102,7 @@ export async function POST(
 
   // Move listing to pending_approval so admin can review before it goes live
   if (agreement.listing_id) {
-    await supabaseAdmin
+    const { error: updateErr } = await supabaseAdmin
       .from("user_listings")
       .update({
         status: "pending_approval",
@@ -110,6 +110,10 @@ export async function POST(
       })
       .eq("id", agreement.listing_id)
       .eq("status", "pending_verification");
+
+    if (updateErr) {
+      console.error("[location-agreement] Failed to update listing status:", updateErr);
+    }
 
     const { data: listing } = await supabaseAdmin
       .from("user_listings")
