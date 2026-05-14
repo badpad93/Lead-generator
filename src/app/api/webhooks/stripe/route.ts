@@ -273,7 +273,7 @@ export async function POST(req: NextRequest) {
   // Handle Stripe Connect account updates — mark onboarding complete
   if (event.type === "account.updated") {
     const account = event.data.object as Stripe.Account;
-    if (account.charges_enabled && account.payouts_enabled) {
+    if (account.details_submitted || (account.charges_enabled && account.payouts_enabled)) {
       await supabaseAdmin
         .from("profiles")
         .update({ stripe_onboarding_complete: true })
