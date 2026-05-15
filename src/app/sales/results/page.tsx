@@ -26,6 +26,10 @@ interface ResultsMetrics {
   orders_completed: number;
   order_revenue: number;
   conversion_rate: number;
+  commission_total: number;
+  commission_pending: number;
+  commission_approved: number;
+  commission_paid: number;
 }
 
 interface ResultsResponse {
@@ -38,6 +42,7 @@ interface ResultsResponse {
     target_revenue: number;
     target_deals: number;
     target_leads: number;
+    target_commission: number;
   } | null;
 }
 
@@ -102,7 +107,7 @@ export default function SalesResultsPage() {
   const [loading, setLoading] = useState(true);
 
   // Goal setting state
-  const [goalForm, setGoalForm] = useState({ target_revenue: "", target_deals: "", target_leads: "" });
+  const [goalForm, setGoalForm] = useState({ target_revenue: "", target_deals: "", target_leads: "", target_commission: "" });
   const [savingGoal, setSavingGoal] = useState(false);
 
   const isElevated = userRole === "admin" || userRole === "director_of_sales" || userRole === "market_leader";
@@ -159,9 +164,10 @@ export default function SalesResultsPage() {
           target_revenue: String(data.goal.target_revenue),
           target_deals: String(data.goal.target_deals),
           target_leads: String(data.goal.target_leads),
+          target_commission: String(data.goal.target_commission || 0),
         });
       } else {
-        setGoalForm({ target_revenue: "", target_deals: "", target_leads: "" });
+        setGoalForm({ target_revenue: "", target_deals: "", target_leads: "", target_commission: "" });
       }
     }
     setLoading(false);
@@ -182,6 +188,7 @@ export default function SalesResultsPage() {
         target_revenue: Number(goalForm.target_revenue) || 0,
         target_deals: Number(goalForm.target_deals) || 0,
         target_leads: Number(goalForm.target_leads) || 0,
+        target_commission: Number(goalForm.target_commission) || 0,
       }),
     });
     setSavingGoal(false);
@@ -328,6 +335,22 @@ export default function SalesResultsPage() {
               <p className="text-xs text-gray-500">Completed Orders</p>
               <p className="text-2xl font-bold text-gray-900">{results.metrics.orders_completed}</p>
             </div>
+            <div className="rounded-xl border border-green-200 bg-green-50/50 p-5">
+              <p className="text-xs text-gray-500">Commission Earned</p>
+              <p className="text-2xl font-bold text-green-600">{fmt(results.metrics.commission_total)}</p>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5">
+              <p className="text-xs text-gray-500">Commission Pending</p>
+              <p className="text-2xl font-bold text-amber-600">{fmt(results.metrics.commission_pending)}</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5">
+              <p className="text-xs text-gray-500">Commission Approved</p>
+              <p className="text-2xl font-bold text-blue-600">{fmt(results.metrics.commission_approved)}</p>
+            </div>
+            <div className="rounded-xl border border-green-200 bg-green-50/50 p-5">
+              <p className="text-xs text-gray-500">Commission Paid</p>
+              <p className="text-2xl font-bold text-green-700">{fmt(results.metrics.commission_paid)}</p>
+            </div>
           </div>
 
           {/* Lead status breakdown */}
@@ -378,6 +401,22 @@ export default function SalesResultsPage() {
                 </div>
                 <ProgressBar value={results.metrics.deals_won} target={results.goal.target_deals} label="Deals Won" />
                 <ProgressBar value={results.metrics.leads_total} target={results.goal.target_leads} label="Leads" />
+                {results.goal.target_commission > 0 && (
+                  <div>
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" /> Commission</span>
+                      <span>{fmt(results.metrics.commission_total)} / {fmt(results.goal.target_commission)}</span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-gray-100">
+                      <div
+                        className="h-2 rounded-full bg-green-500"
+                        style={{
+                          width: `${Math.min(100, (results.metrics.commission_total / results.goal.target_commission) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-sm text-gray-400">
@@ -394,7 +433,7 @@ export default function SalesResultsPage() {
                 {" for "}
                 {salesUsers.find((u) => u.id === filterUserId)?.full_name || "Rep"}
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                   <label className="text-xs text-gray-500">Revenue Target ($)</label>
                   <input
@@ -419,6 +458,15 @@ export default function SalesResultsPage() {
                     type="number"
                     value={goalForm.target_leads}
                     onChange={(e) => setGoalForm((f) => ({ ...f, target_leads: e.target.value }))}
+                    className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Commission Target ($)</label>
+                  <input
+                    type="number"
+                    value={goalForm.target_commission}
+                    onChange={(e) => setGoalForm((f) => ({ ...f, target_commission: e.target.value }))}
                     className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
                   />
                 </div>

@@ -34,12 +34,17 @@ interface ResultsResponse {
     orders_completed: number;
     order_revenue: number;
     conversion_rate: number;
+    commission_total: number;
+    commission_pending: number;
+    commission_approved: number;
+    commission_paid: number;
   };
   goal: {
     period: string;
     target_revenue: number;
     target_deals: number;
     target_leads: number;
+    target_commission: number;
   } | null;
 }
 
@@ -333,6 +338,22 @@ export default function SalesDashboard() {
                     <p className="text-xs text-gray-500">Completed Orders</p>
                     <p className="text-xl font-bold text-gray-900">{results.metrics.orders_completed}</p>
                   </div>
+                  <div className="rounded-lg bg-green-50 p-4">
+                    <p className="text-xs text-gray-500">Commission Earned</p>
+                    <p className="text-xl font-bold text-green-600">{fmt(results.metrics.commission_total)}</p>
+                  </div>
+                  <div className="rounded-lg bg-amber-50 p-4">
+                    <p className="text-xs text-gray-500">Commission Pending</p>
+                    <p className="text-xl font-bold text-amber-600">{fmt(results.metrics.commission_pending)}</p>
+                  </div>
+                  <div className="rounded-lg bg-blue-50 p-4">
+                    <p className="text-xs text-gray-500">Commission Approved</p>
+                    <p className="text-xl font-bold text-blue-600">{fmt(results.metrics.commission_approved)}</p>
+                  </div>
+                  <div className="rounded-lg bg-green-50 p-4">
+                    <p className="text-xs text-gray-500">Commission Paid</p>
+                    <p className="text-xl font-bold text-green-700">{fmt(results.metrics.commission_paid)}</p>
+                  </div>
                 </div>
 
                 {/* Lead status breakdown */}
@@ -369,6 +390,22 @@ export default function SalesDashboard() {
                     </div>
                     <ProgressBar value={results.metrics.deals_won} target={results.goal.target_deals} label="Deals Won" />
                     <ProgressBar value={results.metrics.leads_total} target={results.goal.target_leads} label="Leads" />
+                    {results.goal.target_commission > 0 && (
+                      <div>
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" /> Commission</span>
+                          <span>{fmt(results.metrics.commission_total)} / {fmt(results.goal.target_commission)}</span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-gray-100">
+                          <div
+                            className="h-2 rounded-full bg-green-500"
+                            style={{
+                              width: `${Math.min(100, (results.metrics.commission_total / results.goal.target_commission) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-gray-400">

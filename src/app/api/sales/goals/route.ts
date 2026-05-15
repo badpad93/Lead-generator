@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { user_id, period, target_revenue, target_deals, target_leads } = body;
+  const { user_id, period, target_revenue, target_deals, target_leads, target_commission } = body;
   if (!user_id || !period) {
     return NextResponse.json({ error: "user_id and period required" }, { status: 400 });
   }
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
         target_revenue: Number(target_revenue) || 0,
         target_deals: Number(target_deals) || 0,
         target_leads: Number(target_leads) || 0,
+        target_commission: Number(target_commission) || 0,
         created_by: user.id,
         updated_at: new Date().toISOString(),
       },
