@@ -170,6 +170,21 @@ export async function GET(req: NextRequest) {
 
   const { data: orders } = await ordersQuery;
 
+  // --- Commissions ---
+  let commissionsQuery = supabaseAdmin
+    .from("sales_commissions")
+    .select("id, commission_amount, status, created_at")
+    .gte("created_at", since);
+  if (until) commissionsQuery = commissionsQuery.lte("created_at", until);
+
+  if (targetUserId) {
+    commissionsQuery = commissionsQuery.eq("user_id", targetUserId);
+  } else if (allowedUserIds) {
+    commissionsQuery = commissionsQuery.in("user_id", allowedUserIds);
+  }
+
+  const { data: commissions } = await commissionsQuery;
+
   // --- Goal ---
   const goalPeriod = period === "ytd" ? "yearly" : period === "custom" ? "yearly" : period;
   const goalUserId = filterUserId || user.id;
@@ -215,6 +230,19 @@ export async function GET(req: NextRequest) {
   const totalDeals = (allDeals || []).length;
   const closeRate = totalDeals > 0 ? wonCount / totalDeals : 0;
 
+  // Commission metrics
+  let commissionTotal = 0;
+  let commissionPending = 0;
+  let commissionApproved = 0;
+  let commissionPaid = 0;
+  for (const c of commissions || []) {
+    const amt = Number(c.commission_amount || 0);
+    commissionTotal += amt;
+    if (c.status === "pending") commissionPending += amt;
+    else if (c.status === "approved") commissionApproved += amt;
+    else if (c.status === "paid") commissionPaid += amt;
+  }
+
   return NextResponse.json({
     period,
     user_id: filterUserId || (elevated || user.role === "market_leader" ? "all" : user.id),
@@ -233,6 +261,10 @@ export async function GET(req: NextRequest) {
       orders_completed: completedOrders,
       order_revenue: orderRevenue,
       conversion_rate: closeRate,
+      commission_total: commissionTotal,
+      commission_pending: commissionPending,
+      commission_approved: commissionApproved,
+      commission_paid: commissionPaid,
     },
     goal: goal || null,
   });
