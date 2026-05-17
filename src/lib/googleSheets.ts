@@ -141,13 +141,16 @@ export async function createLeadSheet(
     },
   });
 
-  // Make viewable by anyone with link
-  await drive.permissions.create({
-    fileId: spreadsheetId,
-    requestBody: { role: "writer", type: "anyone" },
-  });
+  // Share the sheet — try multiple strategies, none are blocking
+  try {
+    await drive.permissions.create({
+      fileId: spreadsheetId,
+      requestBody: { role: "reader", type: "anyone" },
+    });
+  } catch {
+    // Org policy may block public sharing — that's fine, share individually instead
+  }
 
-  // Also share with specific rep if email provided
   if (shareWithEmail) {
     try {
       await drive.permissions.create({
@@ -156,7 +159,7 @@ export async function createLeadSheet(
         sendNotificationEmail: false,
       });
     } catch {
-      // Non-critical — they can still access via link
+      // Non-critical
     }
   }
 

@@ -61,8 +61,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Search Google Places
-    const businesses = await searchBusinesses({ city, state, industry, maxResults });
+    // Step 1: Search Google Places
+    let businesses;
+    try {
+      businesses = await searchBusinesses({ city, state, industry, maxResults });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      throw new Error(`Google Places search failed: ${msg}`);
+    }
 
     if (businesses.length === 0) {
       await supabaseAdmin
@@ -112,8 +118,14 @@ export async function POST(req: NextRequest) {
       last_contacted: "",
     }));
 
-    // Create Google Sheet
-    const sheetUrl = await createLeadSheet(title, leads, repEmail);
+    // Step 2: Create Google Sheet
+    let sheetUrl;
+    try {
+      sheetUrl = await createLeadSheet(title, leads, repEmail);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      throw new Error(`Google Sheets creation failed: ${msg}`);
+    }
 
     // Update the call list record
     await supabaseAdmin
