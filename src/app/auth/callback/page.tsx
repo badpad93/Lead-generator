@@ -66,13 +66,18 @@ function CallbackContent() {
         // Best-effort — profile will be created on next page load
       }
 
+      let isEmployeeSignup = false;
+
       if (isSignup) {
         const signupRole = consumeSignupRole();
         const leadData = consumeSignupLead();
 
-        if (signupRole) {
+        isEmployeeSignup = signupRole === "employee";
+        const profileRole = isEmployeeSignup ? "sales" : signupRole;
+
+        if (profileRole) {
           try {
-            const profileUpdate: Record<string, string> = { role: signupRole };
+            const profileUpdate: Record<string, string> = { role: profileRole };
             if (leadData?.city) profileUpdate.city = leadData.city;
             if (leadData?.state) profileUpdate.state = leadData.state;
             if (leadData?.zip) profileUpdate.zip = leadData.zip;
@@ -115,8 +120,8 @@ function CallbackContent() {
         consumeSignupRole();
       }
 
-      const redirectTo = consumeRedirectAfterLogin() || "/dashboard";
-      window.location.href = redirectTo;
+      const savedRedirect = consumeRedirectAfterLogin();
+      window.location.href = savedRedirect || (isEmployeeSignup ? "/sales" : "/dashboard");
     }
 
     handleCallback();

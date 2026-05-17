@@ -3,11 +3,11 @@
 import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Truck, Building2, UserPlus, ArrowLeft, Loader2, LogOut } from "lucide-react";
+import { Truck, Building2, ArrowLeft, Loader2, LogOut, Briefcase } from "lucide-react";
 import { signUpWithGoogle, signUpWithMicrosoft, storeSignupRole, storeSignupLead, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
 
-type Role = "operator" | "location_manager";
+type Role = "operator" | "location_manager" | "employee";
 
 const roles: { value: Role; label: string; icon: typeof Truck; description: string }[] = [
   {
@@ -21,6 +21,12 @@ const roles: { value: Role; label: string; icon: typeof Truck; description: stri
     label: "Location",
     icon: Building2,
     description: "I have a property and want a vending machine placed",
+  },
+  {
+    value: "employee",
+    label: "Employee",
+    icon: Briefcase,
+    description: "I'm joining the team as a sales rep or team member",
   },
 ];
 
@@ -102,7 +108,7 @@ function SignupContent() {
   function handleRoleSelect(selected: Role) {
     setRole(selected);
     setError(null);
-    if (!leadForm.entity_type) {
+    if (selected !== "employee" && !leadForm.entity_type) {
       const mapped = selected === "operator" ? "operator" : "location";
       setLeadForm((f) => ({ ...f, entity_type: mapped }));
     }
@@ -114,15 +120,17 @@ function SignupContent() {
   }
 
   function handleContinueToAuth() {
-    if (!leadForm.business_name.trim()) { setError("Business name is required"); return; }
     if (!leadForm.first_name.trim()) { setError("First name is required"); return; }
     if (!leadForm.last_name.trim()) { setError("Last name is required"); return; }
     if (!leadForm.email.trim()) { setError("Email is required"); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadForm.email.trim())) { setError("Please enter a valid email address"); return; }
     if (!leadForm.phone.trim()) { setError("Phone number is required"); return; }
-    if (!leadForm.city.trim()) { setError("City is required"); return; }
-    if (!leadForm.state.trim()) { setError("State is required"); return; }
-    if (!leadForm.zip.trim()) { setError("Zip code is required"); return; }
+    if (role !== "employee") {
+      if (!leadForm.business_name.trim()) { setError("Business name is required"); return; }
+      if (!leadForm.city.trim()) { setError("City is required"); return; }
+      if (!leadForm.state.trim()) { setError("State is required"); return; }
+      if (!leadForm.zip.trim()) { setError("Zip code is required"); return; }
+    }
     setError(null);
     setStep(3);
   }
@@ -203,7 +211,7 @@ function SignupContent() {
             {step === 1
               ? "Select your role to get started"
               : step === 2
-              ? "Tell us about your business"
+              ? role === "employee" ? "Tell us about yourself" : "Tell us about your business"
               : "Connect your account to continue"}
           </p>
         </div>
@@ -309,10 +317,12 @@ function SignupContent() {
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Business Name <span className="text-red-500">*</span></label>
-                  <input value={leadForm.business_name} onChange={(e) => setLeadForm((f) => ({ ...f, business_name: e.target.value }))} placeholder="Your business name" className={inputClass} />
-                </div>
+                {role !== "employee" && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Name <span className="text-red-500">*</span></label>
+                    <input value={leadForm.business_name} onChange={(e) => setLeadForm((f) => ({ ...f, business_name: e.target.value }))} placeholder="Your business name" className={inputClass} />
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">First Name <span className="text-red-500">*</span></label>
@@ -333,40 +343,44 @@ function SignupContent() {
                     <input value={leadForm.phone} onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))} placeholder="(555) 555-5555" type="tel" className={inputClass} />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
-                  <input value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} placeholder="Street address" className={inputClass} />
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">City <span className="text-red-500">*</span></label>
-                    <input value={leadForm.city} onChange={(e) => setLeadForm((f) => ({ ...f, city: e.target.value }))} placeholder="City" className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">State <span className="text-red-500">*</span></label>
-                    <input value={leadForm.state} onChange={(e) => setLeadForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} placeholder="e.g. TX" maxLength={2} className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Zip Code <span className="text-red-500">*</span></label>
-                    <input value={leadForm.zip} onChange={(e) => setLeadForm((f) => ({ ...f, zip: e.target.value }))} placeholder="e.g. 75001" maxLength={10} className={inputClass} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
-                    <select value={leadForm.entity_type} onChange={(e) => setLeadForm((f) => ({ ...f, entity_type: e.target.value }))} className={selectClass}>
-                      <option value="">Select type...</option>
-                      {ENTITY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Immediate Need</label>
-                    <select value={leadForm.immediate_need} onChange={(e) => setLeadForm((f) => ({ ...f, immediate_need: e.target.value }))} className={selectClass}>
-                      <option value="">Select need...</option>
-                      {IMMEDIATE_NEEDS.map((n) => <option key={n.value} value={n.value}>{n.label}</option>)}
-                    </select>
-                  </div>
-                </div>
+                {role !== "employee" && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
+                      <input value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} placeholder="Street address" className={inputClass} />
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">City <span className="text-red-500">*</span></label>
+                        <input value={leadForm.city} onChange={(e) => setLeadForm((f) => ({ ...f, city: e.target.value }))} placeholder="City" className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">State <span className="text-red-500">*</span></label>
+                        <input value={leadForm.state} onChange={(e) => setLeadForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} placeholder="e.g. TX" maxLength={2} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Zip Code <span className="text-red-500">*</span></label>
+                        <input value={leadForm.zip} onChange={(e) => setLeadForm((f) => ({ ...f, zip: e.target.value }))} placeholder="e.g. 75001" maxLength={10} className={inputClass} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+                        <select value={leadForm.entity_type} onChange={(e) => setLeadForm((f) => ({ ...f, entity_type: e.target.value }))} className={selectClass}>
+                          <option value="">Select type...</option>
+                          {ENTITY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Immediate Need</label>
+                        <select value={leadForm.immediate_need} onChange={(e) => setLeadForm((f) => ({ ...f, immediate_need: e.target.value }))} className={selectClass}>
+                          <option value="">Select need...</option>
+                          {IMMEDIATE_NEEDS.map((n) => <option key={n.value} value={n.value}>{n.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <button
                   type="button"
@@ -402,7 +416,7 @@ function SignupContent() {
                     <>
                       <Icon className="w-4 h-4 text-green-primary" />
                       <span className="text-sm font-medium text-black-primary">{selected.label}</span>
-                      <span className="text-xs text-black-primary/40 ml-1">· {leadForm.first_name} {leadForm.last_name} — {leadForm.business_name}</span>
+                      <span className="text-xs text-black-primary/40 ml-1">· {leadForm.first_name} {leadForm.last_name}{leadForm.business_name ? ` — ${leadForm.business_name}` : ""}</span>
                     </>
                   );
                 })()}
