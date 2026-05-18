@@ -85,13 +85,15 @@ export async function createLeadSheet(
   const sheets = google.sheets({ version: "v4", auth });
   const drive = google.drive({ version: "v3", auth });
 
-  // Create spreadsheet via Drive API (bypasses Sheets API create permission issue)
+  // Create spreadsheet in shared folder (SA has no personal Drive quota)
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
   let spreadsheetId: string;
   try {
     const file = await drive.files.create({
       requestBody: {
         name: title,
         mimeType: "application/vnd.google-apps.spreadsheet",
+        ...(folderId ? { parents: [folderId] } : {}),
       },
       fields: "id",
     });
@@ -187,14 +189,15 @@ export async function createLeadSheet(
     },
   });
 
-  // Share the sheet — try multiple strategies, none are blocking
+  // Share the sheet — make accessible via link and optionally to specific rep
   try {
     await drive.permissions.create({
       fileId: spreadsheetId,
-      requestBody: { role: "reader", type: "anyone" },
+      requestBody: { role: "writer", type: "anyone" },
+      supportsAllDrives: true,
     });
   } catch {
-    // Org policy may block public sharing — that's fine, share individually instead
+    // Folder sharing or org policy handles access instead
   }
 
   if (shareWithEmail) {
@@ -203,9 +206,10 @@ export async function createLeadSheet(
         fileId: spreadsheetId,
         requestBody: { role: "writer", type: "user", emailAddress: shareWithEmail },
         sendNotificationEmail: false,
+        supportsAllDrives: true,
       });
     } catch {
-      // Non-critical
+      // Non-critical — folder access is sufficient
     }
   }
 
