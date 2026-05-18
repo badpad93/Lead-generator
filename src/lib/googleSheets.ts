@@ -87,6 +87,9 @@ export async function createLeadSheet(
 
   // Create spreadsheet in shared folder (SA has no personal Drive quota)
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  if (!folderId) {
+    throw new Error("GOOGLE_DRIVE_FOLDER_ID env var is not set — create a Google Drive folder, share it with the service account, and add the folder ID to Vercel env vars");
+  }
   let spreadsheetId: string;
   try {
     const file = await drive.files.create({
