@@ -1,10 +1,19 @@
 import { google } from "googleapis";
 
-function getAuth() {
+function getServiceAccountCredentials(): { email: string; key: string } {
+  const b64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (b64) {
+    const json = JSON.parse(Buffer.from(b64, "base64").toString("utf-8"));
+    return { email: json.client_email, key: json.private_key };
+  }
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const key = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  if (!email || !key) throw new Error("Google service account credentials not configured");
+  if (email && key) return { email, key };
+  throw new Error("Google service account credentials not configured");
+}
 
+function getAuth() {
+  const { email, key } = getServiceAccountCredentials();
   return new google.auth.JWT({
     email,
     key,
