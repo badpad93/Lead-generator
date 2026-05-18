@@ -74,6 +74,14 @@ export async function createLeadSheet(
   shareWithEmail?: string
 ): Promise<string> {
   const auth = getAuth();
+
+  // Verify credentials before making API calls
+  try {
+    await auth.authorize();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    throw new Error(`Service account auth failed (check GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY): ${msg}`);
+  }
   const sheets = google.sheets({ version: "v4", auth });
   const drive = google.drive({ version: "v3", auth });
 
