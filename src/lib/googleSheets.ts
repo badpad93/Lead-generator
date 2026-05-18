@@ -85,12 +85,24 @@ export async function createLeadSheet(
   const sheets = google.sheets({ version: "v4", auth });
   const drive = google.drive({ version: "v3", auth });
 
-  const spreadsheet = await sheets.spreadsheets.create({
-    requestBody: {
-      properties: { title },
-      sheets: [{ properties: { title: "Leads", sheetId: 0 } }],
-    },
-  });
+  let spreadsheet;
+  try {
+    spreadsheet = await sheets.spreadsheets.create({
+      requestBody: {
+        properties: { title },
+        sheets: [{ properties: { title: "Leads", sheetId: 0 } }],
+      },
+    });
+  } catch (err: unknown) {
+    const gaxErr = err as { code?: number; errors?: unknown[]; response?: { data?: unknown }; message?: string };
+    const detail = JSON.stringify({
+      code: gaxErr.code,
+      errors: gaxErr.errors,
+      data: gaxErr.response?.data,
+      message: gaxErr.message,
+    });
+    throw new Error(`Sheets.create failed: ${detail}`);
+  }
 
   const spreadsheetId = spreadsheet.data.spreadsheetId!;
 
