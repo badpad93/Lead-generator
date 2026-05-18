@@ -85,28 +85,26 @@ export async function createLeadSheet(
   const sheets = google.sheets({ version: "v4", auth });
   const drive = google.drive({ version: "v3", auth });
 
-  let spreadsheet;
+  // Create spreadsheet via Drive API (bypasses Sheets API create permission issue)
+  let spreadsheetId: string;
   try {
-    spreadsheet = await sheets.spreadsheets.create({
+    const file = await drive.files.create({
       requestBody: {
-        properties: { title },
-        sheets: [{ properties: { title: "Leads", sheetId: 0 } }],
+        name: title,
+        mimeType: "application/vnd.google-apps.spreadsheet",
       },
+      fields: "id",
     });
+    spreadsheetId = file.data.id!;
   } catch (err: unknown) {
-    const gaxErr = err as { code?: number; errors?: unknown[]; response?: { data?: unknown; status?: number }; message?: string };
-    console.error("[googleSheets] spreadsheets.create 403 details:", JSON.stringify({
+    const gaxErr = err as { code?: number; response?: { data?: unknown; status?: number }; message?: string };
+    console.error("[googleSheets] drive.files.create failed:", JSON.stringify({
       code: gaxErr.code,
       message: gaxErr.message,
-      errors: gaxErr.errors,
-      responseStatus: gaxErr.response?.status,
       responseData: gaxErr.response?.data,
     }, null, 2));
-    const detail = JSON.stringify(gaxErr.response?.data || gaxErr.errors || gaxErr.message);
-    throw new Error(`Sheets.create failed: ${detail}`);
+    throw new Error(`Drive file create failed: ${JSON.stringify(gaxErr.response?.data || gaxErr.message)}`);
   }
-
-  const spreadsheetId = spreadsheet.data.spreadsheetId!;
 
   const rows = leads.map((l) => [
     l.business_name,
@@ -127,7 +125,7 @@ export async function createLeadSheet(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Leads!A1",
+    range: "Sheet1!A1",
     valueInputOption: "RAW",
     requestBody: { values: [HEADERS, ...rows] },
   });
@@ -136,6 +134,13 @@ export async function createLeadSheet(
     spreadsheetId,
     requestBody: {
       requests: [
+        // Rename default sheet to "Leads"
+        {
+          updateSheetProperties: {
+            properties: { sheetId: 0, title: "Leads" },
+            fields: "title",
+          },
+        },
         // Freeze header row
         {
           updateSheetProperties: {
