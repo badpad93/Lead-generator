@@ -173,208 +173,210 @@ export default function Navbar() {
     .toUpperCase() || "?";
 
   return (
-    <header
-      className={`sticky top-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? "glass-strong shadow-lg"
-          : "bg-white/90 backdrop-blur-sm border-b border-gray-100"
-      }`}
-    >
-      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <Zap className="h-6 w-6 text-green-600" />
-          <span className="text-lg font-bold text-gray-900">Vending Connector</span>
-        </Link>
+    <>
+      <header
+        className={`sticky top-0 z-50 transition-all duration-300 ${
+          scrolled
+            ? "glass-strong shadow-lg"
+            : "bg-white/90 backdrop-blur-sm border-b border-gray-100"
+        }`}
+      >
+        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2">
+            <Zap className="h-6 w-6 text-green-600" />
+            <span className="text-lg font-bold text-gray-900">Vending Connector</span>
+          </Link>
 
-        {/* Desktop Navigation */}
-        <ul className="hidden items-center gap-1 lg:flex">
-          {(isLoggedIn ? authNavLinks : navLinks).map((link) => (
-            <li key={link.href}>
-              <Tooltip content={TOOLTIP_COPY[link.label] ?? link.label}>
-                <Link
-                  href={link.href}
-                  className="nav-link-animated rounded-lg px-3 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
-                  aria-label={TOOLTIP_COPY[link.label] ?? undefined}
-                >
-                  {link.label}
-                </Link>
-              </Tooltip>
-            </li>
-          ))}
-        </ul>
+          {/* Desktop Navigation */}
+          <ul className="hidden items-center gap-1 lg:flex">
+            {(isLoggedIn ? authNavLinks : navLinks).map((link) => (
+              <li key={link.href}>
+                <Tooltip content={TOOLTIP_COPY[link.label] ?? link.label}>
+                  <Link
+                    href={link.href}
+                    className="nav-link-animated rounded-lg px-3 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                    aria-label={TOOLTIP_COPY[link.label] ?? undefined}
+                  >
+                    {link.label}
+                  </Link>
+                </Tooltip>
+              </li>
+            ))}
+          </ul>
 
-        {/* Desktop Auth Buttons / User Menu */}
-        <div className="hidden items-center gap-3 lg:flex">
-          <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
-            <Link
-              href={isLoggedIn ? "/request-location" : "/signup?redirect=/request-location"}
-              className="rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
-              aria-label={TOOLTIP_COPY["Request Location Services"]}
-              title={TOOLTIP_COPY["Request Location Services"]}
-            >
-              Request Location Services
-            </Link>
-          </Tooltip>
-          {isLoggedIn ? (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setUserMenuOpen(!userMenuOpen);
-                }}
-                className="flex items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50 cursor-pointer"
+          {/* Desktop Auth Buttons / User Menu */}
+          <div className="hidden items-center gap-3 lg:flex">
+            <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
+              <Link
+                href={isLoggedIn ? "/request-location" : "/signup?redirect=/request-location"}
+                className="rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
+                aria-label={TOOLTIP_COPY["Request Location Services"]}
+                title={TOOLTIP_COPY["Request Location Services"]}
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-primary text-xs font-bold text-white">
-                  {initials}
-                </div>
-                <span className="text-sm font-medium text-black-primary">
-                  {displayName.split(" ")[0] || "Account"}
-                </span>
-              </button>
-
-              {/* Dropdown */}
-              {userMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-gray-100 bg-white/95 backdrop-blur-md py-1 shadow-xl animate-fade-in">
-                  <Link
-                    href="/dashboard"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
-                    title={TOOLTIP_COPY["Dashboard"]}
-                    aria-label={TOOLTIP_COPY["Dashboard"]}
-                  >
-                    <LayoutDashboard className="h-4 w-4 text-black-primary/50" />
-                    Dashboard
-                  </Link>
-                  <Link
-                    href="/your-leads"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
-                    title={TOOLTIP_COPY["Your Leads"]}
-                    aria-label={TOOLTIP_COPY["Your Leads"]}
-                  >
-                    <ShoppingBag className="h-4 w-4 text-black-primary/50" />
-                    Your Leads
-                  </Link>
-                  <Link
-                    href="/saved-requests"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
-                    title="View your saved requests"
-                    aria-label="View your saved requests"
-                  >
-                    <Heart className="h-4 w-4 text-black-primary/50" />
-                    Saved Requests
-                  </Link>
-                  <Link
-                    href="/account/agreements"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
-                    title="View and download your signed agreements"
-                    aria-label="View and download your signed agreements"
-                  >
-                    <ScrollText className="h-4 w-4 text-black-primary/50" />
-                    My Agreements
-                  </Link>
-                  <Link
-                    href="/dashboard/profile"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
-                  >
-                    <User className="h-4 w-4 text-black-primary/50" />
-                    Profile
-                  </Link>
-                  <Link
-                    href="/routes-for-sale"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
-                    title={TOOLTIP_COPY["Routes for Sale"]}
-                    aria-label={TOOLTIP_COPY["Routes for Sale"]}
-                  >
-                    <Route className="h-4 w-4 text-black-primary/50" />
-                    Routes for Sale
-                  </Link>
-                  {(isAdmin || profile?.role === "sales" || profile?.role === "director_of_sales" || profile?.role === "market_leader") && (
-                    <Link
-                      href="/sales"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-green-primary transition-colors hover:bg-green-50"
-                    >
-                      <Briefcase className="h-4 w-4" />
-                      CRM
-                    </Link>
-                  )}
-                  {isAdmin && (
-                    <Link
-                      href="/admin"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-green-primary transition-colors hover:bg-green-50"
-                    >
-                      <Shield className="h-4 w-4" />
-                      Admin Panel
-                    </Link>
-                  )}
-                  <hr className="my-1 border-gray-100" />
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50 cursor-pointer"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Sign Out
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-              <Tooltip content={TOOLTIP_COPY["Login"]}>
-                <Link
-                  href="/login"
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
-                  aria-label={TOOLTIP_COPY["Login"]}
+                Request Location Services
+              </Link>
+            </Tooltip>
+            {isLoggedIn ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setUserMenuOpen(!userMenuOpen);
+                  }}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50 cursor-pointer"
                 >
-                  Login
-                </Link>
-              </Tooltip>
-              <Tooltip content={TOOLTIP_COPY["Get Started"]}>
-                <Link
-                  href="/signup"
-                  className="rounded-lg bg-green-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
-                  aria-label={TOOLTIP_COPY["Get Started"]}
-                >
-                  Get Started
-                </Link>
-              </Tooltip>
-            </>
-          )}
-        </div>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-primary text-xs font-bold text-white">
+                    {initials}
+                  </div>
+                  <span className="text-sm font-medium text-black-primary">
+                    {displayName.split(" ")[0] || "Account"}
+                  </span>
+                </button>
 
-        {/* Mobile Hamburger */}
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          className="inline-flex items-center justify-center rounded-lg p-2 text-black-primary transition-colors hover:bg-gray-100 lg:hidden"
-          aria-label="Open menu"
-        >
-          <Menu className="h-6 w-6" />
-        </button>
-      </nav>
+                {/* Dropdown */}
+                {userMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-gray-100 bg-white/95 backdrop-blur-md py-1 shadow-xl animate-fade-in">
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                      title={TOOLTIP_COPY["Dashboard"]}
+                      aria-label={TOOLTIP_COPY["Dashboard"]}
+                    >
+                      <LayoutDashboard className="h-4 w-4 text-black-primary/50" />
+                      Dashboard
+                    </Link>
+                    <Link
+                      href="/your-leads"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                      title={TOOLTIP_COPY["Your Leads"]}
+                      aria-label={TOOLTIP_COPY["Your Leads"]}
+                    >
+                      <ShoppingBag className="h-4 w-4 text-black-primary/50" />
+                      Your Leads
+                    </Link>
+                    <Link
+                      href="/saved-requests"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                      title="View your saved requests"
+                      aria-label="View your saved requests"
+                    >
+                      <Heart className="h-4 w-4 text-black-primary/50" />
+                      Saved Requests
+                    </Link>
+                    <Link
+                      href="/account/agreements"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                      title="View and download your signed agreements"
+                      aria-label="View and download your signed agreements"
+                    >
+                      <ScrollText className="h-4 w-4 text-black-primary/50" />
+                      My Agreements
+                    </Link>
+                    <Link
+                      href="/dashboard/profile"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                    >
+                      <User className="h-4 w-4 text-black-primary/50" />
+                      Profile
+                    </Link>
+                    <Link
+                      href="/routes-for-sale"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                      title={TOOLTIP_COPY["Routes for Sale"]}
+                      aria-label={TOOLTIP_COPY["Routes for Sale"]}
+                    >
+                      <Route className="h-4 w-4 text-black-primary/50" />
+                      Routes for Sale
+                    </Link>
+                    {(isAdmin || profile?.role === "sales" || profile?.role === "director_of_sales" || profile?.role === "market_leader") && (
+                      <Link
+                        href="/sales"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-green-primary transition-colors hover:bg-green-50"
+                      >
+                        <Briefcase className="h-4 w-4" />
+                        CRM
+                      </Link>
+                    )}
+                    {isAdmin && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-green-primary transition-colors hover:bg-green-50"
+                      >
+                        <Shield className="h-4 w-4" />
+                        Admin Panel
+                      </Link>
+                    )}
+                    <hr className="my-1 border-gray-100" />
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50 cursor-pointer"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <Tooltip content={TOOLTIP_COPY["Login"]}>
+                  <Link
+                    href="/login"
+                    className="rounded-lg px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
+                    aria-label={TOOLTIP_COPY["Login"]}
+                  >
+                    Login
+                  </Link>
+                </Tooltip>
+                <Tooltip content={TOOLTIP_COPY["Get Started"]}>
+                  <Link
+                    href="/signup"
+                    className="rounded-lg bg-green-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
+                    aria-label={TOOLTIP_COPY["Get Started"]}
+                  >
+                    Get Started
+                  </Link>
+                </Tooltip>
+              </>
+            )}
+          </div>
 
-      {/* Mobile Overlay */}
+          {/* Mobile Hamburger */}
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="inline-flex items-center justify-center rounded-lg p-2 text-black-primary transition-colors hover:bg-gray-100 lg:hidden"
+            aria-label="Open menu"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
+        </nav>
+      </header>
+
+      {/* Mobile Overlay — outside header to avoid stacking context issues */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-[9990] bg-black/50 backdrop-blur-sm lg:hidden"
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* Mobile Slide-out Drawer */}
+      {/* Mobile Slide-out Drawer — outside header for proper z-index layering */}
       <div
-        className={`fixed right-0 top-0 z-50 flex h-full w-[90vw] max-w-80 flex-col bg-green-primary shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
-          mobileOpen ? "translate-x-0" : "translate-x-full"
+        className={`fixed right-0 top-0 z-[9991] flex h-full w-[85vw] max-w-80 flex-col bg-green-primary shadow-2xl transition-all duration-300 ease-in-out lg:hidden ${
+          mobileOpen ? "translate-x-0 visible opacity-100" : "translate-x-full invisible opacity-0"
         }`}
       >
         {/* Drawer Header */}
@@ -412,17 +414,17 @@ export default function Navbar() {
             </div>
           )}
 
-          <ul className="space-y-2">
+          <ul className="space-y-1">
             {(isLoggedIn ? authNavLinks : navLinks).map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
+                  className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
                   aria-label={TOOLTIP_COPY[link.label] ?? undefined}
                 >
                   {link.label}
-                  <ChevronRight className="h-5 w-5 text-white/40" />
+                  <ChevronRight className="h-4 w-4 text-white/40" />
                 </Link>
               </li>
             ))}
@@ -432,84 +434,87 @@ export default function Navbar() {
                 <Link
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
+                  className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
                 >
                   {link.label}
-                  <ChevronRight className="h-5 w-5 text-white/40" />
+                  <ChevronRight className="h-4 w-4 text-white/40" />
                 </Link>
               </li>
             ))}
 
             {isLoggedIn && (
               <>
+                <li className="pt-2">
+                  <div className="mb-1 px-4 text-[11px] font-semibold uppercase tracking-wider text-white/40">Account</div>
+                </li>
                 <li>
                   <Link
                     href="/dashboard"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
+                    className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
                     aria-label={TOOLTIP_COPY["Dashboard"]}
                   >
-                    <span className="flex items-center gap-2">
-                      <LayoutDashboard className="h-5 w-5" />
+                    <span className="flex items-center gap-2.5">
+                      <LayoutDashboard className="h-4 w-4" />
                       Dashboard
                     </span>
-                    <ChevronRight className="h-5 w-5 text-white/40" />
+                    <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/your-leads"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
+                    className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
                     aria-label={TOOLTIP_COPY["Your Leads"]}
                   >
-                    <span className="flex items-center gap-2">
-                      <ShoppingBag className="h-5 w-5" />
+                    <span className="flex items-center gap-2.5">
+                      <ShoppingBag className="h-4 w-4" />
                       Your Leads
                     </span>
-                    <ChevronRight className="h-5 w-5 text-white/40" />
+                    <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/saved-requests"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
+                    className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
                     aria-label="View your saved requests"
                   >
-                    <span className="flex items-center gap-2">
-                      <Heart className="h-5 w-5" />
+                    <span className="flex items-center gap-2.5">
+                      <Heart className="h-4 w-4" />
                       Saved Requests
                     </span>
-                    <ChevronRight className="h-5 w-5 text-white/40" />
+                    <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/routes-for-sale"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
+                    className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
                     aria-label={TOOLTIP_COPY["Routes for Sale"]}
                   >
-                    <span className="flex items-center gap-2">
-                      <Route className="h-5 w-5" />
+                    <span className="flex items-center gap-2.5">
+                      <Route className="h-4 w-4" />
                       Routes for Sale
                     </span>
-                    <ChevronRight className="h-5 w-5 text-white/40" />
+                    <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/account/agreements"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
+                    className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
                     aria-label="View and download your signed agreements"
                   >
-                    <span className="flex items-center gap-2">
-                      <ScrollText className="h-5 w-5" />
+                    <span className="flex items-center gap-2.5">
+                      <ScrollText className="h-4 w-4" />
                       My Agreements
                     </span>
-                    <ChevronRight className="h-5 w-5 text-white/40" />
+                    <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
                 </li>
                 {(isAdmin || profile?.role === "sales" || profile?.role === "director_of_sales" || profile?.role === "market_leader") && (
@@ -517,13 +522,13 @@ export default function Navbar() {
                     <Link
                       href="/sales"
                       onClick={() => setMobileOpen(false)}
-                      className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
+                      className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
                     >
-                      <span className="flex items-center gap-2">
-                        <Briefcase className="h-5 w-5" />
+                      <span className="flex items-center gap-2.5">
+                        <Briefcase className="h-4 w-4" />
                         CRM
                       </span>
-                      <ChevronRight className="h-5 w-5 text-white/40" />
+                      <ChevronRight className="h-4 w-4 text-white/40" />
                     </Link>
                   </li>
                 )}
@@ -532,13 +537,13 @@ export default function Navbar() {
                     <Link
                       href="/admin"
                       onClick={() => setMobileOpen(false)}
-                      className="flex items-center justify-between rounded-lg px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/15"
+                      className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
                     >
-                      <span className="flex items-center gap-2">
-                        <Shield className="h-5 w-5" />
+                      <span className="flex items-center gap-2.5">
+                        <Shield className="h-4 w-4" />
                         Admin Panel
                       </span>
-                      <ChevronRight className="h-5 w-5 text-white/40" />
+                      <ChevronRight className="h-4 w-4 text-white/40" />
                     </Link>
                   </li>
                 )}
@@ -556,7 +561,7 @@ export default function Navbar() {
                 setMobileOpen(false);
                 handleLogout();
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-3.5 text-base font-medium text-white transition-colors hover:bg-white/20 cursor-pointer"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/20 cursor-pointer"
             >
               <LogOut className="h-4 w-4" />
               Sign Out
@@ -566,7 +571,7 @@ export default function Navbar() {
               <Link
                 href="/login"
                 onClick={() => setMobileOpen(false)}
-                className="block w-full rounded-lg border border-white/30 bg-white/10 px-4 py-3.5 text-center text-base font-medium text-white transition-colors hover:bg-white/20"
+                className="block w-full rounded-lg border border-white/30 bg-white/10 px-4 py-3 text-center text-[15px] font-medium text-white transition-colors hover:bg-white/20"
                 aria-label={TOOLTIP_COPY["Login"]}
               >
                 Login
@@ -574,7 +579,7 @@ export default function Navbar() {
               <Link
                 href="/signup"
                 onClick={() => setMobileOpen(false)}
-                className="block w-full rounded-lg bg-white px-4 py-3.5 text-center text-base font-semibold text-green-primary shadow-sm transition-colors hover:bg-white/90"
+                className="block w-full rounded-lg bg-white px-4 py-3 text-center text-[15px] font-semibold text-green-primary shadow-sm transition-colors hover:bg-green-50"
                 aria-label={TOOLTIP_COPY["Get Started"]}
               >
                 Get Started
@@ -583,6 +588,6 @@ export default function Navbar() {
           )}
         </div>
       </div>
-    </header>
+    </>
   );
 }
