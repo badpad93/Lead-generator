@@ -6,10 +6,20 @@ function getServiceAccountCredentials(): { email: string; key: string } {
     const json = JSON.parse(Buffer.from(b64, "base64").toString("utf-8"));
     return { email: json.client_email, key: json.private_key };
   }
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const key = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim();
+  let key = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || "";
+
+  // Strip surrounding quotes if copied from JSON
+  key = key.trim();
+  if (key.startsWith('"') && key.endsWith('"')) {
+    key = key.slice(1, -1);
+  }
+  // Convert literal \n to actual newlines
+  key = key.replace(/\\n/g, "\n");
+
   if (email && key) return { email, key };
-  throw new Error("Google service account credentials not configured");
+  throw new Error("Google service account credentials not configured — set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");
 }
 
 function getAuth() {
