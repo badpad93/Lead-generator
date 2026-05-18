@@ -1,37 +1,19 @@
 import { google } from "googleapis";
 
-function getServiceAccountCredentials(): { email: string; key: string } {
-  const b64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (b64) {
-    const json = JSON.parse(Buffer.from(b64, "base64").toString("utf-8"));
-    return { email: json.client_email, key: json.private_key };
-  }
-
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim();
-  let key = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || "";
-
-  // Strip surrounding quotes if copied from JSON
-  key = key.trim();
-  if (key.startsWith('"') && key.endsWith('"')) {
-    key = key.slice(1, -1);
-  }
-  // Convert literal \n to actual newlines
-  key = key.replace(/\\n/g, "\n");
-
-  if (email && key) return { email, key };
-  throw new Error("Google service account credentials not configured — set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");
-}
-
 function getAuth() {
-  const { email, key } = getServiceAccountCredentials();
-  return new google.auth.JWT({
-    email,
-    key,
-    scopes: [
-      "https://www.googleapis.com/auth/spreadsheets",
-      "https://www.googleapis.com/auth/drive",
-    ],
-  });
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error(
+      "Google OAuth credentials not configured — set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, and GOOGLE_OAUTH_REFRESH_TOKEN"
+    );
+  }
+
+  const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
+  oauth2.setCredentials({ refresh_token: refreshToken });
+  return oauth2;
 }
 
 export interface LeadRow {
@@ -74,22 +56,11 @@ export async function createLeadSheet(
   shareWithEmail?: string
 ): Promise<string> {
   const auth = getAuth();
-
-  // Verify credentials before making API calls
-  try {
-    await auth.authorize();
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    throw new Error(`Service account auth failed (check GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY): ${msg}`);
-  }
   const sheets = google.sheets({ version: "v4", auth });
   const drive = google.drive({ version: "v3", auth });
 
-  // Create spreadsheet in shared folder (SA has no personal Drive quota)
+  // Create spreadsheet in the designated folder (or root of user's Drive)
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-  if (!folderId) {
-    throw new Error("GOOGLE_DRIVE_FOLDER_ID env var is not set — create a Google Drive folder, share it with the service account, and add the folder ID to Vercel env vars");
-  }
   let spreadsheetId: string;
   try {
     const file = await drive.files.create({
@@ -102,7 +73,7 @@ export async function createLeadSheet(
     });
     spreadsheetId = file.data.id!;
   } catch (err: unknown) {
-    const gaxErr = err as { code?: number; response?: { data?: unknown; status?: number }; message?: string };
+    const gaxErr = err as { code?: number; response?: { data?: unknown }; message?: string };
     console.error("[googleSheets] drive.files.create failed:", JSON.stringify({
       code: gaxErr.code,
       message: gaxErr.message,
@@ -192,27 +163,26 @@ export async function createLeadSheet(
     },
   });
 
-  // Share the sheet — make accessible via link and optionally to specific rep
+  // Share the sheet — make accessible via link
   try {
     await drive.permissions.create({
       fileId: spreadsheetId,
       requestBody: { role: "writer", type: "anyone" },
-      supportsAllDrives: true,
     });
   } catch {
-    // Folder sharing or org policy handles access instead
+    // User's account may restrict public sharing
   }
 
+  // Share with specific rep if email provided
   if (shareWithEmail) {
     try {
       await drive.permissions.create({
         fileId: spreadsheetId,
         requestBody: { role: "writer", type: "user", emailAddress: shareWithEmail },
         sendNotificationEmail: false,
-        supportsAllDrives: true,
       });
     } catch {
-      // Non-critical — folder access is sufficient
+      // Non-critical
     }
   }
 
