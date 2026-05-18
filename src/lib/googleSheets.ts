@@ -94,13 +94,15 @@ export async function createLeadSheet(
       },
     });
   } catch (err: unknown) {
-    const gaxErr = err as { code?: number; errors?: unknown[]; response?: { data?: unknown }; message?: string };
-    const detail = JSON.stringify({
+    const gaxErr = err as { code?: number; errors?: unknown[]; response?: { data?: unknown; status?: number }; message?: string };
+    console.error("[googleSheets] spreadsheets.create 403 details:", JSON.stringify({
       code: gaxErr.code,
-      errors: gaxErr.errors,
-      data: gaxErr.response?.data,
       message: gaxErr.message,
-    });
+      errors: gaxErr.errors,
+      responseStatus: gaxErr.response?.status,
+      responseData: gaxErr.response?.data,
+    }, null, 2));
+    const detail = JSON.stringify(gaxErr.response?.data || gaxErr.errors || gaxErr.message);
     throw new Error(`Sheets.create failed: ${detail}`);
   }
 
