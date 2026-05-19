@@ -566,6 +566,11 @@ export default function LeadsPage() {
       subject: "Limited Time Opportunity — {{business_name}}",
       body: "Hi {{contact_name}},\n\nI wanted to reach out because we have operators actively looking for locations like {{business_name}} in your area. This is a great time to get set up — no cost to you, and machines can be placed within weeks.\n\nWould you like to learn more? I'm available for a quick call at your convenience.\n\nBest regards,\n{{sender_name}}\n{{sender_title}}\n{{sender_email}}\nVending Connector",
     },
+    missing_info: {
+      label: "Missing Info",
+      subject: "Oops — We're Missing Your Info!",
+      body: "Hi {{contact_name}},\n\nWe recently connected but it looks like we didn't get all of your information — that's on us! We want to make sure we can serve you properly.\n\nCould you reply to this email or send the following details to james@apexaivending.com?\n\n- Full Name\n- Business Name\n- Address\n- Email\n- Phone Number\n- Business Operational Area (cities/regions you serve or operate in)\n\nOnce we have your info, we'll get you set up right away. We appreciate your time and look forward to working with you!\n\nBest regards,\n{{sender_name}}\n{{sender_title}}\n{{sender_email}}\nVending Connector",
+    },
     custom: {
       label: "Custom Email",
       subject: "",
