@@ -120,7 +120,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id: leadId } = await params;
   const body = await req.json();
-  const { template, subject, email_body, to_email } = body;
+  const { template, subject, email_body, to_email, cc_emails, attachments } = body;
 
   if (!to_email) return NextResponse.json({ error: "Recipient email required" }, { status: 400 });
   if (!subject) return NextResponse.json({ error: "Subject required" }, { status: 400 });
@@ -173,9 +173,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
     .join("");
 
+  const toList: string[] = Array.isArray(to_email) ? to_email : [to_email];
+  const ccList: string[] = cc_emails
+    ? (Array.isArray(cc_emails) ? cc_emails : cc_emails.split(",").map((e: string) => e.trim())).filter(Boolean)
+    : [];
+
+  const resendAttachments = (attachments || []).map((a: { filename: string; content: string }) => ({
+    filename: a.filename,
+    content: Buffer.from(a.content, "base64"),
+  }));
+
   const { error: sendError } = await resend.emails.send({
     from: FROM,
-    to: to_email,
+    to: toList,
+    ...(ccList.length > 0 ? { cc: ccList } : {}),
     subject: resolvedSubject,
     text: resolvedBody,
     html: `
@@ -186,16 +197,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ${htmlBody}
       </div>
     `,
+    ...(resendAttachments.length > 0 ? { attachments: resendAttachments } : {}),
   });
 
   if (sendError) {
     return NextResponse.json({ error: `Failed to send: ${sendError.message}` }, { status: 500 });
   }
 
+  const allRecipients = [...toList, ...ccList].join(", ");
+
   const { error: dbError } = await supabaseAdmin.from("lead_emails").insert({
     lead_id: leadId,
     sent_by: user.id,
-    to_email,
+    to_email: allRecipients,
     subject: resolvedSubject,
     body: resolvedBody,
     template_name: template || "custom",

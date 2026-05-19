@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2, Mail, Send, Clock, ShieldCheck } from "lucide-react";
+import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2, Mail, Send, Clock, ShieldCheck, Paperclip } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
 
 const LEAD_FIELDS: { key: LeadFieldKey; label: string; required?: boolean }[] = [
@@ -163,6 +163,8 @@ export default function LeadsPage() {
   const [emailSending, setEmailSending] = useState(false);
   const [emailHistory, setEmailHistory] = useState<{ id: string; subject: string; to_email: string; created_at: string; template_name: string }[]>([]);
   const [showEmailHistory, setShowEmailHistory] = useState(false);
+  const [emailCc, setEmailCc] = useState("");
+  const [emailAttachments, setEmailAttachments] = useState<{ filename: string; content: string }[]>([]);
   const [ncaSending, setNcaSending] = useState<string | null>(null);
 
   useEffect(() => {
@@ -479,6 +481,8 @@ export default function LeadsPage() {
     const tpl = EMAIL_TEMPLATES["initial_followup"];
     setEmailSubject(tpl.subject);
     setEmailBody(tpl.body);
+    setEmailCc("");
+    setEmailAttachments([]);
     setShowEmailHistory(false);
     setEmailHistory([]);
   }
@@ -491,15 +495,18 @@ export default function LeadsPage() {
     let sent = 0;
     let failed = 0;
     for (const lead of selectedLeads) {
+      const payload: Record<string, unknown> = {
+        template: emailTemplate,
+        subject: emailSubject,
+        email_body: emailBody,
+        to_email: lead.email,
+      };
+      if (emailCc.trim()) payload.cc_emails = emailCc.trim();
+      if (emailAttachments.length > 0) payload.attachments = emailAttachments;
       const res = await fetch(`/api/sales/leads/${lead.id}/emails`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          template: emailTemplate,
-          subject: emailSubject,
-          email_body: emailBody,
-          to_email: lead.email,
-        }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) sent++;
       else failed++;
@@ -591,6 +598,8 @@ export default function LeadsPage() {
     const tpl = EMAIL_TEMPLATES["initial_followup"];
     setEmailSubject(tpl.subject);
     setEmailBody(tpl.body);
+    setEmailCc("");
+    setEmailAttachments([]);
     setShowEmailHistory(false);
     loadEmailHistory(lead.id);
   }
@@ -615,15 +624,18 @@ export default function LeadsPage() {
     if (!emailSubject.trim()) { alert("Subject is required."); return; }
     if (!emailBody.trim()) { alert("Email body is required."); return; }
     setEmailSending(true);
+    const payload: Record<string, unknown> = {
+      template: emailTemplate,
+      subject: emailSubject,
+      email_body: emailBody,
+      to_email: emailLead.email,
+    };
+    if (emailCc.trim()) payload.cc_emails = emailCc.trim();
+    if (emailAttachments.length > 0) payload.attachments = emailAttachments;
     const res = await fetch(`/api/sales/leads/${emailLead.id}/emails`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        template: emailTemplate,
-        subject: emailSubject,
-        email_body: emailBody,
-        to_email: emailLead.email,
-      }),
+      body: JSON.stringify(payload),
     });
     if (res.ok) {
       loadEmailHistory(emailLead.id);
@@ -1452,6 +1464,57 @@ export default function LeadsPage() {
                   <p className="text-xs text-gray-400 mt-1">
                     Merge fields: {"{{contact_name}}"}, {"{{business_name}}"}, {"{{sender_name}}"}, {"{{sender_title}}"}, {"{{sender_email}}"}
                   </p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">CC (comma-separated)</label>
+                  <input
+                    value={emailCc}
+                    onChange={(e) => setEmailCc(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                    placeholder="cc1@example.com, cc2@example.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Attachments</label>
+                  <label className="inline-flex items-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-500 hover:border-purple-400 hover:text-purple-600 cursor-pointer">
+                    <Paperclip className="h-4 w-4" />
+                    Add files
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (!files) return;
+                        Array.from(files).forEach((file) => {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            const base64 = (reader.result as string).split(",")[1];
+                            setEmailAttachments((prev) => [...prev, { filename: file.name, content: base64 }]);
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {emailAttachments.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {emailAttachments.map((att, i) => (
+                        <div key={i} className="flex items-center justify-between rounded-md bg-gray-50 border border-gray-200 px-2 py-1 text-xs text-gray-600">
+                          <span className="truncate">{att.filename}</span>
+                          <button
+                            onClick={() => setEmailAttachments((prev) => prev.filter((_, j) => j !== i))}
+                            className="ml-2 text-gray-400 hover:text-red-500 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between">
