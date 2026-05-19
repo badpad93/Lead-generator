@@ -28,6 +28,7 @@ import {
   Star,
   ShoppingBag,
   DollarSign,
+  UserPlus,
 } from "lucide-react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
@@ -225,6 +226,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [total, setTotal] = useState(0);
+  const [addingToCrm, setAddingToCrm] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -331,6 +333,30 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
       alert("Network error — please try again");
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleAddToCrm(user: Profile) {
+    setAddingToCrm(user.id);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/add-to-crm`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        onSuccess(`${user.full_name || user.email} added to CRM as a lead`);
+      } else {
+        const data = await res.json().catch(() => ({ error: "Failed" }));
+        alert(data.error || "Failed to add user to CRM");
+      }
+    } catch {
+      alert("Network error — please try again");
+    } finally {
+      setAddingToCrm(null);
     }
   }
 
@@ -473,6 +499,19 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleAddToCrm(user)}
+                        disabled={addingToCrm === user.id}
+                        className="rounded-lg p-1.5 text-black-primary/40 transition-colors hover:bg-green-50 hover:text-green-600 cursor-pointer disabled:opacity-50"
+                        title="Add to CRM as lead"
+                      >
+                        {addingToCrm === user.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <UserPlus className="h-4 w-4" />
+                        )}
+                      </button>
                       <button
                         type="button"
                         onClick={() => openEdit(user)}
