@@ -14,6 +14,7 @@ const INDUSTRIES = [
   "office buildings",
   "medical offices",
   "private schools",
+  "vending operators",
 ];
 
 const US_STATES = [
