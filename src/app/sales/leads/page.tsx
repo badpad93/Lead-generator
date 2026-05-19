@@ -129,6 +129,7 @@ export default function LeadsPage() {
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "urgent" | "type">("newest");
   const [hideDnc, setHideDnc] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
+  const [repFilter, setRepFilter] = useState("");
   const [addForm, setAddForm] = useState({
     business_name: "", contact_name: "", phone: "", email: "", address: "", city: "", state: "", source: "", notes: "", do_not_call: false, entity_type: "location" as EntityType, immediate_need: "" as ImmediateNeed | "",
     location_name: "", industry: "", zip: "", employee_count: "", traffic_count: "", decision_maker_name: "", decision_maker_email: "", machine_type: "", machines_requested: "1", business_hours: "8",
@@ -664,6 +665,8 @@ export default function LeadsPage() {
     if (statusFilter && l.status !== statusFilter) return false;
     if (stateFilter && (l.state || "").toUpperCase() !== stateFilter) return false;
     if (typeFilter && (l.entity_type || "") !== typeFilter) return false;
+    if (repFilter === "__unassigned__" && l.assigned_to) return false;
+    if (repFilter && repFilter !== "__unassigned__" && l.assigned_to !== repFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -1010,6 +1013,19 @@ export default function LeadsPage() {
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
+        {userRole === "admin" && (
+          <select
+            value={repFilter}
+            onChange={(e) => setRepFilter(e.target.value)}
+            className="shrink-0 w-auto rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+          >
+            <option value="">All Reps</option>
+            <option value="__unassigned__">Unassigned</option>
+            {salesUsers.map((u) => (
+              <option key={u.id} value={u.id}>{u.full_name}</option>
+            ))}
+          </select>
+        )}
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as "newest" | "oldest" | "urgent" | "type")}
