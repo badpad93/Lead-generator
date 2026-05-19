@@ -49,6 +49,29 @@ Best regards,
 {{sender_email}}
 Vending Connector`,
   },
+  missing_info: {
+    subject: "Oops — We're Missing Your Info!",
+    body: `Hi {{contact_name}},
+
+We recently connected but it looks like we didn't get all of your information — that's on us! We want to make sure we can serve you properly.
+
+Could you reply to this email or send the following details to james@apexaivending.com?
+
+- Full Name
+- Business Name
+- Address
+- Email
+- Phone Number
+- Business Operational Area (cities/regions you serve or operate in)
+
+Once we have your info, we'll get you set up right away. We appreciate your time and look forward to working with you!
+
+Best regards,
+{{sender_name}}
+{{sender_title}}
+{{sender_email}}
+Vending Connector`,
+  },
   custom: {
     subject: "",
     body: "",
