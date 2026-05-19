@@ -72,6 +72,24 @@ Best regards,
 {{sender_email}}
 Vending Connector`,
   },
+  non_circumvention: {
+    subject: "Non-Circumvention Agreement — Please Sign to Receive Location Details",
+    body: `Hi {{contact_name}},
+
+We completely understand your apprehension — and we want to make sure you feel comfortable before we share any confidential location details.
+
+Please sign our Site Walkthrough Non-Circumvention & Confidentiality Agreement so we can share the location details with you. Once it's signed, we'll send over everything you need right away.
+
+This agreement simply protects both parties and ensures a fair process for everyone involved.
+
+Please reply to this email or contact james@apexaivending.com if you have any questions.
+
+Best regards,
+{{sender_name}}
+{{sender_title}}
+{{sender_email}}
+Vending Connector`,
+  },
   custom: {
     subject: "",
     body: "",

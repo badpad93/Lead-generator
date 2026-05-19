@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2, Mail, Send, Clock } from "lucide-react";
+import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2, Mail, Send, Clock, ShieldCheck } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
 
 const LEAD_FIELDS: { key: LeadFieldKey; label: string; required?: boolean }[] = [
@@ -162,6 +162,7 @@ export default function LeadsPage() {
   const [emailSending, setEmailSending] = useState(false);
   const [emailHistory, setEmailHistory] = useState<{ id: string; subject: string; to_email: string; created_at: string; template_name: string }[]>([]);
   const [showEmailHistory, setShowEmailHistory] = useState(false);
+  const [ncaSending, setNcaSending] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -571,6 +572,11 @@ export default function LeadsPage() {
       subject: "Oops — We're Missing Your Info!",
       body: "Hi {{contact_name}},\n\nWe recently connected but it looks like we didn't get all of your information — that's on us! We want to make sure we can serve you properly.\n\nCould you reply to this email or send the following details to james@apexaivending.com?\n\n- Full Name\n- Business Name\n- Address\n- Email\n- Phone Number\n- Business Operational Area (cities/regions you serve or operate in)\n\nOnce we have your info, we'll get you set up right away. We appreciate your time and look forward to working with you!\n\nBest regards,\n{{sender_name}}\n{{sender_title}}\n{{sender_email}}\nVending Connector",
     },
+    non_circumvention: {
+      label: "Non-Circumvention Agreement",
+      subject: "Non-Circumvention Agreement — Please Sign to Receive Location Details",
+      body: "Hi {{contact_name}},\n\nWe completely understand your apprehension — and we want to make sure you feel comfortable before we share any confidential location details.\n\nPlease sign our Site Walkthrough Non-Circumvention & Confidentiality Agreement so we can share the location details with you. Once it's signed, we'll send over everything you need right away.\n\nThis agreement simply protects both parties and ensures a fair process for everyone involved.\n\nPlease reply to this email or contact james@apexaivending.com if you have any questions.\n\nBest regards,\n{{sender_name}}\n{{sender_title}}\n{{sender_email}}\nVending Connector",
+    },
     custom: {
       label: "Custom Email",
       subject: "",
@@ -626,6 +632,27 @@ export default function LeadsPage() {
       alert(err.error || "Failed to send email");
     }
     setEmailSending(false);
+  }
+
+  async function handleSendNCA(lead: SalesLead) {
+    if (!lead.email) { alert("This lead has no email address."); return; }
+    setNcaSending(lead.id);
+    try {
+      const res = await fetch(`/api/sales/leads/${lead.id}/non-circumvention`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        alert(`Non-Circumvention Agreement sent to ${lead.email}`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to send agreement");
+      }
+    } catch {
+      alert("Network error — please try again");
+    } finally {
+      setNcaSending(null);
+    }
   }
 
   const availableStates = Array.from(
@@ -1172,6 +1199,16 @@ export default function LeadsPage() {
                           className="rounded-lg p-1.5 text-gray-400 hover:bg-purple-50 hover:text-purple-600 cursor-pointer"
                         >
                           <Mail className="h-4 w-4" />
+                        </button>
+                      )}
+                      {lead.email && (
+                        <button
+                          onClick={() => handleSendNCA(lead)}
+                          disabled={ncaSending === lead.id}
+                          title="Send Non-Circumvention Agreement"
+                          className="rounded-lg p-1.5 text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 cursor-pointer disabled:opacity-50"
+                        >
+                          {ncaSending === lead.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                         </button>
                       )}
                       {!lead.assigned_to && (
