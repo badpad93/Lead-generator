@@ -182,42 +182,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true });
   }
 
-  if (body.action === "convert") {
-    // Convert lead to deal
-    const { data: lead } = await supabaseAdmin
-      .from("sales_leads")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
-
-    const { data: deal, error } = await supabaseAdmin
-      .from("sales_deals")
-      .insert({
-        lead_id: id,
-        assigned_to: lead.assigned_to || user.id,
-        stage: "new",
-        value: 0,
-        business_name: lead.business_name,
-      })
-      .select("id")
-      .single();
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    // Mark lead as qualified
-    await supabaseAdmin.from("sales_leads").update({ status: "qualified" }).eq("id", id);
-
-    try {
-      await createAndSendAgreement(id, lead);
-    } catch (err) {
-      console.error("[leads] Failed to send location agreement:", err instanceof Error ? err.message : err);
-    }
-
-    return NextResponse.json({ dealId: deal.id }, { status: 201 });
-  }
-
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 }
 

@@ -47,6 +47,21 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
+    if (row.email?.trim()) {
+      const { data: existingLead } = await supabaseAdmin
+        .from("sales_leads")
+        .select("id")
+        .eq("email", row.email.trim())
+        .limit(1)
+        .maybeSingle();
+
+      if (existingLead) {
+        results.skipped++;
+        results.errors.push(`Row ${rowNum} (${row.business_name}): Duplicate email — skipped`);
+        continue;
+      }
+    }
+
     const entityType = row.entity_type && VALID_ENTITY_TYPES.includes(row.entity_type)
       ? row.entity_type : null;
     const immediateNeed = row.immediate_need && VALID_IMMEDIATE_NEEDS.includes(row.immediate_need)

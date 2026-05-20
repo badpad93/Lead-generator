@@ -47,6 +47,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const checkEmail = email || user.email;
+  if (checkEmail) {
+    const { data: existingLead } = await supabaseAdmin
+      .from("sales_leads")
+      .select("id")
+      .eq("email", checkEmail)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingLead) {
+      return NextResponse.json({ ok: true, existing: true }, { status: 200 });
+    }
+  }
+
   const assigneeId = await getDefaultAssigneeId();
 
   const { data: account, error: acctErr } = await supabaseAdmin

@@ -20,6 +20,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (leadErr || !lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
 
+  if (lead.status === "qualified") {
+    return NextResponse.json({ error: "Lead has already been converted" }, { status: 400 });
+  }
+
+  const { data: existingItem } = await supabaseAdmin
+    .from("pipeline_items")
+    .select("id")
+    .eq("lead_id", leadId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingItem) {
+    return NextResponse.json({ error: "Lead is already in a pipeline" }, { status: 400 });
+  }
+
   // Create or find account
   let accountId = lead.account_id;
   if (!accountId) {
