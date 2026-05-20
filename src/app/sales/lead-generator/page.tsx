@@ -15,6 +15,20 @@ const INDUSTRIES = [
   "medical offices",
   "private schools",
   "vending operators",
+  "hotels",
+  "apartments",
+  "tire shops",
+  "truck repair shops",
+  "rehabs",
+  "RV parks",
+  "motorcycle dealerships",
+  "motorcycle repair shops",
+  "electrical supply stores",
+  "vocational schools",
+  "universities",
+  "cosmetology schools",
+  "trucking schools",
+  "nursing schools",
 ];
 
 const US_STATES = [
