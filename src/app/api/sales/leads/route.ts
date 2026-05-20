@@ -58,6 +58,19 @@ export async function POST(req: NextRequest) {
   if (!business_name)
     return NextResponse.json({ error: "business_name required" }, { status: 400 });
 
+  if (email) {
+    const { data: existingLead } = await supabaseAdmin
+      .from("sales_leads")
+      .select("id")
+      .eq("email", email)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingLead) {
+      return NextResponse.json({ error: "A lead with this email already exists" }, { status: 409 });
+    }
+  }
+
   if (entity_type === "location") {
     const missing: string[] = [];
     if (!body.location_name) missing.push("location_name");
