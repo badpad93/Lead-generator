@@ -125,11 +125,12 @@ function SignupContent() {
     if (!leadForm.email.trim()) { setError("Email is required"); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadForm.email.trim())) { setError("Please enter a valid email address"); return; }
     if (!leadForm.phone.trim()) { setError("Phone number is required"); return; }
+    if (!leadForm.address.trim()) { setError("Address is required"); return; }
+    if (!leadForm.city.trim()) { setError("City is required"); return; }
+    if (!leadForm.state.trim()) { setError("State is required"); return; }
+    if (!leadForm.zip.trim()) { setError("Zip code is required"); return; }
     if (role !== "employee") {
       if (!leadForm.business_name.trim()) { setError("Business name is required"); return; }
-      if (!leadForm.city.trim()) { setError("City is required"); return; }
-      if (!leadForm.state.trim()) { setError("State is required"); return; }
-      if (!leadForm.zip.trim()) { setError("Zip code is required"); return; }
     }
     setError(null);
     setStep(3);
@@ -343,43 +344,41 @@ function SignupContent() {
                     <input value={leadForm.phone} onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))} placeholder="(555) 555-5555" type="tel" className={inputClass} />
                   </div>
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Address <span className="text-red-500">*</span></label>
+                  <input value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} placeholder="Street address" className={inputClass} />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">City <span className="text-red-500">*</span></label>
+                    <input value={leadForm.city} onChange={(e) => setLeadForm((f) => ({ ...f, city: e.target.value }))} placeholder="City" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">State <span className="text-red-500">*</span></label>
+                    <input value={leadForm.state} onChange={(e) => setLeadForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} placeholder="e.g. TX" maxLength={2} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Zip Code <span className="text-red-500">*</span></label>
+                    <input value={leadForm.zip} onChange={(e) => setLeadForm((f) => ({ ...f, zip: e.target.value }))} placeholder="e.g. 75001" maxLength={10} className={inputClass} />
+                  </div>
+                </div>
                 {role !== "employee" && (
-                  <>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
-                      <input value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} placeholder="Street address" className={inputClass} />
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+                      <select value={leadForm.entity_type} onChange={(e) => setLeadForm((f) => ({ ...f, entity_type: e.target.value }))} className={selectClass}>
+                        <option value="">Select type...</option>
+                        {ENTITY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
                     </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">City <span className="text-red-500">*</span></label>
-                        <input value={leadForm.city} onChange={(e) => setLeadForm((f) => ({ ...f, city: e.target.value }))} placeholder="City" className={inputClass} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">State <span className="text-red-500">*</span></label>
-                        <input value={leadForm.state} onChange={(e) => setLeadForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} placeholder="e.g. TX" maxLength={2} className={inputClass} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Zip Code <span className="text-red-500">*</span></label>
-                        <input value={leadForm.zip} onChange={(e) => setLeadForm((f) => ({ ...f, zip: e.target.value }))} placeholder="e.g. 75001" maxLength={10} className={inputClass} />
-                      </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Immediate Need</label>
+                      <select value={leadForm.immediate_need} onChange={(e) => setLeadForm((f) => ({ ...f, immediate_need: e.target.value }))} className={selectClass}>
+                        <option value="">Select need...</option>
+                        {IMMEDIATE_NEEDS.map((n) => <option key={n.value} value={n.value}>{n.label}</option>)}
+                      </select>
                     </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
-                        <select value={leadForm.entity_type} onChange={(e) => setLeadForm((f) => ({ ...f, entity_type: e.target.value }))} className={selectClass}>
-                          <option value="">Select type...</option>
-                          {ENTITY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Immediate Need</label>
-                        <select value={leadForm.immediate_need} onChange={(e) => setLeadForm((f) => ({ ...f, immediate_need: e.target.value }))} className={selectClass}>
-                          <option value="">Select need...</option>
-                          {IMMEDIATE_NEEDS.map((n) => <option key={n.value} value={n.value}>{n.label}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
 
                 <button
