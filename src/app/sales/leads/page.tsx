@@ -97,6 +97,15 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
+const ENTITY_COLORS: Record<string, { border: string; badge: string; badgeText: string; dot: string }> = {
+  location: { border: "border-green-400", badge: "bg-green-100 ring-green-300", badgeText: "text-green-800", dot: "bg-green-500" },
+  operator: { border: "border-blue-400", badge: "bg-blue-100 ring-blue-300", badgeText: "text-blue-800", dot: "bg-blue-500" },
+};
+
+function getEntityColor(type: string | null | undefined) {
+  return ENTITY_COLORS[type || ""] || null;
+}
+
 function autoMapColumns(headers: string[]): Record<number, LeadFieldKey | ""> {
   const mapping: Record<number, LeadFieldKey | ""> = {};
   const used = new Set<LeadFieldKey>();
@@ -1059,6 +1068,25 @@ export default function LeadsPage() {
         </label>
       </div>
 
+      <div className="mb-4 flex items-center gap-2">
+        {[
+          { value: "", label: "All", style: "border-gray-300 text-gray-700 bg-white hover:bg-gray-50" },
+          { value: "location", label: "Locations", style: "border-green-400 text-green-800 bg-green-50 hover:bg-green-100" },
+          { value: "operator", label: "Operators", style: "border-blue-400 text-blue-800 bg-blue-50 hover:bg-blue-100" },
+        ].map((cat) => (
+          <button
+            key={cat.value}
+            onClick={() => setTypeFilter(cat.value)}
+            className={`inline-flex items-center gap-1.5 rounded-lg border-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wide cursor-pointer transition-all ${cat.style} ${
+              typeFilter === cat.value ? "ring-2 ring-offset-1 ring-gray-400 shadow-sm" : ""
+            }`}
+          >
+            {cat.value && <span className={`inline-block h-2.5 w-2.5 rounded-full ${cat.value === "location" ? "bg-green-500" : "bg-blue-500"}`} />}
+            {cat.label}
+          </button>
+        ))}
+      </div>
+
       {selected.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 sm:gap-3 sm:px-4">
           <CheckSquare className="h-4 w-4 text-gray-600 shrink-0" />
@@ -1118,8 +1146,10 @@ export default function LeadsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map((lead) => (
-                <tr key={lead.id} className={lead.urgent ? "bg-orange-50/50 hover:bg-orange-50" : "hover:bg-gray-50/50"}>
+              {filtered.map((lead) => {
+                const ec = getEntityColor(lead.entity_type);
+                return (
+                <tr key={lead.id} className={`${ec ? `border-2 ${ec.border}` : ""} ${lead.urgent ? "bg-orange-50/50 hover:bg-orange-50" : "hover:bg-gray-50/50"}`}>
                   {userRole === "admin" && (
                     <td className="px-3 py-3 w-10">
                       <input
@@ -1131,11 +1161,17 @@ export default function LeadsPage() {
                     </td>
                   )}
                   <td className="px-4 py-3 font-medium text-gray-900">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
+                      {ec && <span className={`inline-block h-2.5 w-2.5 rounded-full shrink-0 ${ec.dot}`} />}
                       {lead.urgent && <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />}
                       <button onClick={() => openEdit(lead)} className="text-left hover:text-green-700 hover:underline cursor-pointer">
                         {lead.business_name}
                       </button>
+                      {ec && (
+                        <span className={`ml-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset shrink-0 ${ec.badge} ${ec.badgeText}`}>
+                          {lead.entity_type}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -1294,7 +1330,8 @@ export default function LeadsPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
