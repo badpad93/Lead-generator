@@ -47,18 +47,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const checkEmail = email || user.email;
-  if (checkEmail) {
-    const { data: existingLead } = await supabaseAdmin
-      .from("sales_leads")
-      .select("id")
-      .eq("email", checkEmail)
-      .limit(1)
-      .maybeSingle();
+  const { data: existingLead } = await supabaseAdmin
+    .from("sales_leads")
+    .select("id")
+    .eq("business_name", business_name)
+    .limit(1)
+    .maybeSingle();
 
-    if (existingLead) {
-      return NextResponse.json({ ok: true, existing: true }, { status: 200 });
-    }
+  if (existingLead) {
+    return NextResponse.json({ ok: true, existing: true }, { status: 200 });
   }
 
   const assigneeId = await getDefaultAssigneeId();
