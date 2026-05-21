@@ -164,6 +164,8 @@ export default function LeadsPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
 
+  const [deduping, setDeduping] = useState(false);
+
   // Email follow-up state
   const [emailLead, setEmailLead] = useState<SalesLead | null>(null);
   const [emailTemplate, setEmailTemplate] = useState("initial_followup");
@@ -294,6 +296,24 @@ export default function LeadsPage() {
       setConvertError(err.error || `Conversion failed (${res.status})`);
     }
     setConvertSaving(false);
+  }
+
+  async function handleDedup() {
+    if (!confirm("Remove all duplicate leads? This keeps the oldest lead for each business name and deletes the rest.")) return;
+    setDeduping(true);
+    const res = await fetch("/api/admin/dedup-leads", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      alert(`Removed ${data.deleted} duplicate lead${data.deleted !== 1 ? "s" : ""} across ${data.groups_deduped} business name${data.groups_deduped !== 1 ? "s" : ""}.`);
+      fetchLeads();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to remove duplicates");
+    }
+    setDeduping(false);
   }
 
   async function handleDelete(id: string) {
@@ -726,6 +746,16 @@ export default function LeadsPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
         <div className="flex gap-2">
+          {userRole === "admin" && (
+            <button
+              onClick={handleDedup}
+              disabled={deduping}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {deduping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Remove Duplicates
+            </button>
+          )}
           <button
             onClick={() => { setShowImport(!showImport); setShowAdd(false); }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
