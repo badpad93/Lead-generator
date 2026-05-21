@@ -20,6 +20,7 @@ interface PipelineItem {
   name: string;
   status: string;
   value: number;
+  assigned_to: string | null;
   pipeline_steps: { id: string; name: string; order_index: number } | null;
   sales_accounts: { business_name: string } | null;
   employees: { full_name: string } | null;
@@ -45,6 +46,8 @@ export default function PipelineItemsPage() {
   const [userRole, setUserRole] = useState<"admin" | "sales">("sales");
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [salesUsers, setSalesUsers] = useState<{ id: string; full_name: string }[]>([]);
+  const [repFilter, setRepFilter] = useState("");
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -54,6 +57,7 @@ export default function PipelineItemsPage() {
       const res = await fetch("/api/sales/users", { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) {
         const users = await res.json();
+        setSalesUsers(users.map((u: { id: string; full_name: string }) => ({ id: u.id, full_name: u.full_name })));
         const me = users.find((u: { id: string }) => u.id === session.user.id);
         if (me?.role === "admin" || me?.role === "director_of_sales" || me?.role === "market_leader") setUserRole("admin");
       }
@@ -167,6 +171,23 @@ export default function PipelineItemsPage() {
           <Plus className="h-4 w-4" /> Add Item
         </button>
       </div>
+
+      {/* Filter by rep */}
+      {userRole === "admin" && salesUsers.length > 0 && (
+        <div className="mb-4">
+          <select
+            value={repFilter}
+            onChange={(e) => setRepFilter(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+          >
+            <option value="">All Reps</option>
+            <option value="__unassigned__">Unassigned</option>
+            {salesUsers.map((u) => (
+              <option key={u.id} value={u.id}>{u.full_name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Bulk selection banner */}
       {selectedItems.size > 0 && userRole === "admin" && (
@@ -282,7 +303,10 @@ export default function PipelineItemsPage() {
       {/* Kanban columns */}
       <div className="flex gap-4 overflow-x-auto pb-4">
         {steps.map((step) => {
-          const stepItems = items.filter((i) => {
+          const filteredItems = repFilter
+            ? items.filter((i) => repFilter === "__unassigned__" ? !i.assigned_to : i.assigned_to === repFilter)
+            : items;
+          const stepItems = filteredItems.filter((i) => {
             const itemStep = i.pipeline_steps as { id: string } | null;
             return itemStep?.id === step.id;
           });
@@ -311,6 +335,10 @@ export default function PipelineItemsPage() {
                     >
                       <p className="text-sm font-medium text-gray-900 pr-6">{item.name}</p>
                       {item.sales_accounts && <p className="text-xs text-gray-400">{item.sales_accounts.business_name}</p>}
+                      {item.assigned_to && (() => {
+                        const rep = salesUsers.find((u) => u.id === item.assigned_to);
+                        return rep ? <p className="text-xs text-purple-500 mt-0.5">{rep.full_name}</p> : null;
+                      })()}
                       <div className="flex items-center justify-between mt-2">
                         {item.value > 0 && <span className="text-xs font-medium text-green-600">${Number(item.value).toLocaleString()}</span>}
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(item.status)}`}>{item.status}</span>
