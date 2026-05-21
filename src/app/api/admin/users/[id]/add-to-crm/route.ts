@@ -35,6 +35,17 @@ export async function POST(
 
   const businessName = profile.company_name || profile.full_name || profile.email;
 
+  const { data: existingLead } = await supabaseAdmin
+    .from("sales_leads")
+    .select("id")
+    .eq("business_name", businessName)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingLead) {
+    return NextResponse.json({ error: "This user is already in the CRM" }, { status: 409 });
+  }
+
   const { data: account, error: acctErr } = await supabaseAdmin
     .from("sales_accounts")
     .insert({

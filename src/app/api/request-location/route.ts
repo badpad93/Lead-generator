@@ -77,6 +77,17 @@ export async function POST(req: Request) {
     }
   }
 
+  const { data: existingLead } = await supabaseAdmin
+    .from("sales_leads")
+    .select("id")
+    .eq("business_name", business_name)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingLead) {
+    return NextResponse.json({ id: existingLead.id, existing: true }, { status: 200 });
+  }
+
   const { data: lead, error: dbError } = await supabaseAdmin.from("sales_leads").insert({
     business_name,
     contact_name,

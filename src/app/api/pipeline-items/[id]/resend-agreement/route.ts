@@ -110,38 +110,46 @@ export async function POST(
 
   // Auto-create a sales lead from location/account data when none exists
   if (!leadId && (contactEmail || bodyEmail)) {
-    const { data: newLead } = await supabaseAdmin
+    const lookupName = businessName || "Unknown";
+    const { data: existingByName } = await supabaseAdmin
       .from("sales_leads")
-      .insert({
-        business_name: businessName || "Unknown",
-        contact_name: contactName || bodyName || null,
-        email: contactEmail || bodyEmail,
-        phone: phone || null,
-        address: address || null,
-        entity_type: "location",
-        status: "qualified",
-        source: "auto-created",
-        created_by: user.id,
-        assigned_to: user.id,
-        account_id: item.account_id || null,
-      })
       .select("id")
-      .single();
+      .eq("business_name", lookupName)
+      .limit(1)
+      .maybeSingle();
 
-    if (newLead) {
-      leadId = newLead.id;
-      // Link the lead back to the pipeline item and location
-      await supabaseAdmin
-        .from("pipeline_items")
-        .update({ lead_id: newLead.id })
-        .eq("id", itemId);
+    if (existingByName) {
+      leadId = existingByName.id;
+      await supabaseAdmin.from("pipeline_items").update({ lead_id: existingByName.id }).eq("id", itemId);
       if (item.location_id) {
-        await supabaseAdmin
-          .from("locations")
-          .update({ sales_lead_id: newLead.id })
-          .eq("id", item.location_id);
+        await supabaseAdmin.from("locations").update({ sales_lead_id: existingByName.id }).eq("id", item.location_id);
       }
-      console.log("[resend-agreement] Auto-created sales lead:", newLead.id);
+    } else {
+      const { data: newLead } = await supabaseAdmin
+        .from("sales_leads")
+        .insert({
+          business_name: lookupName,
+          contact_name: contactName || bodyName || null,
+          email: contactEmail || bodyEmail,
+          phone: phone || null,
+          address: address || null,
+          entity_type: "location",
+          status: "qualified",
+          source: "auto-created",
+          created_by: user.id,
+          assigned_to: user.id,
+          account_id: item.account_id || null,
+        })
+        .select("id")
+        .single();
+
+      if (newLead) {
+        leadId = newLead.id;
+        await supabaseAdmin.from("pipeline_items").update({ lead_id: newLead.id }).eq("id", itemId);
+        if (item.location_id) {
+          await supabaseAdmin.from("locations").update({ sales_lead_id: newLead.id }).eq("id", item.location_id);
+        }
+      }
     }
   }
 
