@@ -58,17 +58,15 @@ export async function POST(req: NextRequest) {
   if (!business_name)
     return NextResponse.json({ error: "business_name required" }, { status: 400 });
 
-  if (email) {
-    const { data: existingLead } = await supabaseAdmin
-      .from("sales_leads")
-      .select("id")
-      .eq("email", email)
-      .limit(1)
-      .maybeSingle();
+  const { data: existingLead } = await supabaseAdmin
+    .from("sales_leads")
+    .select("id")
+    .eq("business_name", business_name)
+    .limit(1)
+    .maybeSingle();
 
-    if (existingLead) {
-      return NextResponse.json({ error: "A lead with this email already exists" }, { status: 409 });
-    }
+  if (existingLead) {
+    return NextResponse.json({ error: "A lead with this business name already exists" }, { status: 409 });
   }
 
   if (entity_type === "location") {
