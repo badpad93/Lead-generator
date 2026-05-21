@@ -215,6 +215,7 @@ export default function LeadsPage() {
 
   async function handleAdd() {
     if (!addForm.business_name) return;
+    if (!addForm.city.trim()) { alert("City is required"); return; }
     if (addForm.entity_type === "location") {
       const missing: string[] = [];
       if (!addForm.location_name) missing.push("Location Name");
@@ -752,7 +753,7 @@ export default function LeadsPage() {
             <input placeholder="Phone" value={addForm.phone} onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <input placeholder="Email" value={addForm.email} onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <input placeholder="Address" value={addForm.address} onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-            <input placeholder="City" value={addForm.city} onChange={(e) => setAddForm((f) => ({ ...f, city: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+            <input placeholder="City *" value={addForm.city} onChange={(e) => setAddForm((f) => ({ ...f, city: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <input placeholder="State (e.g. TX)" maxLength={2} value={addForm.state} onChange={(e) => setAddForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none uppercase" />
             <input placeholder="Source (referral, web, cold call...)" value={addForm.source} onChange={(e) => setAddForm((f) => ({ ...f, source: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
             <select value={addForm.entity_type} onChange={(e) => setAddForm((f) => ({ ...f, entity_type: e.target.value as EntityType }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
@@ -1139,6 +1140,7 @@ export default function LeadsPage() {
                 <th className="px-4 py-3 font-medium text-gray-500">Immediate Need</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Contact</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Phone</th>
+                <th className="px-4 py-3 font-medium text-gray-500">City</th>
                 <th className="px-4 py-3 font-medium text-gray-500">State</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Status</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Assigned</th>
@@ -1209,6 +1211,7 @@ export default function LeadsPage() {
                       lead.phone || "—"
                     )}
                   </td>
+                  <td className="px-4 py-3 text-gray-600">{lead.city || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">
                     {lead.state ? (
                       <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">

@@ -54,54 +54,67 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Failed to save application: ${insertErr.message}` }, { status: 500 });
   }
 
-  // Auto-create CRM account + lead for the financing applicant
+  // Auto-create CRM account + lead for the financing applicant (skip if lead already exists)
   let crmAccountId: string | null = null;
   let crmLeadId: string | null = null;
   try {
-    const { data: account } = await supabaseAdmin
-      .from("sales_accounts")
-      .insert({
-        business_name: body.business_name || body.full_name,
-        contact_name: body.full_name,
-        phone: body.phone,
-        email: body.email,
-        entity_type: "operator",
-      })
-      .select("id")
-      .single();
+    const financingBizName = body.business_name || body.full_name;
+    const { data: existingLead } = await supabaseAdmin
+      .from("sales_leads")
+      .select("id, account_id")
+      .eq("business_name", financingBizName)
+      .limit(1)
+      .maybeSingle();
 
-    if (account) {
-      crmAccountId = account.id;
-
-      const notes = [
-        `Source: SBA Financing Application`,
-        `Credit Score: ${body.credit_score_range || "Not provided"}`,
-        `Net Worth: ${body.net_worth_range || "Not provided"}`,
-        `Annual Income: ${body.annual_income || "Not provided"}`,
-        `Citizenship: ${body.citizenship_status || "Not provided"}`,
-        `Verifiable Income: ${body.has_verifiable_income ? "Yes" : "No"}`,
-        `Tax Liens: ${body.has_tax_liens ? "Yes" : "No"}`,
-        `Bankruptcy: ${body.has_bankruptcy ? "Yes" : "No"}`,
-        `Judgments: ${body.has_judgments ? "Yes" : "No"}`,
-      ].join("\n");
-
-      const { data: lead } = await supabaseAdmin
-        .from("sales_leads")
+    if (existingLead) {
+      crmLeadId = existingLead.id;
+      crmAccountId = existingLead.account_id;
+    } else {
+      const { data: account } = await supabaseAdmin
+        .from("sales_accounts")
         .insert({
-          business_name: body.business_name || body.full_name,
+          business_name: financingBizName,
           contact_name: body.full_name,
           phone: body.phone,
           email: body.email,
           entity_type: "operator",
-          source: "financing_application",
-          status: "qualified",
-          account_id: account.id,
-          notes,
         })
         .select("id")
         .single();
 
-      if (lead) crmLeadId = lead.id;
+      if (account) {
+        crmAccountId = account.id;
+
+        const notes = [
+          `Source: SBA Financing Application`,
+          `Credit Score: ${body.credit_score_range || "Not provided"}`,
+          `Net Worth: ${body.net_worth_range || "Not provided"}`,
+          `Annual Income: ${body.annual_income || "Not provided"}`,
+          `Citizenship: ${body.citizenship_status || "Not provided"}`,
+          `Verifiable Income: ${body.has_verifiable_income ? "Yes" : "No"}`,
+          `Tax Liens: ${body.has_tax_liens ? "Yes" : "No"}`,
+          `Bankruptcy: ${body.has_bankruptcy ? "Yes" : "No"}`,
+          `Judgments: ${body.has_judgments ? "Yes" : "No"}`,
+        ].join("\n");
+
+        const { data: lead } = await supabaseAdmin
+          .from("sales_leads")
+          .insert({
+            business_name: financingBizName,
+            contact_name: body.full_name,
+            phone: body.phone,
+            email: body.email,
+            entity_type: "operator",
+            source: "financing_application",
+            status: "qualified",
+            account_id: account.id,
+            notes,
+          })
+          .select("id")
+          .single();
+
+        if (lead) crmLeadId = lead.id;
+      }
     }
   } catch (crmErr) {
     console.error("[financing] Failed to create CRM records:", crmErr);

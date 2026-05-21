@@ -571,48 +571,66 @@ async function handleMachinePurchase(session: Stripe.Checkout.Session) {
 
   const machineTitle = listing?.title || "Vending Machine";
 
-  // Auto-create CRM account + lead for the buyer
+  // Auto-create CRM account + lead for the buyer (skip if lead already exists)
   try {
-    const { data: account } = await supabaseAdmin
-      .from("sales_accounts")
-      .insert({
-        business_name: purchase.business_name || purchase.full_name,
-        contact_name: purchase.full_name,
-        phone: purchase.phone,
-        email: purchase.email,
-        address: purchase.location_address || null,
-        entity_type: "operator",
-      })
-      .select("id")
-      .single();
+    const purchaseBizName = purchase.business_name || purchase.full_name;
+    const { data: existingLead } = await supabaseAdmin
+      .from("sales_leads")
+      .select("id, account_id")
+      .eq("business_name", purchaseBizName)
+      .limit(1)
+      .maybeSingle();
 
-    if (account) {
-      const { data: lead } = await supabaseAdmin
-        .from("sales_leads")
+    if (existingLead) {
+      await supabaseAdmin
+        .from("machine_listing_purchases")
+        .update({
+          crm_account_id: existingLead.account_id,
+          crm_lead_id: existingLead.id,
+        })
+        .eq("id", purchaseId);
+    } else {
+      const { data: account } = await supabaseAdmin
+        .from("sales_accounts")
         .insert({
-          business_name: purchase.business_name || purchase.full_name,
+          business_name: purchaseBizName,
           contact_name: purchase.full_name,
           phone: purchase.phone,
           email: purchase.email,
           address: purchase.location_address || null,
-          city: purchase.location_city || null,
-          state: purchase.location_state || null,
           entity_type: "operator",
-          source: "machine_purchase",
-          status: "qualified",
-          account_id: account.id,
-          notes: `Machine purchase: ${machineTitle} — $${(purchase.amount_cents / 100).toFixed(2)}\nBuyer type: ${purchase.buyer_type || "N/A"}\nLocation status: ${purchase.location_status || "N/A"}\nDeployment: ${purchase.deployment_timeline || "N/A"}\nShipping: ${purchase.shipping_intent || "N/A"}`,
         })
         .select("id")
         .single();
 
-      await supabaseAdmin
-        .from("machine_listing_purchases")
-        .update({
-          crm_account_id: account.id,
-          crm_lead_id: lead?.id || null,
-        })
-        .eq("id", purchaseId);
+      if (account) {
+        const { data: lead } = await supabaseAdmin
+          .from("sales_leads")
+          .insert({
+            business_name: purchaseBizName,
+            contact_name: purchase.full_name,
+            phone: purchase.phone,
+            email: purchase.email,
+            address: purchase.location_address || null,
+            city: purchase.location_city || null,
+            state: purchase.location_state || null,
+            entity_type: "operator",
+            source: "machine_purchase",
+            status: "qualified",
+            account_id: account.id,
+            notes: `Machine purchase: ${machineTitle} — $${(purchase.amount_cents / 100).toFixed(2)}\nBuyer type: ${purchase.buyer_type || "N/A"}\nLocation status: ${purchase.location_status || "N/A"}\nDeployment: ${purchase.deployment_timeline || "N/A"}\nShipping: ${purchase.shipping_intent || "N/A"}`,
+          })
+          .select("id")
+          .single();
+
+        await supabaseAdmin
+          .from("machine_listing_purchases")
+          .update({
+            crm_account_id: account.id,
+            crm_lead_id: lead?.id || null,
+          })
+          .eq("id", purchaseId);
+      }
     }
   } catch (e) {
     console.error("[stripe-webhook] Failed to create CRM records for machine purchase:", e);
