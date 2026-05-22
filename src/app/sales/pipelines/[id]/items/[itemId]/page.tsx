@@ -178,6 +178,8 @@ export default function PipelineItemDetailPage() {
   const [esignForm, setEsignForm] = useState({ document_name: "", recipient_email: "", template_id: "" });
   const [sendingProposal, setSendingProposal] = useState(false);
   const [proposalError, setProposalError] = useState<string | null>(null);
+  const [sendingDetails, setSendingDetails] = useState(false);
+  const [detailsResult, setDetailsResult] = useState<string | null>(null);
   const [resendingAgreement, setResendingAgreement] = useState(false);
   const [resendResult, setResendResult] = useState<string | null>(null);
   const [manualAgreementEmail, setManualAgreementEmail] = useState("");
@@ -731,6 +733,32 @@ export default function PipelineItemDetailPage() {
       setProposalError(err instanceof Error ? err.message : "Network error");
     } finally {
       setSendingProposal(false);
+    }
+  }
+
+  async function handleSendDetails(emailOverride?: string) {
+    setSendingDetails(true);
+    setDetailsResult(null);
+    try {
+      const fetchOptions: RequestInit = {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      };
+      if (emailOverride) {
+        (fetchOptions.headers as Record<string, string>)["Content-Type"] = "application/json";
+        fetchOptions.body = JSON.stringify({ email: emailOverride });
+      }
+      const res = await fetch(`/api/pipeline-items/${itemId}/send-details`, fetchOptions);
+      const data = await res.json();
+      if (res.ok) {
+        setDetailsResult(`Location details sent to ${data.sent_to}`);
+      } else {
+        setDetailsResult(`Error: ${data.error}`);
+      }
+    } catch {
+      setDetailsResult("Network error");
+    } finally {
+      setSendingDetails(false);
     }
   }
 
@@ -1462,10 +1490,25 @@ export default function PipelineItemDetailPage() {
             </div>
           )}
           {item.proposal_status === "paid" ? (
-            <p className="text-sm text-green-600 flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Payment received — full location details sent to customer
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-green-600 flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Payment received — full location details sent to customer
+              </p>
+              <button
+                onClick={() => handleSendDetails()}
+                disabled={sendingDetails}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+              >
+                {sendingDetails ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                Resend Location Details
+              </button>
+              {detailsResult && (
+                <p className={`text-xs ${detailsResult.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
+                  {detailsResult}
+                </p>
+              )}
+            </div>
           ) : item.proposal_status === "proposal_sent" ? (
             <div className="space-y-3">
               <p className="text-sm text-blue-600 flex items-center gap-1.5">
