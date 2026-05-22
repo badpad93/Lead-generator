@@ -1467,10 +1467,20 @@ export default function PipelineItemDetailPage() {
               Payment received — full location details sent to customer
             </p>
           ) : item.proposal_status === "proposal_sent" ? (
-            <p className="text-sm text-blue-600 flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" />
-              Agreement sent — waiting for customer signature &amp; payment
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-blue-600 flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" />
+                Agreement sent — waiting for customer signature &amp; payment
+              </p>
+              <button
+                onClick={handleSendProposal}
+                disabled={sendingProposal}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+              >
+                {sendingProposal ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                Resend Sales Agreement
+              </button>
+            </div>
           ) : (
             <>
               <button
