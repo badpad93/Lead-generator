@@ -1449,10 +1449,12 @@ export default function PipelineItemDetailPage() {
             </h2>
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
               item.proposal_status === "paid" ? "bg-green-100 text-green-700" :
+              item.proposal_status === "signed" ? "bg-purple-100 text-purple-700" :
               item.proposal_status === "proposal_sent" ? "bg-blue-100 text-blue-600" :
               "bg-gray-100 text-gray-500"
             }`}>
               {item.proposal_status === "paid" ? "Signed & Paid" :
+               item.proposal_status === "signed" ? "Signed — Awaiting Payment" :
                item.proposal_status === "proposal_sent" ? "Sent" :
                "Not Sent"}
             </span>
@@ -1508,6 +1510,21 @@ export default function PipelineItemDetailPage() {
                   {detailsResult}
                 </p>
               )}
+            </div>
+          ) : item.proposal_status === "signed" ? (
+            <div className="space-y-3">
+              <p className="text-sm text-purple-600 flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Agreement signed — waiting for customer payment
+              </p>
+              <button
+                onClick={handleSendProposal}
+                disabled={sendingProposal}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+              >
+                {sendingProposal ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                Resend Sales Agreement
+              </button>
             </div>
           ) : item.proposal_status === "proposal_sent" ? (
             <div className="space-y-3">
