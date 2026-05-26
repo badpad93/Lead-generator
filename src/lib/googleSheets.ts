@@ -74,12 +74,21 @@ export async function createLeadSheet(
     spreadsheetId = file.data.id!;
   } catch (err: unknown) {
     const gaxErr = err as { code?: number; response?: { data?: unknown }; message?: string };
+    const responseData = gaxErr.response?.data as Record<string, unknown> | undefined;
     console.error("[googleSheets] drive.files.create failed:", JSON.stringify({
       code: gaxErr.code,
       message: gaxErr.message,
-      responseData: gaxErr.response?.data,
+      responseData,
     }, null, 2));
-    throw new Error(`Drive file create failed: ${JSON.stringify(gaxErr.response?.data || gaxErr.message)}`);
+
+    if (responseData?.error === "invalid_grant") {
+      throw new Error(
+        "Google OAuth refresh token has expired or been revoked. " +
+        "An admin can generate a new one at /api/admin/google-token (GET) — " +
+        "follow the auth_url, then set the returned refresh_token as GOOGLE_OAUTH_REFRESH_TOKEN."
+      );
+    }
+    throw new Error(`Drive file create failed: ${JSON.stringify(responseData || gaxErr.message)}`);
   }
 
   const rows = leads.map((l) => [
