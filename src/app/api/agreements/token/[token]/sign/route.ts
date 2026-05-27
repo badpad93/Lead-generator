@@ -15,7 +15,7 @@ export async function POST(
 
   const { data: agreement } = await supabaseAdmin
     .from("agreement_tokens")
-    .select("id, status")
+    .select("id, status, pipeline_item_id")
     .eq("token", token)
     .single();
 
@@ -53,6 +53,15 @@ export async function POST(
     .from("esign_documents")
     .update({ status: "completed", completed_at: new Date().toISOString() })
     .eq("external_document_id", agreement.id);
+
+  // Update pipeline item to reflect signed (not paid) status
+  if (agreement.pipeline_item_id) {
+    await supabaseAdmin
+      .from("pipeline_items")
+      .update({ proposal_status: "signed", updated_at: new Date().toISOString() })
+      .eq("id", agreement.pipeline_item_id)
+      .neq("proposal_status", "paid");
+  }
 
   return NextResponse.json({ ok: true, status: "signed" });
 }

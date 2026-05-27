@@ -161,9 +161,14 @@ export async function POST(req: NextRequest) {
       }
 
       // Phase 2: If this is a preliminary proposal with PandaDoc+Stripe payment,
-      // handle location reveal and full document generation
+      // handle location reveal and full document generation.
+      // Skip for inhouse agreements — payment happens via Stripe checkout separately.
       const metadata = esignDoc.metadata as Record<string, unknown> | null;
-      if (metadata?.type === "preliminary_proposal" && metadata?.location_id) {
+      if (
+        metadata?.type === "preliminary_proposal" &&
+        metadata?.location_id &&
+        esignDoc.provider !== "inhouse"
+      ) {
         await handleProposalPaymentCompletion(
           esignDoc,
           metadata.location_id as string
