@@ -76,6 +76,12 @@ export async function POST(req: NextRequest) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
 
+    // Handle coffee order payments
+    if (session.metadata?.type === "coffee_order") {
+      await handleCoffeeOrderPayment(session);
+      return NextResponse.json({ received: true });
+    }
+
     // Handle agreement payments (location placement)
     if (session.metadata?.type === "agreement_payment") {
       await handleAgreementPayment(session);
@@ -268,6 +274,15 @@ export async function POST(req: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq("stripe_checkout_session_id", session.id);
+
+    await supabaseAdmin
+      .from("coffee_orders")
+      .update({
+        status: "cancelled",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("stripe_checkout_session_id", session.id)
+      .eq("status", "awaiting_payment");
   }
 
   // Handle Stripe Connect account updates — mark onboarding complete
@@ -777,5 +792,79 @@ async function handleMarketplacePurchase(session: Stripe.Checkout.Session) {
     } catch (e) {
       console.error("[stripe-webhook] Failed to send marketplace purchase email:", e);
     }
+  }
+}
+
+async function handleCoffeeOrderPayment(session: Stripe.Checkout.Session) {
+  const orderId = session.metadata?.order_id;
+  const userId = session.metadata?.user_id;
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+
+  if (!orderId) return;
+
+  const { data: order, error: updateErr } = await supabaseAdmin
+    .from("coffee_orders")
+    .update({
+      status: "pending",
+      stripe_payment_intent_id: paymentIntentId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", orderId)
+    .select("*, coffee_order_items(*)")
+    .single();
+
+  if (updateErr || !order) {
+    console.error("[stripe-webhook] Failed to update coffee order:", updateErr);
+    return;
+  }
+
+  // Clear cart after successful payment
+  if (userId) {
+    await supabaseAdmin
+      .from("coffee_cart_items")
+      .delete()
+      .eq("user_id", userId);
+  }
+
+  // Send order emails
+  try {
+    const { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } = await import("@/lib/coffeeEmail");
+
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", order.operator_id)
+      .single();
+
+    const emailParams = {
+      orderNumber: order.order_number,
+      operatorName: profile?.full_name || "Operator",
+      operatorEmail: profile?.email || session.customer_details?.email || "",
+      items: (order.coffee_order_items || []).map((i: Record<string, unknown>) => ({
+        product_name: i.product_name as string,
+        product_sku: i.product_sku as string,
+        quantity: Number(i.quantity),
+        unit_price: Number(i.unit_price),
+        line_total: Number(i.line_total),
+      })),
+      subtotal: Number(order.subtotal),
+      shippingEstimate: Number(order.shipping_estimate),
+      total: Number(order.total),
+      shippingName: order.shipping_name,
+      shippingAddress: order.shipping_address,
+      shippingCity: order.shipping_city,
+      shippingState: order.shipping_state,
+      shippingZip: order.shipping_zip,
+    };
+
+    await Promise.all([
+      sendCoffeeOrderNotification(emailParams),
+      sendCoffeeOrderConfirmation(emailParams),
+    ]);
+  } catch (e) {
+    console.error("[stripe-webhook] Failed to send coffee order emails:", e);
   }
 }

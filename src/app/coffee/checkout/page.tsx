@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
-import { Loader2, ShoppingCart, ArrowLeft, AlertCircle } from "lucide-react";
+import { Loader2, ShoppingCart, ArrowLeft, AlertCircle, CreditCard } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -24,7 +25,16 @@ interface CartItem {
 }
 
 export default function CoffeeCheckoutPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>}>
+      <CheckoutContent />
+    </Suspense>
+  );
+}
+
+function CheckoutContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [token, setToken] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -108,7 +118,7 @@ export default function CoffeeCheckoutPage() {
     setError("");
 
     try {
-      const res = await fetch("/api/coffee/orders", {
+      const res = await fetch("/api/coffee/checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -122,13 +132,17 @@ export default function CoffeeCheckoutPage() {
 
       if (res.ok) {
         const data = await res.json();
-        router.push(`/coffee/orders/${data.order.id}`);
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          setError("Failed to create payment session");
+        }
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to submit order");
+        setError(data.error || "Failed to process checkout");
       }
     } catch {
-      setError("Failed to submit order");
+      setError("Failed to process checkout");
     } finally {
       setSubmitting(false);
     }
@@ -171,6 +185,13 @@ export default function CoffeeCheckoutPage() {
       </Link>
 
       <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Checkout</h1>
+
+      {searchParams.get("canceled") && (
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-700">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          Payment was canceled. You can try again when you&apos;re ready.
+        </div>
+      )}
 
       {error && (
         <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -300,7 +321,10 @@ export default function CoffeeCheckoutPage() {
               {submitting ? (
                 <Loader2 className="mx-auto h-5 w-5 animate-spin" />
               ) : (
-                "Submit Order"
+                <span className="flex items-center justify-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Pay ${total.toFixed(2)}
+                </span>
               )}
             </button>
           </div>
