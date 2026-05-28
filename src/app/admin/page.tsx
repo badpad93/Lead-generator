@@ -29,6 +29,7 @@ import {
   ShoppingBag,
   DollarSign,
   UserPlus,
+  Coffee,
 } from "lucide-react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
@@ -4519,14 +4520,24 @@ export default function AdminPage() {
                 </p>
               </div>
             </div>
-            <Link
-              href="/sales"
-              className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-primary/90"
-            >
-              <Briefcase className="h-4 w-4" />
-              <span className="hidden sm:inline">Open Sales CRM</span>
-              <span className="sm:hidden">CRM</span>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/admin/coffee"
+                className="inline-flex items-center gap-2 rounded-xl border border-green-primary px-4 py-2.5 text-sm font-medium text-green-primary shadow-sm transition-colors hover:bg-green-50"
+              >
+                <Coffee className="h-4 w-4" />
+                <span className="hidden sm:inline">Coffee Admin</span>
+                <span className="sm:hidden">Coffee</span>
+              </Link>
+              <Link
+                href="/sales"
+                className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-primary/90"
+              >
+                <Briefcase className="h-4 w-4" />
+                <span className="hidden sm:inline">Open Sales CRM</span>
+                <span className="sm:hidden">CRM</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
