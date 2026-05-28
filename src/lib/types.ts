@@ -52,6 +52,9 @@ export interface Profile {
   digest_opt_in: boolean;
   digest_frequency: "daily" | "weekly" | "never";
   digest_last_sent_at: string | null;
+  coffee_access_enabled?: boolean;
+  coffee_agreement_signed?: boolean;
+  coffee_application_status?: string | null;
   created_at: string;
 }
 
