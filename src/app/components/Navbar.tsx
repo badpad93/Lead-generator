@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText, Heart, Briefcase, Zap } from "lucide-react";
+import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText, Heart, Briefcase, Zap, Coffee } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import Tooltip from "@/app/components/Tooltip";
@@ -25,6 +25,7 @@ const authNavLinks = [
   { label: "Machines for Sale", href: "/machines-for-sale" },
   { label: "Routes for Sale", href: "/routes-for-sale" },
   { label: "Browse Operators", href: "/browse-operators" },
+  { label: "Coffee", href: "/coffee" },
   { label: "Financing", href: "/financing" },
 ];
 
@@ -296,6 +297,16 @@ export default function Navbar() {
                       <Route className="h-4 w-4 text-black-primary/50" />
                       Routes for Sale
                     </Link>
+                    {profile?.coffee_access_enabled && (
+                      <Link
+                        href="/coffee"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                      >
+                        <Coffee className="h-4 w-4 text-black-primary/50" />
+                        Coffee
+                      </Link>
+                    )}
                     {(isAdmin || profile?.role === "sales" || profile?.role === "director_of_sales" || profile?.role === "market_leader") && (
                       <Link
                         href="/sales"
@@ -517,6 +528,21 @@ export default function Navbar() {
                     <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
                 </li>
+                {profile?.coffee_access_enabled && (
+                  <li>
+                    <Link
+                      href="/coffee"
+                      onClick={() => setMobileOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Coffee className="h-4 w-4" />
+                        Coffee
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-white/40" />
+                    </Link>
+                  </li>
+                )}
                 {(isAdmin || profile?.role === "sales" || profile?.role === "director_of_sales" || profile?.role === "market_leader") && (
                   <li>
                     <Link
