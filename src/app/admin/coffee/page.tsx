@@ -17,6 +17,7 @@ import {
   X,
   ChevronDown,
   Eye,
+  ArrowLeft,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
@@ -417,9 +418,18 @@ export default function AdminCoffeePage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8 flex items-center gap-3">
-        <Shield className="h-6 w-6 text-green-600" />
-        <h1 className="text-2xl font-bold text-gray-900">Coffee Management</h1>
+      <div className="mb-8">
+        <Link
+          href="/admin"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-green-600"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Admin Panel
+        </Link>
+        <div className="flex items-center gap-3">
+          <Shield className="h-6 w-6 text-green-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Coffee Management</h1>
+        </div>
       </div>
 
       <div className="mb-6 flex gap-2 overflow-x-auto border-b border-gray-200 pb-px">
