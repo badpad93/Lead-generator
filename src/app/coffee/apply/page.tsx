@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, Coffee, CheckCircle2, Clock, ArrowRight } from "lucide-react";
+import { Loader2, Coffee, CheckCircle2, Clock, ArrowRight, AlertCircle } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -143,6 +143,29 @@ export default function CoffeeApplyPage() {
           <h1 className="text-2xl font-bold text-white">Application Under Review</h1>
           <p className="mt-2 text-gray-400 max-w-md">
             Your coffee services application is being reviewed. We&apos;ll notify you once a decision has been made.
+          </p>
+          <Link
+            href="/coffee"
+            className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-green-400 transition-colors hover:text-green-300"
+          >
+            Browse Marketplace
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (profile?.coffee_application_status === "rejected") {
+    return (
+      <div className="min-h-screen bg-gray-950">
+        <div className="flex min-h-[60vh] flex-col items-center justify-center text-center px-4">
+          <div className="rounded-full bg-red-900/50 p-4 mb-6">
+            <AlertCircle className="h-12 w-12 text-red-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-white">Application Not Approved</h1>
+          <p className="mt-2 text-gray-400 max-w-md">
+            Unfortunately your previous application was not approved. Please contact us if you have questions or would like to reapply.
           </p>
           <Link
             href="/coffee"

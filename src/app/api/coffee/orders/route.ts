@@ -55,9 +55,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
     }
 
+    const validItems = cartItems.filter((item: Record<string, unknown>) => {
+      const product = item.coffee_products as Record<string, unknown>;
+      return product.active === true && product.stock_status !== "out_of_stock";
+    });
+
+    if (validItems.length === 0) {
+      return NextResponse.json({ error: "All items in your cart are unavailable" }, { status: 400 });
+    }
+
     const orderNumber = `VC-${Date.now()}`;
 
-    const orderItems = cartItems.map((item: Record<string, unknown>) => {
+    const orderItems = validItems.map((item: Record<string, unknown>) => {
       const product = item.coffee_products as Record<string, unknown>;
       const unitPrice = Number(product.price);
       const quantity = Number(item.quantity);

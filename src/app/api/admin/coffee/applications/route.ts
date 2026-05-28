@@ -67,10 +67,14 @@ export async function PATCH(req: NextRequest) {
       profileUpdates.coffee_agreement_signed = true;
     }
 
-    await supabaseAdmin
+    const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .update(profileUpdates)
       .eq("id", application.operator_id);
+
+    if (profileError) {
+      return NextResponse.json({ error: `Application updated but profile update failed: ${profileError.message}` }, { status: 500 });
+    }
 
     if (status === "approved") {
       const profile = application.profiles as { email: string; full_name: string } | null;

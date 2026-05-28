@@ -289,7 +289,7 @@ export default function CoffeeMarketplacePage() {
             {products.map((product) => {
               const isOutOfStock = product.stock_status === "out_of_stock";
               const canAdd = coffeeEnabled && !isOutOfStock;
-              const qty = quantities[product.id] || 1;
+              const qty = quantities[product.id] || product.min_order_qty || 1;
               const isAdding = adding === product.id;
 
               return (
@@ -322,12 +322,12 @@ export default function CoffeeMarketplacePage() {
                     <div className="mt-auto pt-4 flex items-center gap-2">
                       <input
                         type="number"
-                        min={1}
+                        min={product.min_order_qty || 1}
                         value={qty}
                         onChange={(e) =>
                           setQuantities((prev) => ({
                             ...prev,
-                            [product.id]: Math.max(1, parseInt(e.target.value) || 1),
+                            [product.id]: Math.max(product.min_order_qty || 1, parseInt(e.target.value) || (product.min_order_qty || 1)),
                           }))
                         }
                         disabled={!canAdd}

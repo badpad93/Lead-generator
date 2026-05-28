@@ -26,7 +26,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%,sku.ilike.%${search}%`);
+      const sanitized = search.replace(/[%,.*()]/g, "");
+      if (sanitized) {
+        query = query.or(`name.ilike.%${sanitized}%,description.ilike.%${sanitized}%,sku.ilike.%${sanitized}%`);
+      }
     }
 
     const { data, error } = await query;

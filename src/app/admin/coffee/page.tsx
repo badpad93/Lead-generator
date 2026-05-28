@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -703,8 +703,8 @@ export default function AdminCoffeePage() {
                   </tr>
                 ) : (
                   orders.map((order) => (
-                    <>
-                      <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <Fragment key={order.id}>
+                      <tr className="border-b border-gray-50 hover:bg-gray-50/50">
                         <td className="px-5 py-3 font-medium text-gray-900">{order.order_number}</td>
                         <td className="px-5 py-3">
                           <p className="text-gray-900">{order.profiles?.full_name || "Unknown"}</p>
@@ -764,7 +764,7 @@ export default function AdminCoffeePage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   ))
                 )}
               </tbody>
