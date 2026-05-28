@@ -99,19 +99,12 @@ export async function PATCH(req: NextRequest) {
     // Privileged roles can ONLY be set by an admin via /api/admin/users.
     // Self-service signup must never grant admin/sales access.
     const PRIVILEGED_ROLES = new Set(["admin", "sales", "director_of_sales", "market_leader"]);
-    if (
-      "role" in body &&
-      typeof body.role === "string" &&
-      PRIVILEGED_ROLES.has(body.role)
-    ) {
-      return NextResponse.json(
-        { error: "This role can only be assigned by an admin" },
-        { status: 403 }
-      );
-    }
     const updates: Partial<Record<string, string | null>> = {};
     for (const field of allowedFields) {
-      if (field in body) updates[field] = body[field];
+      if (field in body) {
+        if (field === "role" && PRIVILEGED_ROLES.has(body.role)) continue;
+        updates[field] = body[field];
+      }
     }
 
     const { data, error } = await supabaseAdmin
