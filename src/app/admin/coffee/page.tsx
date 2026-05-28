@@ -133,6 +133,7 @@ export default function AdminCoffeePage() {
   });
   const [savingProduct, setSavingProduct] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
   const [processingApp, setProcessingApp] = useState<string | null>(null);
@@ -265,6 +266,38 @@ export default function AdminCoffeePage() {
     });
     setEditingProduct(product);
     setShowProductForm(true);
+  }
+
+  async function handleImageUpload(file: File) {
+    if (!token) return;
+    if (!file.type.startsWith("image/")) {
+      showToast("Please select an image file", "error");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Image must be under 5MB", "error");
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const supabase = createBrowserClient();
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `coffee-products/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("documents")
+        .upload(path, file, { upsert: false, contentType: file.type });
+      if (uploadErr) {
+        showToast(`Upload failed: ${uploadErr.message}`, "error");
+        return;
+      }
+      const { data: urlData } = supabase.storage.from("documents").getPublicUrl(path);
+      setProductForm((p) => ({ ...p, image_url: urlData.publicUrl }));
+      showToast("Image uploaded", "success");
+    } catch {
+      showToast("Upload failed", "error");
+    } finally {
+      setUploadingImage(false);
+    }
   }
 
   async function handleSaveProduct(e: React.FormEvent) {
@@ -565,14 +598,49 @@ export default function AdminCoffeePage() {
                     className={inputClass}
                   />
                 </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Image URL</label>
-                  <input
-                    type="url"
-                    value={productForm.image_url}
-                    onChange={(e) => setProductForm((p) => ({ ...p, image_url: e.target.value }))}
-                    className={inputClass}
-                  />
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Product Image</label>
+                  <div className="flex items-start gap-4">
+                    {productForm.image_url && (
+                      <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                        <img src={productForm.image_url} alt="Preview" className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setProductForm((p) => ({ ...p, image_url: "" }))}
+                          className="absolute -right-1 -top-1 rounded-full bg-red-500 p-0.5 text-white shadow-sm hover:bg-red-600 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 px-4 py-4 text-sm text-gray-500 transition-colors hover:border-green-400 hover:text-green-600">
+                        {uploadingImage ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4" />
+                            {productForm.image_url ? "Replace Image" : "Upload Image"}
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingImage}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleImageUpload(file);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                      <p className="mt-1.5 text-xs text-gray-400">JPG, PNG, WebP — max 5MB</p>
+                    </div>
+                  </div>
                 </div>
                 <div className="sm:col-span-2 lg:col-span-3">
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">Description</label>
