@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, RotateCcw, Package } from "lucide-react";
+import { Loader2, ArrowLeft, RotateCcw, Package, CheckCircle2 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface OrderItem {
@@ -34,6 +34,7 @@ interface Order {
 }
 
 const STATUS_STYLES: Record<string, string> = {
+  awaiting_payment: "bg-orange-100 text-orange-700",
   pending: "bg-yellow-100 text-yellow-700",
   processing: "bg-blue-100 text-blue-700",
   shipped: "bg-purple-100 text-purple-700",
@@ -42,8 +43,17 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function CoffeeOrderDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>}>
+      <OrderDetailContent />
+    </Suspense>
+  );
+}
+
+function OrderDetailContent() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const orderId = params.id as string;
   const [token, setToken] = useState("");
   const [order, setOrder] = useState<Order | null>(null);
@@ -136,6 +146,13 @@ export default function CoffeeOrderDetailPage() {
         <ArrowLeft className="h-4 w-4" />
         Back to Orders
       </Link>
+
+      {searchParams.get("paid") && (
+        <div className="mb-6 flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+          Payment successful! Your order has been placed and is being processed.
+        </div>
+      )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>

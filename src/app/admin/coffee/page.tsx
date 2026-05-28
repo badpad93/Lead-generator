@@ -91,6 +91,7 @@ function Toast({ message, type }: { message: string; type: "success" | "error" }
 }
 
 const STATUS_STYLES: Record<string, string> = {
+  awaiting_payment: "bg-orange-100 text-orange-700",
   pending: "bg-yellow-100 text-yellow-700",
   processing: "bg-blue-100 text-blue-700",
   shipped: "bg-purple-100 text-purple-700",
@@ -100,7 +101,7 @@ const STATUS_STYLES: Record<string, string> = {
   rejected: "bg-red-100 text-red-700",
 };
 
-const ORDER_STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
+const ORDER_STATUSES = ["awaiting_payment", "pending", "processing", "shipped", "delivered", "cancelled"];
 
 const inputClass = "w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
 
