@@ -117,13 +117,30 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
+    // Remove from any carts first
+    await supabaseAdmin
+      .from("coffee_cart_items")
+      .delete()
+      .eq("product_id", id);
+
+    // Try hard delete
     const { error } = await supabaseAdmin
       .from("coffee_products")
       .delete()
       .eq("id", id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      // Foreign key constraint from order items — soft-delete instead
+      const { error: deactivateErr } = await supabaseAdmin
+        .from("coffee_products")
+        .update({ active: false, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (deactivateErr) {
+        return NextResponse.json({ error: deactivateErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, deactivated: true });
     }
 
     return NextResponse.json({ success: true });
