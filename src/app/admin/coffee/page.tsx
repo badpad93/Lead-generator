@@ -573,12 +573,20 @@ export default function AdminCoffeePage() {
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">Unit</label>
-                  <input
-                    type="text"
+                  <select
                     value={productForm.unit}
                     onChange={(e) => setProductForm((p) => ({ ...p, unit: e.target.value }))}
                     className={inputClass}
-                  />
+                  >
+                    <option value="each">Each</option>
+                    <option value="bag">Bag</option>
+                    <option value="box">Box</option>
+                    <option value="case">Case</option>
+                    <option value="packet">Packet</option>
+                    <option value="bottle">Bottle</option>
+                    <option value="container">Container</option>
+                    <option value="pack">Pack</option>
+                  </select>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">Min Order Qty</label>
