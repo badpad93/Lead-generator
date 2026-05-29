@@ -35,6 +35,7 @@ interface Product {
   sku: string;
   description: string | null;
   price: number;
+  shipping_cost: number;
   image_url: string | null;
   stock_status: string;
   unit: string;
@@ -124,6 +125,7 @@ export default function AdminCoffeePage() {
     sku: "",
     description: "",
     price: "",
+    shipping_cost: "0",
     image_url: "",
     stock_status: "in_stock",
     unit: "each",
@@ -239,6 +241,7 @@ export default function AdminCoffeePage() {
       sku: "",
       description: "",
       price: "",
+      shipping_cost: "0",
       image_url: "",
       stock_status: "in_stock",
       unit: "each",
@@ -257,6 +260,7 @@ export default function AdminCoffeePage() {
       sku: product.sku,
       description: product.description || "",
       price: String(product.price),
+      shipping_cost: String(product.shipping_cost || 0),
       image_url: product.image_url || "",
       stock_status: product.stock_status,
       unit: product.unit,
@@ -310,6 +314,7 @@ export default function AdminCoffeePage() {
         sku: productForm.sku,
         description: productForm.description || null,
         price: parseFloat(productForm.price),
+        shipping_cost: parseFloat(productForm.shipping_cost) || 0,
         image_url: productForm.image_url || null,
         stock_status: productForm.stock_status,
         unit: productForm.unit,
@@ -560,6 +565,17 @@ export default function AdminCoffeePage() {
                   />
                 </div>
                 <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Shipping Cost</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={productForm.shipping_cost}
+                    onChange={(e) => setProductForm((p) => ({ ...p, shipping_cost: e.target.value }))}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">Stock Status</label>
                   <select
                     value={productForm.stock_status}
@@ -701,6 +717,7 @@ export default function AdminCoffeePage() {
                     <th className="px-5 py-3 text-left font-semibold text-gray-600">SKU</th>
                     <th className="px-5 py-3 text-left font-semibold text-gray-600">Category</th>
                     <th className="px-5 py-3 text-right font-semibold text-gray-600">Price</th>
+                    <th className="px-5 py-3 text-right font-semibold text-gray-600">Shipping</th>
                     <th className="px-5 py-3 text-left font-semibold text-gray-600">Stock</th>
                     <th className="px-5 py-3 text-center font-semibold text-gray-600">Active</th>
                     <th className="px-5 py-3 text-right font-semibold text-gray-600">Actions</th>
@@ -709,7 +726,7 @@ export default function AdminCoffeePage() {
                 <tbody>
                   {products.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-5 py-12 text-center text-gray-500">No products yet</td>
+                      <td colSpan={8} className="px-5 py-12 text-center text-gray-500">No products yet</td>
                     </tr>
                   ) : (
                     products.map((product) => (
@@ -718,6 +735,7 @@ export default function AdminCoffeePage() {
                         <td className="px-5 py-3 text-gray-600">{product.sku}</td>
                         <td className="px-5 py-3 text-gray-600">{product.coffee_categories?.name || "—"}</td>
                         <td className="px-5 py-3 text-right font-medium text-gray-900">${Number(product.price).toFixed(2)}</td>
+                        <td className="px-5 py-3 text-right text-gray-600">{Number(product.shipping_cost) > 0 ? `$${Number(product.shipping_cost).toFixed(2)}` : "Free"}</td>
                         <td className="px-5 py-3">
                           <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
                             product.stock_status === "in_stock" ? "bg-green-100 text-green-700" :

@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     const { data: cartItems, error: cartError } = await supabaseAdmin
       .from("coffee_cart_items")
-      .select("*, coffee_products(id, name, sku, price, active, stock_status)")
+      .select("*, coffee_products(id, name, sku, price, shipping_cost, active, stock_status)")
       .eq("user_id", user.id);
 
     if (cartError) {
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
     const orderItems = validItems.map((item: Record<string, unknown>) => {
       const product = item.coffee_products as Record<string, unknown>;
       const unitPrice = Number(product.price);
+      const shippingCost = Number(product.shipping_cost || 0);
       const quantity = Number(item.quantity);
       return {
         product_id: product.id as string,
@@ -51,13 +52,14 @@ export async function POST(req: NextRequest) {
         product_sku: product.sku as string,
         quantity,
         unit_price: unitPrice,
-        line_total: unitPrice * quantity,
+        shipping_cost: shippingCost,
+        line_total: (unitPrice + shippingCost) * quantity,
       };
     });
 
-    const subtotal = orderItems.reduce((sum, i) => sum + i.line_total, 0);
-    const shippingEstimate = body.shipping_estimate ?? 0;
-    const total = subtotal + shippingEstimate;
+    const subtotal = orderItems.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+    const shippingTotal = orderItems.reduce((sum, i) => sum + i.shipping_cost * i.quantity, 0);
+    const total = subtotal + shippingTotal;
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from("coffee_orders")
@@ -72,7 +74,7 @@ export async function POST(req: NextRequest) {
         shipping_zip: body.shipping_zip ?? null,
         shipping_phone: body.shipping_phone ?? null,
         subtotal,
-        shipping_estimate: shippingEstimate,
+        shipping_estimate: shippingTotal,
         total,
         notes: body.notes ?? null,
       })
@@ -109,6 +111,19 @@ export async function POST(req: NextRequest) {
       },
       quantity: item.quantity,
     }));
+
+    if (shippingTotal > 0) {
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          unit_amount: Math.round(shippingTotal * 100),
+          product_data: {
+            name: "Shipping",
+          },
+        },
+        quantity: 1,
+      });
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",

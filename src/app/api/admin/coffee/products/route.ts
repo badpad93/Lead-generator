@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
         sku: body.sku,
         description: body.description ?? null,
         price: body.price,
+        shipping_cost: body.shipping_cost ?? 0,
         image_url: body.image_url ?? null,
         stock_status: body.stock_status ?? "in_stock",
         unit: body.unit ?? "each",
@@ -78,7 +79,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const allowedFields = [
-      "category_id", "name", "sku", "description", "price", "image_url",
+      "category_id", "name", "sku", "description", "price", "shipping_cost", "image_url",
       "stock_status", "unit", "min_order_qty", "active", "sort_order",
     ];
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };

@@ -20,6 +20,7 @@ interface Product {
   sku: string;
   description: string | null;
   price: number;
+  shipping_cost: number;
   image_url: string | null;
   stock_status: string;
   unit: string;
@@ -319,6 +320,9 @@ export default function CoffeeMarketplacePage() {
                       ${Number(product.price).toFixed(2)}
                       <span className="text-xs font-normal text-gray-400 ml-1">/ {product.unit || "each"}</span>
                     </p>
+                    {Number(product.shipping_cost) > 0 && (
+                      <p className="text-xs text-gray-500">+ ${Number(product.shipping_cost).toFixed(2)} shipping</p>
+                    )}
                     <div className="mt-auto pt-4 flex items-center gap-2">
                       <input
                         type="number"

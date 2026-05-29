@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from("coffee_cart_items")
-      .select("*, coffee_products(id, name, sku, price, image_url, stock_status, unit, min_order_qty, active)")
+      .select("*, coffee_products(id, name, sku, price, shipping_cost, image_url, stock_status, unit, min_order_qty, active)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: true });
 
