@@ -96,14 +96,16 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS coffee_application_status text DEF
 -- Seed categories
 INSERT INTO coffee_categories (name, slug, description, sort_order) VALUES
   ('Coffee Beans', 'coffee-beans', 'Whole bean coffee in bulk quantities', 1),
-  ('Ground Coffee', 'ground-coffee', 'Pre-ground coffee for drip and espresso machines', 2),
-  ('Tea', 'tea', 'Assorted teas and tea bags', 3),
-  ('Cups', 'cups', 'Hot and cold beverage cups', 4),
-  ('Lids', 'lids', 'Cup lids for hot and cold drinks', 5),
-  ('Sleeves', 'sleeves', 'Insulating cup sleeves', 6),
-  ('Stirrers', 'stirrers', 'Beverage stirrers and stir sticks', 7),
-  ('Straws', 'straws', 'Drinking straws for cold beverages', 8),
-  ('Cleaning Supplies', 'cleaning-supplies', 'Machine cleaning and maintenance supplies', 9)
+  ('Coffee Packets', 'coffee-packets', 'Single-serve and bulk coffee packets', 2),
+  ('Coffee Brewers', 'coffee-brewers', 'Coffee brewing machines and equipment', 3),
+  ('Ground Coffee', 'ground-coffee', 'Pre-ground coffee for drip and espresso machines', 4),
+  ('Tea', 'tea', 'Assorted teas and tea bags', 5),
+  ('Cups', 'cups', 'Hot and cold beverage cups', 6),
+  ('Lids', 'lids', 'Cup lids for hot and cold drinks', 7),
+  ('Sleeves', 'sleeves', 'Insulating cup sleeves', 8),
+  ('Stirrers', 'stirrers', 'Beverage stirrers and stir sticks', 9),
+  ('Straws', 'straws', 'Drinking straws for cold beverages', 10),
+  ('Cleaning Supplies', 'cleaning-supplies', 'Machine cleaning and maintenance supplies', 11)
 ON CONFLICT (slug) DO NOTHING;
 
 -- Seed products
