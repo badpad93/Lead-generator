@@ -302,7 +302,7 @@ export default function CoffeeMarketplacePage() {
                       <img
                         src={product.image_url}
                         alt={product.name}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-contain"
                       />
                     ) : (
                       <Coffee className="h-16 w-16 text-gray-300" />

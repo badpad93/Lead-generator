@@ -604,7 +604,7 @@ export default function AdminCoffeePage() {
                   <div className="flex items-start gap-4">
                     {productForm.image_url && (
                       <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
-                        <img src={productForm.image_url} alt="Preview" className="h-full w-full object-cover" />
+                        <img src={productForm.image_url} alt="Preview" className="h-full w-full object-contain" />
                         <button
                           type="button"
                           onClick={() => setProductForm((p) => ({ ...p, image_url: "" }))}
