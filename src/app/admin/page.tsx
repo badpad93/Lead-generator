@@ -221,7 +221,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
-  const [editForm, setEditForm] = useState({ role: "", verified: false, featured: false, full_name: "", email: "", company_name: "", phone: "", address: "", city: "", state: "", zip: "" });
+  const [editForm, setEditForm] = useState({ role: "", verified: false, featured: false, coffee_access_enabled: false, full_name: "", email: "", company_name: "", phone: "", address: "", city: "", state: "", zip: "" });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
@@ -259,6 +259,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
       role: user.role,
       verified: user.verified,
       featured: user.featured,
+      coffee_access_enabled: !!user.coffee_access_enabled,
       full_name: user.full_name,
       email: user.email,
       company_name: user.company_name || "",
@@ -441,6 +442,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                 <th className="px-4 py-3 font-medium text-black-primary/60">Role</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Verified</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Featured</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Coffee</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Joined</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Actions</th>
               </tr>
@@ -493,6 +495,30 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                       title={user.featured ? "Remove featured status" : "Make featured"}
                     >
                       <Star className={`h-5 w-5 ${user.featured ? "fill-amber-500" : ""}`} />
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const enabled = !user.coffee_access_enabled;
+                        try {
+                          const res = await fetch(`/api/admin/users/${user.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                            body: JSON.stringify({ coffee_access_enabled: enabled }),
+                          });
+                          if (res.ok) fetchUsers();
+                        } catch {}
+                      }}
+                      className={`rounded-lg p-1.5 transition-colors cursor-pointer ${
+                        user.coffee_access_enabled
+                          ? "text-green-600 hover:bg-green-50"
+                          : "text-black-primary/20 hover:bg-gray-50 hover:text-green-400"
+                      }`}
+                      title={user.coffee_access_enabled ? "Disable coffee access" : "Enable coffee access"}
+                    >
+                      <Coffee className="h-5 w-5" />
                     </button>
                   </td>
                   <td className="px-4 py-3 text-black-primary/40 text-xs">
@@ -609,7 +635,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                   <option value="admin">Admin</option>
                 </select>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -632,6 +658,18 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                   />
                   <label htmlFor="edit_featured" className="text-sm text-black-primary">
                     Featured Operator
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="edit_coffee_access"
+                    checked={editForm.coffee_access_enabled}
+                    onChange={(e) => setEditForm((f) => ({ ...f, coffee_access_enabled: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-300 text-green-600"
+                  />
+                  <label htmlFor="edit_coffee_access" className="text-sm text-black-primary">
+                    Coffee Access
                   </label>
                 </div>
               </div>
