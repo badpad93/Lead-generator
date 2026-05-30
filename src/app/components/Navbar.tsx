@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText, Heart, Briefcase, Zap, Coffee } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
@@ -38,8 +38,23 @@ interface SessionUser {
   name: string;
 }
 
+const SKIP_PROFILE_CHECK_PATHS = [
+  "/complete-profile",
+  "/login",
+  "/signup",
+  "/auth/callback",
+  "/auth",
+  "/how-it-works",
+  "/pricing",
+];
+
+function profileIncomplete(p: Profile): boolean {
+  return !p.phone || !p.address || !p.city || !p.state || !p.zip;
+}
+
 export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
@@ -76,13 +91,23 @@ export default function Navbar() {
               headers: { Authorization: `Bearer ${session.access_token}` },
             }),
           ]);
+          let userIsAdmin = false;
+          if (adminRes.ok) {
+            const data = await adminRes.json();
+            userIsAdmin = !!data.isAdmin;
+            setIsAdmin(userIsAdmin);
+          }
           if (profileRes.ok) {
             const data = await profileRes.json();
             setProfile(data);
-          }
-          if (adminRes.ok) {
-            const data = await adminRes.json();
-            setIsAdmin(!!data.isAdmin);
+            if (
+              !userIsAdmin &&
+              profileIncomplete(data) &&
+              !SKIP_PROFILE_CHECK_PATHS.some((p) => window.location.pathname.startsWith(p))
+            ) {
+              window.location.href = "/complete-profile";
+              return;
+            }
           }
         } catch {
           // ignore — sessionUser still shows logged-in state
@@ -111,13 +136,23 @@ export default function Navbar() {
                 headers: { Authorization: `Bearer ${session.access_token}` },
               }),
             ]);
+            let userIsAdmin = false;
+            if (adminRes.ok) {
+              const data = await adminRes.json();
+              userIsAdmin = !!data.isAdmin;
+              setIsAdmin(userIsAdmin);
+            }
             if (profileRes.ok) {
               const data = await profileRes.json();
               setProfile(data);
-            }
-            if (adminRes.ok) {
-              const data = await adminRes.json();
-              setIsAdmin(!!data.isAdmin);
+              if (
+                !userIsAdmin &&
+                profileIncomplete(data) &&
+                !SKIP_PROFILE_CHECK_PATHS.some((p) => window.location.pathname.startsWith(p))
+              ) {
+                window.location.href = "/complete-profile";
+                return;
+              }
             }
           } catch {
             // ignore
