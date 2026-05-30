@@ -116,23 +116,24 @@ function CallbackContent() {
           }
         }
       } else {
-        // Clean up any stale signup role from prior flows
         consumeSignupRole();
-
-        // Check if profile is missing required fields — redirect to complete
-        try {
-          const profileRes = await fetch("/api/auth/me", {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-          if (profileRes.ok) {
-            const profile = await profileRes.json();
-            if (!profile.phone || !profile.address) {
-              window.location.href = "/complete-profile";
-              return;
-            }
-          }
-        } catch {}
       }
+
+      // Always verify profile is complete — for BOTH signup and login.
+      // localStorage data can be lost during OAuth redirect (domain mismatch,
+      // browser clearing storage, etc.), so the signup PATCH may silently fail.
+      try {
+        const profileRes = await fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (profileRes.ok) {
+          const profile = await profileRes.json();
+          if (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip) {
+            window.location.href = "/complete-profile";
+            return;
+          }
+        }
+      } catch {}
 
       const savedRedirect = consumeRedirectAfterLogin();
       window.location.href = savedRedirect || (isEmployeeSignup ? "/sales" : "/dashboard");

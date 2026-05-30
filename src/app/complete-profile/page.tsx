@@ -13,6 +13,8 @@ export default function CompleteProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
+    full_name: "",
+    company_name: "",
     phone: "",
     address: "",
     city: "",
@@ -36,11 +38,13 @@ export default function CompleteProfilePage() {
         });
         if (res.ok) {
           const profile = await res.json();
-          if (profile.phone && profile.address) {
+          if (profile.phone && profile.address && profile.city && profile.state && profile.zip) {
             router.push("/dashboard");
             return;
           }
           setForm({
+            full_name: profile.full_name || "",
+            company_name: profile.company_name || "",
             phone: profile.phone || "",
             address: profile.address || "",
             city: profile.city || "",
@@ -56,6 +60,7 @@ export default function CompleteProfilePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.full_name.trim()) { setError("Full name is required"); return; }
     if (!form.phone.trim()) { setError("Phone number is required"); return; }
     if (!form.address.trim()) { setError("Address is required"); return; }
     if (!form.city.trim()) { setError("City is required"); return; }
@@ -114,6 +119,26 @@ export default function CompleteProfilePage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Full Name <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                value={form.full_name}
+                onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+                placeholder="Your full name"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Company Name</label>
+              <input
+                type="text"
+                value={form.company_name}
+                onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
+                placeholder="Your business name (optional)"
+                className={inputClass}
+              />
+            </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Phone <span className="text-red-500">*</span></label>
               <input
