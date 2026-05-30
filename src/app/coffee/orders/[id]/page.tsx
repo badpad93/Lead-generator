@@ -83,6 +83,26 @@ function OrderDetailContent() {
         if (res.ok) {
           const data = await res.json();
           setOrder(data.order);
+
+          if (searchParams.get("paid") && data.order?.status === "awaiting_payment") {
+            let attempts = 0;
+            const poll = setInterval(async () => {
+              attempts++;
+              try {
+                const r = await fetch(`/api/coffee/orders/${orderId}`, {
+                  headers: { Authorization: `Bearer ${session.access_token}` },
+                });
+                if (r.ok) {
+                  const d = await r.json();
+                  if (d.order?.status !== "awaiting_payment") {
+                    setOrder(d.order);
+                    clearInterval(poll);
+                  }
+                }
+              } catch {}
+              if (attempts >= 10) clearInterval(poll);
+            }, 2000);
+          }
         } else {
           router.push("/coffee/orders");
         }
@@ -92,7 +112,7 @@ function OrderDetailContent() {
       setLoading(false);
     }
     init();
-  }, [orderId, router]);
+  }, [orderId, router, searchParams]);
 
   async function handleReorder() {
     setReordering(true);
