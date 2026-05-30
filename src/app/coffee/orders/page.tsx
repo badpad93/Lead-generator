@@ -153,7 +153,7 @@ export default function CoffeeOrdersPage() {
                       <td className="px-5 py-4 font-medium text-gray-900">${Number(order.total).toFixed(2)}</td>
                       <td className="px-5 py-4">
                         <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[order.status] || "bg-gray-100 text-gray-600"}`}>
-                          {order.status}
+                          {order.status === "awaiting_payment" ? "pending" : order.status}
                         </span>
                       </td>
                       <td className="px-5 py-4">

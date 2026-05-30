@@ -82,27 +82,24 @@ function OrderDetailContent() {
         });
         if (res.ok) {
           const data = await res.json();
-          setOrder(data.order);
+          let orderData = data.order;
 
-          if (searchParams.get("paid") && data.order?.status === "awaiting_payment") {
-            let attempts = 0;
-            const poll = setInterval(async () => {
-              attempts++;
-              try {
-                const r = await fetch(`/api/coffee/orders/${orderId}`, {
-                  headers: { Authorization: `Bearer ${session.access_token}` },
-                });
-                if (r.ok) {
-                  const d = await r.json();
-                  if (d.order?.status !== "awaiting_payment") {
-                    setOrder(d.order);
-                    clearInterval(poll);
-                  }
+          if (searchParams.get("paid") && orderData?.status === "awaiting_payment") {
+            try {
+              const confirmRes = await fetch(`/api/coffee/orders/${orderId}/confirm`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              });
+              if (confirmRes.ok) {
+                const confirmData = await confirmRes.json();
+                if (confirmData.order) {
+                  orderData = confirmData.order;
                 }
-              } catch {}
-              if (attempts >= 10) clearInterval(poll);
-            }, 2000);
+              }
+            } catch {}
           }
+
+          setOrder(orderData);
         } else {
           router.push("/coffee/orders");
         }
@@ -187,7 +184,7 @@ function OrderDetailContent() {
         </div>
         <div className="flex items-center gap-3">
           <span className={`inline-block rounded-full px-3 py-1 text-sm font-medium capitalize ${STATUS_STYLES[order.status] || "bg-gray-100 text-gray-600"}`}>
-            {order.status}
+            {order.status === "awaiting_payment" ? "pending" : order.status}
           </span>
           <button
             type="button"
