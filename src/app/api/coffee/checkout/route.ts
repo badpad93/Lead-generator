@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: orderError.message }, { status: 500 });
     }
 
-    const itemsWithOrderId = orderItems.map((item) => ({
+    const itemsWithOrderId = orderItems.map(({ shipping_cost: _, ...item }) => ({
       ...item,
       order_id: order.id,
     }));
