@@ -13,6 +13,7 @@ interface CartProduct {
   name: string;
   sku: string;
   price: number;
+  shipping_cost: number;
   image_url: string | null;
   unit: string;
 }
@@ -104,7 +105,9 @@ function CheckoutContent() {
     return sum + Number(item.coffee_products?.price || 0) * item.quantity;
   }, 0);
 
-  const shipping = 0;
+  const shipping = items.reduce((sum, item) => {
+    return sum + Number(item.coffee_products?.shipping_cost || 0) * item.quantity;
+  }, 0);
   const total = subtotal + shipping;
 
   function updateForm(field: string, value: string) {
@@ -305,7 +308,7 @@ function CheckoutContent() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Shipping</span>
-                <span className="font-medium text-green-600">Free</span>
+                <span className="font-medium text-gray-900">{shipping > 0 ? `$${shipping.toFixed(2)}` : "Free"}</span>
               </div>
             </div>
             <hr className="border-gray-100 my-4" />

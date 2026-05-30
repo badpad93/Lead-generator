@@ -9,6 +9,7 @@ interface CartProduct {
   name: string;
   sku: string;
   price: number;
+  shipping_cost: number;
   image_url: string | null;
   stock_status: string;
   unit: string;
@@ -109,7 +110,8 @@ export default function CoffeeCartDrawer({ open, onClose, token }: CoffeeCartDra
 
   const subtotal = items.reduce((sum, item) => {
     const price = Number(item.coffee_products?.price || 0);
-    return sum + price * item.quantity;
+    const shipping = Number(item.coffee_products?.shipping_cost || 0);
+    return sum + (price + shipping) * item.quantity;
   }, 0);
 
   return (
@@ -158,7 +160,8 @@ export default function CoffeeCartDrawer({ open, onClose, token }: CoffeeCartDra
               {items.map((item) => {
                 const product = item.coffee_products;
                 const price = Number(product?.price || 0);
-                const lineTotal = price * item.quantity;
+                const itemShipping = Number(product?.shipping_cost || 0);
+                const lineTotal = (price + itemShipping) * item.quantity;
                 const isUpdating = updating === item.product_id;
 
                 return (
@@ -172,7 +175,7 @@ export default function CoffeeCartDrawer({ open, onClose, token }: CoffeeCartDra
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">{product?.name}</p>
-                      <p className="text-xs text-gray-500">${price.toFixed(2)} / {product?.unit || "each"}</p>
+                      <p className="text-xs text-gray-500">${price.toFixed(2)} / {product?.unit || "each"}{itemShipping > 0 ? ` + $${itemShipping.toFixed(2)} ship` : ""}</p>
                       <div className="mt-2 flex items-center gap-2">
                         <button
                           type="button"
