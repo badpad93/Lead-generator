@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Search, ShoppingCart, Coffee, Lock, Loader2, X, AlertCircle } from "lucide-react";
+import { Search, ShoppingCart, Coffee, Lock, Loader2, X, AlertCircle, BookOpen } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import CoffeeCartDrawer from "@/app/components/CoffeeCartDrawer";
@@ -12,6 +12,16 @@ interface Category {
   name: string;
   slug: string;
   sort_order: number;
+}
+
+interface Guide {
+  id: string;
+  title: string;
+  slug: string;
+  summary: string | null;
+  content: string;
+  image_url: string | null;
+  coffee_categories: { id: string; name: string; slug: string } | null;
 }
 
 interface Product {
@@ -44,6 +54,8 @@ export default function CoffeeMarketplacePage() {
   const [adding, setAdding] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [guides, setGuides] = useState<Guide[]>([]);
+  const [selectedGuide, setSelectedGuide] = useState<Guide | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -94,6 +106,19 @@ export default function CoffeeMarketplacePage() {
       } catch {}
     }
     fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    async function fetchGuides() {
+      try {
+        const res = await fetch("/api/coffee/guides");
+        if (res.ok) {
+          const data = await res.json();
+          setGuides(data.guides || []);
+        }
+      } catch {}
+    }
+    fetchGuides();
   }, []);
 
   const fetchCartCount = useCallback(async () => {
@@ -365,6 +390,54 @@ export default function CoffeeMarketplacePage() {
         )}
       </div>
 
+      {guides.length > 0 && (
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16">
+          <div className="border-t border-gray-800 pt-12">
+            <div className="flex items-center gap-3 mb-6">
+              <BookOpen className="h-6 w-6 text-green-400" />
+              <h2 className="text-2xl font-bold text-white">How-to Guides</h2>
+            </div>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {guides.map((guide) => (
+                <div
+                  key={guide.id}
+                  className="flex flex-col rounded-2xl bg-gray-900 border border-gray-800 shadow-sm transition-all hover:shadow-lg hover:border-gray-700 cursor-pointer"
+                  onClick={() => setSelectedGuide(guide)}
+                >
+                  {guide.image_url ? (
+                    <div className="h-40 overflow-hidden rounded-t-2xl bg-gray-800">
+                      <img
+                        src={guide.image_url}
+                        alt={guide.title}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex h-32 items-center justify-center rounded-t-2xl bg-gray-800">
+                      <BookOpen className="h-12 w-12 text-gray-600" />
+                    </div>
+                  )}
+                  <div className="flex flex-1 flex-col p-5">
+                    {guide.coffee_categories && (
+                      <span className="mb-2 inline-block w-fit rounded-full bg-green-900/40 px-2.5 py-0.5 text-xs font-medium text-green-400">
+                        {guide.coffee_categories.name}
+                      </span>
+                    )}
+                    <h3 className="text-base font-bold text-white">{guide.title}</h3>
+                    {guide.summary && (
+                      <p className="mt-1 text-sm text-gray-400 line-clamp-2">{guide.summary}</p>
+                    )}
+                    <span className="mt-auto pt-3 text-sm font-medium text-green-400 hover:text-green-300">
+                      Read Guide →
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {token && cartCount > 0 && (
         <button
           type="button"
@@ -487,6 +560,59 @@ export default function CoffeeMarketplacePage() {
           </>
         );
       })()}
+
+      {selectedGuide && (
+        <>
+          <div
+            className="fixed inset-0 z-[9980] bg-black/60 backdrop-blur-sm"
+            onClick={() => setSelectedGuide(null)}
+            aria-hidden="true"
+          />
+          <div className="fixed inset-0 z-[9981] flex items-center justify-center p-4 sm:p-6">
+            <div
+              className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setSelectedGuide(null)}
+                className="absolute right-4 top-4 z-10 rounded-full bg-white/80 p-2 text-gray-500 shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-gray-900 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {selectedGuide.image_url ? (
+                <div className="h-56 overflow-hidden rounded-t-2xl bg-gray-100 sm:h-72">
+                  <img
+                    src={selectedGuide.image_url}
+                    alt={selectedGuide.title}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-40 items-center justify-center rounded-t-2xl bg-gray-100">
+                  <BookOpen className="h-16 w-16 text-gray-300" />
+                </div>
+              )}
+
+              <div className="p-6 sm:p-8">
+                {selectedGuide.coffee_categories && (
+                  <span className="mb-3 inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+                    {selectedGuide.coffee_categories.name}
+                  </span>
+                )}
+                <h2 className="text-2xl font-bold text-gray-900">{selectedGuide.title}</h2>
+                {selectedGuide.summary && (
+                  <p className="mt-2 text-sm font-medium text-gray-500">{selectedGuide.summary}</p>
+                )}
+                <div className="mt-6 whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
+                  {selectedGuide.content}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {token && (
         <CoffeeCartDrawer

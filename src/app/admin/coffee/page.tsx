@@ -9,6 +9,7 @@ import {
   Package,
   ShoppingCart,
   FileText,
+  BookOpen,
   Plus,
   Pencil,
   Trash2,
@@ -21,7 +22,7 @@ import {
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
-type Tab = "products" | "orders" | "applications";
+type Tab = "products" | "orders" | "applications" | "guides";
 
 interface Category {
   id: string;
@@ -78,6 +79,20 @@ interface Application {
   profiles: { id: string; full_name: string; email: string } | null;
 }
 
+interface Guide {
+  id: string;
+  title: string;
+  slug: string;
+  summary: string | null;
+  content: string;
+  image_url: string | null;
+  category_id: string | null;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  coffee_categories: Category | null;
+}
+
 function Toast({ message, type }: { message: string; type: "success" | "error" }) {
   return (
     <div
@@ -118,6 +133,8 @@ export default function AdminCoffeePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
 
+  const [guides, setGuides] = useState<Guide[]>([]);
+
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState({
@@ -140,6 +157,21 @@ export default function AdminCoffeePage() {
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
   const [processingApp, setProcessingApp] = useState<string | null>(null);
+
+  const [showGuideForm, setShowGuideForm] = useState(false);
+  const [editingGuide, setEditingGuide] = useState<Guide | null>(null);
+  const [guideForm, setGuideForm] = useState({
+    title: "",
+    summary: "",
+    content: "",
+    image_url: "",
+    category_id: "",
+    sort_order: "0",
+    active: true,
+  });
+  const [savingGuide, setSavingGuide] = useState(false);
+  const [deletingGuide, setDeletingGuide] = useState<string | null>(null);
+  const [uploadingGuideImage, setUploadingGuideImage] = useState(false);
 
   function showToast(message: string, type: "success" | "error") {
     setToast({ message, type });
@@ -227,13 +259,27 @@ export default function AdminCoffeePage() {
     } catch {}
   }, [token]);
 
+  const fetchGuides = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/admin/coffee/guides", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGuides(data.guides || []);
+      }
+    } catch {}
+  }, [token]);
+
   useEffect(() => {
     if (!token) return;
     fetchProducts();
     fetchCategories();
     fetchOrders();
     fetchApplications();
-  }, [token, fetchProducts, fetchCategories, fetchOrders, fetchApplications]);
+    fetchGuides();
+  }, [token, fetchProducts, fetchCategories, fetchOrders, fetchApplications, fetchGuides]);
 
   function resetProductForm() {
     setProductForm({
@@ -441,6 +487,149 @@ export default function AdminCoffeePage() {
     }
   }
 
+  function resetGuideForm() {
+    setGuideForm({
+      title: "",
+      summary: "",
+      content: "",
+      image_url: "",
+      category_id: "",
+      sort_order: "0",
+      active: true,
+    });
+    setEditingGuide(null);
+    setShowGuideForm(false);
+  }
+
+  function startEditGuide(guide: Guide) {
+    setGuideForm({
+      title: guide.title,
+      summary: guide.summary || "",
+      content: guide.content,
+      image_url: guide.image_url || "",
+      category_id: guide.category_id || "",
+      sort_order: String(guide.sort_order),
+      active: guide.active,
+    });
+    setEditingGuide(guide);
+    setShowGuideForm(true);
+  }
+
+  async function handleGuideImageUpload(file: File) {
+    if (!token) return;
+    if (!file.type.startsWith("image/")) {
+      showToast("Please select an image file", "error");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Image must be under 5MB", "error");
+      return;
+    }
+    setUploadingGuideImage(true);
+    try {
+      const supabase = createBrowserClient();
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `coffee-guides/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("documents")
+        .upload(path, file, { upsert: false, contentType: file.type });
+      if (uploadErr) {
+        showToast(`Upload failed: ${uploadErr.message}`, "error");
+        return;
+      }
+      const { data: urlData } = supabase.storage.from("documents").getPublicUrl(path);
+      setGuideForm((g) => ({ ...g, image_url: urlData.publicUrl }));
+      showToast("Image uploaded", "success");
+    } catch {
+      showToast("Upload failed", "error");
+    } finally {
+      setUploadingGuideImage(false);
+    }
+  }
+
+  async function handleSaveGuide(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingGuide(true);
+    try {
+      const body: Record<string, unknown> = {
+        title: guideForm.title,
+        summary: guideForm.summary || null,
+        content: guideForm.content,
+        image_url: guideForm.image_url || null,
+        category_id: guideForm.category_id || null,
+        sort_order: parseInt(guideForm.sort_order) || 0,
+        active: guideForm.active,
+      };
+
+      if (editingGuide) {
+        body.id = editingGuide.id;
+      }
+
+      const res = await fetch("/api/admin/coffee/guides", {
+        method: editingGuide ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        showToast(editingGuide ? "Guide updated" : "Guide created", "success");
+        resetGuideForm();
+        fetchGuides();
+      } else {
+        const data = await res.json();
+        showToast(data.error || "Failed to save guide", "error");
+      }
+    } catch {
+      showToast("Failed to save guide", "error");
+    } finally {
+      setSavingGuide(false);
+    }
+  }
+
+  async function handleDeleteGuide(id: string) {
+    if (!confirm("Are you sure you want to delete this guide?")) return;
+    setDeletingGuide(id);
+    try {
+      const res = await fetch("/api/admin/coffee/guides", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        showToast("Guide deleted", "success");
+        fetchGuides();
+      } else {
+        showToast("Failed to delete guide", "error");
+      }
+    } catch {
+      showToast("Failed to delete guide", "error");
+    } finally {
+      setDeletingGuide(null);
+    }
+  }
+
+  async function handleToggleGuideActive(guide: Guide) {
+    try {
+      const res = await fetch("/api/admin/coffee/guides", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: guide.id, active: !guide.active }),
+      });
+      if (res.ok) {
+        fetchGuides();
+      }
+    } catch {}
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -453,6 +642,7 @@ export default function AdminCoffeePage() {
     { key: "products", label: "Products", icon: <Package className="h-4 w-4" />, count: products.length },
     { key: "orders", label: "Orders", icon: <ShoppingCart className="h-4 w-4" />, count: orders.length },
     { key: "applications", label: "Applications", icon: <FileText className="h-4 w-4" />, count: applications.filter((a) => a.status === "pending").length },
+    { key: "guides", label: "How-to Guides", icon: <BookOpen className="h-4 w-4" />, count: guides.length },
   ];
 
   return (
@@ -938,6 +1128,233 @@ export default function AdminCoffeePage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "guides" && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm text-gray-500">{guides.length} guide(s)</p>
+            <button
+              type="button"
+              onClick={() => { resetGuideForm(); setShowGuideForm(true); }}
+              className="flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              Add Guide
+            </button>
+          </div>
+
+          {showGuideForm && (
+            <div className="mb-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-gray-900">{editingGuide ? "Edit Guide" : "New Guide"}</h2>
+                <button type="button" onClick={resetGuideForm} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <form onSubmit={handleSaveGuide} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="sm:col-span-2">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={guideForm.title}
+                    onChange={(e) => setGuideForm((g) => ({ ...g, title: e.target.value }))}
+                    className={inputClass}
+                    placeholder="e.g. How to Clean Your Coffee Machine"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Category</label>
+                  <select
+                    value={guideForm.category_id}
+                    onChange={(e) => setGuideForm((g) => ({ ...g, category_id: e.target.value }))}
+                    className={inputClass}
+                  >
+                    <option value="">None</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Summary</label>
+                  <input
+                    type="text"
+                    value={guideForm.summary}
+                    onChange={(e) => setGuideForm((g) => ({ ...g, summary: e.target.value }))}
+                    className={inputClass}
+                    placeholder="Brief description shown on guide cards"
+                  />
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Cover Image</label>
+                  <div className="flex items-start gap-4">
+                    {guideForm.image_url && (
+                      <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                        <img src={guideForm.image_url} alt="Preview" className="h-full w-full object-contain" />
+                        <button
+                          type="button"
+                          onClick={() => setGuideForm((g) => ({ ...g, image_url: "" }))}
+                          className="absolute -right-1 -top-1 rounded-full bg-red-500 p-0.5 text-white shadow-sm hover:bg-red-600 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 px-4 py-4 text-sm text-gray-500 transition-colors hover:border-green-400 hover:text-green-600">
+                        {uploadingGuideImage ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4" />
+                            {guideForm.image_url ? "Replace Image" : "Upload Image"}
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingGuideImage}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleGuideImageUpload(file);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                      <p className="mt-1.5 text-xs text-gray-400">JPG, PNG, WebP — max 5MB</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Content</label>
+                  <textarea
+                    rows={8}
+                    required
+                    value={guideForm.content}
+                    onChange={(e) => setGuideForm((g) => ({ ...g, content: e.target.value }))}
+                    className={inputClass + " resize-none"}
+                    placeholder="Write your guide content here. You can use line breaks for formatting."
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Sort Order</label>
+                  <input
+                    type="number"
+                    value={guideForm.sort_order}
+                    onChange={(e) => setGuideForm((g) => ({ ...g, sort_order: e.target.value }))}
+                    className={inputClass}
+                  />
+                </div>
+                <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={guideForm.active}
+                      onChange={(e) => setGuideForm((g) => ({ ...g, active: e.target.checked }))}
+                      className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Active</span>
+                  </label>
+                  <div className="ml-auto flex gap-2">
+                    <button
+                      type="button"
+                      onClick={resetGuideForm}
+                      className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingGuide}
+                      className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+                    >
+                      {savingGuide && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {editingGuide ? "Update" : "Create"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="px-5 py-3 text-left font-semibold text-gray-600">Title</th>
+                    <th className="px-5 py-3 text-left font-semibold text-gray-600">Category</th>
+                    <th className="px-5 py-3 text-left font-semibold text-gray-600">Summary</th>
+                    <th className="px-5 py-3 text-center font-semibold text-gray-600">Active</th>
+                    <th className="px-5 py-3 text-right font-semibold text-gray-600">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {guides.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-12 text-center text-gray-500">No guides yet</td>
+                    </tr>
+                  ) : (
+                    guides.map((guide) => (
+                      <tr key={guide.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-3">
+                            {guide.image_url && (
+                              <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                                <img src={guide.image_url} alt="" className="h-full w-full object-cover" />
+                              </div>
+                            )}
+                            <span className="font-medium text-gray-900">{guide.title}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 text-gray-600">{guide.coffee_categories?.name || "—"}</td>
+                        <td className="px-5 py-3 text-gray-600 max-w-xs truncate">{guide.summary || "—"}</td>
+                        <td className="px-5 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleGuideActive(guide)}
+                            className={`h-5 w-9 rounded-full transition-colors cursor-pointer ${guide.active ? "bg-green-600" : "bg-gray-300"}`}
+                          >
+                            <div className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${guide.active ? "translate-x-4" : "translate-x-0.5"}`} />
+                          </button>
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => startEditGuide(guide)}
+                              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 cursor-pointer"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteGuide(guide.id)}
+                              disabled={deletingGuide === guide.id}
+                              className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 cursor-pointer"
+                            >
+                              {deletingGuide === guide.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
