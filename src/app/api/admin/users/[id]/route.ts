@@ -20,7 +20,7 @@ export async function PATCH(
     const allowedFields = [
       "full_name", "email", "role", "company_name", "phone",
       "website", "bio", "address", "city", "state", "zip", "country",
-      "verified", "featured",
+      "verified", "featured", "coffee_access_enabled",
     ];
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {

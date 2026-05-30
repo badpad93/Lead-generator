@@ -118,6 +118,20 @@ function CallbackContent() {
       } else {
         // Clean up any stale signup role from prior flows
         consumeSignupRole();
+
+        // Check if profile is missing required fields — redirect to complete
+        try {
+          const profileRes = await fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (profileRes.ok) {
+            const profile = await profileRes.json();
+            if (!profile.phone || !profile.address) {
+              window.location.href = "/complete-profile";
+              return;
+            }
+          }
+        } catch {}
       }
 
       const savedRedirect = consumeRedirectAfterLogin();
