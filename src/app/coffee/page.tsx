@@ -43,6 +43,7 @@ export default function CoffeeMarketplacePage() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [adding, setAdding] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -296,7 +297,8 @@ export default function CoffeeMarketplacePage() {
               return (
                 <div
                   key={product.id}
-                  className="flex flex-col rounded-2xl bg-white shadow-sm transition-shadow hover:shadow-lg"
+                  className="flex flex-col rounded-2xl bg-white shadow-sm transition-shadow hover:shadow-lg cursor-pointer"
+                  onClick={() => setSelectedProduct(product)}
                 >
                   <div className="relative flex h-48 items-center justify-center overflow-hidden rounded-t-2xl bg-gray-100">
                     {product.image_url ? (
@@ -323,7 +325,7 @@ export default function CoffeeMarketplacePage() {
                     {Number(product.shipping_cost) > 0 && (
                       <p className="text-xs text-gray-500">+ ${Number(product.shipping_cost).toFixed(2)} shipping</p>
                     )}
-                    <div className="mt-auto pt-4 flex items-center gap-2">
+                    <div className="mt-auto pt-4 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="number"
                         min={product.min_order_qty || 1}
@@ -375,6 +377,116 @@ export default function CoffeeMarketplacePage() {
           </span>
         </button>
       )}
+
+      {selectedProduct && (() => {
+        const product = selectedProduct;
+        const isOutOfStock = product.stock_status === "out_of_stock";
+        const canAdd = coffeeEnabled && !isOutOfStock;
+        const qty = quantities[product.id] || product.min_order_qty || 1;
+        const isAdding = adding === product.id;
+
+        return (
+          <>
+            <div
+              className="fixed inset-0 z-[9980] bg-black/60 backdrop-blur-sm"
+              onClick={() => setSelectedProduct(null)}
+              aria-hidden="true"
+            />
+            <div className="fixed inset-0 z-[9981] flex items-center justify-center p-4 sm:p-6">
+              <div
+                className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedProduct(null)}
+                  className="absolute right-4 top-4 z-10 rounded-full bg-white/80 p-2 text-gray-500 shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-gray-900 cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+
+                {product.image_url ? (
+                  <div className="flex h-64 items-center justify-center overflow-hidden rounded-t-2xl bg-gray-100 sm:h-80">
+                    <img
+                      src={product.image_url}
+                      alt={product.name}
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-48 items-center justify-center rounded-t-2xl bg-gray-100">
+                    <Coffee className="h-20 w-20 text-gray-300" />
+                  </div>
+                )}
+
+                <div className="p-6 sm:p-8">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    {stockBadge(product.stock_status)}
+                    {product.coffee_categories && (
+                      <span className="inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                        {product.coffee_categories.name}
+                      </span>
+                    )}
+                  </div>
+
+                  <h2 className="text-2xl font-bold text-gray-900">{product.name}</h2>
+                  <p className="mt-1 text-sm text-gray-500">SKU: {product.sku}</p>
+
+                  {product.description && (
+                    <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-gray-700">{product.description}</p>
+                  )}
+
+                  <div className="mt-6 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-green-600">${Number(product.price).toFixed(2)}</span>
+                    <span className="text-sm text-gray-400">/ {product.unit || "each"}</span>
+                  </div>
+                  {Number(product.shipping_cost) > 0 && (
+                    <p className="mt-1 text-sm text-gray-500">+ ${Number(product.shipping_cost).toFixed(2)} shipping per unit</p>
+                  )}
+                  {product.min_order_qty > 1 && (
+                    <p className="mt-1 text-xs text-gray-400">Minimum order: {product.min_order_qty}</p>
+                  )}
+
+                  <div className="mt-6 flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={product.min_order_qty || 1}
+                      value={qty}
+                      onChange={(e) =>
+                        setQuantities((prev) => ({
+                          ...prev,
+                          [product.id]: Math.max(product.min_order_qty || 1, parseInt(e.target.value) || (product.min_order_qty || 1)),
+                        }))
+                      }
+                      disabled={!canAdd}
+                      className="w-20 rounded-xl border border-gray-200 px-3 py-3 text-center text-sm text-gray-900 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 disabled:bg-gray-50 disabled:text-gray-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addToCart(product.id);
+                      }}
+                      disabled={!canAdd || isAdding || !token}
+                      className="flex-1 rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      {isAdding ? (
+                        <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                      ) : !coffeeEnabled && token ? (
+                        <span className="flex items-center justify-center gap-1.5">
+                          <Lock className="h-4 w-4" />
+                          Apply for Access
+                        </span>
+                      ) : (
+                        "Add to Cart"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {token && (
         <CoffeeCartDrawer
