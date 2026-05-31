@@ -13,6 +13,7 @@ import {
   Filter,
 } from "lucide-react";
 import { US_STATES, US_STATE_NAMES } from "@/lib/types";
+import StaticMapPreview from "../components/StaticMapPreview";
 
 interface Listing {
   id: string;
@@ -192,6 +193,13 @@ export default function MarketplacePage() {
                 <h3 className="font-semibold text-gray-900 text-sm mb-1 line-clamp-2 group-hover:text-green-700 transition-colors">
                   {l.title}
                 </h3>
+                {l.city && l.state && (
+                  <StaticMapPreview
+                    city={l.city}
+                    state={l.state}
+                    className="w-full h-24 my-2"
+                  />
+                )}
                 {l.description && (
                   <p className="text-xs text-gray-500 line-clamp-2 mb-2">{l.description}</p>
                 )}

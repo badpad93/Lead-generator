@@ -35,6 +35,7 @@ import {
   US_STATE_NAMES,
 } from "@/lib/types";
 import RequestCard from "../components/RequestCard";
+import StaticMapPreview from "../components/StaticMapPreview";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -320,6 +321,14 @@ function MarketplaceListingCard({ listing }: { listing: MarketplaceListing }) {
           For Sale
         </span>
       </div>
+
+      {listing.city && listing.state && (
+        <StaticMapPreview
+          city={listing.city}
+          state={listing.state}
+          className="w-full h-28 mt-3"
+        />
+      )}
 
       <div className="flex flex-wrap gap-1.5 mt-3">
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">

@@ -16,6 +16,7 @@ import {
 import MachineTypeBadge from "./MachineTypeBadge";
 import UrgencyBadge from "./UrgencyBadge";
 import LocationTypeIcon from "./LocationTypeIcon";
+import StaticMapPreview from "./StaticMapPreview";
 interface RequestCardProps {
   request: VendingRequest;
   saved?: boolean;
@@ -78,6 +79,18 @@ export default function RequestCard({
           </button>
         )}
       </div>
+
+      {/* Map Preview */}
+      {request.city && request.state &&
+        request.city.toLowerCase() !== "unknown" &&
+        request.state.toLowerCase() !== "unknown" && (
+        <StaticMapPreview
+          city={request.city}
+          state={request.state}
+          zip={request.zip}
+          className="w-full h-28 mt-3"
+        />
+      )}
 
       {/* Machine Types */}
       <div className="flex flex-wrap gap-1.5 mt-3">
