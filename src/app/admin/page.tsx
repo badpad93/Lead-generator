@@ -4560,6 +4560,14 @@ export default function AdminPage() {
             </div>
             <div className="flex items-center gap-2">
               <Link
+                href="/admin/careers"
+                className="inline-flex items-center gap-2 rounded-xl border border-green-primary px-4 py-2.5 text-sm font-medium text-green-primary shadow-sm transition-colors hover:bg-green-50"
+              >
+                <Briefcase className="h-4 w-4" />
+                <span className="hidden sm:inline">Careers Admin</span>
+                <span className="sm:hidden">Careers</span>
+              </Link>
+              <Link
                 href="/admin/coffee"
                 className="inline-flex items-center gap-2 rounded-xl border border-green-primary px-4 py-2.5 text-sm font-medium text-green-primary shadow-sm transition-colors hover:bg-green-50"
               >

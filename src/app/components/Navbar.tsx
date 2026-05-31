@@ -46,6 +46,7 @@ const SKIP_PROFILE_CHECK_PATHS = [
   "/auth",
   "/how-it-works",
   "/pricing",
+  "/careers",
 ];
 
 function profileIncomplete(p: Profile): boolean {
