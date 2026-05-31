@@ -15,8 +15,20 @@ function LoginContent() {
 
   useEffect(() => {
     const supabase = createBrowserClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
+        try {
+          const res = await fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (res.ok) {
+            const profile = await res.json();
+            if (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip) {
+              window.location.href = "/complete-profile";
+              return;
+            }
+          }
+        } catch {}
         const redirect = searchParams.get("redirect") || "/dashboard";
         window.location.href = redirect;
       } else {
