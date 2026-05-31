@@ -10,6 +10,7 @@ import {
   ShoppingCart,
   FileText,
   BookOpen,
+  Tag,
   Plus,
   Pencil,
   Trash2,
@@ -22,12 +23,14 @@ import {
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
-type Tab = "products" | "orders" | "applications" | "guides";
+type Tab = "products" | "orders" | "applications" | "guides" | "categories";
 
 interface Category {
   id: string;
   name: string;
   slug: string;
+  description?: string | null;
+  sort_order?: number;
 }
 
 interface Product {
@@ -173,6 +176,12 @@ export default function AdminCoffeePage() {
   const [deletingGuide, setDeletingGuide] = useState<string | null>(null);
   const [uploadingGuideImage, setUploadingGuideImage] = useState(false);
 
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryForm, setCategoryForm] = useState({ name: "", description: "", sort_order: "0" });
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState<string | null>(null);
+
   function showToast(message: string, type: "success" | "error") {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
@@ -224,14 +233,17 @@ export default function AdminCoffeePage() {
   }, [token]);
 
   const fetchCategories = useCallback(async () => {
+    if (!token) return;
     try {
-      const res = await fetch("/api/coffee/categories");
+      const res = await fetch("/api/admin/coffee/categories", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (res.ok) {
         const data = await res.json();
         setCategories(data.categories || []);
       }
     } catch {}
-  }, []);
+  }, [token]);
 
   const fetchOrders = useCallback(async () => {
     if (!token) return;
@@ -630,6 +642,85 @@ export default function AdminCoffeePage() {
     } catch {}
   }
 
+  function resetCategoryForm() {
+    setCategoryForm({ name: "", description: "", sort_order: "0" });
+    setEditingCategory(null);
+    setShowCategoryForm(false);
+  }
+
+  function startEditCategory(cat: Category) {
+    setCategoryForm({
+      name: cat.name,
+      description: cat.description || "",
+      sort_order: String(cat.sort_order ?? 0),
+    });
+    setEditingCategory(cat);
+    setShowCategoryForm(true);
+  }
+
+  async function handleSaveCategory(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingCategory(true);
+    try {
+      const body: Record<string, unknown> = {
+        name: categoryForm.name,
+        description: categoryForm.description || null,
+        sort_order: parseInt(categoryForm.sort_order) || 0,
+      };
+
+      if (editingCategory) {
+        body.id = editingCategory.id;
+      }
+
+      const res = await fetch("/api/admin/coffee/categories", {
+        method: editingCategory ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        showToast(editingCategory ? "Category updated" : "Category created", "success");
+        resetCategoryForm();
+        fetchCategories();
+      } else {
+        const data = await res.json();
+        showToast(data.error || "Failed to save category", "error");
+      }
+    } catch {
+      showToast("Failed to save category", "error");
+    } finally {
+      setSavingCategory(false);
+    }
+  }
+
+  async function handleDeleteCategory(id: string) {
+    if (!confirm("Delete this category? Products and guides in this category will be uncategorized.")) return;
+    setDeletingCategory(id);
+    try {
+      const res = await fetch("/api/admin/coffee/categories", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        showToast("Category deleted", "success");
+        fetchCategories();
+      } else {
+        showToast("Failed to delete category", "error");
+      }
+    } catch {
+      showToast("Failed to delete category", "error");
+    } finally {
+      setDeletingCategory(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -643,6 +734,7 @@ export default function AdminCoffeePage() {
     { key: "orders", label: "Orders", icon: <ShoppingCart className="h-4 w-4" />, count: orders.length },
     { key: "applications", label: "Applications", icon: <FileText className="h-4 w-4" />, count: applications.filter((a) => a.status === "pending").length },
     { key: "guides", label: "How-to Guides", icon: <BookOpen className="h-4 w-4" />, count: guides.length },
+    { key: "categories", label: "Categories", icon: <Tag className="h-4 w-4" />, count: categories.length },
   ];
 
   return (
@@ -1342,6 +1434,139 @@ export default function AdminCoffeePage() {
                               className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 cursor-pointer"
                             >
                               {deletingGuide === guide.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "categories" && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm text-gray-500">{categories.length} category(ies)</p>
+            <button
+              type="button"
+              onClick={() => { resetCategoryForm(); setShowCategoryForm(true); }}
+              className="flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              Add Category
+            </button>
+          </div>
+
+          {showCategoryForm && (
+            <div className="mb-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-gray-900">{editingCategory ? "Edit Category" : "New Category"}</h2>
+                <button type="button" onClick={resetCategoryForm} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <form onSubmit={handleSaveCategory} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={categoryForm.name}
+                    onChange={(e) => setCategoryForm((c) => ({ ...c, name: e.target.value }))}
+                    className={inputClass}
+                    placeholder="e.g. Coffee Beans"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Sort Order</label>
+                  <input
+                    type="number"
+                    value={categoryForm.sort_order}
+                    onChange={(e) => setCategoryForm((c) => ({ ...c, sort_order: e.target.value }))}
+                    className={inputClass}
+                  />
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Description</label>
+                  <input
+                    type="text"
+                    value={categoryForm.description}
+                    onChange={(e) => setCategoryForm((c) => ({ ...c, description: e.target.value }))}
+                    className={inputClass}
+                    placeholder="Optional description"
+                  />
+                </div>
+                <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-3">
+                  <div className="ml-auto flex gap-2">
+                    <button
+                      type="button"
+                      onClick={resetCategoryForm}
+                      className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingCategory}
+                      className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+                    >
+                      {savingCategory && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {editingCategory ? "Update" : "Create"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="px-5 py-3 text-left font-semibold text-gray-600">Name</th>
+                    <th className="px-5 py-3 text-left font-semibold text-gray-600">Slug</th>
+                    <th className="px-5 py-3 text-left font-semibold text-gray-600">Description</th>
+                    <th className="px-5 py-3 text-center font-semibold text-gray-600">Sort Order</th>
+                    <th className="px-5 py-3 text-right font-semibold text-gray-600">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-12 text-center text-gray-500">No categories yet</td>
+                    </tr>
+                  ) : (
+                    categories.map((cat) => (
+                      <tr key={cat.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                        <td className="px-5 py-3 font-medium text-gray-900">{cat.name}</td>
+                        <td className="px-5 py-3 text-gray-600">{cat.slug}</td>
+                        <td className="px-5 py-3 text-gray-600 max-w-xs truncate">{cat.description || "—"}</td>
+                        <td className="px-5 py-3 text-center text-gray-600">{cat.sort_order ?? 0}</td>
+                        <td className="px-5 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => startEditCategory(cat)}
+                              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 cursor-pointer"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCategory(cat.id)}
+                              disabled={deletingCategory === cat.id}
+                              className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 cursor-pointer"
+                            >
+                              {deletingCategory === cat.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
                                 <Trash2 className="h-4 w-4" />
