@@ -268,6 +268,10 @@ export default function DashboardPage() {
             return;
           }
           const data = await res.json();
+          if (!data.phone || !data.address || !data.city || !data.state || !data.zip) {
+            window.location.href = "/complete-profile";
+            return;
+          }
           setProfile(data);
           setToken(session.access_token);
         } catch {
