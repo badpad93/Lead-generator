@@ -780,6 +780,7 @@ export default function PipelineItemDetailPage() {
         setResendResult(`Agreement sent to ${data.sent_to}`);
         setShowManualEmailInput(false);
         setManualAgreementEmail("");
+        load();
       } else {
         setResendResult(`Error: ${data.error}`);
         if (data.error?.includes("No email found")) {
