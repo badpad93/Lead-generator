@@ -18,7 +18,7 @@ export const TOOLTIP_COPY: Record<string, string> = {
   Login:
     "Access your account, messages, listings, applications, and saved activity.",
   "Get Started":
-    "Create an account and choose whether you're an operator, location, or location requester.",
+    "Create an account and choose whether you're an operator or a location.",
   "Sign Up":
     "Join the marketplace and start posting, browsing, and connecting.",
   "Post Listing":

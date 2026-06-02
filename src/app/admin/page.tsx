@@ -375,7 +375,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
     const labels: Record<string, string> = {
       operator: "Operator",
       location_manager: "Location Mgr",
-      requestor: "Requestor",
+      requestor: "Location",
       admin: "Admin",
       sales: "Sales",
       director_of_sales: "Dir. of Sales",
@@ -418,7 +418,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
           <option value="sales">Sales Reps</option>
           <option value="operator">Operators</option>
           <option value="location_manager">Location Managers</option>
-          <option value="requestor">Requestors</option>
+          <option value="requestor">Locations</option>
         </select>
       </div>
 
@@ -628,7 +628,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                 >
                   <option value="operator">Operator</option>
                   <option value="location_manager">Location Manager</option>
-                  <option value="requestor">Requestor</option>
+                  <option value="requestor">Location</option>
                   <option value="sales">Sales Rep</option>
                   <option value="market_leader">Market Leader</option>
                   <option value="director_of_sales">Director of Sales</option>
