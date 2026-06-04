@@ -53,6 +53,7 @@ function AgreementContent() {
   const [signing, setSigning] = useState(false);
   const [signError, setSignError] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
 
   const justPaid = searchParams.get("paid") === "true";
 
@@ -96,13 +97,14 @@ function AgreementContent() {
 
   async function handlePay() {
     setPaying(true);
+    setPayError(null);
     const res = await fetch(`/api/agreements/token/${token}/checkout`, { method: "POST" });
     if (res.ok) {
       const { url } = await res.json();
       window.location.href = url;
     } else {
       const data = await res.json().catch(() => ({}));
-      setSignError(data.error || "Failed to create payment session");
+      setPayError(data.error || "Failed to create payment session");
       setPaying(false);
     }
   }
@@ -283,6 +285,11 @@ function AgreementContent() {
                 <p className="text-sm text-gray-600 mb-3">
                   Your agreement has been signed. Complete payment to receive the full site details.
                 </p>
+                {payError && (
+                  <div className="mb-3 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                    {payError}
+                  </div>
+                )}
                 <button
                   onClick={handlePay}
                   disabled={paying}
