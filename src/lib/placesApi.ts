@@ -52,6 +52,7 @@ export async function searchBusinesses(opts: {
     const data = await res.json();
 
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+      if (nextPageToken && data.status === "INVALID_REQUEST") break;
       throw new Error(`Places API error: ${data.status} — ${data.error_message || ""}`);
     }
 
