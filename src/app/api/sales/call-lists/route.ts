@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   let query = supabaseAdmin
     .from("sales_call_lists")
     .select("*")
+    .not("status", "in", '("failed","generating")')
     .order("created_at", { ascending: false });
 
   if (category) query = query.eq("category", category);

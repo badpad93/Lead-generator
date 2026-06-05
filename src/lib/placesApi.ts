@@ -35,7 +35,6 @@ export async function searchBusinesses(opts: {
   maxResults?: number;
 }): Promise<PlaceBusiness[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-  console.log('[DEBUG] GOOGLE_PLACES_API_KEY value:', JSON.stringify(apiKey), 'length:', apiKey?.length);
   if (!apiKey) throw new Error("GOOGLE_PLACES_API_KEY not configured");
 
   const { city, state, industry, maxResults = 40 } = opts;
@@ -49,13 +48,8 @@ export async function searchBusinesses(opts: {
     const params = new URLSearchParams({ query, key: apiKey });
     if (nextPageToken) params.set("pagetoken", nextPageToken);
 
-    const url = `${BASE}/textsearch/json?${params}`;
-    console.log('[DEBUG] Places API URL:', url);
-
-    const res = await fetch(url);
+    const res = await fetch(`${BASE}/textsearch/json?${params}`);
     const data = await res.json();
-
-    console.log('[DEBUG] Places API full response:', JSON.stringify(data));
 
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
       throw new Error(`Places API error: ${data.status} — ${data.error_message || ""}`);
