@@ -75,12 +75,13 @@ export default function LeadGeneratorPage() {
   }, []);
 
   async function handleGenerate() {
+    setError(null);
+
     if (!form.city.trim()) { setError("City is required"); return; }
     if (!form.state) { setError("State is required"); return; }
     if (!form.industry) { setError("Industry is required"); return; }
 
     setGenerating(true);
-    setError(null);
     setResult(null);
 
     try {
@@ -104,8 +105,11 @@ export default function LeadGeneratorPage() {
         return;
       }
 
-      setResult({ sheet_url: data.sheet_url, lead_count: data.lead_count, title: data.title });
-      setForm({ city: "", state: "", industry: "", radius: "25", lead_count: "40", assigned_to: "", list_name: "" });
+      setResult({
+        sheet_url: data.sheet_url || "",
+        lead_count: data.lead_count || 0,
+        title: data.title || "Call List",
+      });
     } catch {
       setError("Network error — please try again");
     } finally {
@@ -143,15 +147,30 @@ export default function LeadGeneratorPage() {
             <div>
               <p className="font-semibold text-green-800">{result.lead_count} leads generated</p>
               <p className="text-sm text-green-700 mt-1">Sheet: {result.title}</p>
-              <a
-                href={result.sheet_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 transition-colors"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Open Google Sheet
-              </a>
+              <div className="flex items-center gap-3 mt-3">
+                {result.sheet_url && (
+                  <a
+                    href={result.sheet_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open Google Sheet
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResult(null);
+                    setForm({ city: "", state: "", industry: "", radius: "25", lead_count: "40", assigned_to: "", list_name: "" });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 border border-green-300 text-green-700 text-sm font-medium rounded-lg hover:bg-green-100 transition-colors cursor-pointer"
+                >
+                  <Zap className="w-4 h-4" />
+                  Generate Another
+                </button>
+              </div>
             </div>
           </div>
         </div>
