@@ -44,6 +44,8 @@ export default function CallListsPage() {
   const [tab, setTab] = useState<Category>("locations");
   const [showAdd, setShowAdd] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -162,7 +164,47 @@ export default function CallListsPage() {
       alert(err.error || "Failed to delete");
       return;
     }
+    selected.delete(id);
+    setSelected(new Set(selected));
     fetchLists();
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} call list${ids.length > 1 ? "s" : ""}?`)) return;
+    setBulkDeleting(true);
+    try {
+      const res = await fetch("/api/sales/call-lists", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Failed to delete");
+        return;
+      }
+      setSelected(new Set());
+      fetchLists();
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
+  function toggleSelect(id: string) {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelected(next);
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === lists.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(lists.map((l) => l.id)));
+    }
   }
 
   const tabs: { value: Category; label: string; icon: typeof MapPin }[] = [
@@ -200,7 +242,7 @@ export default function CallListsPage() {
           return (
             <button
               key={t.value}
-              onClick={() => setTab(t.value)}
+              onClick={() => { setTab(t.value); setSelected(new Set()); }}
               className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
                 active ? "bg-green-600 text-white" : "text-gray-600 hover:bg-gray-50"
               }`}
@@ -290,10 +332,43 @@ export default function CallListsPage() {
           </p>
         </div>
       ) : (
+        <>
+        {isAdmin && selected.size > 0 && (
+          <div className="mb-3 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5">
+            <span className="text-sm font-medium text-red-800">
+              {selected.size} selected
+            </span>
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+            >
+              {bulkDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              Delete Selected
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-xs text-red-600 hover:text-red-800 cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
+                {isAdmin && (
+                  <th className="w-10 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={lists.length > 0 && selected.size === lists.length}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3 font-medium text-gray-500">Title</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Source</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Assigned To</th>
@@ -303,7 +378,17 @@ export default function CallListsPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {lists.map((list) => (
-                <tr key={list.id} className="hover:bg-gray-50/50">
+                <tr key={list.id} className={`hover:bg-gray-50/50 ${selected.has(list.id) ? "bg-green-50/50" : ""}`}>
+                  {isAdmin && (
+                    <td className="w-10 px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(list.id)}
+                        onChange={() => toggleSelect(list.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900">{list.title}</div>
                     {list.description && (
@@ -374,6 +459,7 @@ export default function CallListsPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );
