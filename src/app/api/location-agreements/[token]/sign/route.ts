@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendListingPendingApprovalEmail } from "@/lib/locationAgreementEmail";
+import { sendAgreementSignedNotification } from "@/lib/agreementEmail";
 
 export async function POST(
   req: NextRequest,
@@ -137,6 +138,20 @@ export async function POST(
         console.error("[location-agreement] Failed to send approval notification:", emailErr);
       }
     }
+  }
+
+  // Notify admin that location agreement was signed
+  try {
+    await sendAgreementSignedNotification({
+      type: "location",
+      signatureName: signature_name.trim(),
+      recipientName: contact_name?.trim() || signature_name.trim(),
+      recipientEmail: email?.trim() || "",
+      businessName: business_name?.trim() || "",
+      signedAt: new Date().toISOString(),
+    });
+  } catch (emailErr) {
+    console.error("[location-agreement] Failed to send admin notification:", emailErr);
   }
 
   return NextResponse.json({ ok: true, status: "signed" });

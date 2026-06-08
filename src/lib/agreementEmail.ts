@@ -2,6 +2,57 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.FROM_EMAIL || "sales@bytebitevending.com";
+const ADMIN_EMAIL = "james@apexaivending.com";
+
+export async function sendAgreementSignedNotification(params: {
+  type: "sales" | "location";
+  signatureName: string;
+  recipientName: string;
+  recipientEmail: string;
+  businessName: string;
+  signedAt: string;
+  pipelineItemId?: string | null;
+  price?: number | null;
+}) {
+  const { type, signatureName, recipientName, recipientEmail, businessName, signedAt, pipelineItemId, price } = params;
+  const label = type === "sales" ? "Sales Agreement" : "Location Agreement";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
+
+  const pipelineLink = pipelineItemId
+    ? `<tr><td style="padding:4px 8px;color:#6b7280;">Pipeline</td><td style="padding:4px 8px;"><a href="${appUrl}/sales" style="color:#16a34a;">View in CRM</a></td></tr>`
+    : "";
+
+  const priceRow = price
+    ? `<tr><td style="padding:4px 8px;color:#6b7280;">Placement Fee</td><td style="padding:4px 8px;font-weight:600;color:#16a34a;">$${price.toLocaleString()}</td></tr>`
+    : "";
+
+  await resend.emails.send({
+    from: FROM,
+    to: ADMIN_EMAIL,
+    subject: `${label} Signed — ${businessName || recipientName}`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+        <div style="margin-bottom:24px;">
+          <span style="font-size:20px;font-weight:700;color:#16a34a;">Vending Connector</span>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:20px;">
+          <p style="margin:0;color:#166534;font-size:16px;font-weight:700;">✓ ${label} Signed</p>
+        </div>
+        <table style="width:100%;font-size:14px;color:#374151;border-collapse:collapse;">
+          <tr><td style="padding:4px 8px;color:#6b7280;">Signed By</td><td style="padding:4px 8px;font-weight:600;">${signatureName}</td></tr>
+          <tr><td style="padding:4px 8px;color:#6b7280;">Contact</td><td style="padding:4px 8px;">${recipientName}</td></tr>
+          <tr><td style="padding:4px 8px;color:#6b7280;">Email</td><td style="padding:4px 8px;">${recipientEmail}</td></tr>
+          <tr><td style="padding:4px 8px;color:#6b7280;">Business</td><td style="padding:4px 8px;">${businessName || "—"}</td></tr>
+          ${priceRow}
+          <tr><td style="padding:4px 8px;color:#6b7280;">Signed At</td><td style="padding:4px 8px;">${new Date(signedAt).toLocaleString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}</td></tr>
+          ${pipelineLink}
+        </table>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+        <p style="color:#9ca3af;font-size:11px;">Vending Connector — vendingconnector.com</p>
+      </div>
+    `,
+  });
+}
 
 export async function sendAgreementEmail(params: {
   to: string;
