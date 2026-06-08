@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { sendAgreementSignedNotification } from "@/lib/agreementEmail";
 
 export async function POST(
   req: NextRequest,
@@ -15,7 +16,7 @@ export async function POST(
 
   const { data: agreement } = await supabaseAdmin
     .from("agreement_tokens")
-    .select("id, status, pipeline_item_id")
+    .select("id, status, pipeline_item_id, recipient_name, recipient_email, pricing_price")
     .eq("token", token)
     .single();
 
@@ -32,6 +33,7 @@ export async function POST(
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+  const signedAt = new Date().toISOString();
 
   const { error } = await supabaseAdmin
     .from("agreement_tokens")
@@ -39,7 +41,7 @@ export async function POST(
       status: "signed",
       signature_name: signature_name.trim(),
       signature_ip: ip,
-      signed_at: new Date().toISOString(),
+      signed_at: signedAt,
       updated_at: new Date().toISOString(),
     })
     .eq("id", agreement.id);
@@ -61,6 +63,34 @@ export async function POST(
       .update({ proposal_status: "signed", updated_at: new Date().toISOString() })
       .eq("id", agreement.pipeline_item_id)
       .neq("proposal_status", "paid");
+  }
+
+  // Get business name for the notification
+  let businessName = "";
+  if (agreement.pipeline_item_id) {
+    const { data: pItem } = await supabaseAdmin
+      .from("pipeline_items")
+      .select("name, sales_accounts(business_name)")
+      .eq("id", agreement.pipeline_item_id)
+      .single();
+    const acct = pItem?.sales_accounts as unknown as { business_name: string } | null;
+    businessName = acct?.business_name || pItem?.name || "";
+  }
+
+  // Notify admin that agreement was signed
+  try {
+    await sendAgreementSignedNotification({
+      type: "sales",
+      signatureName: signature_name.trim(),
+      recipientName: agreement.recipient_name || signature_name.trim(),
+      recipientEmail: agreement.recipient_email || "",
+      businessName,
+      signedAt,
+      pipelineItemId: agreement.pipeline_item_id,
+      price: agreement.pricing_price ? Number(agreement.pricing_price) : null,
+    });
+  } catch (emailErr) {
+    console.error("[agreement-sign] Failed to send admin notification:", emailErr);
   }
 
   return NextResponse.json({ ok: true, status: "signed" });
