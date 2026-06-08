@@ -83,3 +83,24 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data, { status: 201 });
 }
+
+/** DELETE /api/sales/call-lists — bulk delete (admin only) */
+export async function DELETE(req: NextRequest) {
+  const user = await getSalesUser(req);
+  if (!user || !isElevatedRole(user.role)) {
+    return NextResponse.json({ error: "Only admins can delete call lists" }, { status: 403 });
+  }
+
+  const { ids } = await req.json();
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return NextResponse.json({ error: "ids array required" }, { status: 400 });
+  }
+
+  const { error } = await supabaseAdmin
+    .from("sales_call_lists")
+    .delete()
+    .in("id", ids);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true, deleted: ids.length });
+}
