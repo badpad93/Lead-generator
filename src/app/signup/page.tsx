@@ -30,24 +30,6 @@ const roles: { value: Role; label: string; icon: typeof Truck; description: stri
   },
 ];
 
-const ENTITY_TYPES = [
-  { value: "operator", label: "Operator" },
-  { value: "location", label: "Location" },
-  { value: "machine_sales", label: "Machine Sales" },
-  { value: "vending_maintenance", label: "Vending Maintenance" },
-  { value: "micromarket", label: "Micromarket" },
-];
-
-const IMMEDIATE_NEEDS = [
-  { value: "location", label: "Location" },
-  { value: "machine", label: "Machine" },
-  { value: "digital", label: "Digital" },
-  { value: "llc_compliance", label: "LLC/Compliance" },
-  { value: "coffee", label: "Coffee" },
-  { value: "financing", label: "Financing" },
-  { value: "total_operator_package", label: "Total Operator Package" },
-];
-
 export default function SignupPage() {
   return (
     <Suspense fallback={<div className="min-h-[calc(100vh-160px)] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-green-primary" /></div>}>
@@ -76,8 +58,6 @@ function SignupContent() {
     city: "",
     state: "",
     zip: "",
-    entity_type: "",
-    immediate_need: "",
   });
 
   useEffect(() => {
@@ -108,10 +88,6 @@ function SignupContent() {
   function handleRoleSelect(selected: Role) {
     setRole(selected);
     setError(null);
-    if (selected !== "employee" && !leadForm.entity_type) {
-      const mapped = selected === "operator" ? "operator" : "location";
-      setLeadForm((f) => ({ ...f, entity_type: mapped }));
-    }
   }
 
   function handleContinueToInfo() {
@@ -129,14 +105,13 @@ function SignupContent() {
     if (!leadForm.city.trim()) { setError("City is required"); return; }
     if (!leadForm.state.trim()) { setError("State is required"); return; }
     if (!leadForm.zip.trim()) { setError("Zip code is required"); return; }
-    if (role !== "employee") {
-      if (!leadForm.business_name.trim()) { setError("Business name is required"); return; }
-    }
+    if (!leadForm.business_name.trim()) { setError("Business name is required"); return; }
     setError(null);
     setStep(3);
   }
 
   function storeLead() {
+    const entityType = role === "operator" ? "operator" : role === "location_manager" ? "location" : "";
     storeSignupLead({
       business_name: leadForm.business_name.trim(),
       contact_name: `${leadForm.first_name.trim()} ${leadForm.last_name.trim()}`,
@@ -146,8 +121,8 @@ function SignupContent() {
       city: leadForm.city.trim(),
       state: leadForm.state.trim(),
       zip: leadForm.zip.trim(),
-      entity_type: leadForm.entity_type,
-      immediate_need: leadForm.immediate_need,
+      entity_type: entityType,
+      immediate_need: "",
     });
   }
 
@@ -200,7 +175,6 @@ function SignupContent() {
   }
 
   const inputClass = "w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary/30 transition-colors";
-  const selectClass = `${inputClass} cursor-pointer`;
 
   return (
     <div className="min-h-[calc(100vh-160px)] flex items-center justify-center px-4 py-12">
@@ -210,9 +184,9 @@ function SignupContent() {
           <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">Join Vending Connector</h1>
           <p className="text-black-primary/60 mt-2">
             {step === 1
-              ? "Select your role to get started"
+              ? "Select your account type to get started"
               : step === 2
-              ? role === "employee" ? "Tell us about yourself" : "Tell us about your business"
+              ? "Tell us about yourself"
               : "Connect your account to continue"}
           </p>
         </div>
@@ -318,12 +292,10 @@ function SignupContent() {
               </div>
 
               <div className="space-y-4">
-                {role !== "employee" && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Name <span className="text-red-500">*</span></label>
-                    <input value={leadForm.business_name} onChange={(e) => setLeadForm((f) => ({ ...f, business_name: e.target.value }))} placeholder="Your business name" className={inputClass} />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Business Name <span className="text-red-500">*</span></label>
+                  <input value={leadForm.business_name} onChange={(e) => setLeadForm((f) => ({ ...f, business_name: e.target.value }))} placeholder="Your business or company name" className={inputClass} />
+                </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">First Name <span className="text-red-500">*</span></label>
@@ -362,24 +334,6 @@ function SignupContent() {
                     <input value={leadForm.zip} onChange={(e) => setLeadForm((f) => ({ ...f, zip: e.target.value }))} placeholder="e.g. 75001" maxLength={10} className={inputClass} />
                   </div>
                 </div>
-                {role !== "employee" && (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
-                      <select value={leadForm.entity_type} onChange={(e) => setLeadForm((f) => ({ ...f, entity_type: e.target.value }))} className={selectClass}>
-                        <option value="">Select type...</option>
-                        {ENTITY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Immediate Need</label>
-                      <select value={leadForm.immediate_need} onChange={(e) => setLeadForm((f) => ({ ...f, immediate_need: e.target.value }))} className={selectClass}>
-                        <option value="">Select need...</option>
-                        {IMMEDIATE_NEEDS.map((n) => <option key={n.value} value={n.value}>{n.label}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                )}
 
                 <button
                   type="button"
