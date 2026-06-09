@@ -433,7 +433,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
         <p className="py-8 text-center text-sm text-black-primary/40">No users found</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full min-w-[800px] text-left text-sm">
+          <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Name</th>
@@ -952,7 +952,7 @@ function ListingsManager({
         <p className="py-8 text-center text-sm text-black-primary/40">No listings yet</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full min-w-[640px] text-left text-sm">
+          <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
@@ -1342,7 +1342,7 @@ function RequestsManager({
         <p className="py-8 text-center text-sm text-black-primary/40">No requests yet</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full min-w-[800px] text-left text-sm">
+          <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
@@ -2301,7 +2301,7 @@ function RoutesManager({
         <p className="py-8 text-center text-sm text-black-primary/40">No route listings yet</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full min-w-[640px] text-left text-sm">
+          <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
@@ -2826,7 +2826,7 @@ function AgreementsManager({ token }: { token: string }) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px] text-sm">
+          <table className="w-full text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">User Email</th>
@@ -3423,7 +3423,7 @@ function MachineListingsManager({
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full min-w-[640px] text-left text-sm">
+          <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">
@@ -3998,7 +3998,7 @@ function TimeTrackingManager({ token }: { token: string }) {
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] text-left text-sm">
+          <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-xs text-black-primary/50">
                 <th className="pb-3 font-medium">Name</th>
@@ -4357,7 +4357,7 @@ function MarketplaceManager({
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full min-w-[800px] text-left text-sm">
+          <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/50">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Title</th>
@@ -4543,7 +4543,7 @@ export default function AdminPage() {
     <div className="min-h-[calc(100vh-160px)] bg-light">
       {/* Header */}
       <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto max-w-5xl px-4 py-5 sm:py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1400px] px-4 py-5 sm:py-8 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="hidden sm:flex h-12 w-12 items-center justify-center rounded-xl bg-green-50">
@@ -4588,9 +4588,9 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-5xl px-4 py-5 sm:py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1400px] px-4 py-5 sm:py-8 sm:px-6 lg:px-8">
         {/* Tabs */}
-        <div className="mb-8 flex gap-1 overflow-x-auto whitespace-nowrap rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="mb-8 flex flex-wrap gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -4598,7 +4598,7 @@ export default function AdminPage() {
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
+                className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
                   activeTab === tab.key
                     ? "bg-green-primary text-white shadow-sm"
                     : "text-black-primary/60 hover:bg-gray-50 hover:text-black-primary"
@@ -4612,7 +4612,7 @@ export default function AdminPage() {
         </div>
 
         {/* Content */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
+        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
           {activeTab === "users" && <UsersManager token={token} onSuccess={handleSuccess} />}
           {activeTab === "operators" && (
             <ListingsManager token={token} onSuccess={handleSuccess} />
