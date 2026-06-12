@@ -2,16 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
-  sendReceiptEmail,
-  sendLeadDetailsEmail,
-  sendPurchaseConfirmationEmail,
-  isLeadInfoComplete,
-} from "@/lib/email";
-import { sendMachinePurchaseThankYouEmail, sendMachinePurchaseNotificationEmail } from "@/lib/machinePurchaseEmail";
-import { generateSiteDetailsPdf } from "@/lib/pdf/agreementPdf";
-import { sendFullSiteDetailsEmail } from "@/lib/agreementEmail";
-import { sendLocationDealClosedEmail } from "@/lib/locationAgreementEmail";
-import { PricingResult } from "@/lib/pricing/locationPricing";
+  handleLeadPurchaseCompleted,
+  handleAgreementPaymentCompleted,
+  handleMachinePurchaseCompleted,
+  handleCoffeeOrderCompleted,
+  handleMarketplacePurchaseCompleted,
+  handlePaymentExpired,
+} from "@/lib/paymentHandlers";
 
 function getStripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -22,13 +19,6 @@ function getStripeClient(): Stripe {
   return new Stripe(key);
 }
 
-function getConnectStripeClient(): Stripe {
-  const key = process.env.STRIPE_CONNECT_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("Stripe Connect not configured");
-  return new Stripe(key);
-}
-
-/** Try to verify a webhook signature against multiple secrets (original + Connect account) */
 function verifyWebhookEvent(stripe: Stripe, body: string, signature: string): Stripe.Event {
   const secrets = [
     process.env.STRIPE_WEBHOOK_SECRET,
@@ -48,7 +38,6 @@ function verifyWebhookEvent(stripe: Stripe, body: string, signature: string): St
   throw lastError;
 }
 
-/** POST /api/webhooks/stripe — handle Stripe webhook events */
 export async function POST(req: NextRequest) {
   let stripe: Stripe;
   try {
@@ -75,141 +64,69 @@ export async function POST(req: NextRequest) {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
+    const paymentIntentId =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent?.id ?? null;
 
-    // Handle coffee order payments
     if (session.metadata?.type === "coffee_order") {
-      await handleCoffeeOrderPayment(session);
+      await handleCoffeeOrderCompleted({
+        orderId: session.metadata.order_id,
+        userId: session.metadata.user_id,
+        paymentId: paymentIntentId,
+        buyerEmail: session.customer_details?.email ?? null,
+      });
       return NextResponse.json({ received: true });
     }
 
-    // Handle agreement payments (location placement)
     if (session.metadata?.type === "agreement_payment") {
-      await handleAgreementPayment(session);
+      await handleAgreementPaymentCompleted({
+        agreementTokenId: session.metadata.agreement_token_id,
+        pipelineItemId: session.metadata.pipeline_item_id,
+        stepId: session.metadata.step_id,
+        paymentId: paymentIntentId,
+      });
       return NextResponse.json({ received: true });
     }
 
-    // Handle machine listing purchases
     if (session.metadata?.type === "machine_purchase") {
-      await handleMachinePurchase(session);
+      await handleMachinePurchaseCompleted({
+        purchaseId: session.metadata.purchase_id,
+        listingId: session.metadata.machine_listing_id,
+        paymentId: paymentIntentId,
+      });
       return NextResponse.json({ received: true });
     }
 
-    // Handle featured operator subscription
     if (session.metadata?.type === "featured_operator") {
       await handleFeaturedSubscription(session);
       return NextResponse.json({ received: true });
     }
 
-    // Handle marketplace purchases (user listings via Stripe Connect)
     if (session.metadata?.type === "marketplace_purchase") {
-      await handleMarketplacePurchase(session);
+      await handleMarketplacePurchaseCompleted({
+        sessionId: session.id,
+        listingId: session.metadata.listing_id,
+        buyerId: session.metadata.buyer_id,
+        sellerId: session.metadata.seller_id,
+        paymentId: paymentIntentId,
+        buyerEmail: session.customer_details?.email ?? null,
+      });
       return NextResponse.json({ received: true });
     }
 
+    // Default: lead purchase (no specific type in metadata)
     const userId = session.metadata?.user_id;
     const requestId = session.metadata?.request_id;
-    const agreementId = session.metadata?.agreement_id;
-    const buyerEmail = session.customer_details?.email ?? null;
-
     if (userId && requestId) {
-      // Update purchase record with status, payment intent, and buyer email
-      const { data: purchase, error: purchaseError } = await supabaseAdmin
-        .from("lead_purchases")
-        .update({
-          status: "completed",
-          buyer_email: buyerEmail,
-          stripe_payment_intent_id:
-            typeof session.payment_intent === "string"
-              ? session.payment_intent
-              : session.payment_intent?.id ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("stripe_checkout_session_id", session.id)
-        .select("id, amount_cents, created_at")
-        .single();
-
-      if (purchaseError) {
-        console.error("Webhook: failed to update purchase record:", purchaseError);
-        return NextResponse.json({ error: "Failed to update purchase" }, { status: 500 });
-      }
-
-      // Mark the lead as no longer public so it stops appearing in browse results
-      const { error: leadUpdateError } = await supabaseAdmin
-        .from("vending_requests")
-        .update({ is_public: false, status: "matched" })
-        .eq("id", requestId);
-
-      if (leadUpdateError) {
-        console.error("Webhook: failed to update lead visibility:", leadUpdateError);
-      }
-
-      // Link the purchase to the signed agreement
-      if (agreementId && purchase) {
-        await supabaseAdmin
-          .from("signed_agreements")
-          .update({ purchase_id: purchase.id })
-          .eq("id", agreementId);
-      }
-
-      // Fetch the lead details for emails
-      const { data: lead } = await supabaseAdmin
-        .from("vending_requests")
-        .select(
-          "title, city, state, location_name, address, zip, description, contact_phone, contact_email, decision_maker_name"
-        )
-        .eq("id", requestId)
-        .single();
-
-      // Send purchase confirmation email immediately
-      if (buyerEmail && lead) {
-        try {
-          await sendPurchaseConfirmationEmail({
-            to: buyerEmail,
-            leadTitle: lead.title,
-            locationName: lead.location_name,
-          });
-        } catch (e) {
-          console.error("Failed to send purchase confirmation email:", e);
-        }
-      }
-
-      if (buyerEmail && lead && purchase) {
-        const leadLocation = `${lead.city}, ${lead.state}`;
-
-        // Send receipt email
-        try {
-          await sendReceiptEmail({
-            to: buyerEmail,
-            leadTitle: lead.title,
-            leadLocation,
-            purchaseDate: purchase.created_at,
-            amountCents: purchase.amount_cents,
-            orderId: purchase.id,
-          });
-        } catch (e) {
-          console.error("Failed to send receipt email:", e);
-        }
-
-        // Send lead details email (Case A or B)
-        try {
-          const complete = isLeadInfoComplete(lead);
-          await sendLeadDetailsEmail({
-            to: buyerEmail,
-            leadTitle: lead.title,
-            leadLocation,
-            locationName: lead.location_name,
-            address: lead.address,
-            zip: lead.zip,
-            contactPhone: lead.contact_phone,
-            contactEmail: lead.contact_email,
-            decisionMakerName: lead.decision_maker_name,
-            description: lead.description,
-            isComplete: complete,
-          });
-        } catch (e) {
-          console.error("Failed to send lead details email:", e);
-        }
-      }
+      await handleLeadPurchaseCompleted({
+        sessionId: session.id,
+        userId,
+        requestId,
+        agreementId: session.metadata?.agreement_id,
+        buyerEmail: session.customer_details?.email ?? null,
+        paymentId: paymentIntentId,
+      });
     }
   }
 
@@ -251,38 +168,7 @@ export async function POST(req: NextRequest) {
 
   if (event.type === "checkout.session.expired") {
     const session = event.data.object as Stripe.Checkout.Session;
-    await supabaseAdmin
-      .from("lead_purchases")
-      .update({
-        status: "failed",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("stripe_checkout_session_id", session.id);
-
-    await supabaseAdmin
-      .from("machine_listing_purchases")
-      .update({
-        status: "failed",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("stripe_checkout_session_id", session.id);
-
-    await supabaseAdmin
-      .from("user_listing_purchases")
-      .update({
-        status: "failed",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("stripe_checkout_session_id", session.id);
-
-    await supabaseAdmin
-      .from("coffee_orders")
-      .update({
-        status: "cancelled",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("stripe_checkout_session_id", session.id)
-      .eq("status", "awaiting_payment");
+    await handlePaymentExpired(session.id);
   }
 
   // Handle Stripe Connect account updates — mark onboarding complete
@@ -300,385 +186,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ received: true });
 }
 
-async function handleAgreementPayment(session: Stripe.Checkout.Session) {
-  const agreementTokenId = session.metadata?.agreement_token_id;
-  const pipelineItemId = session.metadata?.pipeline_item_id;
-  const stepId = session.metadata?.step_id;
-  const paymentIntentId =
-    typeof session.payment_intent === "string"
-      ? session.payment_intent
-      : session.payment_intent?.id ?? null;
-
-  if (!agreementTokenId) return;
-
-  // Mark agreement as paid
-  await supabaseAdmin
-    .from("agreement_tokens")
-    .update({
-      status: "paid",
-      stripe_payment_intent_id: paymentIntentId,
-      paid_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", agreementTokenId);
-
-  // Mark pipeline payment as completed
-  if (pipelineItemId && stepId) {
-    await supabaseAdmin
-      .from("pipeline_payments")
-      .update({
-        status: "completed",
-        stripe_payment_intent_id: paymentIntentId,
-        paid_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("pipeline_item_id", pipelineItemId)
-      .eq("step_id", stepId)
-      .in("status", ["pending", "created"]);
-
-    // Update proposal status
-    await supabaseAdmin
-      .from("pipeline_items")
-      .update({ proposal_status: "paid", updated_at: new Date().toISOString() })
-      .eq("id", pipelineItemId);
-
-    // Auto-create commission for the assigned sales rep
-    try {
-      const { data: pipelineItem } = await supabaseAdmin
-        .from("pipeline_items")
-        .select("deal_id, assigned_to, value")
-        .eq("id", pipelineItemId)
-        .single();
-
-      const dealId = pipelineItem?.deal_id;
-      let repId = pipelineItem?.assigned_to;
-      let dealValue = Number(pipelineItem?.value) || 0;
-
-      // If pipeline item links to a deal, prefer the deal's assigned rep and value
-      if (dealId) {
-        const { data: deal } = await supabaseAdmin
-          .from("sales_deals")
-          .select("assigned_to, deal_services(price)")
-          .eq("id", dealId)
-          .single();
-        if (deal?.assigned_to) repId = deal.assigned_to;
-        if (deal?.deal_services?.length) {
-          dealValue = deal.deal_services.reduce(
-            (sum: number, s: { price: number }) => sum + Number(s.price), 0
-          );
-        }
-      }
-
-      // Fall back to agreement pricing_price if no deal value
-      if (!dealValue) {
-        const { data: agr } = await supabaseAdmin
-          .from("agreement_tokens")
-          .select("pricing_price")
-          .eq("id", agreementTokenId)
-          .single();
-        dealValue = Number(agr?.pricing_price) || 0;
-      }
-
-      if (repId && dealValue > 0) {
-        const COMMISSION_RATE = 0.10;
-        const existing = await supabaseAdmin
-          .from("sales_commissions")
-          .select("id")
-          .eq("deal_id", dealId || pipelineItemId)
-          .eq("user_id", repId)
-          .maybeSingle();
-
-        if (!existing.data) {
-          await supabaseAdmin.from("sales_commissions").insert({
-            deal_id: dealId || null,
-            order_id: null,
-            user_id: repId,
-            commission_rate: COMMISSION_RATE,
-            deal_value: dealValue,
-            commission_amount: dealValue * COMMISSION_RATE,
-            status: "pending",
-            notes: `Auto-created from agreement payment (${agreementTokenId})`,
-          });
-          console.log(`[stripe-webhook] Created commission for rep ${repId}, value ${dealValue}`);
-        }
-      }
-    } catch (commErr) {
-      console.error("[stripe-webhook] Failed to create commission:", commErr);
-    }
-  }
-
-  // Fetch agreement + location + account for full site details
-  const { data: agreement } = await supabaseAdmin
-    .from("agreement_tokens")
-    .select("*, sales_accounts(business_name, contact_name)")
-    .eq("id", agreementTokenId)
-    .single();
-
-  if (!agreement) return;
-
-  const { data: location } = await supabaseAdmin
-    .from("locations")
-    .select("*")
-    .eq("id", agreement.location_id)
-    .single();
-
-  if (!location) return;
-
-  // Fetch signed location agreement via the location's lead
-  let locationAgreement: {
-    signature_name: string | null;
-    signed_at: string | null;
-    business_name: string | null;
-    contact_name: string | null;
-    email: string | null;
-    phone: string | null;
-    address: string | null;
-    title_role: string | null;
-    status: string;
-  } | null = null;
-
-  if (location.sales_lead_id) {
-    const { data: la } = await supabaseAdmin
-      .from("location_agreements")
-      .select("signature_name, signed_at, business_name, contact_name, email, phone, address, title_role, status")
-      .eq("lead_id", location.sales_lead_id)
-      .eq("status", "signed")
-      .maybeSingle();
-    locationAgreement = la;
-  }
-
-  // Mark location as revealed
-  await supabaseAdmin
-    .from("locations")
-    .update({ is_revealed: true, revealed_at: new Date().toISOString() })
-    .eq("id", location.id);
-
-  // Generate and send full site details
-  try {
-    const pricing: PricingResult = {
-      total_score: agreement.pricing_score,
-      traffic_score: 0,
-      hours_score: 0,
-      machine_score: 0,
-      tier: agreement.pricing_tier as 1 | 2 | 3 | 4 | 5,
-      tier_label: `Tier ${agreement.pricing_tier}`,
-      price: Number(agreement.pricing_price),
-    };
-
-    const pdfBytes = await generateSiteDetailsPdf({
-      businessName: agreement.sales_accounts?.business_name || agreement.recipient_name || "",
-      contactName: agreement.recipient_name || "",
-      locationName: location.location_name || "",
-      address: location.address || "",
-      phone: location.phone || "",
-      decisionMakerName: location.decision_maker_name || "",
-      decisionMakerEmail: location.decision_maker_email || "",
-      industry: location.industry || "",
-      zip: location.zip || "",
-      employeeCount: location.employee_count || 0,
-      trafficCount: location.traffic_count || 0,
-      machineType: location.machine_type || "",
-      machinesRequested: location.machines_requested || 1,
-      businessHours: location.business_hours || "",
-      pricing,
-      generatedAt: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
-      locationAgreement: locationAgreement ? {
-        signatureName: locationAgreement.signature_name || "",
-        signedAt: locationAgreement.signed_at || "",
-        contactName: locationAgreement.contact_name || "",
-        titleRole: locationAgreement.title_role || "",
-        email: locationAgreement.email || "",
-        phone: locationAgreement.phone || "",
-      } : undefined,
-    });
-
-    // Upload full details PDF
-    const pdfPath = `agreements/${agreement.id}-full-details.pdf`;
-    await supabaseAdmin.storage
-      .from("sales-documents")
-      .upload(pdfPath, Buffer.from(pdfBytes), { contentType: "application/pdf", upsert: true });
-
-    const { data: urlData } = supabaseAdmin.storage.from("sales-documents").getPublicUrl(pdfPath);
-
-    await supabaseAdmin
-      .from("agreement_tokens")
-      .update({
-        full_details_sent_at: new Date().toISOString(),
-        full_details_pdf_url: urlData.publicUrl,
-      })
-      .eq("id", agreementTokenId);
-
-    // Send full site details email
-    await sendFullSiteDetailsEmail({
-      to: agreement.recipient_email,
-      recipientName: agreement.recipient_name || "",
-      businessName: agreement.sales_accounts?.business_name || "",
-      locationName: location.location_name || "Location",
-      pdfBuffer: pdfBytes,
-      locationAgreement: locationAgreement ? {
-        signatureName: locationAgreement.signature_name || "",
-        signedAt: locationAgreement.signed_at || "",
-        contactName: locationAgreement.contact_name || "",
-        email: locationAgreement.email || "",
-        phone: locationAgreement.phone || "",
-      } : undefined,
-    });
-
-    // Notify location manager that the deal is closed
-    if (locationAgreement?.email) {
-      try {
-        await sendLocationDealClosedEmail({
-          to: locationAgreement.email,
-          recipientName: locationAgreement.contact_name || "Business Owner",
-          businessName: locationAgreement.business_name || location.location_name || "",
-          locationName: location.location_name || "your location",
-        });
-        console.log(`[stripe-webhook] Sent deal-closed email to location manager: ${locationAgreement.email}`);
-      } catch (locErr) {
-        console.error("[stripe-webhook] Failed to send location deal-closed email:", locErr);
-      }
-    } else if (location.decision_maker_email) {
-      try {
-        await sendLocationDealClosedEmail({
-          to: location.decision_maker_email,
-          recipientName: location.decision_maker_name || "Business Owner",
-          businessName: location.location_name || "",
-          locationName: location.location_name || "your location",
-        });
-        console.log(`[stripe-webhook] Sent deal-closed email to decision maker: ${location.decision_maker_email}`);
-      } catch (locErr) {
-        console.error("[stripe-webhook] Failed to send location deal-closed email:", locErr);
-      }
-    }
-  } catch (e) {
-    console.error("[stripe-webhook] Failed to send full site details:", e);
-  }
-}
-
-async function handleMachinePurchase(session: Stripe.Checkout.Session) {
-  const purchaseId = session.metadata?.purchase_id;
-  const listingId = session.metadata?.machine_listing_id;
-  const paymentIntentId =
-    typeof session.payment_intent === "string"
-      ? session.payment_intent
-      : session.payment_intent?.id ?? null;
-
-  if (!purchaseId) return;
-
-  const { data: purchase } = await supabaseAdmin
-    .from("machine_listing_purchases")
-    .update({
-      status: "completed",
-      stripe_payment_intent_id: paymentIntentId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", purchaseId)
-    .select("*")
-    .single();
-
-  if (!purchase) return;
-
-  const { data: listing } = await supabaseAdmin
-    .from("machine_listings")
-    .select("id, title, machine_type, machine_make, machine_model, buy_now_price, asking_price")
-    .eq("id", listingId)
-    .single();
-
-  const machineTitle = listing?.title || "Vending Machine";
-
-  // Auto-create CRM account + lead for the buyer (skip if lead already exists)
-  try {
-    const purchaseBizName = purchase.business_name || purchase.full_name;
-    const { data: existingLead } = await supabaseAdmin
-      .from("sales_leads")
-      .select("id, account_id")
-      .eq("business_name", purchaseBizName)
-      .limit(1)
-      .maybeSingle();
-
-    if (existingLead) {
-      await supabaseAdmin
-        .from("machine_listing_purchases")
-        .update({
-          crm_account_id: existingLead.account_id,
-          crm_lead_id: existingLead.id,
-        })
-        .eq("id", purchaseId);
-    } else {
-      const { data: account } = await supabaseAdmin
-        .from("sales_accounts")
-        .insert({
-          business_name: purchaseBizName,
-          contact_name: purchase.full_name,
-          phone: purchase.phone,
-          email: purchase.email,
-          address: purchase.location_address || null,
-          entity_type: "operator",
-        })
-        .select("id")
-        .single();
-
-      if (account) {
-        const { data: lead } = await supabaseAdmin
-          .from("sales_leads")
-          .insert({
-            business_name: purchaseBizName,
-            contact_name: purchase.full_name,
-            phone: purchase.phone,
-            email: purchase.email,
-            address: purchase.location_address || null,
-            city: purchase.location_city || null,
-            state: purchase.location_state || null,
-            entity_type: "operator",
-            source: "machine_purchase",
-            status: "qualified",
-            account_id: account.id,
-            notes: `Machine purchase: ${machineTitle} — $${(purchase.amount_cents / 100).toFixed(2)}\nBuyer type: ${purchase.buyer_type || "N/A"}\nLocation status: ${purchase.location_status || "N/A"}\nDeployment: ${purchase.deployment_timeline || "N/A"}\nShipping: ${purchase.shipping_intent || "N/A"}`,
-          })
-          .select("id")
-          .single();
-
-        await supabaseAdmin
-          .from("machine_listing_purchases")
-          .update({
-            crm_account_id: account.id,
-            crm_lead_id: lead?.id || null,
-          })
-          .eq("id", purchaseId);
-      }
-    }
-  } catch (e) {
-    console.error("[stripe-webhook] Failed to create CRM records for machine purchase:", e);
-  }
-
-  // Send thank-you email to buyer
-  try {
-    await sendMachinePurchaseThankYouEmail({
-      to: purchase.email,
-      buyerName: purchase.full_name,
-      machineTitle,
-      amountCents: purchase.amount_cents,
-      purchaseId: purchase.id,
-      stripePaymentIntentId: paymentIntentId,
-    });
-  } catch (e) {
-    console.error("[stripe-webhook] Failed to send machine purchase thank-you email:", e);
-  }
-
-  // Send notification to james@apexaivending.com
-  try {
-    const notifyEmail = process.env.MACHINE_PURCHASE_NOTIFY_EMAIL || "james@apexaivending.com";
-    await sendMachinePurchaseNotificationEmail({
-      to: notifyEmail,
-      purchase,
-      machineTitle,
-      listing,
-    });
-  } catch (e) {
-    console.error("[stripe-webhook] Failed to send machine purchase notification:", e);
-  }
-}
-
 async function handleFeaturedSubscription(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.user_id;
   const state = session.metadata?.state;
@@ -689,7 +196,6 @@ async function handleFeaturedSubscription(session: Stripe.Checkout.Session) {
       ? session.subscription
       : session.subscription?.id ?? null;
 
-  // Verify slot is still available (race condition guard)
   const { count } = await supabaseAdmin
     .from("profiles")
     .select("*", { count: "exact", head: true })
@@ -716,155 +222,4 @@ async function handleFeaturedSubscription(session: Stripe.Checkout.Session) {
     .eq("id", userId);
 
   console.log(`[stripe-webhook] User ${userId} is now a featured operator in ${state}`);
-}
-
-async function handleMarketplacePurchase(session: Stripe.Checkout.Session) {
-  const listingId = session.metadata?.listing_id;
-  const buyerId = session.metadata?.buyer_id;
-  const sellerId = session.metadata?.seller_id;
-  const paymentIntentId =
-    typeof session.payment_intent === "string"
-      ? session.payment_intent
-      : session.payment_intent?.id ?? null;
-
-  if (!listingId) return;
-
-  // Update purchase record
-  await supabaseAdmin
-    .from("user_listing_purchases")
-    .update({
-      status: "completed",
-      stripe_payment_intent_id: paymentIntentId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("stripe_checkout_session_id", session.id);
-
-  // Mark listing as sold
-  await supabaseAdmin
-    .from("user_listings")
-    .update({ status: "sold", is_public: false, updated_at: new Date().toISOString() })
-    .eq("id", listingId);
-
-  // Fetch listing details for notifications
-  const { data: listing } = await supabaseAdmin
-    .from("user_listings")
-    .select("title, listing_type, city, state, price")
-    .eq("id", listingId)
-    .single();
-
-  const buyerEmail = session.customer_details?.email;
-
-  // Fetch seller email
-  const { data: sellerUser } = sellerId
-    ? await supabaseAdmin.auth.admin.getUserById(sellerId)
-    : { data: null };
-
-  console.log(
-    `[stripe-webhook] Marketplace purchase completed: listing=${listingId}, buyer=${buyerId}, seller=${sellerId}, amount=$${listing?.price}`
-  );
-
-  // Notify seller that their listing sold
-  if (sellerUser?.user?.email && listing) {
-    try {
-      const { sendMarketplaceSaleEmail } = await import("@/lib/marketplaceEmail");
-      await sendMarketplaceSaleEmail({
-        to: sellerUser.user.email,
-        listingTitle: listing.title,
-        amount: Number(listing.price),
-        buyerEmail: buyerEmail || "a buyer",
-      });
-    } catch (e) {
-      console.error("[stripe-webhook] Failed to send marketplace sale email:", e);
-    }
-  }
-
-  // Notify buyer with listing details
-  if (buyerEmail && listing) {
-    try {
-      const { sendMarketplacePurchaseEmail } = await import("@/lib/marketplaceEmail");
-      await sendMarketplacePurchaseEmail({
-        to: buyerEmail,
-        listingTitle: listing.title,
-        amount: Number(listing.price),
-        listingType: listing.listing_type,
-        location: `${listing.city || ""}, ${listing.state}`.trim(),
-      });
-    } catch (e) {
-      console.error("[stripe-webhook] Failed to send marketplace purchase email:", e);
-    }
-  }
-}
-
-async function handleCoffeeOrderPayment(session: Stripe.Checkout.Session) {
-  const orderId = session.metadata?.order_id;
-  const userId = session.metadata?.user_id;
-  const paymentIntentId =
-    typeof session.payment_intent === "string"
-      ? session.payment_intent
-      : session.payment_intent?.id ?? null;
-
-  if (!orderId) return;
-
-  const { data: order, error: updateErr } = await supabaseAdmin
-    .from("coffee_orders")
-    .update({
-      status: "pending",
-      stripe_payment_intent_id: paymentIntentId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", orderId)
-    .select("*, coffee_order_items(*)")
-    .single();
-
-  if (updateErr || !order) {
-    console.error("[stripe-webhook] Failed to update coffee order:", updateErr);
-    return;
-  }
-
-  // Clear cart after successful payment
-  if (userId) {
-    await supabaseAdmin
-      .from("coffee_cart_items")
-      .delete()
-      .eq("user_id", userId);
-  }
-
-  // Send order emails
-  try {
-    const { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } = await import("@/lib/coffeeEmail");
-
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("full_name, email")
-      .eq("id", order.operator_id)
-      .single();
-
-    const emailParams = {
-      orderNumber: order.order_number,
-      operatorName: profile?.full_name || "Operator",
-      operatorEmail: profile?.email || session.customer_details?.email || "",
-      items: (order.coffee_order_items || []).map((i: Record<string, unknown>) => ({
-        product_name: i.product_name as string,
-        product_sku: i.product_sku as string,
-        quantity: Number(i.quantity),
-        unit_price: Number(i.unit_price),
-        line_total: Number(i.line_total),
-      })),
-      subtotal: Number(order.subtotal),
-      shippingEstimate: Number(order.shipping_estimate),
-      total: Number(order.total),
-      shippingName: order.shipping_name,
-      shippingAddress: order.shipping_address,
-      shippingCity: order.shipping_city,
-      shippingState: order.shipping_state,
-      shippingZip: order.shipping_zip,
-    };
-
-    await Promise.all([
-      sendCoffeeOrderNotification(emailParams),
-      sendCoffeeOrderConfirmation(emailParams),
-    ]);
-  } catch (e) {
-    console.error("[stripe-webhook] Failed to send coffee order emails:", e);
-  }
 }
