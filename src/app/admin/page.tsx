@@ -54,7 +54,8 @@ type Tab =
   | "agreements"
   | "sales_results"
   | "machine_listings"
-  | "time_tracking";
+  | "time_tracking"
+  | "settings";
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary";
@@ -4537,6 +4538,7 @@ export default function AdminPage() {
     { key: "sales_results", label: "Sales Results", icon: TrendingUp },
     { key: "machine_listings", label: "Machines For Sale", icon: Package },
     { key: "time_tracking", label: "Time Tracking", icon: Timer },
+    { key: "settings", label: "Settings", icon: Shield },
   ];
 
   return (
@@ -4638,10 +4640,161 @@ export default function AdminPage() {
           {activeTab === "time_tracking" && (
             <TimeTrackingManager token={token} />
           )}
+          {activeTab === "settings" && (
+            <SettingsManager token={token} />
+          )}
         </div>
       </div>
 
       {toast && <Toast message={toast.message} type={toast.type} />}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Settings Manager (QuickBooks Connection)                           */
+/* ------------------------------------------------------------------ */
+
+function SettingsManager({ token }: { token: string }) {
+  const [qbStatus, setQbStatus] = useState<{
+    connected: boolean;
+    provider: string;
+    connection: { companyName: string; realmId: string; connectedAt: string; tokenExpiresAt: string } | null;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/quickbooks/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setQbStatus(await res.json());
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      const res = await fetch("/api/quickbooks/oauth", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch {
+      alert("Failed to start QuickBooks connection");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm("Disconnect QuickBooks? Existing invoices will still be tracked.")) return;
+    setDisconnecting(true);
+    try {
+      await fetch("/api/quickbooks/status", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchStatus();
+    } catch {
+      alert("Failed to disconnect");
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-green-600" /></div>;
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">Payment Settings</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Current payment provider: <span className="font-medium text-gray-700">{qbStatus?.provider === "quickbooks" ? "QuickBooks Payments" : "Stripe"}</span>
+        </p>
+        <p className="text-xs text-gray-400 mb-6">
+          Set the <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">PAYMENT_PROVIDER</code> environment variable to <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">quickbooks</code> to route payments through QuickBooks.
+        </p>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+            <DollarSign className="h-5 w-5 text-green-600" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">QuickBooks Online</h4>
+            <p className="text-sm text-gray-500">Connect your QuickBooks account for invoice-based payments</p>
+          </div>
+        </div>
+
+        {qbStatus?.connected ? (
+          <div className="space-y-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <span className="text-sm font-medium text-green-800">Connected</span>
+              </div>
+              <div className="text-sm text-green-700 space-y-1">
+                <p>Company: <span className="font-medium">{qbStatus.connection?.companyName || "—"}</span></p>
+                <p>Realm ID: <span className="font-mono text-xs">{qbStatus.connection?.realmId}</span></p>
+                <p>Connected: {qbStatus.connection?.connectedAt ? new Date(qbStatus.connection.connectedAt).toLocaleDateString() : "—"}</p>
+              </div>
+            </div>
+            <button
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
+            >
+              {disconnecting ? "Disconnecting..." : "Disconnect QuickBooks"}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <span className="text-sm text-yellow-800">Not connected</span>
+              </div>
+            </div>
+            <button
+              onClick={handleConnect}
+              disabled={connecting}
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {connecting ? "Connecting..." : "Connect QuickBooks"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+        <h4 className="font-semibold text-gray-900 mb-2">Environment Variables</h4>
+        <p className="text-sm text-gray-500 mb-3">Required environment variables for QuickBooks integration:</p>
+        <div className="space-y-2 text-xs font-mono">
+          {[
+            "QB_CLIENT_ID",
+            "QB_CLIENT_SECRET",
+            "QB_ENVIRONMENT",
+            "QB_WEBHOOK_VERIFIER_TOKEN",
+            "PAYMENT_PROVIDER",
+          ].map((v) => (
+            <div key={v} className="flex items-center gap-2">
+              <code className="bg-white border border-gray-200 px-2 py-1 rounded">{v}</code>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

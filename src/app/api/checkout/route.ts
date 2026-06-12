@@ -4,8 +4,8 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { calculateFees, FEE_EXEMPT_ROLES } from "@/lib/checkoutFees";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+import { isQuickBooks } from "@/lib/paymentProvider";
+import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 
 /** POST /api/checkout — create a Stripe Checkout Session for a lead purchase */
 export async function POST(req: NextRequest) {
@@ -129,6 +129,61 @@ export async function POST(req: NextRequest) {
 
   const fees = feesExempt ? { brokerFeeCents: 0, processingFeeCents: 0, totalFeeCents: 0 } : calculateFees(amountCents);
   const totalAmountCents = amountCents + fees.totalFeeCents;
+
+  if (isQuickBooks()) {
+    try {
+      const lineItems = [
+        { description: `Vending lead: ${lead.title} — ${lead.city}, ${lead.state}`, amount: amountCents / 100 },
+      ];
+      if (fees.brokerFeeCents > 0) {
+        lineItems.push({ description: "Broker Fee (5%)", amount: fees.brokerFeeCents / 100 });
+      }
+      if (fees.processingFeeCents > 0) {
+        lineItems.push({ description: "Processing Fee (2.9%)", amount: fees.processingFeeCents / 100 });
+      }
+
+      const buyerEmail = user.email || "";
+      const invoice = await createInvoice({
+        customerEmail: buyerEmail,
+        customerName: profile?.role || buyerEmail,
+        lineItems,
+        memo: `Lead purchase: ${lead.title}`,
+        metadata: { type: "lead_purchase", user_id: userId, request_id: requestId, agreement_id: agreementId || "" },
+      });
+
+      await supabaseAdmin.from("lead_purchases").upsert(
+        {
+          user_id: userId,
+          request_id: requestId,
+          qb_invoice_id: invoice.Id,
+          payment_provider: "quickbooks",
+          amount_cents: totalAmountCents,
+          status: "pending",
+          buyer_email: buyerEmail,
+        },
+        { onConflict: "user_id,request_id" }
+      );
+
+      await sendInvoiceEmail(invoice.Id, buyerEmail);
+
+      const fullInvoice = await getInvoice(invoice.Id);
+      if (fullInvoice.InvoiceLink) {
+        return NextResponse.json({ url: fullInvoice.InvoiceLink });
+      }
+
+      return NextResponse.json({
+        url: `${siteUrl}/requests/${requestId}?invoice_sent=true`,
+        invoiceSent: true,
+        invoiceId: invoice.Id,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "QuickBooks error";
+      console.error("[lead-checkout] QB error:", message);
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",

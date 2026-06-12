@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getCoffeeUser, forbiddenResponse } from "@/lib/coffeeAuth";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+import { isQuickBooks } from "@/lib/paymentProvider";
+import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 
 export async function POST(req: NextRequest) {
   try {
@@ -100,7 +100,47 @@ export async function POST(req: NextRequest) {
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
 
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = orderItems.map((item) => ({
+    if (isQuickBooks()) {
+      const qbLineItems = orderItems.map((item) => ({
+        description: `${item.product_name} (SKU: ${item.product_sku})`,
+        amount: item.unit_price,
+        quantity: item.quantity,
+      }));
+
+      if (shippingTotal > 0) {
+        qbLineItems.push({ description: "Shipping", amount: shippingTotal, quantity: 1 });
+      }
+
+      const invoice = await createInvoice({
+        customerEmail: user.email || "",
+        customerName: user.full_name || user.email || "Customer",
+        lineItems: qbLineItems,
+        memo: `Coffee order ${orderNumber}`,
+        metadata: { type: "coffee_order", order_id: order.id, order_number: orderNumber, user_id: user.id },
+      });
+
+      await supabaseAdmin
+        .from("coffee_orders")
+        .update({ qb_invoice_id: invoice.Id, payment_provider: "quickbooks" })
+        .eq("id", order.id);
+
+      await sendInvoiceEmail(invoice.Id, user.email || undefined);
+
+      const fullInvoice = await getInvoice(invoice.Id);
+      if (fullInvoice.InvoiceLink) {
+        return NextResponse.json({ url: fullInvoice.InvoiceLink });
+      }
+
+      return NextResponse.json({
+        url: `${siteUrl}/coffee/orders/${order.id}?invoice_sent=true`,
+        invoiceSent: true,
+        invoiceId: invoice.Id,
+      });
+    }
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+    const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = orderItems.map((item) => ({
       price_data: {
         currency: "usd",
         unit_amount: Math.round(item.unit_price * 100),
@@ -113,7 +153,7 @@ export async function POST(req: NextRequest) {
     }));
 
     if (shippingTotal > 0) {
-      lineItems.push({
+      stripeLineItems.push({
         price_data: {
           currency: "usd",
           unit_amount: Math.round(shippingTotal * 100),
@@ -128,7 +168,7 @@ export async function POST(req: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
-      line_items: lineItems,
+      line_items: stripeLineItems,
       metadata: {
         type: "coffee_order",
         order_id: order.id,

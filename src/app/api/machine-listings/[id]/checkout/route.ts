@@ -3,6 +3,8 @@ import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { calculateFees, FEE_EXEMPT_ROLES } from "@/lib/checkoutFees";
+import { isQuickBooks } from "@/lib/paymentProvider";
+import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -80,11 +82,60 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `Failed to create purchase record: ${purchaseErr.message}` }, { status: 500 });
   }
 
+  const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
+
+  if (isQuickBooks()) {
+    try {
+      const lineItems = [
+        { description: `Vending machine purchase — ${listing.title}`, amount: priceInCents / 100 },
+      ];
+      if (deliveryFeeCents > 0) {
+        lineItems.push({ description: `Delivery for ${listing.title}`, amount: deliveryFeeCents / 100 });
+      }
+      if (fees.brokerFeeCents > 0) {
+        lineItems.push({ description: "Broker Fee (5%)", amount: fees.brokerFeeCents / 100 });
+      }
+      if (fees.processingFeeCents > 0) {
+        lineItems.push({ description: "Processing Fee (2.9%)", amount: fees.processingFeeCents / 100 });
+      }
+
+      const invoice = await createInvoice({
+        customerEmail: body.email,
+        customerName: body.full_name,
+        customerPhone: body.phone,
+        lineItems,
+        memo: `Vending machine purchase — ${listing.title}`,
+        metadata: { type: "machine_purchase", machine_listing_id: listing.id, purchase_id: purchase.id },
+      });
+
+      await supabaseAdmin
+        .from("machine_listing_purchases")
+        .update({ qb_invoice_id: invoice.Id, payment_provider: "quickbooks" })
+        .eq("id", purchase.id);
+
+      await sendInvoiceEmail(invoice.Id, body.email);
+
+      const fullInvoice = await getInvoice(invoice.Id);
+      if (fullInvoice.InvoiceLink) {
+        return NextResponse.json({ url: fullInvoice.InvoiceLink });
+      }
+
+      return NextResponse.json({
+        url: `${origin}/machines-for-sale/${listing.id}?invoice_sent=true`,
+        invoiceSent: true,
+        invoiceId: invoice.Id,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "QuickBooks error";
+      console.error("[machine-checkout] QB error:", message);
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeKey) return NextResponse.json({ error: "Payment not configured" }, { status: 500 });
 
   const stripe = new Stripe(stripeKey);
-  const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
