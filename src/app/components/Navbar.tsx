@@ -11,7 +11,7 @@ import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
 const navLinks = [
   { label: "Locations for Sale", href: "/signup?redirect=/browse-requests" },
-  { label: "Sell a Location", href: "/signup?redirect=/marketplace" },
+  { label: "Sell a Location", href: "/signup?role=locator&redirect=/marketplace" },
   { label: "Machines for Sale", href: "/signup?redirect=/machines-for-sale" },
   { label: "Routes for Sale", href: "/signup?redirect=/routes-for-sale" },
   { label: "Browse Operators", href: "/signup?redirect=/browse-operators" },

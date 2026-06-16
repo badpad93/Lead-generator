@@ -18,7 +18,7 @@ const roles: { value: Role; label: string; icon: typeof Truck; description: stri
   },
   {
     value: "location_manager",
-    label: "Location",
+    label: "Locator",
     icon: Building2,
     description: "I have a property and want a vending machine placed",
   },
@@ -41,8 +41,13 @@ export default function SignupPage() {
 function SignupContent() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/dashboard";
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [role, setRole] = useState<Role | null>(null);
+  const roleParam = searchParams.get("role");
+  const presetRole = (roleParam === "locator" || roleParam === "location_manager") ? "location_manager" as Role
+    : roleParam === "operator" ? "operator" as Role
+    : roleParam === "employee" ? "employee" as Role
+    : null;
+  const [step, setStep] = useState<1 | 2 | 3>(presetRole ? 2 : 1);
+  const [role, setRole] = useState<Role | null>(presetRole);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<"google" | "microsoft" | null>(null);
   const [existingEmail, setExistingEmail] = useState<string | null>(null);
