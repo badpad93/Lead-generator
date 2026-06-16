@@ -91,7 +91,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { data: lead, error: dbError } = await supabaseAdmin.from("sales_leads").insert({
+  const leadRow: Record<string, unknown> = {
     business_name,
     contact_name,
     phone,
@@ -105,11 +105,24 @@ export async function POST(req: Request) {
     notes: `Location services request — ${machine_count} machine(s) requested for ZIP(s) ${zip_code} in ${state}${referringRepName ? ` (referred by ${referringRepName})` : ""}`,
     created_by: referringRep,
     assigned_to: referringRep,
+  };
+
+  // Try with deposit columns (requires migration 081)
+  let { data: lead, error: dbError } = await supabaseAdmin.from("sales_leads").insert({
+    ...leadRow,
     deposit_status: "pending",
     deposit_amount_cents: DEPOSIT_CENTS,
   }).select("id").single();
 
-  if (dbError) {
+  // Fallback if deposit columns don't exist yet
+  if (dbError && dbError.message?.includes("deposit_")) {
+    console.warn("[request-location] deposit columns missing, inserting without them");
+    const fallback = await supabaseAdmin.from("sales_leads").insert(leadRow).select("id").single();
+    lead = fallback.data;
+    dbError = fallback.error;
+  }
+
+  if (dbError || !lead) {
     console.error("[request-location] db error", dbError);
     return NextResponse.json(
       { error: "Failed to save request" },
@@ -152,10 +165,14 @@ export async function POST(req: Request) {
       },
     });
 
-    await supabaseAdmin
-      .from("sales_leads")
-      .update({ qb_invoice_id: invoice.Id })
-      .eq("id", lead.id);
+    try {
+      await supabaseAdmin
+        .from("sales_leads")
+        .update({ qb_invoice_id: invoice.Id })
+        .eq("id", lead.id);
+    } catch {
+      // column may not exist if migration 081 hasn't run
+    }
 
     await sendInvoiceEmail(invoice.Id, email);
 
