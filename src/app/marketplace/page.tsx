@@ -254,7 +254,7 @@ export default function MarketplacePage() {
         <ShoppingBag className="h-10 w-10 mx-auto mb-3 opacity-80" />
         <h2 className="text-lg sm:text-xl font-bold mb-2">Have Leads or Locations to Sell?</h2>
         <p className="text-green-100 text-sm mb-4 max-w-md mx-auto">
-          Connect your Stripe account and start earning. You set the price — we handle the payment. You keep 85%.
+          List your leads, locations, or routes for sale. You set the price — we handle the payment. You keep 85%.
         </p>
         <Link
           href="/my-listings"
