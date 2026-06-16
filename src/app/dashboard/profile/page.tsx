@@ -48,6 +48,12 @@ function ProfilePageInner() {
     role: "" as string,
     digest_opt_in: true,
     digest_frequency: "weekly" as string,
+    payout_method: "" as string,
+    payout_email: "",
+    payout_bank_name: "",
+    payout_routing_number: "",
+    payout_account_number: "",
+    payout_notes: "",
   });
 
   useEffect(() => {
@@ -83,6 +89,12 @@ function ProfilePageInner() {
           role: data.role || "location_manager",
           digest_opt_in: data.digest_opt_in ?? true,
           digest_frequency: data.digest_frequency || "weekly",
+          payout_method: data.payout_method || "",
+          payout_email: data.payout_email || "",
+          payout_bank_name: data.payout_bank_name || "",
+          payout_routing_number: data.payout_routing_number || "",
+          payout_account_number: data.payout_account_number || "",
+          payout_notes: data.payout_notes || "",
         });
 
         // Handle ?digest=off unsubscribe link
@@ -141,6 +153,12 @@ function ProfilePageInner() {
           role: form.role,
           digest_opt_in: form.digest_opt_in,
           digest_frequency: form.digest_frequency,
+          payout_method: form.payout_method || null,
+          payout_email: form.payout_email || null,
+          payout_bank_name: form.payout_bank_name || null,
+          payout_routing_number: form.payout_routing_number || null,
+          payout_account_number: form.payout_account_number || null,
+          payout_notes: form.payout_notes || null,
         }),
       });
 
@@ -410,6 +428,106 @@ function ProfilePageInner() {
               </div>
             </div>
           )}
+
+          {/* Payout Information */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h2 className="mb-1 text-lg font-semibold text-black-primary">
+              Payout Information
+            </h2>
+            <p className="mb-4 text-sm text-black-primary/50">
+              Required if you sell on the marketplace. We&apos;ll use this to send your earnings.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-black-primary">
+                  Payout Method
+                </label>
+                <select
+                  value={form.payout_method}
+                  onChange={(e) => setForm((f) => ({ ...f, payout_method: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                >
+                  <option value="">Select method...</option>
+                  <option value="zelle">Zelle</option>
+                  <option value="paypal">PayPal</option>
+                  <option value="venmo">Venmo</option>
+                  <option value="wire">Wire / ACH Transfer</option>
+                  <option value="check">Check</option>
+                </select>
+              </div>
+
+              {(form.payout_method === "zelle" || form.payout_method === "paypal" || form.payout_method === "venmo") && (
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-black-primary">
+                    {form.payout_method === "zelle" ? "Zelle Email or Phone" : form.payout_method === "paypal" ? "PayPal Email" : "Venmo Username or Phone"}
+                  </label>
+                  <input
+                    type="text"
+                    value={form.payout_email}
+                    onChange={(e) => setForm((f) => ({ ...f, payout_email: e.target.value }))}
+                    placeholder={form.payout_method === "venmo" ? "@username or phone" : "email@example.com"}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                  />
+                </div>
+              )}
+
+              {form.payout_method === "wire" && (
+                <>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-black-primary">
+                      Bank Name
+                    </label>
+                    <input
+                      type="text"
+                      value={form.payout_bank_name}
+                      onChange={(e) => setForm((f) => ({ ...f, payout_bank_name: e.target.value }))}
+                      placeholder="Chase, Bank of America, etc."
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-black-primary">
+                        Routing Number
+                      </label>
+                      <input
+                        type="text"
+                        value={form.payout_routing_number}
+                        onChange={(e) => setForm((f) => ({ ...f, payout_routing_number: e.target.value }))}
+                        placeholder="9 digits"
+                        maxLength={9}
+                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-black-primary">
+                        Account Number
+                      </label>
+                      <input
+                        type="text"
+                        value={form.payout_account_number}
+                        onChange={(e) => setForm((f) => ({ ...f, payout_account_number: e.target.value }))}
+                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-black-primary">
+                  Notes
+                </label>
+                <input
+                  type="text"
+                  value={form.payout_notes}
+                  onChange={(e) => setForm((f) => ({ ...f, payout_notes: e.target.value }))}
+                  placeholder="Any additional payout instructions"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
+              </div>
+            </div>
+          </div>
 
           {/* Save Button */}
           <div className="flex items-center justify-end gap-3">

@@ -552,14 +552,16 @@ export async function handleMarketplacePurchaseCompleted(params: {
 }) {
   const { sessionId, listingId, sellerId, paymentId, buyerEmail } = params;
 
-  await supabaseAdmin
+  const { data: purchase } = await supabaseAdmin
     .from("user_listing_purchases")
     .update({
       status: "completed",
       stripe_payment_intent_id: paymentId,
       updated_at: new Date().toISOString(),
     })
-    .or(`stripe_checkout_session_id.eq.${sessionId},qb_invoice_id.eq.${sessionId}`);
+    .or(`stripe_checkout_session_id.eq.${sessionId},qb_invoice_id.eq.${sessionId}`)
+    .select("id, amount_cents, platform_fee_cents, seller_payout_cents")
+    .single();
 
   await supabaseAdmin
     .from("user_listings")
@@ -575,6 +577,26 @@ export async function handleMarketplacePurchaseCompleted(params: {
   const { data: sellerUser } = sellerId
     ? await supabaseAdmin.auth.admin.getUserById(sellerId)
     : { data: null };
+
+  // Fetch seller payout info for admin notification
+  let sellerProfile: {
+    full_name: string | null;
+    payout_method: string | null;
+    payout_email: string | null;
+    payout_bank_name: string | null;
+    payout_routing_number: string | null;
+    payout_account_number: string | null;
+    payout_notes: string | null;
+  } | null = null;
+
+  if (sellerId) {
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name, payout_method, payout_email, payout_bank_name, payout_routing_number, payout_account_number, payout_notes")
+      .eq("id", sellerId)
+      .single();
+    sellerProfile = data;
+  }
 
   if (sellerUser?.user?.email && listing) {
     try {
@@ -602,6 +624,32 @@ export async function handleMarketplacePurchaseCompleted(params: {
       });
     } catch (e) {
       console.error("[payment-handler] Failed to send marketplace purchase email:", e);
+    }
+  }
+
+  // Send admin payout notification
+  if (listing && purchase) {
+    try {
+      const { sendMarketplacePayoutNotification } = await import("@/lib/marketplaceEmail");
+      const saleAmount = Number(listing.price);
+      await sendMarketplacePayoutNotification({
+        listingTitle: listing.title,
+        saleAmount,
+        platformFee: saleAmount * 0.15,
+        sellerPayout: saleAmount * 0.85,
+        sellerName: sellerProfile?.full_name || "Unknown Seller",
+        sellerEmail: sellerUser?.user?.email || "",
+        buyerEmail: buyerEmail || "",
+        payoutMethod: sellerProfile?.payout_method || null,
+        payoutEmail: sellerProfile?.payout_email || null,
+        payoutBankName: sellerProfile?.payout_bank_name || null,
+        payoutRoutingNumber: sellerProfile?.payout_routing_number || null,
+        payoutAccountNumber: sellerProfile?.payout_account_number || null,
+        payoutNotes: sellerProfile?.payout_notes || null,
+        purchaseId: purchase.id,
+      });
+    } catch (e) {
+      console.error("[payment-handler] Failed to send admin payout notification:", e);
     }
   }
 }

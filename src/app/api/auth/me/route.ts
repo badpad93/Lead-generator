@@ -95,6 +95,8 @@ export async function PATCH(req: NextRequest) {
       "full_name", "company_name", "phone", "website", "bio",
       "address", "city", "state", "zip", "role",
       "digest_opt_in", "digest_frequency",
+      "payout_method", "payout_email", "payout_bank_name",
+      "payout_routing_number", "payout_account_number", "payout_notes",
     ];
     // Privileged roles can ONLY be set by an admin via /api/admin/users.
     // Self-service signup must never grant admin/sales access.

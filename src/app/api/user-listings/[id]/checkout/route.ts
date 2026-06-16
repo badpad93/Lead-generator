@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isQuickBooks } from "@/lib/paymentProvider";
+import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 
 const PLATFORM_FEE_RATE = 0.15;
 
@@ -51,6 +53,64 @@ export async function POST(
     return NextResponse.json({ error: "This listing has already been sold" }, { status: 409 });
   }
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
+  const amountCents = Math.round(Number(listing.price) * 100);
+  const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_RATE);
+  const typeLabel = listing.listing_type === "lead" ? "Vending Lead" : listing.listing_type === "location" ? "Location" : "Route";
+
+  if (isQuickBooks()) {
+    try {
+      const invoice = await createInvoice({
+        customerEmail: user.email || "",
+        customerName: user.user_metadata?.full_name || user.email || "Buyer",
+        lineItems: [
+          {
+            description: `${typeLabel} — ${listing.title} (${listing.city || ""}, ${listing.state})`.trim(),
+            amount: amountCents / 100,
+          },
+        ],
+        memo: `Marketplace purchase — ${listing.title}`,
+        metadata: {
+          type: "marketplace_purchase",
+          listing_id: listing.id,
+          buyer_id: user.id,
+          seller_id: listing.seller_id,
+        },
+      });
+
+      await supabaseAdmin.from("user_listing_purchases").insert({
+        listing_id: listing.id,
+        buyer_id: user.id,
+        seller_id: listing.seller_id,
+        amount_cents: amountCents,
+        platform_fee_cents: platformFeeCents,
+        seller_payout_cents: amountCents - platformFeeCents,
+        qb_invoice_id: invoice.Id,
+        payment_provider: "quickbooks",
+        status: "pending",
+        payout_status: "pending",
+      });
+
+      await sendInvoiceEmail(invoice.Id, user.email || undefined);
+
+      const fullInvoice = await getInvoice(invoice.Id);
+      if (fullInvoice.InvoiceLink) {
+        return NextResponse.json({ url: fullInvoice.InvoiceLink });
+      }
+
+      return NextResponse.json({
+        url: `${siteUrl}/marketplace/${listing.id}?invoice_sent=true`,
+        invoiceSent: true,
+        invoiceId: invoice.Id,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "QuickBooks error";
+      console.error("[marketplace-checkout] QB error:", message);
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
+  // Stripe Connect path
   const { data: sellerProfile } = await supabaseAdmin
     .from("profiles")
     .select("stripe_account_id, stripe_onboarding_complete")
@@ -65,10 +125,6 @@ export async function POST(
   }
 
   const stripe = new Stripe(process.env.STRIPE_CONNECT_SECRET_KEY!);
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
-
-  const amountCents = Math.round(Number(listing.price) * 100);
-  const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_RATE);
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -80,7 +136,7 @@ export async function POST(
           unit_amount: amountCents,
           product_data: {
             name: listing.title,
-            description: `${listing.listing_type === "lead" ? "Vending Lead" : listing.listing_type === "location" ? "Location" : "Route"} in ${listing.city || ""}, ${listing.state}`.trim(),
+            description: `${typeLabel} in ${listing.city || ""}, ${listing.state}`.trim(),
           },
         },
         quantity: 1,
