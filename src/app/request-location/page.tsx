@@ -136,9 +136,7 @@ function RequestLocationInner() {
         return;
       }
 
-      setReceiptData(form);
-      setDeposited(true);
-      setForm(initial);
+      setError("Unable to process payment. Please try again or call (888) 851-1462.");
     } catch {
       setError("Network error. Please try again.");
     } finally {
