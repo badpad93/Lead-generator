@@ -226,7 +226,7 @@ function RequestLocationInner() {
         <div className="rounded-2xl border border-green-100 bg-white p-6 shadow-lg sm:p-8">
           <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
             <p className="text-sm text-amber-800">
-              <strong>$100.00 deposit required</strong> — A refundable deposit is collected to begin your location search. You will be redirected to complete payment after submitting.
+              <strong>$100.00 non-refundable deposit required</strong> — A deposit is collected to begin your location search. You will be redirected to complete payment after submitting.
             </p>
           </div>
 
