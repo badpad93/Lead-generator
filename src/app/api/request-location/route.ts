@@ -85,7 +85,10 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (existingLead) {
-    return NextResponse.json({ id: existingLead.id, existing: true }, { status: 200 });
+    return NextResponse.json(
+      { error: "A request for this business has already been submitted. Call (888) 851-1462 if you need assistance." },
+      { status: 409 }
+    );
   }
 
   const { data: lead, error: dbError } = await supabaseAdmin.from("sales_leads").insert({
@@ -178,20 +181,16 @@ export async function POST(req: Request) {
     const message = err instanceof Error ? err.message : "Payment error";
     console.error("[request-location] QB invoice error:", message);
 
-    // If QB fails, still save the lead and notify — just skip payment
-    sendAdminNotification({
-      business_name, contact_name, phone, email, address, state, zip_code, machine_count,
-    }).catch((e) => console.error("[request-location] email error", e));
-
-    sendLocationRequestConfirmation({ to: email, name: contact_name })
-      .catch((e) => console.error("[request-location] confirmation email error", e));
-
+    // Delete the lead since payment is required
     await supabaseAdmin
       .from("sales_leads")
-      .update({ deposit_status: "skipped" })
+      .delete()
       .eq("id", lead.id);
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json(
+      { error: "Unable to process deposit payment. Please try again or call (888) 851-1462 for assistance." },
+      { status: 500 }
+    );
   }
 }
 
