@@ -11,7 +11,6 @@ import {
   User,
   Building2,
   MapPin,
-  Globe,
   Phone,
   Mail,
 } from "lucide-react";
@@ -39,7 +38,6 @@ function ProfilePageInner() {
     full_name: "",
     company_name: "",
     phone: "",
-    website: "",
     bio: "",
     address: "",
     city: "",
@@ -80,7 +78,6 @@ function ProfilePageInner() {
           full_name: data.full_name || "",
           company_name: data.company_name || "",
           phone: data.phone || "",
-          website: data.website || "",
           bio: data.bio || "",
           address: data.address || "",
           city: data.city || "",
@@ -144,7 +141,6 @@ function ProfilePageInner() {
           full_name: form.full_name,
           company_name: form.company_name || null,
           phone: form.phone || null,
-          website: form.website || null,
           bio: form.bio || null,
           address: form.address || null,
           city: form.city || null,
@@ -288,33 +284,18 @@ function ProfilePageInner() {
               Contact Information
             </h2>
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-black-primary">
-                    <Phone className="h-4 w-4 text-black-primary/40" />
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                    placeholder="(555) 123-4567"
-                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-black-primary">
-                    <Globe className="h-4 w-4 text-black-primary/40" />
-                    Website
-                  </label>
-                  <input
-                    type="url"
-                    value={form.website}
-                    onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
-                    placeholder="https://example.com"
-                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
-                  />
-                </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-black-primary">
+                  <Phone className="h-4 w-4 text-black-primary/40" />
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  placeholder="(555) 123-4567"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                />
               </div>
             </div>
           </div>
