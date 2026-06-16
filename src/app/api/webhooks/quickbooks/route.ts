@@ -244,6 +244,25 @@ async function handleQBPayment(paymentId: string, realmId: string) {
       continue;
     }
 
+    // Check sales_leads (location services deposit)
+    const { data: depositLead } = await supabaseAdmin
+      .from("sales_leads")
+      .select("id")
+      .eq("qb_invoice_id", invoiceId)
+      .maybeSingle();
+
+    if (depositLead) {
+      console.log(`[qb-webhook] Processing location services deposit for invoice ${invoiceId}`);
+      await supabaseAdmin
+        .from("sales_leads")
+        .update({
+          deposit_status: "completed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", depositLead.id);
+      continue;
+    }
+
     console.log(`[qb-webhook] No matching record found for invoice ${invoiceId}`);
   }
 }

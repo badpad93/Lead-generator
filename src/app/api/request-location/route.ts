@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendLocationRequestConfirmation } from "@/lib/intakeEmail";
+import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 
 const TO_EMAILS = ["james@apexaivending.com", "louis.cirino@apexaivending.com"];
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
+const DEPOSIT_CENTS = 10000; // $100.00
 
 function clean(v: unknown): string {
   return typeof v === "string" ? v.trim().slice(0, 500) : "";
@@ -60,8 +62,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // Optional referring sales rep — validate they actually have a sales/admin role
-  // so commissions and results dashboards attribute the lead correctly.
   const ref = clean(body.ref);
   let referringRep: string | null = null;
   let referringRepName: string | null = null;
@@ -102,6 +102,8 @@ export async function POST(req: Request) {
     notes: `Location services request — ${machine_count} machine(s) requested for ZIP(s) ${zip_code} in ${state}${referringRepName ? ` (referred by ${referringRepName})` : ""}`,
     created_by: referringRep,
     assigned_to: referringRep,
+    deposit_status: "pending",
+    deposit_amount_cents: DEPOSIT_CENTS,
   }).select("id").single();
 
   if (dbError) {
@@ -127,38 +129,106 @@ export async function POST(req: Request) {
     console.error("[request-location] account creation error", accountError);
   }
 
-  // Fire email — log but do not fail the request if email errors.
+  // Create QB invoice for $100 deposit
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const html = `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
-        <h2 style="color:#16a34a;margin:0 0 16px;">New Location Services Request</h2>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">
-          <tr><td style="padding:6px 0;color:#6b7280;">Business Name</td><td style="padding:6px 0;color:#111827;font-weight:600;">${business_name}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280;">Contact Name</td><td style="padding:6px 0;color:#111827;">${contact_name}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280;">Phone</td><td style="padding:6px 0;color:#111827;">${phone}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280;">Email</td><td style="padding:6px 0;color:#111827;">${email}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280;">Address</td><td style="padding:6px 0;color:#111827;">${address}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280;">State</td><td style="padding:6px 0;color:#111827;">${state}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280;">ZIP Code(s)</td><td style="padding:6px 0;color:#111827;">${zip_code}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280;">Machines Requested</td><td style="padding:6px 0;color:#111827;font-weight:600;">${machine_count}</td></tr>
-        </table>
-      </div>
-    `;
-    await resend.emails.send({
-      from: FROM_EMAIL,
-      to: TO_EMAILS,
-      subject: `New Location Services Request – ${business_name}`,
-      html,
+    const invoice = await createInvoice({
+      customerEmail: email,
+      customerName: contact_name,
+      customerPhone: phone,
+      lineItems: [
+        {
+          description: `Location Services Deposit — ${business_name} (${machine_count} machine(s), ${state})`,
+          amount: DEPOSIT_CENTS / 100,
+        },
+      ],
+      memo: `Location services deposit for ${business_name}`,
+      metadata: {
+        type: "location_services_deposit",
+        lead_id: lead.id,
+      },
     });
-  } catch (e) {
-    console.error("[request-location] email error", e);
+
+    await supabaseAdmin
+      .from("sales_leads")
+      .update({ qb_invoice_id: invoice.Id })
+      .eq("id", lead.id);
+
+    await sendInvoiceEmail(invoice.Id, email);
+
+    const fullInvoice = await getInvoice(invoice.Id);
+
+    // Send admin notification email
+    sendAdminNotification({
+      business_name, contact_name, phone, email, address, state, zip_code, machine_count,
+    }).catch((e) => console.error("[request-location] email error", e));
+
+    sendLocationRequestConfirmation({ to: email, name: contact_name })
+      .catch((e) => console.error("[request-location] confirmation email error", e));
+
+    if (fullInvoice.InvoiceLink) {
+      return NextResponse.json({ url: fullInvoice.InvoiceLink });
+    }
+
+    return NextResponse.json({
+      url: `${siteUrl}/request-location?deposited=true`,
+      invoiceSent: true,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Payment error";
+    console.error("[request-location] QB invoice error:", message);
+
+    // If QB fails, still save the lead and notify — just skip payment
+    sendAdminNotification({
+      business_name, contact_name, phone, email, address, state, zip_code, machine_count,
+    }).catch((e) => console.error("[request-location] email error", e));
+
+    sendLocationRequestConfirmation({ to: email, name: contact_name })
+      .catch((e) => console.error("[request-location] confirmation email error", e));
+
+    await supabaseAdmin
+      .from("sales_leads")
+      .update({ deposit_status: "skipped" })
+      .eq("id", lead.id);
+
+    return NextResponse.json({ ok: true });
   }
+}
 
-  sendLocationRequestConfirmation({
-    to: email,
-    name: contact_name,
-  }).catch((e) => console.error("[request-location] confirmation email error", e));
-
-  return NextResponse.json({ ok: true });
+async function sendAdminNotification(params: {
+  business_name: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  address: string;
+  state: string;
+  zip_code: string;
+  machine_count: number;
+}) {
+  const { business_name, contact_name, phone, email, address, state, zip_code, machine_count } = params;
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
+      <h2 style="color:#16a34a;margin:0 0 16px;">New Location Services Request</h2>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:16px;">
+        <p style="margin:0;color:#166534;font-size:14px;font-weight:600;">$100.00 Deposit Pending</p>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="padding:6px 0;color:#6b7280;">Business Name</td><td style="padding:6px 0;color:#111827;font-weight:600;">${business_name}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Contact Name</td><td style="padding:6px 0;color:#111827;">${contact_name}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Phone</td><td style="padding:6px 0;color:#111827;">${phone}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Email</td><td style="padding:6px 0;color:#111827;">${email}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Address</td><td style="padding:6px 0;color:#111827;">${address}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">State</td><td style="padding:6px 0;color:#111827;">${state}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">ZIP Code(s)</td><td style="padding:6px 0;color:#111827;">${zip_code}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Machines Requested</td><td style="padding:6px 0;color:#111827;font-weight:600;">${machine_count}</td></tr>
+      </table>
+    </div>
+  `;
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: TO_EMAILS,
+    subject: `New Location Services Request – ${business_name} ($100 Deposit)`,
+    html,
+  });
 }
