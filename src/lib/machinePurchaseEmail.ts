@@ -76,7 +76,7 @@ export async function sendMachinePurchaseThankYouEmail(params: ThankYouParams) {
 }
 
 interface NotificationParams {
-  to: string;
+  to: string | string[];
   purchase: Record<string, unknown>;
   machineTitle: string;
   listing: Record<string, unknown> | null;
@@ -85,6 +85,9 @@ interface NotificationParams {
 export async function sendMachinePurchaseNotificationEmail(params: NotificationParams) {
   const { to, purchase, machineTitle, listing } = params;
   const amount = `$${(Number(purchase.amount_cents) / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+
+  const businessAddr = [purchase.business_address, purchase.business_city, purchase.business_state, purchase.business_zip]
+    .filter(Boolean).join(", ") || "—";
 
   const locationRows = purchase.location_status === "confirmed"
     ? `
@@ -125,6 +128,7 @@ export async function sendMachinePurchaseNotificationEmail(params: NotificationP
           <tr><td style="padding:6px 12px;color:#6b7280;font-size:13px;">Phone</td><td style="padding:6px 12px;color:#111827;font-size:13px;">${purchase.phone || "—"}</td></tr>
           <tr><td style="padding:6px 12px;color:#6b7280;font-size:13px;">Buyer Type</td><td style="padding:6px 12px;color:#111827;font-size:13px;">${purchase.buyer_type || "—"}</td></tr>
           <tr><td style="padding:6px 12px;color:#6b7280;font-size:13px;">Business Name</td><td style="padding:6px 12px;color:#111827;font-size:13px;">${purchase.business_name || "—"}</td></tr>
+          <tr><td style="padding:6px 12px;color:#6b7280;font-size:13px;">Business Address</td><td style="padding:6px 12px;color:#111827;font-size:13px;">${businessAddr}</td></tr>
           <tr><td style="padding:6px 12px;color:#6b7280;font-size:13px;">LLC Status</td><td style="padding:6px 12px;color:#111827;font-size:13px;">${purchase.llc_status || "—"}</td></tr>
         </table>
 
@@ -143,6 +147,76 @@ export async function sendMachinePurchaseNotificationEmail(params: NotificationP
 
         <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />
         <p style="color:#9ca3af;font-size:11px;">Vending Connector — vendingconnector.com</p>
+      </div>
+    `,
+  });
+}
+
+interface OnboardingParams {
+  to: string;
+  buyerName: string;
+}
+
+export async function sendMachineOnboardingEmail(params: OnboardingParams) {
+  const { to, buyerName } = params;
+
+  await getResend().emails.send({
+    from: "james@apexaivending.com",
+    to,
+    subject: "Next Steps — WeVend Payment Processing & Vendera Operator Account Setup",
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;">
+        <p style="color:#374151;font-size:14px;line-height:1.7;">
+          Hi ${buyerName},
+        </p>
+        <p style="color:#374151;font-size:14px;line-height:1.7;">
+          Thank you for your purchase! To get your machine up and running, please complete the two steps below:
+        </p>
+
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:20px;margin:24px 0;">
+          <h2 style="color:#166534;font-size:16px;margin:0 0 12px;">Step 1 – WeVend Payment Processing Application</h2>
+          <p style="color:#374151;font-size:14px;line-height:1.7;margin:0 0 12px;">
+            WeVend is the payment processor that handles all credit and debit card transactions on your Vendera machine.
+            Please complete the application at the link below:
+          </p>
+          <p style="margin:0 0 16px;">
+            <a href="https://form.jotform.com/Wevend/Vendera" style="color:#16a34a;font-weight:600;font-size:14px;">https://form.jotform.com/Wevend/Vendera</a>
+          </p>
+          <p style="color:#374151;font-size:13px;line-height:1.7;margin:0;">
+            It is important that all information is entered accurately and matches your business records, including:
+          </p>
+          <ul style="color:#374151;font-size:13px;line-height:1.8;margin:8px 0 0;padding-left:20px;">
+            <li>Business name and address</li>
+            <li>EIN document showing the registered business address</li>
+            <li>Owner information</li>
+            <li>Bank account details (voided check or bank letter)</li>
+          </ul>
+        </div>
+
+        <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:12px;padding:20px;margin:24px 0;">
+          <h2 style="color:#1e40af;font-size:16px;margin:0 0 12px;">Step 2 – Create Your Vendera Operator Account</h2>
+          <p style="color:#374151;font-size:14px;line-height:1.7;margin:0 0 12px;">
+            This account gives you access to the Vendera app to manage your machine, view sales, monitor inventory, and receive alerts.
+          </p>
+          <p style="color:#374151;font-size:14px;line-height:1.7;margin:0 0 12px;">
+            Please go to the link below and click "Apply as Operator" to create your account:
+          </p>
+          <p style="margin:0;">
+            <a href="https://vms.vendera.ai/login" style="color:#1e40af;font-weight:600;font-size:14px;">https://vms.vendera.ai/login</a>
+          </p>
+        </div>
+
+        <p style="color:#374151;font-size:14px;line-height:1.7;">
+          Once both steps are completed, our team will connect your payment processing and activate your machine so it is ready to accept payments and go live.
+        </p>
+        <p style="color:#374151;font-size:14px;line-height:1.7;">
+          If you have any questions while filling this out, feel free to reach out.
+        </p>
+        <p style="color:#374151;font-size:14px;line-height:1.7;margin-top:24px;">
+          Thank you,<br />
+          <strong>James Padden</strong><br />
+          <span style="color:#6b7280;font-size:13px;">Apex AI Vending</span>
+        </p>
       </div>
     `,
   });

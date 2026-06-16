@@ -68,6 +68,12 @@ export default function CheckoutFormPage() {
   const [llcStatus, setLlcStatus] = useState("");
   const [locationStatus, setLocationStatus] = useState("");
 
+  // Business address
+  const [businessAddress, setBusinessAddress] = useState("");
+  const [businessCity, setBusinessCity] = useState("");
+  const [businessState, setBusinessState] = useState("");
+  const [businessZip, setBusinessZip] = useState("");
+
   // Existing location fields
   const [locationBusinessName, setLocationBusinessName] = useState("");
   const [locationAddress, setLocationAddress] = useState("");
@@ -140,6 +146,14 @@ export default function CheckoutFormPage() {
       setError("Please fill in all required fields (name, email, phone).");
       return;
     }
+    if (!businessName.trim()) {
+      setError("Please enter your business name.");
+      return;
+    }
+    if (!businessAddress.trim() || !businessCity.trim() || !businessState.trim() || !businessZip.trim()) {
+      setError("Please fill in your complete business address.");
+      return;
+    }
     if (!buyerType) {
       setError("Please select your buyer type.");
       return;
@@ -169,7 +183,11 @@ export default function CheckoutFormPage() {
           email: email.trim(),
           phone: phone.trim(),
           buyer_type: buyerType,
-          business_name: businessName.trim() || null,
+          business_name: businessName.trim(),
+          business_address: businessAddress.trim(),
+          business_city: businessCity.trim(),
+          business_state: businessState.trim(),
+          business_zip: businessZip.trim(),
           llc_status: llcStatus || null,
           location_status: locationStatus,
           location_business_name: locationBusinessName.trim() || null,
@@ -344,8 +362,26 @@ export default function CheckoutFormPage() {
             </div>
             <div className="px-6 py-5 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Business Name</label>
-                <input type="text" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Enter business name or TBD" className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm placeholder:text-gray-300 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
+                <label className="block text-xs font-medium text-gray-500 mb-1">Business Name *</label>
+                <input type="text" required value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Enter business name" className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm placeholder:text-gray-300 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Business Address *</label>
+                <input type="text" required value={businessAddress} onChange={(e) => setBusinessAddress(e.target.value)} placeholder="Street address" className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm placeholder:text-gray-300 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">City *</label>
+                  <input type="text" required value={businessCity} onChange={(e) => setBusinessCity(e.target.value)} className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">State *</label>
+                  <input type="text" required value={businessState} onChange={(e) => setBusinessState(e.target.value)} className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">ZIP *</label>
+                  <input type="text" required value={businessZip} onChange={(e) => setBusinessZip(e.target.value)} className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Do you have an LLC formed?</label>

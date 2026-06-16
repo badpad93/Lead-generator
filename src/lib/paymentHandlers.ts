@@ -5,7 +5,7 @@ import {
   sendPurchaseConfirmationEmail,
   isLeadInfoComplete,
 } from "@/lib/email";
-import { sendMachinePurchaseThankYouEmail, sendMachinePurchaseNotificationEmail } from "@/lib/machinePurchaseEmail";
+import { sendMachinePurchaseThankYouEmail, sendMachinePurchaseNotificationEmail, sendMachineOnboardingEmail } from "@/lib/machinePurchaseEmail";
 import { generateSiteDetailsPdf } from "@/lib/pdf/agreementPdf";
 import { sendFullSiteDetailsEmail } from "@/lib/agreementEmail";
 import { sendLocationDealClosedEmail } from "@/lib/locationAgreementEmail";
@@ -443,6 +443,15 @@ export async function handleMachinePurchaseCompleted(params: {
   }
 
   try {
+    await sendMachineOnboardingEmail({
+      to: purchase.email,
+      buyerName: purchase.full_name,
+    });
+  } catch (e) {
+    console.error("[payment-handler] Failed to send onboarding email:", e);
+  }
+
+  try {
     await sendMachinePurchaseThankYouEmail({
       to: purchase.email,
       buyerName: purchase.full_name,
@@ -457,8 +466,10 @@ export async function handleMachinePurchaseCompleted(params: {
 
   try {
     const notifyEmail = process.env.MACHINE_PURCHASE_NOTIFY_EMAIL || "james@apexaivending.com";
+    const venderaRecipients = ["ccardin@vendera.ai", "jtang@vendera.ai"];
+    const allRecipients = [notifyEmail, ...venderaRecipients];
     await sendMachinePurchaseNotificationEmail({
-      to: notifyEmail,
+      to: allRecipients,
       purchase,
       machineTitle,
       listing,
