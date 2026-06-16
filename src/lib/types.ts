@@ -55,6 +55,12 @@ export interface Profile {
   coffee_access_enabled?: boolean;
   coffee_agreement_signed?: boolean;
   coffee_application_status?: string | null;
+  payout_method?: string | null;
+  payout_email?: string | null;
+  payout_bank_name?: string | null;
+  payout_routing_number?: string | null;
+  payout_account_number?: string | null;
+  payout_notes?: string | null;
   created_at: string;
 }
 
