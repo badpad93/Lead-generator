@@ -245,7 +245,7 @@ export default function ListingDetailPage() {
               <p className="text-red-600 text-sm mt-3">{error}</p>
             )}
             <p className="text-xs text-gray-400 mt-3">
-              Secure payment via Stripe. Contact details are shared after purchase.
+              Secure payment via invoice. Contact details are shared after purchase.
             </p>
           </div>
 

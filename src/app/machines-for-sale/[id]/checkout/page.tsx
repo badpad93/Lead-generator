@@ -714,7 +714,7 @@ export default function CheckoutFormPage() {
           </button>
 
           <p className="text-xs text-gray-400 text-center mt-3">
-            You will be redirected to Stripe for secure payment processing.
+            You will be redirected for secure payment processing.
           </p>
         </form>
       </div>
