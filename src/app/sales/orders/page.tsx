@@ -3,28 +3,99 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Loader2, ClipboardList, Plus, Trash2, X } from "lucide-react";
-import type { SalesOrder, SalesAccount } from "@/lib/salesTypes";
+import {
+  Loader2, ClipboardList, Plus, Search, AlertCircle,
+  ChevronRight, Package, MapPin, Coffee, Monitor, Wrench, DollarSign,
+} from "lucide-react";
 
-interface NewOrderItem {
+interface OrderItem {
+  id: string;
+  item_type: string;
   service_name: string;
-  price: string;
+  quantity: number;
+  total_price: number;
+}
+
+interface Order {
+  id: string;
+  order_number: number;
+  order_status: string;
+  order_type: string | null;
+  total_value: number;
+  payment_status: string;
+  invoice_status: string;
+  agreement_status: string;
+  fulfillment_status: string;
+  next_required_action: string | null;
+  created_at: string;
+  updated_at: string;
+  sales_accounts: { id: string; business_name: string; contact_name: string; email: string; phone: string } | null;
+  order_items: OrderItem[];
+  assigned_profile: { full_name: string } | null;
+}
+
+const STATUS_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "draft", label: "Draft" },
+  { key: "awaiting_customer_info", label: "Awaiting Info" },
+  { key: "invoice_sent", label: "Invoice Sent" },
+  { key: "awaiting_signature", label: "Awaiting Signature" },
+  { key: "awaiting_payment", label: "Awaiting Payment" },
+  { key: "deposit_paid", label: "Deposit Paid" },
+  { key: "paid", label: "Paid" },
+  { key: "machine_ordered", label: "Fulfillment" },
+  { key: "completed", label: "Completed" },
+  { key: "cancelled", label: "Cancelled" },
+];
+
+const STATUS_COLORS: Record<string, string> = {
+  draft: "bg-gray-50 text-gray-600 ring-gray-200",
+  awaiting_customer_info: "bg-yellow-50 text-yellow-700 ring-yellow-200",
+  invoice_sent: "bg-blue-50 text-blue-700 ring-blue-200",
+  agreement_sent: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+  awaiting_signature: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+  awaiting_payment: "bg-orange-50 text-orange-700 ring-orange-200",
+  deposit_paid: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  paid: "bg-green-50 text-green-700 ring-green-200",
+  machine_ordered: "bg-purple-50 text-purple-700 ring-purple-200",
+  location_search_active: "bg-cyan-50 text-cyan-700 ring-cyan-200",
+  coffee_program_setup: "bg-amber-50 text-amber-700 ring-amber-200",
+  shipped: "bg-sky-50 text-sky-700 ring-sky-200",
+  delivered: "bg-teal-50 text-teal-700 ring-teal-200",
+  completed: "bg-green-50 text-green-700 ring-green-200",
+  cancelled: "bg-red-50 text-red-600 ring-red-200",
+};
+
+const ITEM_ICONS: Record<string, React.ElementType> = {
+  machine_sale: Package,
+  location_services: MapPin,
+  coffee_program: Coffee,
+  vendera_ai_cooler: Monitor,
+  combo_machine: Package,
+  financing: DollarSign,
+  other: Wrench,
+};
+
+function formatStatus(s: string): string {
+  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function itemsSummary(items: OrderItem[]): string {
+  if (!items || items.length === 0) return "No items";
+  if (items.length === 1) {
+    return `${items[0].quantity}x ${items[0].service_name}`;
+  }
+  const total = items.reduce((s, i) => s + (i.quantity || 1), 0);
+  return `${total} items`;
 }
 
 export default function OrdersPage() {
   const router = useRouter();
-  const [orders, setOrders] = useState<SalesOrder[]>([]);
-  const [accounts, setAccounts] = useState<SalesAccount[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState("");
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({
-    account_id: "",
-    recipient_email: "",
-    notes: "",
-  });
-  const [items, setItems] = useState<NewOrderItem[]>([{ service_name: "", price: "" }]);
-  const [saving, setSaving] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -33,74 +104,31 @@ export default function OrdersPage() {
     });
   }, []);
 
-  const fetchAll = useCallback(async () => {
+  const fetchOrders = useCallback(async () => {
     if (!token) return;
     setLoading(true);
-    const headers = { Authorization: `Bearer ${token}` };
-    const [ordersRes, accountsRes] = await Promise.all([
-      fetch("/api/sales/orders", { headers }),
-      fetch("/api/sales/accounts", { headers }),
-    ]);
-    if (ordersRes.ok) setOrders(await ordersRes.json());
-    if (accountsRes.ok) setAccounts(await accountsRes.json());
-    setLoading(false);
-  }, [token]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  async function handleCreate() {
-    setSaving(true);
-    const cleanItems = items
-      .filter((i) => i.service_name.trim())
-      .map((i) => ({ service_name: i.service_name.trim(), price: Number(i.price) || 0 }));
-    const res = await fetch("/api/sales/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        account_id: form.account_id || null,
-        recipient_email: form.recipient_email || null,
-        notes: form.notes || null,
-        items: cleanItems,
-      }),
-    });
-    setSaving(false);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error || "Failed to create order");
-      return;
-    }
-    setForm({ account_id: "", recipient_email: "", notes: "" });
-    setItems([{ service_name: "", price: "" }]);
-    setShowAdd(false);
-    fetchAll();
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this order?")) return;
-    const res = await fetch(`/api/sales/orders/${id}`, {
-      method: "DELETE",
+    const params = new URLSearchParams();
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (search) params.set("search", search);
+    const res = await fetch(`/api/sales/orders?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error || "Failed to delete");
-      return;
-    }
-    fetchAll();
-  }
+    if (res.ok) setOrders(await res.json());
+    setLoading(false);
+  }, [token, statusFilter, search]);
 
-  const statusColor: Record<string, string> = {
-    draft: "bg-gray-50 text-gray-600 ring-gray-200",
-    sent: "bg-blue-50 text-blue-700 ring-blue-200",
-    completed: "bg-green-50 text-green-700 ring-green-200",
-  };
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
   return (
     <div className="p-6">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Manage post-sale execution and fulfillment</p>
+        </div>
         <button
-          onClick={() => setShowAdd(!showAdd)}
+          onClick={() => router.push("/sales/orders/new")}
           className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer"
         >
           <Plus className="h-4 w-4" />
@@ -108,146 +136,98 @@ export default function OrdersPage() {
         </button>
       </div>
 
-      {showAdd && (
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">New Order</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <select
-              value={form.account_id}
-              onChange={(e) => setForm((f) => ({ ...f, account_id: e.target.value }))}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
-            >
-              <option value="">Select account...</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.business_name}</option>
-              ))}
-            </select>
-            <input
-              type="email"
-              placeholder="Recipient email"
-              value={form.recipient_email}
-              onChange={(e) => setForm((f) => ({ ...f, recipient_email: e.target.value }))}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
-            />
-          </div>
-          <textarea
-            placeholder="Notes"
-            value={form.notes}
-            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-            className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
-            rows={2}
+      {/* Filters */}
+      <div className="mb-4 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search customer or order #..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 pl-9 pr-3 py-2 text-sm focus:border-green-500 focus:outline-none"
           />
-
-          <div className="mt-4">
-            <p className="text-xs font-semibold text-gray-700 mb-2">Items</p>
-            <div className="space-y-2">
-              {items.map((item, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <input
-                    placeholder="Service / Item"
-                    value={item.service_name}
-                    onChange={(e) =>
-                      setItems((prev) => prev.map((it, i) => i === idx ? { ...it, service_name: e.target.value } : it))
-                    }
-                    className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Price"
-                    value={item.price}
-                    onChange={(e) =>
-                      setItems((prev) => prev.map((it, i) => i === idx ? { ...it, price: e.target.value } : it))
-                    }
-                    className="w-28 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
-                  />
-                  <button
-                    onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}
-                    className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={() => setItems((prev) => [...prev, { service_name: "", price: "" }])}
-              className="mt-2 text-xs text-green-600 hover:text-green-700 cursor-pointer"
-            >
-              + Add item
-            </button>
-          </div>
-
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={handleCreate}
-              disabled={saving}
-              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
-            >
-              {saving ? "Saving..." : "Create Order"}
-            </button>
-            <button
-              onClick={() => setShowAdd(false)}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
-            >
-              Cancel
-            </button>
-          </div>
         </div>
-      )}
+        <div className="flex flex-wrap gap-1.5">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setStatusFilter(f.key)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                statusFilter === f.key
+                  ? "bg-green-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
+      {/* Orders List */}
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-green-600" /></div>
+        <div className="flex justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+        </div>
       ) : orders.length === 0 ? (
         <div className="py-16 text-center">
           <ClipboardList className="mx-auto h-10 w-10 text-gray-300 mb-3" />
-          <p className="text-sm text-gray-400">No orders yet. Use &quot;New Order&quot; or finalize a deal.</p>
+          <p className="text-sm text-gray-400">
+            {statusFilter !== "all" ? "No orders match this filter." : "No orders yet. Win a lead or create one manually."}
+          </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-100 bg-gray-50/50">
-              <tr>
-                <th className="px-4 py-3 font-medium text-gray-500">Order ID</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Customer</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Items</th>
-                <th className="px-4 py-3 font-medium text-gray-500 text-right">Total</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Status</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Sent To</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Date</th>
-                <th className="px-4 py-3 font-medium text-gray-500"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {orders.map((order) => (
-                <tr key={order.id} className="hover:bg-gray-50/50 cursor-pointer" onClick={() => router.push(`/sales/orders/${order.id}`)}>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-600">{order.id.slice(0, 8).toUpperCase()}</td>
-                  <td className="px-4 py-3 text-gray-900">
-                    {(order.sales_accounts as { business_name: string } | null)?.business_name || "—"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{order.order_items?.length || 0} items</td>
-                  <td className="px-4 py-3 text-right font-medium text-green-600">
-                    ${Number(order.total_value).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset capitalize ${statusColor[order.status] || ""}`}>
-                      {order.status}
+        <div className="space-y-2">
+          {orders.map((order) => {
+            const Icon = order.order_items?.[0]?.item_type
+              ? ITEM_ICONS[order.order_items[0].item_type] || Wrench
+              : ClipboardList;
+            return (
+              <div
+                key={order.id}
+                onClick={() => router.push(`/sales/orders/${order.id}`)}
+                className="group flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 hover:border-green-200 hover:shadow-sm transition-all cursor-pointer"
+              >
+                {/* Icon */}
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-50 group-hover:bg-green-50 transition-colors">
+                  <Icon className="h-5 w-5 text-gray-400 group-hover:text-green-600" />
+                </div>
+
+                {/* Main info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-gray-400">#{order.order_number || order.id.slice(0, 6).toUpperCase()}</span>
+                    <span className="font-semibold text-gray-900 truncate">
+                      {order.sales_accounts?.business_name || "Unassigned"}
                     </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{order.recipient_email || "—"}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleDelete(order.id)}
-                      title="Delete"
-                      className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-3 text-xs text-gray-500">
+                    <span>{itemsSummary(order.order_items)}</span>
+                    <span>${Number(order.total_value || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                    {order.assigned_profile?.full_name && (
+                      <span className="text-gray-400">{order.assigned_profile.full_name}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Next action */}
+                {order.next_required_action && (
+                  <div className="hidden md:flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 max-w-[220px]">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    <span className="text-xs font-medium text-amber-700 truncate">{order.next_required_action}</span>
+                  </div>
+                )}
+
+                {/* Status */}
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${STATUS_COLORS[order.order_status] || STATUS_COLORS.draft}`}>
+                  {formatStatus(order.order_status || "draft")}
+                </span>
+
+                <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-green-500 shrink-0" />
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
