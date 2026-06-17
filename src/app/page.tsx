@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Script from "next/script";
 import { createBrowserClient } from "@/lib/supabase";
 import {
   MapPin,
@@ -229,6 +228,39 @@ function CTACard({
     >
       {tooltip ? <Tooltip content={tooltip} position="top">{card}</Tooltip> : card}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Hearth Widget                                                      */
+/* ------------------------------------------------------------------ */
+function HearthWidget() {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (document.getElementById("hearth-script")) return;
+
+    const script = document.createElement("script");
+    script.id = "hearth-script";
+    script.src = "https://widget.gethearth.com/script.js";
+    script.setAttribute("data-orgid", "63488");
+    script.setAttribute("data-partner", "bytebite-vending-llc");
+    script.async = true;
+    containerRef.current.appendChild(script);
+  }, []);
+
+  return (
+    <section className="bg-light py-14 sm:py-16">
+      <div ref={containerRef} className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
+        <h3 className="text-xl font-bold text-black-primary sm:text-2xl mb-6">
+          Estimate Your Monthly Payment
+        </h3>
+        <div className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
+          <iframe id="hearth-widget_calculator_v1" title="Hearth Financing Calculator" className="w-full min-h-[400px] border-0" />
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -513,23 +545,7 @@ export default function HomePage() {
       {/* ============================================================ */}
       {/*  HEARTH FINANCING WIDGET                                      */}
       {/* ============================================================ */}
-      <section className="bg-light py-14 sm:py-16">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
-          <h3 className="text-xl font-bold text-black-primary sm:text-2xl mb-6">
-            Estimate Your Monthly Payment
-          </h3>
-          <div className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
-            <iframe id="hearth-widget_calculator_v1" className="w-full min-h-[400px] border-0" />
-          </div>
-          <Script
-            src="https://widget.gethearth.com/script.js"
-            id="hearth-script"
-            data-orgid="63488"
-            data-partner="bytebite-vending-llc"
-            strategy="lazyOnload"
-          />
-        </div>
-      </section>
+      <HearthWidget />
 
       {/* ============================================================ */}
       {/*  STATS BAR                                                    */}
