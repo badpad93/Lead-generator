@@ -29,6 +29,17 @@ export async function getAdminUserId(req: NextRequest): Promise<string | null> {
     return user.id;
   }
 
+  // Check profile role in database
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role === "admin") {
+    return user.id;
+  }
+
   return null;
 }
 
