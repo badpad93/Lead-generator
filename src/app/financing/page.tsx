@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   Loader2,
@@ -15,6 +15,34 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
+
+function HearthWidget() {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (document.getElementById("hearth-script")) return;
+
+    const script = document.createElement("script");
+    script.id = "hearth-script";
+    script.src = "https://widget.gethearth.com/script.js";
+    script.setAttribute("data-orgid", "63488");
+    script.setAttribute("data-partner", "bytebite-vending-llc");
+    script.async = true;
+    containerRef.current.appendChild(script);
+  }, []);
+
+  return (
+    <div ref={containerRef}>
+      <iframe
+        id="hearth-widget_calculator_v1"
+        title="Hearth Financing Calculator"
+        className="w-full border-0"
+        style={{ minHeight: "400px" }}
+      />
+    </div>
+  );
+}
 
 const CREDIT_RANGES = ["Below 600", "600–649", "650–699", "700–749", "750+"];
 const NET_WORTH_RANGES = [
@@ -218,7 +246,7 @@ export default function FinancingPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="mx-auto max-w-2xl">
+      <div className="mx-auto max-w-7xl">
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-green-600 transition-colors mb-6"
@@ -262,198 +290,222 @@ export default function FinancingPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          {/* Section 1: Applicant Information */}
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-4">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-green-600" />
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-900">1. Applicant Information</h2>
-                  <p className="text-[11px] text-gray-400">Basic identifiers for your application</p>
+        {/* Two-column layout: form left, calculator right */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left column: Form */}
+          <div>
+            <form onSubmit={handleSubmit}>
+              {/* Section 1: Applicant Information */}
+              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-4">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-green-600" />
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-900">1. Applicant Information</h2>
+                      <p className="text-[11px] text-gray-400">Basic identifiers for your application</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="px-6 py-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Email *</label>
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Phone *</label>
+                      <input
+                        type="tel"
+                        required
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
+                      <input
+                        type="date"
+                        value={dob}
+                        onChange={(e) => setDob(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      />
+                    </div>
+                    <SelectField
+                      label="Citizenship Status"
+                      value={citizenship}
+                      onChange={setCitizenship}
+                      options={CITIZENSHIP_OPTIONS}
+                      placeholder="Select citizenship status"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
+
+              {/* Section 2: Financial and Credit Information */}
+              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-4">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-green-600" />
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-900">2. Financial and Credit Information</h2>
+                      <p className="text-[11px] text-gray-400">To assess repayment ability</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="px-6 py-5 space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <SelectField
+                      label="Credit Score Range"
+                      value={creditRange}
+                      onChange={setCreditRange}
+                      options={CREDIT_RANGES}
+                      placeholder="Select credit score range"
+                    />
+                    <SelectField
+                      label="Net Worth Range"
+                      value={netWorthRange}
+                      onChange={setNetWorthRange}
+                      options={NET_WORTH_RANGES}
+                      placeholder="Select net worth range"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Annual Income</label>
+                    <input
+                      type="text"
+                      value={annualIncome}
+                      onChange={(e) => setAnnualIncome(e.target.value)}
+                      placeholder="e.g., $75,000"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm placeholder:text-gray-300 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                    />
+                  </div>
+                  <div className="space-y-3 pt-2 border-t border-gray-100">
+                    <YesNoField label="Do you have verifiable income?" value={verifiableIncome} onChange={setVerifiableIncome} />
+                    <YesNoField label="Any outstanding tax liens?" value={taxLiens} onChange={setTaxLiens} />
+                    <YesNoField label="Filed for bankruptcy in the last 7 years?" value={bankruptcy} onChange={setBankruptcy} />
+                    <YesNoField label="Any outstanding judgments against you?" value={judgments} onChange={setJudgments} />
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Email *</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                  />
+
+              {/* Section 3: Background and Declarations */}
+              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-4">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-green-600" />
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-900">3. Background and Declarations</h2>
+                      <p className="text-[11px] text-gray-400">Character and compliance screening</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Phone *</label>
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                  />
+                <div className="px-6 py-5 space-y-3">
+                  <YesNoField label="Have you been convicted of a felony?" value={felony} onChange={setFelony} />
+                  <YesNoField label="Are you currently involved in any legal actions?" value={legalActions} onChange={setLegalActions} />
+                  <YesNoField label="Are you delinquent on any federal debt?" value={federalDebt} onChange={setFederalDebt} />
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
-                  <input
-                    type="date"
-                    value={dob}
-                    onChange={(e) => setDob(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                  />
+
+              {/* Agreements */}
+              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-4">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <h2 className="text-sm font-semibold text-gray-900">Agreements &amp; Attestation</h2>
+                  </div>
                 </div>
-                <SelectField
-                  label="Citizenship Status"
-                  value={citizenship}
-                  onChange={setCitizenship}
-                  options={CITIZENSHIP_OPTIONS}
-                  placeholder="Select citizenship status"
-                />
+                <div className="px-6 py-5 space-y-4">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={agreedDocs}
+                      onChange={(e) => setAgreedDocs(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    <span className="text-sm text-gray-700">
+                      I agree to provide financial documentation (tax returns, bank statements, etc.) upon request to support my application.
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={agreedAccurate}
+                      onChange={(e) => setAgreedAccurate(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    <span className="text-sm text-gray-700">
+                      I attest that all information provided in this form is accurate and complete to the best of my knowledge. I understand that providing false information may result in denial of financing.
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 mb-4">
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              )}
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={submitting || !agreedDocs || !agreedAccurate}
+                className="w-full rounded-xl bg-green-600 px-6 py-4 text-base font-semibold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit Pre-Qualification Application"
+                )}
+              </button>
+
+              <p className="text-xs text-gray-400 text-center mt-3">
+                Your information is securely transmitted and will only be shared with SBA-approved lenders.
+              </p>
+            </form>
+          </div>
+
+          {/* Right column: Hearth Financing Calculator */}
+          <div className="lg:sticky lg:top-8 lg:self-start">
+            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-green-600" />
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-900">Financing Calculator</h2>
+                    <p className="text-[11px] text-gray-400">Estimate your monthly payments</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4">
+                <HearthWidget />
               </div>
             </div>
           </div>
-
-          {/* Section 2: Financial and Credit Information */}
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-4">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-green-600" />
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-900">2. Financial and Credit Information</h2>
-                  <p className="text-[11px] text-gray-400">To assess repayment ability</p>
-                </div>
-              </div>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <SelectField
-                  label="Credit Score Range"
-                  value={creditRange}
-                  onChange={setCreditRange}
-                  options={CREDIT_RANGES}
-                  placeholder="Select credit score range"
-                />
-                <SelectField
-                  label="Net Worth Range"
-                  value={netWorthRange}
-                  onChange={setNetWorthRange}
-                  options={NET_WORTH_RANGES}
-                  placeholder="Select net worth range"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Annual Income</label>
-                <input
-                  type="text"
-                  value={annualIncome}
-                  onChange={(e) => setAnnualIncome(e.target.value)}
-                  placeholder="e.g., $75,000"
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm placeholder:text-gray-300 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              </div>
-              <div className="space-y-3 pt-2 border-t border-gray-100">
-                <YesNoField label="Do you have verifiable income?" value={verifiableIncome} onChange={setVerifiableIncome} />
-                <YesNoField label="Any outstanding tax liens?" value={taxLiens} onChange={setTaxLiens} />
-                <YesNoField label="Filed for bankruptcy in the last 7 years?" value={bankruptcy} onChange={setBankruptcy} />
-                <YesNoField label="Any outstanding judgments against you?" value={judgments} onChange={setJudgments} />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Background and Declarations */}
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-4">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-green-600" />
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-900">3. Background and Declarations</h2>
-                  <p className="text-[11px] text-gray-400">Character and compliance screening</p>
-                </div>
-              </div>
-            </div>
-            <div className="px-6 py-5 space-y-3">
-              <YesNoField label="Have you been convicted of a felony?" value={felony} onChange={setFelony} />
-              <YesNoField label="Are you currently involved in any legal actions?" value={legalActions} onChange={setLegalActions} />
-              <YesNoField label="Are you delinquent on any federal debt?" value={federalDebt} onChange={setFederalDebt} />
-            </div>
-          </div>
-
-          {/* Agreements */}
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-4">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <h2 className="text-sm font-semibold text-gray-900">Agreements &amp; Attestation</h2>
-              </div>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={agreedDocs}
-                  onChange={(e) => setAgreedDocs(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-                <span className="text-sm text-gray-700">
-                  I agree to provide financial documentation (tax returns, bank statements, etc.) upon request to support my application.
-                </span>
-              </label>
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={agreedAccurate}
-                  onChange={(e) => setAgreedAccurate(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-                <span className="text-sm text-gray-700">
-                  I attest that all information provided in this form is accurate and complete to the best of my knowledge. I understand that providing false information may result in denial of financing.
-                </span>
-              </label>
-            </div>
-          </div>
-
-          {/* Error */}
-          {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 mb-4">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={submitting || !agreedDocs || !agreedAccurate}
-            className="w-full rounded-xl bg-green-600 px-6 py-4 text-base font-semibold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center gap-2"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              "Submit Pre-Qualification Application"
-            )}
-          </button>
-
-          <p className="text-xs text-gray-400 text-center mt-3">
-            Your information is securely transmitted and will only be shared with SBA-approved lenders.
-          </p>
-        </form>
+        </div>
       </div>
     </div>
   );

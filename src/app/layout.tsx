@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
-import HearthBanner from "./components/HearthBanner";
+import FinancingFab from "./components/FinancingFab";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -51,9 +51,9 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-light min-h-screen flex flex-col antialiased">
         <Navbar />
-        <HearthBanner />
         <main className="flex-1">{children}</main>
         <Footer />
+        <FinancingFab />
       </body>
     </html>
   );
