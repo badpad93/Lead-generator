@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Script from "next/script";
 import { createBrowserClient } from "@/lib/supabase";
 import {
   MapPin,
@@ -506,6 +507,27 @@ export default function HomePage() {
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* ============================================================ */}
+      {/*  HEARTH FINANCING WIDGET                                      */}
+      {/* ============================================================ */}
+      <section className="bg-light py-14 sm:py-16">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
+          <h3 className="text-xl font-bold text-black-primary sm:text-2xl mb-6">
+            Estimate Your Monthly Payment
+          </h3>
+          <div className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
+            <iframe id="hearth-widget_calculator_v1" className="w-full min-h-[400px] border-0" />
+          </div>
+          <Script
+            src="https://widget.gethearth.com/script.js"
+            id="hearth-script"
+            data-orgid="63488"
+            data-partner="bytebite-vending-llc"
+            strategy="lazyOnload"
+          />
         </div>
       </section>
 
