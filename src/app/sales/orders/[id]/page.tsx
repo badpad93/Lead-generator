@@ -3,255 +3,594 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, Send, CheckCircle2, Circle, Plus, X } from "lucide-react";
-import type { SalesOrder, FulfillmentItem } from "@/lib/salesTypes";
+import {
+  Loader2, ArrowLeft, Plus, Upload, AlertCircle, CheckCircle2,
+  Package, MapPin, Coffee, Monitor, Wrench, DollarSign,
+  FileText, Clock, User, Building2, Trash2,
+} from "lucide-react";
+
+interface OrderItem {
+  id: string;
+  item_type: string;
+  service_name: string;
+  description: string | null;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  status: string;
+  location_service_price: number | null;
+  deposit_required: boolean;
+  location_deposit_amount: number | null;
+  location_deposit_paid: boolean;
+  location_remaining_balance: number | null;
+}
+
+interface Activity {
+  id: string;
+  activity_type: string;
+  description: string;
+  created_at: string;
+  profiles: { full_name: string } | null;
+}
+
+interface OrderDocument {
+  id: string;
+  document_type: string;
+  file_name: string;
+  file_url: string;
+  created_at: string;
+  profiles: { full_name: string } | null;
+}
+
+interface OrderDetail {
+  id: string;
+  order_number: number;
+  order_status: string;
+  order_type: string | null;
+  total_value: number;
+  deposit_amount: number;
+  deposit_paid: boolean;
+  remaining_balance: number;
+  payment_status: string;
+  invoice_status: string;
+  agreement_status: string;
+  fulfillment_status: string;
+  next_required_action: string | null;
+  notes: string | null;
+  lead_id: string | null;
+  created_at: string;
+  updated_at: string;
+  sales_accounts: { id: string; business_name: string; contact_name: string; email: string; phone: string; address: string } | null;
+  assigned_profile: { full_name: string; email: string } | null;
+  order_items: OrderItem[];
+  activities: Activity[];
+  documents: OrderDocument[];
+}
+
+const ITEM_TYPES = [
+  { value: "machine_sale", label: "Machine Sale", icon: Package },
+  { value: "location_services", label: "Location Services", icon: MapPin },
+  { value: "coffee_program", label: "Coffee Program", icon: Coffee },
+  { value: "vendera_ai_cooler", label: "VendEra AI Cooler", icon: Monitor },
+  { value: "combo_machine", label: "Combo Machine", icon: Package },
+  { value: "financing", label: "Financing", icon: DollarSign },
+  { value: "other", label: "Other Services", icon: Wrench },
+];
+
+const STATUS_ACTIONS = [
+  { action: "send_invoice", label: "Send Invoice", color: "bg-blue-600 hover:bg-blue-700" },
+  { action: "send_agreement", label: "Send Agreement", color: "bg-indigo-600 hover:bg-indigo-700" },
+  { action: "mark_agreement_signed", label: "Mark Signed", color: "bg-purple-600 hover:bg-purple-700" },
+  { action: "mark_deposit_paid", label: "Mark Deposit Paid", color: "bg-emerald-600 hover:bg-emerald-700" },
+  { action: "mark_paid", label: "Mark Paid", color: "bg-green-600 hover:bg-green-700" },
+  { action: "mark_machine_ordered", label: "Mark Machine Ordered", color: "bg-violet-600 hover:bg-violet-700" },
+  { action: "mark_location_search", label: "Location Search Active", color: "bg-cyan-600 hover:bg-cyan-700" },
+  { action: "mark_coffee_setup", label: "Coffee Program Setup", color: "bg-amber-600 hover:bg-amber-700" },
+  { action: "mark_shipped", label: "Mark Shipped", color: "bg-sky-600 hover:bg-sky-700" },
+  { action: "mark_delivered", label: "Mark Delivered", color: "bg-teal-600 hover:bg-teal-700" },
+  { action: "mark_completed", label: "Mark Completed", color: "bg-green-700 hover:bg-green-800" },
+  { action: "mark_cancelled", label: "Cancel Order", color: "bg-red-600 hover:bg-red-700" },
+];
+
+const STATUS_COLORS: Record<string, string> = {
+  draft: "bg-gray-50 text-gray-600 ring-gray-200",
+  awaiting_customer_info: "bg-yellow-50 text-yellow-700 ring-yellow-200",
+  invoice_sent: "bg-blue-50 text-blue-700 ring-blue-200",
+  agreement_sent: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+  awaiting_signature: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+  awaiting_payment: "bg-orange-50 text-orange-700 ring-orange-200",
+  deposit_paid: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  paid: "bg-green-50 text-green-700 ring-green-200",
+  machine_ordered: "bg-purple-50 text-purple-700 ring-purple-200",
+  location_search_active: "bg-cyan-50 text-cyan-700 ring-cyan-200",
+  coffee_program_setup: "bg-amber-50 text-amber-700 ring-amber-200",
+  shipped: "bg-sky-50 text-sky-700 ring-sky-200",
+  delivered: "bg-teal-50 text-teal-700 ring-teal-200",
+  completed: "bg-green-50 text-green-700 ring-green-200",
+  cancelled: "bg-red-50 text-red-600 ring-red-200",
+};
+
+function formatStatus(s: string): string {
+  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [order, setOrder] = useState<SalesOrder | null>(null);
-  const [checklist, setChecklist] = useState<FulfillmentItem[]>([]);
+  const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState("");
-  const [sending, setSending] = useState(false);
   const [showAddItem, setShowAddItem] = useState(false);
-  const [newLabel, setNewLabel] = useState("");
+  const [actionLoading, setActionLoading] = useState("");
+  const [noteText, setNoteText] = useState("");
+
+  const [newItem, setNewItem] = useState({
+    item_type: "machine_sale",
+    item_name: "",
+    description: "",
+    quantity: "1",
+    unit_price: "",
+    deposit_required: false,
+    location_deposit_amount: "100",
+    location_service_price: "",
+  });
 
   useEffect(() => {
     const supabase = createBrowserClient();
-    async function init() {
-      const { data: { session } } = await supabase.auth.getSession();
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.access_token) setToken(session.access_token);
-    }
-    init();
+    });
   }, []);
 
   const fetchOrder = useCallback(async () => {
-    if (!token || !id) return;
+    if (!token) return;
     setLoading(true);
-    const [orderRes, checklistRes] = await Promise.all([
-      fetch(`/api/sales/orders/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
-      fetch(`/api/sales/orders/${id}/fulfillment`, { headers: { Authorization: `Bearer ${token}` } }),
-    ]);
-    if (orderRes.ok) setOrder(await orderRes.json());
-    if (checklistRes.ok) setChecklist(await checklistRes.json());
+    const res = await fetch(`/api/sales/orders/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) setOrder(await res.json());
     setLoading(false);
   }, [token, id]);
 
   useEffect(() => { fetchOrder(); }, [fetchOrder]);
 
-  async function handleToggleItem(item: FulfillmentItem) {
-    await fetch(`/api/sales/orders/${id}/fulfillment`, {
-      method: "PATCH",
+  async function handleStatusAction(action: string) {
+    setActionLoading(action);
+    await fetch(`/api/sales/orders/${id}/status`, {
+      method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ item_id: item.id, completed: !item.completed }),
+      body: JSON.stringify({ action }),
     });
-    fetchOrder();
+    await fetchOrder();
+    setActionLoading("");
   }
 
   async function handleAddItem() {
-    if (!newLabel.trim()) return;
-    await fetch(`/api/sales/orders/${id}/fulfillment`, {
+    const res = await fetch(`/api/sales/orders/${id}/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ label: newLabel.trim() }),
+      body: JSON.stringify({
+        item_type: newItem.item_type,
+        item_name: newItem.item_name,
+        description: newItem.description || null,
+        quantity: Number(newItem.quantity) || 1,
+        unit_price: Number(newItem.unit_price) || 0,
+        deposit_required: newItem.deposit_required,
+        location_deposit_amount: newItem.deposit_required ? Number(newItem.location_deposit_amount) || 100 : null,
+        location_service_price: newItem.item_type === "location_services" ? Number(newItem.location_service_price) || 0 : null,
+      }),
     });
-    setNewLabel("");
-    setShowAddItem(false);
+    if (res.ok) {
+      setShowAddItem(false);
+      setNewItem({ item_type: "machine_sale", item_name: "", description: "", quantity: "1", unit_price: "", deposit_required: false, location_deposit_amount: "100", location_service_price: "" });
+      fetchOrder();
+    }
+  }
+
+  async function handleDeleteItem(itemId: string) {
+    if (!confirm("Remove this item?")) return;
+    await fetch(`/api/sales/orders/${id}/items/${itemId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
     fetchOrder();
   }
 
-  async function handleSend() {
-    setSending(true);
-    const res = await fetch(`/api/sales/orders/${id}/send`, {
+  async function handleAddNote() {
+    if (!noteText.trim()) return;
+    await fetch(`/api/sales/orders/${id}/activity`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ activity_type: "note", description: noteText.trim() }),
     });
-    const result = await res.json().catch(() => ({}));
-    if (result.emailSent) {
-      const ccInfo = result.cc?.length ? `\nCC: ${result.cc.join(", ")}` : "";
-      alert(`Order sent to ${result.recipient}${ccInfo}`);
-      fetchOrder();
-    } else {
-      alert(`Email failed: ${result.emailError || "Unknown error"}`);
-    }
-    setSending(false);
+    setNoteText("");
+    fetchOrder();
   }
 
-  async function handleMarkCompleted() {
+  async function handleUploadDoc(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("document_type", "general");
+    await fetch(`/api/sales/orders/${id}/documents`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    fetchOrder();
+    e.target.value = "";
+  }
+
+  async function handleNextAction(value: string) {
     await fetch(`/api/sales/orders/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ status: "completed" }),
+      body: JSON.stringify({ next_required_action: value }),
     });
     fetchOrder();
   }
 
-  if (loading) {
-    return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>;
+  if (loading || !order) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+      </div>
+    );
   }
-
-  if (!order) {
-    return <div className="p-6 text-center text-gray-400">Order not found</div>;
-  }
-
-  const items = order.order_items || [];
-  const completedCount = checklist.filter((c) => c.completed).length;
-  const totalItems = checklist.length;
-
-  const statusColor: Record<string, string> = {
-    draft: "bg-gray-50 text-gray-600 ring-gray-200",
-    sent: "bg-blue-50 text-blue-700 ring-blue-200",
-    completed: "bg-green-50 text-green-700 ring-green-200",
-  };
 
   return (
-    <div className="p-6 max-w-4xl">
-      <button onClick={() => router.push("/sales/orders")} className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
+    <div className="p-6 max-w-6xl">
+      <button onClick={() => router.push("/sales/orders")} className="flex items-center gap-1 text-sm text-gray-500 hover:text-green-600 mb-4 cursor-pointer">
         <ArrowLeft className="h-4 w-4" /> Back to Orders
       </button>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">
-              Order {order.id.slice(0, 8).toUpperCase()}
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              {(order.sales_accounts as { business_name: string } | null)?.business_name || "No account"}
-            </p>
-          </div>
+      <div className="flex items-start justify-between mb-6">
+        <div>
           <div className="flex items-center gap-3">
-            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset capitalize ${statusColor[order.status] || ""}`}>
-              {order.status}
+            <h1 className="text-2xl font-bold text-gray-900">
+              Order #{order.order_number || order.id.slice(0, 6).toUpperCase()}
+            </h1>
+            <span className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${STATUS_COLORS[order.order_status] || STATUS_COLORS.draft}`}>
+              {formatStatus(order.order_status || "draft")}
             </span>
-            <p className="text-2xl font-bold text-green-600">
-              ${Number(order.total_value).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-            </p>
           </div>
+          <p className="text-sm text-gray-500 mt-1">
+            Created {new Date(order.created_at).toLocaleDateString()} · Updated {new Date(order.updated_at || order.created_at).toLocaleDateString()}
+          </p>
         </div>
+      </div>
 
-        {/* Order items */}
-        {items.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">Items</h2>
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-gray-100 bg-gray-50/50">
-                  <tr>
-                    <th className="px-4 py-2.5 font-medium text-gray-500">Service</th>
-                    <th className="px-4 py-2.5 font-medium text-gray-500 text-right">Price</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-2.5 text-gray-900">{item.service_name}</td>
-                      <td className="px-4 py-2.5 text-right font-medium text-gray-900">
-                        ${Number(item.price).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {/* Next Required Action */}
+      {order.next_required_action && order.order_status !== "completed" && order.order_status !== "cancelled" && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+          <div className="flex-1">
+            <p className="text-xs font-medium text-amber-600 uppercase">Next Required Action</p>
+            <p className="text-sm font-semibold text-amber-800">{order.next_required_action}</p>
           </div>
-        )}
+          <button
+            onClick={() => {
+              const val = prompt("Update next action:", order.next_required_action || "");
+              if (val !== null) handleNextAction(val);
+            }}
+            className="text-xs text-amber-600 hover:text-amber-800 underline cursor-pointer"
+          >
+            Edit
+          </button>
+        </div>
+      )}
 
-        {/* Fulfillment Checklist */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900">Fulfillment Checklist</h2>
-              {totalItems > 0 && (
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {completedCount}/{totalItems} completed
-                </p>
-              )}
-            </div>
-            <button
-              onClick={() => setShowAddItem(!showAddItem)}
-              className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 cursor-pointer"
-            >
-              <Plus className="h-4 w-4" /> Add Step
-            </button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Customer Info */}
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-3">
+              <Building2 className="h-4 w-4 text-gray-400" /> Customer
+            </h3>
+            {order.sales_accounts ? (
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-gray-400 text-xs">Business</span>
+                  <p className="font-medium text-gray-900">{order.sales_accounts.business_name}</p>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs">Contact</span>
+                  <p className="text-gray-700">{order.sales_accounts.contact_name || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs">Email</span>
+                  <p className="text-gray-700">{order.sales_accounts.email || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-gray-400 text-xs">Phone</span>
+                  <p className="text-gray-700">{order.sales_accounts.phone || "—"}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No account linked</p>
+            )}
           </div>
 
-          {totalItems > 0 && (
-            <div className="mb-3 h-2 rounded-full bg-gray-100 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-green-500 transition-all duration-300"
-                style={{ width: `${totalItems > 0 ? (completedCount / totalItems) * 100 : 0}%` }}
-              />
-            </div>
-          )}
-
-          {showAddItem && (
-            <div className="mb-3 flex gap-2">
-              <input
-                autoFocus
-                value={newLabel}
-                onChange={(e) => setNewLabel(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddItem()}
-                placeholder="Checklist step description"
-                className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
-              />
-              <button onClick={handleAddItem} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer">Add</button>
-              <button onClick={() => { setShowAddItem(false); setNewLabel(""); }} className="rounded-lg border border-gray-200 px-2 py-2 text-sm text-gray-500 hover:bg-gray-50 cursor-pointer">
-                <X className="h-4 w-4" />
+          {/* Order Items */}
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <Package className="h-4 w-4 text-gray-400" /> Order Items
+              </h3>
+              <button
+                onClick={() => setShowAddItem(true)}
+                className="inline-flex items-center gap-1 text-xs text-green-600 hover:text-green-700 font-medium cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Item
               </button>
             </div>
-          )}
 
-          {checklist.length === 0 ? (
-            <p className="py-4 text-center text-sm text-gray-400 rounded-lg border border-dashed border-gray-200">
-              No checklist items yet
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {checklist.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleToggleItem(item)}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-gray-50 transition-colors cursor-pointer"
-                >
-                  {item.completed ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-                  ) : (
-                    <Circle className="h-5 w-5 text-gray-300 flex-shrink-0" />
+            {order.order_items.length === 0 ? (
+              <p className="text-sm text-gray-400 py-4 text-center">No items yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {order.order_items.map((item) => {
+                  const ItemIcon = ITEM_TYPES.find((t) => t.value === item.item_type)?.icon || Wrench;
+                  return (
+                    <div key={item.id} className="flex items-center gap-3 rounded-lg border border-gray-100 p-3 hover:bg-gray-50">
+                      <ItemIcon className="h-4 w-4 text-gray-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{item.service_name}</p>
+                        <p className="text-xs text-gray-400">
+                          {formatStatus(item.item_type)} · Qty: {item.quantity}
+                          {item.deposit_required && item.location_deposit_amount != null && (
+                            <span className="ml-2 text-amber-600">
+                              Deposit: ${Number(item.location_deposit_amount).toFixed(2)}
+                              {item.location_deposit_paid ? " (Paid)" : " (Pending)"}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <span className="text-sm font-medium text-gray-900">
+                        ${Number(item.total_price || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      </span>
+                      <button onClick={() => handleDeleteItem(item.id)} className="p-1 text-gray-300 hover:text-red-500 cursor-pointer">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Add item form */}
+            {showAddItem && (
+              <div className="mt-4 rounded-lg border border-green-200 bg-green-50/50 p-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <select
+                    value={newItem.item_type}
+                    onChange={(e) => setNewItem((f) => ({ ...f, item_type: e.target.value }))}
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  >
+                    {ITEM_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    placeholder="Item name"
+                    value={newItem.item_name}
+                    onChange={(e) => setNewItem((f) => ({ ...f, item_name: e.target.value }))}
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Quantity"
+                    value={newItem.quantity}
+                    onChange={(e) => setNewItem((f) => ({ ...f, quantity: e.target.value }))}
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Unit price"
+                    value={newItem.unit_price}
+                    onChange={(e) => setNewItem((f) => ({ ...f, unit_price: e.target.value }))}
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  />
+                  {newItem.item_type === "location_services" && (
+                    <>
+                      <input
+                        type="number"
+                        placeholder="Location service total price"
+                        value={newItem.location_service_price}
+                        onChange={(e) => setNewItem((f) => ({ ...f, location_service_price: e.target.value }))}
+                        className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={newItem.deposit_required}
+                          onChange={(e) => setNewItem((f) => ({ ...f, deposit_required: e.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300 text-green-600"
+                        />
+                        <label className="text-xs text-gray-600">$100 deposit required</label>
+                      </div>
+                    </>
                   )}
-                  <span className={`text-sm ${item.completed ? "text-gray-400 line-through" : "text-gray-700"}`}>
-                    {item.label}
-                  </span>
-                </button>
-              ))}
+                </div>
+                <textarea
+                  placeholder="Description (optional)"
+                  value={newItem.description}
+                  onChange={(e) => setNewItem((f) => ({ ...f, description: e.target.value }))}
+                  className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  rows={2}
+                />
+                <div className="mt-3 flex gap-2">
+                  <button onClick={handleAddItem} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer">Add</button>
+                  <button onClick={() => setShowAddItem(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* Totals */}
+            {order.order_items.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Total Value</span>
+                  <span className="font-bold text-gray-900">${Number(order.total_value || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                </div>
+                {Number(order.deposit_amount) > 0 && (
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-gray-500">Deposit {order.deposit_paid ? "(Paid)" : "(Pending)"}</span>
+                    <span className={order.deposit_paid ? "text-green-600 font-medium" : "text-amber-600 font-medium"}>
+                      ${Number(order.deposit_amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm mt-1">
+                  <span className="text-gray-500">Remaining</span>
+                  <span className="font-medium text-gray-700">${Number(order.remaining_balance || order.total_value || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Documents */}
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-gray-400" /> Documents
+              </h3>
+              <label className="inline-flex items-center gap-1 text-xs text-green-600 hover:text-green-700 font-medium cursor-pointer">
+                <Upload className="h-3.5 w-3.5" /> Upload
+                <input type="file" className="hidden" onChange={handleUploadDoc} />
+              </label>
             </div>
-          )}
+            {order.documents.length === 0 ? (
+              <p className="text-sm text-gray-400 py-2">No documents uploaded.</p>
+            ) : (
+              <div className="space-y-2">
+                {order.documents.map((doc) => (
+                  <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border border-gray-100 p-2 hover:bg-gray-50 text-sm">
+                    <FileText className="h-4 w-4 text-gray-400" />
+                    <span className="flex-1 text-gray-700 truncate">{doc.file_name}</span>
+                    <span className="text-xs text-gray-400">{new Date(doc.created_at).toLocaleDateString()}</span>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Activity Log */}
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-3">
+              <Clock className="h-4 w-4 text-gray-400" /> Activity
+            </h3>
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                placeholder="Add a note..."
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddNote()}
+                className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+              />
+              <button onClick={handleAddNote} disabled={!noteText.trim()} className="rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-600 hover:bg-gray-200 disabled:opacity-50 cursor-pointer">Add</button>
+            </div>
+            {order.activities.length === 0 ? (
+              <p className="text-sm text-gray-400 py-2">No activity yet.</p>
+            ) : (
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {order.activities.map((a) => (
+                  <div key={a.id} className="flex gap-3">
+                    <div className="mt-1 h-2 w-2 rounded-full bg-green-400 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-700">{a.description}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {a.profiles?.full_name || "System"} · {new Date(a.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-3">
-          {order.status === "draft" && (
-            <button
-              onClick={handleSend}
-              disabled={sending}
-              className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
-            >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              {sending ? "Sending..." : "Send Order"}
-            </button>
+        {/* Right column */}
+        <div className="space-y-6">
+          {/* Status Summary */}
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Status</h3>
+            <div className="space-y-3">
+              <StatusRow label="Payment" value={order.payment_status} />
+              <StatusRow label="Invoice" value={order.invoice_status} />
+              <StatusRow label="Agreement" value={order.agreement_status} />
+              <StatusRow label="Fulfillment" value={order.fulfillment_status} />
+            </div>
+          </div>
+
+          {/* Assigned Rep */}
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-2">
+              <User className="h-4 w-4 text-gray-400" /> Assigned Rep
+            </h3>
+            <p className="text-sm text-gray-700">{order.assigned_profile?.full_name || "Unassigned"}</p>
+            {order.assigned_profile?.email && (
+              <p className="text-xs text-gray-400">{order.assigned_profile.email}</p>
+            )}
+          </div>
+
+          {/* Actions */}
+          {order.order_status !== "completed" && order.order_status !== "cancelled" && (
+            <div className="rounded-xl border border-gray-200 bg-white p-5">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">Actions</h3>
+              <div className="grid grid-cols-1 gap-2">
+                {STATUS_ACTIONS.map((sa) => (
+                  <button
+                    key={sa.action}
+                    onClick={() => handleStatusAction(sa.action)}
+                    disabled={actionLoading === sa.action}
+                    className={`w-full rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors cursor-pointer disabled:opacity-50 ${sa.color}`}
+                  >
+                    {actionLoading === sa.action ? "..." : sa.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
-          {order.status === "sent" && (
-            <button
-              onClick={handleMarkCompleted}
-              className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 cursor-pointer"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Mark Completed
-            </button>
+
+          {(order.order_status === "completed" || order.order_status === "cancelled") && (
+            <div className={`rounded-xl p-5 text-center ${order.order_status === "completed" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
+              <CheckCircle2 className={`mx-auto h-8 w-8 ${order.order_status === "completed" ? "text-green-600" : "text-red-500"}`} />
+              <p className={`mt-2 font-semibold ${order.order_status === "completed" ? "text-green-800" : "text-red-700"}`}>
+                {order.order_status === "completed" ? "Order Completed" : "Order Cancelled"}
+              </p>
+            </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function StatusRow({ label, value }: { label: string; value: string }) {
+  const colors: Record<string, string> = {
+    unpaid: "text-gray-500",
+    paid: "text-green-600",
+    deposit_paid: "text-emerald-600",
+    not_sent: "text-gray-400",
+    sent: "text-blue-600",
+    signed: "text-green-600",
+    pending: "text-yellow-600",
+    ordered: "text-purple-600",
+    shipped: "text-sky-600",
+    delivered: "text-teal-600",
+    completed: "text-green-700",
+    cancelled: "text-red-600",
+  };
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-gray-500">{label}</span>
+      <span className={`text-xs font-medium capitalize ${colors[value] || "text-gray-500"}`}>
+        {formatStatus(value || "—")}
+      </span>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2, Mail, Send, Clock, ShieldCheck, Paperclip } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
@@ -125,6 +126,7 @@ function autoMapColumns(headers: string[]): Record<number, LeadFieldKey | ""> {
 }
 
 export default function LeadsPage() {
+  const router = useRouter();
   const [leads, setLeads] = useState<SalesLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState("");
@@ -554,6 +556,17 @@ export default function LeadsPage() {
       body: JSON.stringify({ status }),
     });
     fetchLeads();
+
+    if (status === "won") {
+      const lead = leads.find((l) => l.id === id);
+      const createOrder = confirm("Lead marked as Won! Create an Order from this lead?");
+      if (createOrder) {
+        const params = new URLSearchParams();
+        params.set("lead_id", id);
+        if (lead?.account_id) params.set("account_id", lead.account_id);
+        router.push(`/sales/orders/new?${params}`);
+      }
+    }
   }
 
   function openEdit(lead: SalesLead) {
@@ -737,6 +750,7 @@ export default function LeadsPage() {
     new: "bg-blue-50 text-blue-700 ring-blue-200",
     contacted: "bg-yellow-50 text-yellow-700 ring-yellow-200",
     qualified: "bg-green-50 text-green-700 ring-green-200",
+    won: "bg-emerald-50 text-emerald-700 ring-emerald-200",
     unqualified: "bg-gray-100 text-gray-600 ring-gray-200",
     lost: "bg-red-50 text-red-700 ring-red-200",
   };
@@ -1260,6 +1274,7 @@ export default function LeadsPage() {
                       <option value="new">New</option>
                       <option value="contacted">Contacted</option>
                       <option value="qualified">Qualified</option>
+                      <option value="won">Won</option>
                       <option value="unqualified">Unqualified</option>
                       <option value="lost">Lost</option>
                     </select>
