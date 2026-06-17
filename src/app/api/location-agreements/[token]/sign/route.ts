@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendListingPendingApprovalEmail } from "@/lib/locationAgreementEmail";
 import { sendAgreementSignedNotification } from "@/lib/agreementEmail";
+import { generateLocationAgreementPdf } from "@/lib/pdf/agreementPdf";
 
 export async function POST(
   req: NextRequest,
@@ -82,7 +83,7 @@ export async function POST(
     }
   }
 
-  // Create a sales_documents record so the signed agreement shows in the CRM account
+  // Generate PDF and upload to storage, then create sales_documents record
   if (agreement.lead_id) {
     const { data: lead } = await supabaseAdmin
       .from("sales_leads")
@@ -91,13 +92,56 @@ export async function POST(
       .single();
 
     if (lead?.account_id) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
-      await supabaseAdmin.from("sales_documents").insert({
-        account_id: lead.account_id,
-        file_url: `${appUrl}/location-agreement/${token}`,
-        file_name: `Location Agreement — ${business_name?.trim() || "Signed"}`,
-        type: "location_agreement",
-      });
+      try {
+        const signedAt = new Date().toISOString();
+        const pdfBytes = await generateLocationAgreementPdf({
+          businessName: business_name?.trim() || "",
+          contactName: contact_name?.trim() || signature_name.trim(),
+          titleRole: title_role?.trim() || undefined,
+          email: email?.trim() || "",
+          phone: phone?.trim() || "",
+          address: address?.trim() || "",
+          signatureName: signature_name.trim(),
+          signedAt,
+          signatureIp: ip,
+        });
+
+        const storagePath = `location-agreements/${agreement.id}.pdf`;
+        const { error: uploadErr } = await supabaseAdmin.storage
+          .from("sales-documents")
+          .upload(storagePath, pdfBytes, {
+            contentType: "application/pdf",
+            upsert: true,
+          });
+
+        let fileUrl: string;
+        if (uploadErr) {
+          console.error("[location-agreement] PDF upload error:", uploadErr);
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
+          fileUrl = `${appUrl}/location-agreement/${token}`;
+        } else {
+          const { data: urlData } = supabaseAdmin.storage
+            .from("sales-documents")
+            .getPublicUrl(storagePath);
+          fileUrl = urlData.publicUrl;
+        }
+
+        await supabaseAdmin.from("sales_documents").insert({
+          account_id: lead.account_id,
+          file_url: fileUrl,
+          file_name: `Location Agreement — ${business_name?.trim() || "Signed"}.pdf`,
+          type: "location_agreement",
+        });
+      } catch (pdfErr) {
+        console.error("[location-agreement] PDF generation error:", pdfErr);
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
+        await supabaseAdmin.from("sales_documents").insert({
+          account_id: lead.account_id,
+          file_url: `${appUrl}/location-agreement/${token}`,
+          file_name: `Location Agreement — ${business_name?.trim() || "Signed"}`,
+          type: "location_agreement",
+        });
+      }
     }
   }
 

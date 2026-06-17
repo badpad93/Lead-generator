@@ -301,3 +301,188 @@ export async function generateSiteDetailsPdf(data: {
 
   return doc.save();
 }
+
+export interface LocationAgreementPdfData {
+  businessName: string;
+  contactName: string;
+  titleRole?: string;
+  email: string;
+  phone: string;
+  address: string;
+  signatureName: string;
+  signedAt: string;
+  signatureIp?: string;
+}
+
+export async function generateLocationAgreementPdf(data: LocationAgreementPdfData): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const helvetica = await doc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const green = rgb(0.086, 0.635, 0.294);
+  const gray = rgb(0.42, 0.42, 0.42);
+  const dark = rgb(0.07, 0.07, 0.07);
+
+  const left = 50;
+  const right = 562;
+  const maxWidth = right - left;
+
+  function addNewPage() {
+    const p = doc.addPage([612, 792]);
+    return { p, py: 740 };
+  }
+
+  let { p: pg, py: y } = addNewPage();
+  let page = pg;
+
+  function checkPage(needed: number) {
+    if (y - needed < 50) {
+      drawText(page, "Apex AI Vending — vendingconnector.com", left, 30, helvetica, 8, gray);
+      const next = addNewPage();
+      page = next.p;
+      y = next.py;
+    }
+  }
+
+  function wrapAndDraw(text: string, font: PDFFont, size: number, color = gray, indent = 0) {
+    const words = text.split(" ");
+    const lines: string[] = [];
+    let current = "";
+    for (const word of words) {
+      const test = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(test, size) > maxWidth - indent) {
+        if (current) lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    for (const line of lines) {
+      checkPage(16);
+      drawText(page, line, left + indent, y, font, size, color);
+      y -= size + 4;
+    }
+  }
+
+  function sectionHead(num: number, title: string) {
+    checkPage(30);
+    y -= 8;
+    drawText(page, `${num}. ${title.toUpperCase()}`, left, y, helveticaBold, 8, gray);
+    y -= 18;
+  }
+
+  // Header
+  drawText(page, "APEX AI VENDING", left, y, helveticaBold, 18, green);
+  y -= 14;
+  drawText(page, "Location Placement Acknowledgment & Intent Agreement", left, y, helvetica, 10, gray);
+  const dateStr = new Date(data.signedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  drawText(page, dateStr, right - helvetica.widthOfTextAtSize(dateStr, 9), y + 14, helvetica, 9, gray);
+  y -= 20;
+  drawLine(page, left, y, right);
+  y -= 10;
+
+  // Signed banner
+  checkPage(40);
+  page.drawRectangle({ x: left, y: y - 25, width: maxWidth, height: 35, color: rgb(0.95, 0.99, 0.96), borderColor: green, borderWidth: 1 });
+  drawText(page, "SIGNED", left + 15, y - 5, helveticaBold, 11, green);
+  drawText(page, `Signed by ${data.signatureName} on ${dateStr}`, left + 75, y - 5, helvetica, 9, gray);
+  y -= 40;
+
+  sectionHead(1, "Introduction");
+  wrapAndDraw(
+    "This Location Placement Acknowledgment & Intent Agreement (\"Agreement\") is entered into between Apex AI Vending (\"Company\") and the undersigned location representative (\"Location Partner\"). This Agreement is a non-binding acknowledgment of mutual interest in the placement of vending machines at the Location Partner's premises.",
+    helvetica, 9, gray
+  );
+
+  sectionHead(2, "Purpose");
+  wrapAndDraw(
+    "The purpose of this Agreement is to confirm the Location Partner's interest in hosting one or more vending machines provided by the Company. This document serves as a preliminary acknowledgment and does not constitute a binding contract.",
+    helvetica, 9, gray
+  );
+
+  sectionHead(3, "Location Details");
+  const infoRows: [string, string][] = [
+    ["Business Name", data.businessName],
+    ["Address", data.address],
+    ["Contact Name", data.contactName],
+  ];
+  if (data.titleRole) infoRows.push(["Title / Role", data.titleRole]);
+  infoRows.push(["Email", data.email], ["Phone", data.phone]);
+  for (const [label, value] of infoRows) {
+    checkPage(18);
+    drawText(page, label, left, y, helvetica, 9, gray);
+    drawText(page, value || "—", left + 130, y, helveticaBold, 10, dark);
+    y -= 18;
+  }
+
+  sectionHead(4, "Machine Placement Terms");
+  const placementTerms = [
+    "The Company will provide, install, and maintain the vending machine(s) at no cost to the Location Partner.",
+    "The Company retains ownership of all machines placed at the location.",
+    "The Location Partner agrees to provide a suitable space with access to a standard electrical outlet.",
+    "The Company is responsible for stocking, servicing, and maintaining the machines.",
+  ];
+  for (const term of placementTerms) {
+    checkPage(20);
+    drawText(page, "•", left + 5, y, helvetica, 9, green);
+    wrapAndDraw(term, helvetica, 9, gray, 18);
+    y -= 2;
+  }
+
+  sectionHead(5, "Revenue Sharing");
+  wrapAndDraw(
+    "Revenue-sharing terms, if applicable, will be discussed and agreed upon separately before machine installation. This Agreement does not establish any specific revenue-sharing arrangement.",
+    helvetica, 9, gray
+  );
+
+  sectionHead(6, "Duration & Termination");
+  wrapAndDraw(
+    "This acknowledgment of intent is non-binding. Either party may withdraw interest at any time prior to the execution of a formal placement contract. A formal agreement with specific terms will be provided before any machine installation.",
+    helvetica, 9, gray
+  );
+
+  sectionHead(7, "Liability");
+  wrapAndDraw(
+    "The Company maintains appropriate insurance coverage for its vending machines. The Location Partner is not liable for damage caused by normal wear and tear. Specific liability terms will be outlined in the formal placement contract.",
+    helvetica, 9, gray
+  );
+
+  sectionHead(8, "Confidentiality");
+  wrapAndDraw(
+    "Both parties agree to keep any business information shared during this process confidential and not to disclose it to third parties without prior written consent.",
+    helvetica, 9, gray
+  );
+
+  sectionHead(9, "Acknowledgment & Signature");
+  checkPage(100);
+  const checks = [
+    "I confirm that the information provided above is accurate and complete.",
+    "I am authorized to act on behalf of the business at the specified location.",
+    "I understand this is a non-binding acknowledgment of intent.",
+  ];
+  for (const chk of checks) {
+    drawText(page, "✓", left + 2, y, helveticaBold, 10, green);
+    drawText(page, chk, left + 18, y, helvetica, 9, dark);
+    y -= 16;
+  }
+
+  y -= 20;
+  drawLine(page, left, y, right);
+  y -= 20;
+  drawText(page, "SIGNATURE", left, y, helveticaBold, 8, gray);
+  y -= 22;
+  drawText(page, data.signatureName, left, y, helveticaBold, 16, dark);
+  y -= 18;
+  const signedStr = new Date(data.signedAt).toLocaleString("en-US", {
+    year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+  drawText(page, `Signed: ${signedStr}`, left, y, helvetica, 9, gray);
+  if (data.signatureIp) {
+    y -= 14;
+    drawText(page, `IP: ${data.signatureIp}`, left, y, helvetica, 8, gray);
+  }
+
+  drawText(page, "Apex AI Vending — vendingconnector.com", left, 30, helvetica, 8, gray);
+
+  return doc.save();
+}
