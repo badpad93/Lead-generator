@@ -8,17 +8,22 @@ const APP_URL =
 export async function sendWelcomeEmail(params: {
   to: string;
   firstName: string;
-  role: "operator" | "location_manager";
+  role: "operator" | "locator" | "location_manager";
 }) {
   const { to, firstName, role } = params;
 
   const steps =
-    role === "location_manager"
+    role === "locator"
       ? `
             <li style="margin-bottom:8px;">Complete your profile</li>
             <li style="margin-bottom:8px;">Create your first listing</li>
             <li>Track your listing status</li>`
-      : `
+      : role === "location_manager"
+        ? `
+            <li style="margin-bottom:8px;">Complete your profile</li>
+            <li style="margin-bottom:8px;">Post a vending request or browse operators</li>
+            <li>Get matched with an operator</li>`
+        : `
             <li style="margin-bottom:8px;">Complete your profile</li>
             <li style="margin-bottom:8px;">Browse available locations</li>
             <li>Purchase leads and grow your business</li>`;

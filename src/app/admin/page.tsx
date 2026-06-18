@@ -366,6 +366,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
   const roleBadge = (role: string) => {
     const colors: Record<string, string> = {
       operator: "bg-blue-50 text-blue-700 ring-blue-200",
+      locator: "bg-emerald-50 text-emerald-700 ring-emerald-200",
       location_manager: "bg-purple-50 text-purple-700 ring-purple-200",
       requestor: "bg-gray-50 text-gray-700 ring-gray-200",
       admin: "bg-red-50 text-red-700 ring-red-200",
@@ -375,7 +376,8 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
     };
     const labels: Record<string, string> = {
       operator: "Operator",
-      location_manager: "Locator",
+      locator: "Locator",
+      location_manager: "Location Mgr",
       requestor: "Location",
       admin: "Admin",
       sales: "Sales",
@@ -418,7 +420,8 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
           <option value="market_leader">Market Leaders</option>
           <option value="sales">Sales Reps</option>
           <option value="operator">Operators</option>
-          <option value="location_manager">Locators</option>
+          <option value="locator">Locators</option>
+          <option value="location_manager">Location Managers</option>
           <option value="requestor">Locations</option>
         </select>
       </div>
@@ -628,7 +631,8 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
                 >
                   <option value="operator">Operator</option>
-                  <option value="location_manager">Locator</option>
+                  <option value="locator">Locator</option>
+                  <option value="location_manager">Location Manager</option>
                   <option value="requestor">Location</option>
                   <option value="sales">Sales Rep</option>
                   <option value="market_leader">Market Leader</option>

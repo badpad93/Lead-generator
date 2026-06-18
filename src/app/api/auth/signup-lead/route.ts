@@ -115,11 +115,11 @@ export async function POST(req: NextRequest) {
   // Send welcome email (best-effort)
   try {
     const firstName = (contact_name || "").split(" ")[0] || "there";
-    const role = entity_type === "operator" ? "operator" : "location_manager";
+    const role = entity_type === "operator" ? "operator" : entity_type === "locator" ? "locator" : "location_manager";
     await sendWelcomeEmail({
       to: email || user.email || "",
       firstName,
-      role: role as "operator" | "location_manager",
+      role: role as "operator" | "locator" | "location_manager",
     });
   } catch {
     // Welcome email is best-effort

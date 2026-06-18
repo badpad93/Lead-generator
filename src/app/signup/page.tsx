@@ -3,11 +3,11 @@
 import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Truck, Building2, ArrowLeft, Loader2, LogOut, Briefcase } from "lucide-react";
+import { Truck, Building2, Search, ArrowLeft, Loader2, LogOut, Briefcase } from "lucide-react";
 import { signUpWithGoogle, signUpWithMicrosoft, storeSignupRole, storeSignupLead, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
 
-type Role = "operator" | "location_manager" | "employee";
+type Role = "operator" | "locator" | "location_manager" | "employee";
 
 const roles: { value: Role; label: string; icon: typeof Truck; description: string }[] = [
   {
@@ -17,10 +17,16 @@ const roles: { value: Role; label: string; icon: typeof Truck; description: stri
     description: "I own/operate vending machines and want new locations",
   },
   {
-    value: "location_manager",
+    value: "locator",
     label: "Locator",
+    icon: Search,
+    description: "I find locations and sell leads on the marketplace",
+  },
+  {
+    value: "location_manager",
+    label: "Location Manager",
     icon: Building2,
-    description: "I have a property and want a vending machine placed",
+    description: "I manage a business and want a vending machine placed",
   },
   {
     value: "employee",
@@ -42,7 +48,8 @@ function SignupContent() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/dashboard";
   const roleParam = searchParams.get("role");
-  const presetRole = (roleParam === "locator" || roleParam === "location_manager") ? "location_manager" as Role
+  const presetRole = roleParam === "locator" ? "locator" as Role
+    : roleParam === "location_manager" ? "location_manager" as Role
     : roleParam === "operator" ? "operator" as Role
     : roleParam === "employee" ? "employee" as Role
     : null;
@@ -116,7 +123,7 @@ function SignupContent() {
   }
 
   function storeLead() {
-    const entityType = role === "operator" ? "operator" : role === "location_manager" ? "location" : "";
+    const entityType = role === "operator" ? "operator" : role === "locator" ? "locator" : role === "location_manager" ? "location" : "";
     storeSignupLead({
       business_name: leadForm.business_name.trim(),
       contact_name: `${leadForm.first_name.trim()} ${leadForm.last_name.trim()}`,
