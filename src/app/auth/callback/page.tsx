@@ -57,24 +57,26 @@ function CallbackContent() {
 
       const session = data.session;
 
-      // Ensure the profile exists (auto-creates for new users via GET)
-      try {
-        await fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-      } catch {
-        // Best-effort — profile will be created on next page load
-      }
-
       let isEmployeeSignup = false;
 
       if (isSignup) {
-        const signupRole = consumeSignupRole();
+        const urlRole = searchParams.get("role");
+        const signupRole = urlRole || consumeSignupRole();
         const leadData = consumeSignupLead();
 
         isEmployeeSignup = signupRole === "employee";
         const profileRole = isEmployeeSignup ? "sales" : signupRole;
 
+        // Ensure the profile exists first (auto-creates for new OAuth users via GET)
+        try {
+          await fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+        } catch {
+          // Best-effort — profile will be created on next page load
+        }
+
+        // Now patch the profile with the correct role and signup data
         if (profileRole) {
           try {
             const profileUpdate: Record<string, string> = { role: profileRole };
@@ -117,6 +119,14 @@ function CallbackContent() {
         }
       } else {
         consumeSignupRole();
+        // Ensure the profile exists for login flow
+        try {
+          await fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+        } catch {
+          // Best-effort
+        }
       }
 
       // Always verify profile is complete — for BOTH signup and login.
