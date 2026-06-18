@@ -112,13 +112,16 @@ export async function signInWithGoogle(): Promise<void> {
 }
 
 /** Sign in with Google OAuth for SIGNUP flow (forces account selection) */
-export async function signUpWithGoogle(): Promise<void> {
+export async function signUpWithGoogle(role?: string): Promise<void> {
   const supabase = createBrowserClient();
   storeAuthFlow("signup");
+  const redirectUrl = new URL(`${getSiteUrl()}/auth/callback`);
+  redirectUrl.searchParams.set("flow", "signup");
+  if (role) redirectUrl.searchParams.set("role", role);
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${getSiteUrl()}/auth/callback?flow=signup`,
+      redirectTo: redirectUrl.toString(),
       skipBrowserRedirect: false,
       queryParams: {
         prompt: "select_account",
@@ -144,13 +147,16 @@ export async function signInWithMicrosoft(): Promise<void> {
 }
 
 /** Sign in with Microsoft OAuth for SIGNUP flow */
-export async function signUpWithMicrosoft(): Promise<void> {
+export async function signUpWithMicrosoft(role?: string): Promise<void> {
   const supabase = createBrowserClient();
   storeAuthFlow("signup");
+  const redirectUrl = new URL(`${getSiteUrl()}/auth/callback`);
+  redirectUrl.searchParams.set("flow", "signup");
+  if (role) redirectUrl.searchParams.set("role", role);
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "azure",
     options: {
-      redirectTo: `${getSiteUrl()}/auth/callback?flow=signup`,
+      redirectTo: redirectUrl.toString(),
       skipBrowserRedirect: false,
       scopes: "email",
     },

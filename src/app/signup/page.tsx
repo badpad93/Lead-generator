@@ -148,7 +148,7 @@ function SignupContent() {
       storeSignupRole(role);
       storeLead();
       storeRedirectAfterLogin(redirectTo);
-      await signUpWithGoogle();
+      await signUpWithGoogle(role);
     } catch {
       setError("Failed to connect to Google. Please try again.");
       setLoading(null);
@@ -172,7 +172,7 @@ function SignupContent() {
       storeSignupRole(role);
       storeLead();
       storeRedirectAfterLogin(redirectTo);
-      await signUpWithMicrosoft();
+      await signUpWithMicrosoft(role);
     } catch {
       setError("Failed to connect to Microsoft. Please try again.");
       setLoading(null);

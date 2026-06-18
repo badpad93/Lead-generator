@@ -145,12 +145,13 @@ export async function POST(
     }
   }
 
-  // Move listing to pending_approval so admin can review before it goes live
+  // Auto-approve listing now that the location owner has signed
   if (agreement.listing_id) {
     const { error: updateErr } = await supabaseAdmin
       .from("user_listings")
       .update({
-        status: "pending_approval",
+        status: "active",
+        is_public: true,
         updated_at: new Date().toISOString(),
       })
       .eq("id", agreement.listing_id)
@@ -180,6 +181,20 @@ export async function POST(
         });
       } catch (emailErr) {
         console.error("[location-agreement] Failed to send approval notification:", emailErr);
+      }
+
+      // Notify seller their listing is now live
+      if (sellerProfile?.email) {
+        try {
+          const { sendListingApprovedEmail } = await import("@/lib/locationAgreementEmail");
+          await sendListingApprovedEmail({
+            to: sellerProfile.email,
+            sellerName: sellerProfile.full_name || "Seller",
+            listingTitle: listing.title,
+          });
+        } catch (emailErr) {
+          console.error("[location-agreement] Failed to send seller approval email:", emailErr);
+        }
       }
     }
   }

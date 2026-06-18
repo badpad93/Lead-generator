@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendLocationAgreementEmail } from "@/lib/locationAgreementEmail";
+import { sendLocationAgreementEmail, sendListingExpiredEmail } from "@/lib/locationAgreementEmail";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -38,6 +38,29 @@ export async function GET(req: NextRequest) {
         .update({ status: "expired", is_public: false, updated_at: now.toISOString() })
         .in("id", listingIds)
         .eq("status", "pending_verification");
+
+      // Notify sellers their listings expired
+      const { data: expiredListings } = await supabaseAdmin
+        .from("user_listings")
+        .select("title, seller_id, profiles!seller_id(email, full_name)")
+        .in("id", listingIds);
+
+      if (expiredListings) {
+        for (const listing of expiredListings) {
+          const sellerProfile = listing.profiles as unknown as { email: string; full_name: string } | null;
+          if (sellerProfile?.email) {
+            try {
+              await sendListingExpiredEmail({
+                to: sellerProfile.email,
+                sellerName: sellerProfile.full_name || "Seller",
+                listingTitle: listing.title,
+              });
+            } catch (err) {
+              console.error(`[cron] Failed to send expiry email for listing:`, err);
+            }
+          }
+        }
+      }
     }
 
     expired = expiredAgreements.length;

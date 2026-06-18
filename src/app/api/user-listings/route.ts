@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("role, stripe_account_id, stripe_onboarding_complete")
+    .select("role")
     .eq("id", userId)
     .single();
 
@@ -82,13 +82,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Profile not found. Please complete your account setup first." },
       { status: 403 }
-    );
-  }
-
-  if (!profile.stripe_account_id || !profile.stripe_onboarding_complete) {
-    return NextResponse.json(
-      { error: "You must connect your Stripe account before listing. Go to Profile → Connect Stripe." },
-      { status: 400 }
     );
   }
 
