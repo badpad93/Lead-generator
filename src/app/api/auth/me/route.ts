@@ -38,20 +38,25 @@ export async function GET(req: NextRequest) {
       user.email?.split("@")[0] ||
       "User";
 
-    const newProfile = {
+    const resolvedRole =
+      meta.role && meta.role !== "admin" && meta.role !== "sales"
+        ? meta.role
+        : "location_manager";
+
+    const newProfile: Record<string, unknown> = {
       id: user.id,
       email: user.email || "",
       full_name: fullName,
-      // Never allow self-signup to grant admin/sales — those roles are admin-assigned only
-      role:
-        meta.role && meta.role !== "admin" && meta.role !== "sales"
-          ? meta.role
-          : "location_manager",
+      role: resolvedRole,
       country: "US",
       verified: false,
       rating: 0,
       review_count: 0,
     };
+
+    if (resolvedRole === "locator") {
+      newProfile.locator_status = "pending_approval";
+    }
 
     const { data: created, error: insertError } = await supabaseAdmin
       .from("profiles")
@@ -107,6 +112,10 @@ export async function PATCH(req: NextRequest) {
         if (field === "role" && PRIVILEGED_ROLES.has(body.role)) continue;
         updates[field] = body[field];
       }
+    }
+
+    if (updates.role === "locator") {
+      updates.locator_status = "pending_approval";
     }
 
     const { data, error } = await supabaseAdmin

@@ -447,6 +447,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                 <th className="px-4 py-3 font-medium text-black-primary/60">Verified</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Featured</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Coffee</th>
+                <th className="px-4 py-3 font-medium text-black-primary/60">Seller</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Joined</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Actions</th>
               </tr>
@@ -524,6 +525,58 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                     >
                       <Coffee className="h-5 w-5" />
                     </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    {user.role === "locator" ? (
+                      user.locator_status === "approved" ? (
+                        <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-200">
+                          Approved
+                        </span>
+                      ) : user.locator_status === "rejected" ? (
+                        <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200">
+                          Rejected
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`/api/admin/users/${user.id}`, {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                  body: JSON.stringify({ locator_status: "approved" }),
+                                });
+                                if (res.ok) { onSuccess(`${user.full_name || "Locator"} approved`); fetchUsers(); }
+                              } catch {}
+                            }}
+                            className="rounded-lg px-2 py-1 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 transition-colors cursor-pointer"
+                            title="Approve locator"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`/api/admin/users/${user.id}`, {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                  body: JSON.stringify({ locator_status: "rejected" }),
+                                });
+                                if (res.ok) { onSuccess(`${user.full_name || "Locator"} rejected`); fetchUsers(); }
+                              } catch {}
+                            }}
+                            className="rounded-lg px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer"
+                            title="Reject locator"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )
+                    ) : (
+                      <span className="text-black-primary/20 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-black-primary/40 text-xs">
                     {new Date(user.created_at).toLocaleDateString()}

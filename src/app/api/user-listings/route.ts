@@ -74,13 +74,20 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("role")
+    .select("role, locator_status")
     .eq("id", userId)
     .single();
 
   if (!profile) {
     return NextResponse.json(
       { error: "Profile not found. Please complete your account setup first." },
+      { status: 403 }
+    );
+  }
+
+  if (profile.role === "locator" && profile.locator_status !== "approved") {
+    return NextResponse.json(
+      { error: "Your locator account is pending approval. You'll be notified once approved." },
       { status: 403 }
     );
   }

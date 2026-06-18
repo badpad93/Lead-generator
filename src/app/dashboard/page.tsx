@@ -506,8 +506,21 @@ export default function DashboardPage() {
           <FeaturedOperatorWidget token={token} />
         )}
 
+        {/* ------- LOCATOR PENDING APPROVAL ------- */}
+        {profile.role === "locator" && profile.locator_status !== "approved" && (
+          <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="h-5 w-5 text-amber-500" />
+              <h3 className="font-bold text-black-primary">Account Under Review</h3>
+            </div>
+            <p className="text-sm text-gray-600">
+              Your locator account is pending approval. Our team will review your account and notify you by email once you&apos;re approved to start listing locations.
+            </p>
+          </div>
+        )}
+
         {/* ------- LOCATOR ONBOARDING ------- */}
-        {profile.role === "locator" && (
+        {profile.role === "locator" && profile.locator_status === "approved" && (
           <>
             <LocatorOnboarding profile={profile} listings={locatorListings} />
             <ListingPipeline listings={locatorListings} />

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAdminUserId } from "@/lib/adminAuth";
+import { sendLocatorApprovedEmail, sendLocatorRejectedEmail } from "@/lib/welcomeEmail";
 
 /** PATCH /api/admin/users/[id] — admin updates a user profile */
 export async function PATCH(
@@ -20,7 +21,7 @@ export async function PATCH(
     const allowedFields = [
       "full_name", "email", "role", "company_name", "phone",
       "website", "bio", "address", "city", "state", "zip", "country",
-      "verified", "featured", "coffee_access_enabled",
+      "verified", "featured", "coffee_access_enabled", "locator_status",
     ];
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {
@@ -62,6 +63,20 @@ export async function PATCH(
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Send approval/rejection email when locator_status changes
+    if (updates.locator_status && data) {
+      try {
+        const firstName = (data.full_name || "").split(" ")[0] || "there";
+        if (updates.locator_status === "approved") {
+          await sendLocatorApprovedEmail({ to: data.email, firstName });
+        } else if (updates.locator_status === "rejected") {
+          await sendLocatorRejectedEmail({ to: data.email, firstName });
+        }
+      } catch {
+        // Email is best-effort
+      }
     }
 
     // Keep operator_listings.featured in sync with profiles.featured
