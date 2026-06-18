@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Truck,
   Building2,
+  MapPin,
   UserPlus,
   ChevronDown,
   ChevronUp,
@@ -50,6 +51,19 @@ const ROLES = [
       "Manage all your applications in one dashboard",
       "Get verified to stand out from competitors",
       "Receive messages and negotiate terms",
+    ],
+  },
+  {
+    icon: MapPin,
+    title: "Locators",
+    color: "bg-emerald-50 text-emerald-600",
+    items: [
+      "Scout and find great vending locations",
+      "Create listings with location details and photos",
+      "Sell leads to operators on the marketplace",
+      "Earn money for every lead purchased",
+      "Track your listings and sales from your dashboard",
+      "Build a reputation with ratings and reviews",
     ],
   },
   {

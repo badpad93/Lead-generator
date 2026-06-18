@@ -321,7 +321,7 @@ export default function DashboardPage() {
   }, [profile?.state]);
 
   const fetchLocatorListings = useCallback(async () => {
-    if (!token || profile?.role !== "location_manager") return;
+    if (!token || (profile?.role !== "locator" && profile?.role !== "location_manager")) return;
     try {
       const listingsRes = await fetch("/api/user-listings?seller_id=me", {
         headers: { Authorization: `Bearer ${token}` },
@@ -463,9 +463,14 @@ export default function DashboardPage() {
                     <Building2 className="h-3.5 w-3.5 text-green-primary" />{" "}
                     Operator
                   </>
-                ) : profile.role === "location_manager" ? (
+                ) : profile.role === "locator" ? (
                   <>
                     <MapPin className="h-3.5 w-3.5 text-green-primary" />{" "}
+                    Locator
+                  </>
+                ) : profile.role === "location_manager" ? (
+                  <>
+                    <Building2 className="h-3.5 w-3.5 text-green-primary" />{" "}
                     Location Manager
                   </>
                 ) : (
@@ -501,8 +506,21 @@ export default function DashboardPage() {
           <FeaturedOperatorWidget token={token} />
         )}
 
+        {/* ------- LOCATOR PENDING APPROVAL ------- */}
+        {profile.role === "locator" && profile.locator_status !== "approved" && (
+          <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="h-5 w-5 text-amber-500" />
+              <h3 className="font-bold text-black-primary">Account Under Review</h3>
+            </div>
+            <p className="text-sm text-gray-600">
+              Your locator account is pending approval. Our team will review your account and notify you by email once you&apos;re approved to start listing locations.
+            </p>
+          </div>
+        )}
+
         {/* ------- LOCATOR ONBOARDING ------- */}
-        {profile.role === "location_manager" && (
+        {profile.role === "locator" && profile.locator_status === "approved" && (
           <>
             <LocatorOnboarding profile={profile} listings={locatorListings} />
             <ListingPipeline listings={locatorListings} />
@@ -613,7 +631,7 @@ export default function DashboardPage() {
             </div>
             <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-purple-600" />
           </Link>
-          {(profile.role === "operator" || profile.role === "location_manager") && (
+          {(profile.role === "operator" || profile.role === "locator" || profile.role === "location_manager") && (
             <Link
               href="/my-listings"
               className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"

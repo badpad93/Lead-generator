@@ -1,4 +1,4 @@
-export type UserRole = "operator" | "location_manager" | "admin" | "sales" | "director_of_sales" | "market_leader";
+export type UserRole = "operator" | "locator" | "location_manager" | "admin" | "sales" | "director_of_sales" | "market_leader";
 
 export type LocationType =
   | "office"
@@ -61,6 +61,7 @@ export interface Profile {
   payout_routing_number?: string | null;
   payout_account_number?: string | null;
   payout_notes?: string | null;
+  locator_status?: string | null;
   created_at: string;
 }
 
