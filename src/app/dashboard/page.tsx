@@ -466,7 +466,7 @@ export default function DashboardPage() {
                 ) : profile.role === "location_manager" ? (
                   <>
                     <MapPin className="h-3.5 w-3.5 text-green-primary" />{" "}
-                    Location Manager
+                    Locator
                   </>
                 ) : (
                   <>

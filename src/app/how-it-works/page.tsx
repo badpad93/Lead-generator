@@ -54,7 +54,7 @@ const ROLES = [
   },
   {
     icon: Building2,
-    title: "Location Managers",
+    title: "Locators",
     color: "bg-blue-50 text-blue-600",
     items: [
       "Post a detailed request for your property",

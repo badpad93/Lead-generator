@@ -259,7 +259,7 @@ function ProfilePageInner() {
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
                 >
                   <option value="operator">Operator</option>
-                  <option value="location_manager">Location</option>
+                  <option value="location_manager">Locator</option>
                 </select>
               </div>
 
