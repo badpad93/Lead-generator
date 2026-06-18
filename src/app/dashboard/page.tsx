@@ -38,6 +38,8 @@ import MachineTypeBadge from "@/app/components/MachineTypeBadge";
 import UrgencyBadge from "@/app/components/UrgencyBadge";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 import OperatorOnboarding from "./OperatorOnboarding";
+import LocatorOnboarding from "@/app/components/LocatorOnboarding";
+import ListingPipeline from "@/app/components/ListingPipeline";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -236,6 +238,7 @@ export default function DashboardPage() {
   const [operators, setOperators] = useState<OperatorWithProfile[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [loadingOperators, setLoadingOperators] = useState(false);
+  const [locatorListings, setLocatorListings] = useState<{ status: string }[]>([]);
 
   /* ============================================================== */
   /*  Auth                                                           */
@@ -317,11 +320,27 @@ export default function DashboardPage() {
     }
   }, [profile?.state]);
 
+  const fetchLocatorListings = useCallback(async () => {
+    if (!token || profile?.role !== "location_manager") return;
+    try {
+      const listingsRes = await fetch("/api/user-listings?seller_id=me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (listingsRes.ok) {
+        const listingsData = await listingsRes.json();
+        setLocatorListings(listingsData.listings || []);
+      }
+    } catch {
+      /* noop */
+    }
+  }, [token, profile?.role]);
+
   useEffect(() => {
     if (!profile) return;
     fetchRequests();
     fetchOperators();
-  }, [profile, fetchRequests, fetchOperators]);
+    fetchLocatorListings();
+  }, [profile, fetchRequests, fetchOperators, fetchLocatorListings]);
 
   /* ============================================================== */
   /*  Sign Out                                                       */
@@ -480,6 +499,14 @@ export default function DashboardPage() {
         {/* ------- FEATURED OPERATOR ------- */}
         {isOperator && (
           <FeaturedOperatorWidget token={token} />
+        )}
+
+        {/* ------- LOCATOR ONBOARDING ------- */}
+        {profile.role === "location_manager" && (
+          <>
+            <LocatorOnboarding profile={profile} listings={locatorListings} />
+            <ListingPipeline listings={locatorListings} />
+          </>
         )}
 
         {/* ------- QUICK ACTIONS ------- */}

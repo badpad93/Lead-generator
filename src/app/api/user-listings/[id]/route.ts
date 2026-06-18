@@ -99,6 +99,27 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Send approval email to seller when listing goes active
+  if (updates.status === "active" && data) {
+    try {
+      const { data: sellerProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", data.seller_id)
+        .single();
+      if (sellerProfile?.email) {
+        const { sendListingApprovedEmail } = await import("@/lib/locationAgreementEmail");
+        await sendListingApprovedEmail({
+          to: sellerProfile.email,
+          sellerName: sellerProfile.full_name || "Seller",
+          listingTitle: data.title,
+        });
+      }
+    } catch {
+      // Best-effort
+    }
+  }
+
   return NextResponse.json(data);
 }
 

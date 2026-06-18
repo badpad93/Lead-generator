@@ -88,6 +88,28 @@ export async function POST(
       payout_status: "pending",
     });
 
+    // Notify seller their listing was purchased
+    try {
+      const { data: sellerProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", listing.seller_id)
+        .single();
+
+      if (sellerProfile?.email) {
+        const { sendListingPurchasedEmail } = await import("@/lib/locationAgreementEmail");
+        await sendListingPurchasedEmail({
+          to: sellerProfile.email,
+          sellerName: sellerProfile.full_name || "Seller",
+          listingTitle: listing.title,
+          buyerName: user.user_metadata?.full_name || user.email || "A buyer",
+          amount: Number(listing.price),
+        });
+      }
+    } catch {
+      // Seller notification is best-effort
+    }
+
     await sendInvoiceEmail(invoice.Id, user.email || undefined);
 
     const fullInvoice = await getInvoice(invoice.Id);

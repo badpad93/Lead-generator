@@ -4,6 +4,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.FROM_EMAIL || "sales@bytebitevending.com";
 const ADMIN_EMAIL = "james@apexaivending.com";
 const PHONE = "(888) 851-1462";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
 
 export async function sendLocationAgreementEmail(params: {
   to: string;
@@ -168,6 +169,123 @@ export async function sendListingPendingApprovalEmail(params: {
         <div style="margin:24px 0;">
           <a href="${adminUrl}" style="display:inline-block;background:#16a34a;color:#fff;font-weight:600;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
             Review in Admin Panel
+          </a>
+        </div>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+        <p style="color:#9ca3af;font-size:11px;">Vending Connector — vendingconnector.com</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendListingApprovedEmail(params: {
+  to: string;
+  sellerName: string;
+  listingTitle: string;
+}) {
+  const { to, sellerName, listingTitle } = params;
+
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `Your listing is now live — ${listingTitle}`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+        <div style="margin-bottom:24px;">
+          <span style="font-size:20px;font-weight:700;color:#16a34a;">Vending Connector</span>
+        </div>
+        <p style="color:#111827;font-size:15px;line-height:1.6;">
+          Hi ${sellerName},
+        </p>
+        <p style="color:#374151;font-size:14px;line-height:1.6;">
+          Congratulations! Your listing <strong>${listingTitle}</strong> has been approved and is now
+          live on the Vending Connector marketplace. Potential buyers can now discover and purchase
+          your listing.
+        </p>
+        <div style="margin:24px 0;">
+          <a href="${APP_URL}/my-listings" style="display:inline-block;background:#16a34a;color:#fff;font-weight:600;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
+            View My Listings
+          </a>
+        </div>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+        <p style="color:#9ca3af;font-size:11px;">Vending Connector — vendingconnector.com</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendListingPurchasedEmail(params: {
+  to: string;
+  sellerName: string;
+  listingTitle: string;
+  buyerName: string;
+  amount: number;
+}) {
+  const { to, sellerName, listingTitle, buyerName, amount } = params;
+  const payout = (amount * 0.85).toFixed(2);
+
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `Your listing was purchased — ${listingTitle}`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+        <div style="margin-bottom:24px;">
+          <span style="font-size:20px;font-weight:700;color:#16a34a;">Vending Connector</span>
+        </div>
+        <p style="color:#111827;font-size:15px;line-height:1.6;">
+          Hi ${sellerName},
+        </p>
+        <p style="color:#374151;font-size:14px;line-height:1.6;">
+          Great news! Your listing <strong>${listingTitle}</strong> was purchased by
+          <strong>${buyerName}</strong> for <strong>$${amount.toLocaleString()}</strong>.
+        </p>
+        <p style="color:#374151;font-size:14px;line-height:1.6;">
+          After the 15% platform fee, your payout will be <strong>$${payout}</strong>.
+          We'll process your payout and notify you once it has been sent.
+        </p>
+        <div style="margin:24px 0;">
+          <a href="${APP_URL}/my-listings" style="display:inline-block;background:#16a34a;color:#fff;font-weight:600;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
+            View My Listings
+          </a>
+        </div>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+        <p style="color:#9ca3af;font-size:11px;">Vending Connector — vendingconnector.com</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendListingExpiredEmail(params: {
+  to: string;
+  sellerName: string;
+  listingTitle: string;
+}) {
+  const { to, sellerName, listingTitle } = params;
+
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `Listing expired — ${listingTitle}`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+        <div style="margin-bottom:24px;">
+          <span style="font-size:20px;font-weight:700;color:#16a34a;">Vending Connector</span>
+        </div>
+        <p style="color:#111827;font-size:15px;line-height:1.6;">
+          Hi ${sellerName},
+        </p>
+        <p style="color:#374151;font-size:14px;line-height:1.6;">
+          Unfortunately, your listing <strong>${listingTitle}</strong> has expired because the
+          location owner did not sign the agreement within 7 days.
+        </p>
+        <p style="color:#374151;font-size:14px;line-height:1.6;">
+          Don't worry — you can re-submit your listing with the correct location owner contact
+          information and try again.
+        </p>
+        <div style="margin:24px 0;">
+          <a href="${APP_URL}/my-listings" style="display:inline-block;background:#16a34a;color:#fff;font-weight:600;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
+            Create New Listing
           </a>
         </div>
         <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">

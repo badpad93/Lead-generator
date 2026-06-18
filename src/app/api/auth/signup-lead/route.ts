@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { sendWelcomeEmail } from "@/lib/welcomeEmail";
 
 const DEFAULT_ASSIGNEE_EMAIL = "james@apexaivending.com";
 
@@ -109,6 +110,19 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Send welcome email (best-effort)
+  try {
+    const firstName = (contact_name || "").split(" ")[0] || "there";
+    const role = entity_type === "operator" ? "operator" : "location_manager";
+    await sendWelcomeEmail({
+      to: email || user.email || "",
+      firstName,
+      role: role as "operator" | "location_manager",
+    });
+  } catch {
+    // Welcome email is best-effort
   }
 
   return NextResponse.json(data, { status: 201 });
