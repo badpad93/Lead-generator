@@ -117,15 +117,16 @@ function SignupContent() {
     if (!leadForm.city.trim()) { setError("City is required"); return; }
     if (!leadForm.state.trim()) { setError("State is required"); return; }
     if (!leadForm.zip.trim()) { setError("Zip code is required"); return; }
-    if (!leadForm.business_name.trim()) { setError("Business name is required"); return; }
+    if (role !== "locator" && !leadForm.business_name.trim()) { setError("Business name is required"); return; }
     setError(null);
     setStep(3);
   }
 
   function storeLead() {
     const entityType = role === "operator" ? "operator" : role === "locator" ? "locator" : role === "location_manager" ? "location" : "";
+    const businessName = leadForm.business_name.trim() || `${leadForm.first_name.trim()} ${leadForm.last_name.trim()}`;
     storeSignupLead({
-      business_name: leadForm.business_name.trim(),
+      business_name: businessName,
       contact_name: `${leadForm.first_name.trim()} ${leadForm.last_name.trim()}`,
       email: leadForm.email.trim(),
       phone: leadForm.phone.trim(),
@@ -304,10 +305,12 @@ function SignupContent() {
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Business Name <span className="text-red-500">*</span></label>
-                  <input value={leadForm.business_name} onChange={(e) => setLeadForm((f) => ({ ...f, business_name: e.target.value }))} placeholder="Your business or company name" className={inputClass} />
-                </div>
+                {role !== "locator" && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Name <span className="text-red-500">*</span></label>
+                    <input value={leadForm.business_name} onChange={(e) => setLeadForm((f) => ({ ...f, business_name: e.target.value }))} placeholder="Your business or company name" className={inputClass} />
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">First Name <span className="text-red-500">*</span></label>

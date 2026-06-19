@@ -88,7 +88,7 @@ function CallbackContent() {
             if (leadData?.contact_name) profileUpdate.full_name = leadData.contact_name;
             if (leadData?.phone) profileUpdate.phone = leadData.phone;
 
-            await fetch("/api/auth/me", {
+            const patchRes = await fetch("/api/auth/me", {
               method: "PATCH",
               headers: {
                 "Content-Type": "application/json",
@@ -96,6 +96,18 @@ function CallbackContent() {
               },
               body: JSON.stringify(profileUpdate),
             });
+
+            // If the full update failed, retry with just the role
+            if (!patchRes.ok) {
+              await fetch("/api/auth/me", {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({ role: profileRole }),
+              });
+            }
           } catch {
             // Profile update is best-effort
           }
