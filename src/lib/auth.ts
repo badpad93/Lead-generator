@@ -115,6 +115,7 @@ export async function signInWithGoogle(): Promise<void> {
 export async function signUpWithGoogle(role?: string): Promise<void> {
   const supabase = createBrowserClient();
   storeAuthFlow("signup");
+  if (role) storeSignupRole(role);
   const redirectUrl = new URL(`${getSiteUrl()}/auth/callback`);
   redirectUrl.searchParams.set("flow", "signup");
   if (role) redirectUrl.searchParams.set("role", role);
@@ -150,6 +151,7 @@ export async function signInWithMicrosoft(): Promise<void> {
 export async function signUpWithMicrosoft(role?: string): Promise<void> {
   const supabase = createBrowserClient();
   storeAuthFlow("signup");
+  if (role) storeSignupRole(role);
   const redirectUrl = new URL(`${getSiteUrl()}/auth/callback`);
   redirectUrl.searchParams.set("flow", "signup");
   if (role) redirectUrl.searchParams.set("role", role);
