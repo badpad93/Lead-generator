@@ -4,12 +4,12 @@ import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { signInWithGoogle, signInWithMicrosoft, storeRedirectAfterLogin } from "@/lib/auth";
+import { signInWithGoogle, signInWithMicrosoft, signInWithYahoo, storeRedirectAfterLogin } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
 
 function LoginContent() {
   const searchParams = useSearchParams();
-  const [loading, setLoading] = useState<"google" | "microsoft" | null>(null);
+  const [loading, setLoading] = useState<"google" | "microsoft" | "yahoo" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
 
@@ -61,6 +61,14 @@ function LoginContent() {
       setError("Failed to start Microsoft login. Please try again.");
       setLoading(null);
     }
+  }
+
+  function handleYahooLogin() {
+    setLoading("yahoo");
+    setError(null);
+    const redirect = searchParams.get("redirect") || "/dashboard";
+    storeRedirectAfterLogin(redirect);
+    signInWithYahoo();
   }
 
   if (checking) {
@@ -146,6 +154,36 @@ function LoginContent() {
                   <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
                 </svg>
                 Continue with Microsoft
+              </>
+            )}
+          </button>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+            <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or</span></div>
+          </div>
+
+          {/* Yahoo OAuth Button */}
+          <button
+            type="button"
+            onClick={handleYahooLogin}
+            disabled={!!loading}
+            className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700
+              font-semibold rounded-xl transition-colors disabled:opacity-50
+              disabled:cursor-not-allowed flex items-center justify-center gap-3
+              cursor-pointer border border-gray-300 shadow-sm"
+          >
+            {loading === "yahoo" ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Connecting to Yahoo...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path d="M13.31 9.693l4.655-9.693h-3.516l-2.889 6.487L8.682 0H5.168l4.61 9.693L9.047 24h3.476l.787-14.307z" fill="#6001D2"/>
+                </svg>
+                Continue with Yahoo
               </>
             )}
           </button>

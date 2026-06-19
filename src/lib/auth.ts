@@ -172,6 +172,21 @@ export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
 }
 
+/** Sign in with Yahoo OAuth for LOGIN flow */
+export function signInWithYahoo(): void {
+  storeAuthFlow("login");
+  window.location.href = "/api/auth/yahoo?flow=login";
+}
+
+/** Sign in with Yahoo OAuth for SIGNUP flow */
+export function signUpWithYahoo(role?: string): void {
+  storeAuthFlow("signup");
+  if (role) storeSignupRole(role);
+  const params = new URLSearchParams({ flow: "signup" });
+  if (role) params.set("role", role);
+  window.location.href = `/api/auth/yahoo?${params.toString()}`;
+}
+
 /** Fetch the current user's profile */
 export async function fetchProfile(): Promise<Profile | null> {
   const token = await getAccessToken();
