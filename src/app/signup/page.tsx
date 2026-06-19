@@ -505,6 +505,23 @@ function SignupContent() {
                 )}
               </button>
 
+              {/* Schedule a Call CTA */}
+              <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                <p className="text-sm font-medium text-black-primary mb-1">Want to talk to someone first?</p>
+                <p className="text-xs text-black-primary/50 mb-3">Schedule a free call with a representative who can walk you through the platform.</p>
+                <a
+                  href="https://calendly.com/james-apexaivending/james-padden-apex-ai-vending"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Schedule a Call
+                </a>
+              </div>
+
               <div className="mt-4 text-center">
                 <p className="text-xs text-black-primary/40">
                   By signing up, you agree to our Terms of Service and Privacy Policy.

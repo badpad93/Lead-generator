@@ -6,6 +6,8 @@ const ADMIN_EMAIL = "james@apexaivending.com";
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
 
+const CALENDLY_URL = "https://calendly.com/james-apexaivending/james-padden-apex-ai-vending";
+
 export async function sendWelcomeEmail(params: {
   to: string;
   firstName: string;
@@ -60,6 +62,15 @@ export async function sendWelcomeEmail(params: {
         <div style="margin:24px 0;">
           <a href="${APP_URL}/dashboard" style="display:inline-block;background:#16a34a;color:#fff;font-weight:600;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
             Go to Dashboard
+          </a>
+        </div>
+        <div style="margin:24px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+          <p style="color:#334155;font-size:14px;font-weight:600;margin:0 0 8px 0;">Want to talk to a real person?</p>
+          <p style="color:#64748b;font-size:13px;margin:0 0 12px 0;">
+            Schedule a free call with one of our representatives. We'll walk you through the platform and answer any questions.
+          </p>
+          <a href="${CALENDLY_URL}" style="display:inline-block;background:#1e293b;color:#fff;font-weight:600;font-size:13px;padding:10px 20px;border-radius:6px;text-decoration:none;">
+            Schedule a Call
           </a>
         </div>
         <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
