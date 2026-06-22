@@ -42,6 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single();
 
   // Build CC list
+  const ALWAYS_CC = ["james@apexaivending.com", "katrina.cacdac@apexaivending.com"];
   const ccEmails: string[] = [];
   if (account?.notification_emails) {
     const extras = (account.notification_emails as string)
@@ -55,6 +56,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   if (repProfile?.email && !ccEmails.includes(repProfile.email) && repProfile.email !== recipientEmail) {
     ccEmails.push(repProfile.email);
+  }
+  for (const addr of ALWAYS_CC) {
+    if (!ccEmails.includes(addr) && addr !== recipientEmail) {
+      ccEmails.push(addr);
+    }
   }
 
   const docHtml = generateDocumentHtml(order, account, items, isQuote, repProfile?.email);
@@ -134,14 +140,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } else {
     // ORDER: Create QB invoice and send payment link
     try {
-      const lineItems = items.map((item: { service_name: string; unit_price: number; price?: number; quantity: number; discount_percent?: number }) => {
+      const lineItems = items.map((item: { service_name: string; unit_price: number; price?: number; quantity: number; discount_percent?: number; total_price?: number }) => {
+        const qty = Number(item.quantity) || 1;
         const unitPrice = Number(item.unit_price) || Number(item.price) || 0;
         const discount = Number(item.discount_percent) || 0;
-        const effectivePrice = unitPrice * (1 - discount / 100);
+        let effectivePrice = unitPrice * (1 - discount / 100);
+        // Fallback to total_price / qty if unit calculation is 0
+        if (effectivePrice === 0 && Number(item.total_price) > 0) {
+          effectivePrice = Number(item.total_price) / qty;
+        }
         return {
           description: item.service_name + (discount > 0 ? ` (${discount}% off)` : ""),
           amount: effectivePrice,
-          quantity: Number(item.quantity) || 1,
+          quantity: qty,
         };
       });
 
@@ -237,16 +248,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 function generateDocumentHtml(
   order: Record<string, unknown>,
   account: Record<string, unknown> | null,
-  items: Array<{ service_name: string; price: number; unit_price?: number; quantity?: number; discount_percent?: number; notes: string | null }>,
+  items: Array<{ service_name: string; price: number; unit_price?: number; quantity?: number; discount_percent?: number; total_price?: number; notes: string | null }>,
   isQuote: boolean,
   repEmail?: string | null,
 ) {
-  const total = items.reduce((s, i) => {
+  let total = items.reduce((s, i) => {
     const qty = Number(i.quantity) || 1;
     const price = Number(i.unit_price || i.price) || 0;
     const discount = Number(i.discount_percent) || 0;
     return s + qty * price * (1 - discount / 100);
   }, 0);
+  // Fallback: use stored total_value if item calculation yields 0
+  if (total === 0 && Number(order.total_value) > 0) {
+    total = Number(order.total_value);
+  }
   const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const docLabel = isQuote ? "Quote" : "Service Order";
   const idLabel = isQuote ? "Quote ID" : "Order ID";
@@ -256,12 +271,16 @@ function generateDocumentHtml(
       const qty = Number(item.quantity) || 1;
       const price = Number(item.unit_price || item.price) || 0;
       const discount = Number(item.discount_percent) || 0;
-      const lineTotal = qty * price * (1 - discount / 100);
+      let lineTotal = qty * price * (1 - discount / 100);
+      // Fallback to stored total_price if calculation is 0
+      if (lineTotal === 0 && Number(item.total_price) > 0) {
+        lineTotal = Number(item.total_price);
+      }
       const discountLabel = discount > 0 ? ` <span style="color:#16a34a;font-size:11px;">(${discount}% off)</span>` : "";
       return `<tr>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${item.service_name}${discountLabel}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${qty}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${price.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${(price || lineTotal / qty).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${lineTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
       </tr>`;
     })
