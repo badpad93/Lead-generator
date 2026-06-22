@@ -10,6 +10,9 @@ export type LocationType =
   | "warehouse"
   | "retail"
   | "government"
+  | "barbershop"
+  | "carwash"
+  | "laundromat"
   | "other";
 
 export type MachineType =
@@ -281,6 +284,9 @@ export const LOCATION_TYPES: { value: LocationType; label: string }[] = [
   { value: "warehouse", label: "Warehouse / Industrial" },
   { value: "retail", label: "Retail / Shopping" },
   { value: "government", label: "Government / Public" },
+  { value: "barbershop", label: "Barbershop / Salon" },
+  { value: "carwash", label: "Car Wash" },
+  { value: "laundromat", label: "Laundromat" },
   { value: "other", label: "Other" },
 ];
 
