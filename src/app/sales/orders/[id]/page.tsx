@@ -16,6 +16,7 @@ interface OrderItem {
   description: string | null;
   quantity: number;
   unit_price: number;
+  discount_percent: number;
   total_price: number;
   status: string;
   location_service_price: number | null;
@@ -344,6 +345,9 @@ export default function OrderDetailPage() {
                         <p className="text-sm font-medium text-gray-900 truncate">{item.service_name}</p>
                         <p className="text-xs text-gray-400">
                           {formatStatus(item.item_type)} · Qty: {item.quantity}
+                          {Number(item.discount_percent) > 0 && (
+                            <span className="ml-2 text-green-600 font-medium">{item.discount_percent}% off</span>
+                          )}
                           {item.deposit_required && item.location_deposit_amount != null && (
                             <span className="ml-2 text-amber-600">
                               Deposit: ${Number(item.location_deposit_amount).toFixed(2)}

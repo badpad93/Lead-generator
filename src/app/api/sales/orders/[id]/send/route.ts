@@ -134,11 +134,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } else {
     // ORDER: Create QB invoice and send payment link
     try {
-      const lineItems = items.map((item: { service_name: string; unit_price: number; price?: number; quantity: number }) => ({
-        description: item.service_name,
-        amount: Number(item.unit_price) || Number(item.price) || 0,
-        quantity: Number(item.quantity) || 1,
-      }));
+      const lineItems = items.map((item: { service_name: string; unit_price: number; price?: number; quantity: number; discount_percent?: number }) => {
+        const unitPrice = Number(item.unit_price) || Number(item.price) || 0;
+        const discount = Number(item.discount_percent) || 0;
+        const effectivePrice = unitPrice * (1 - discount / 100);
+        return {
+          description: item.service_name + (discount > 0 ? ` (${discount}% off)` : ""),
+          amount: effectivePrice,
+          quantity: Number(item.quantity) || 1,
+        };
+      });
 
       const invoice = await createInvoice({
         customerEmail: recipientEmail,
@@ -188,7 +193,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (emailSent) {
     await supabaseAdmin
       .from("sales_orders")
-      .update({ status: "sent", updated_at: new Date().toISOString() })
+      .update({ status: "sent", order_status: "invoice_sent", updated_at: new Date().toISOString() })
       .eq("id", orderId);
 
     await supabaseAdmin.from("order_activity_log").insert({
@@ -199,6 +204,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ? `Quote emailed to ${recipientEmail}`
         : `Invoice/payment link sent to ${recipientEmail}`,
     });
+
+    // Send confirmation copy to the sales rep
+    if (repProfile?.email && process.env.RESEND_API_KEY && repProfile.email !== recipientEmail) {
+      const docLabel = isQuote ? "Quote" : "Order";
+      try {
+        await getResend().emails.send({
+          from: FROM_EMAIL,
+          to: repProfile.email,
+          subject: `${docLabel} Sent — ${account?.business_name || "Customer"}`,
+          html: `<p>Your ${docLabel.toLowerCase()} for <strong>${account?.business_name || "Customer"}</strong> has been sent to ${recipientEmail}.</p><hr/>${docHtml}`,
+        });
+      } catch {
+        // Non-critical — don't fail the main flow
+      }
+    }
   }
 
   return NextResponse.json({
@@ -217,14 +237,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 function generateDocumentHtml(
   order: Record<string, unknown>,
   account: Record<string, unknown> | null,
-  items: Array<{ service_name: string; price: number; unit_price?: number; quantity?: number; notes: string | null }>,
+  items: Array<{ service_name: string; price: number; unit_price?: number; quantity?: number; discount_percent?: number; notes: string | null }>,
   isQuote: boolean,
   repEmail?: string | null,
 ) {
   const total = items.reduce((s, i) => {
     const qty = Number(i.quantity) || 1;
     const price = Number(i.unit_price || i.price) || 0;
-    return s + qty * price;
+    const discount = Number(i.discount_percent) || 0;
+    return s + qty * price * (1 - discount / 100);
   }, 0);
   const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const docLabel = isQuote ? "Quote" : "Service Order";
@@ -234,11 +255,14 @@ function generateDocumentHtml(
     .map((item) => {
       const qty = Number(item.quantity) || 1;
       const price = Number(item.unit_price || item.price) || 0;
+      const discount = Number(item.discount_percent) || 0;
+      const lineTotal = qty * price * (1 - discount / 100);
+      const discountLabel = discount > 0 ? ` <span style="color:#16a34a;font-size:11px;">(${discount}% off)</span>` : "";
       return `<tr>
-        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${item.service_name}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${item.service_name}${discountLabel}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${qty}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${price.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${(qty * price).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${lineTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
       </tr>`;
     })
     .join("");
