@@ -55,6 +55,9 @@ const LOCATION_TYPES = [
   "Warehouse/Industrial",
   "Retail/Shopping",
   "Government/Public",
+  "Barbershop/Salon",
+  "Car Wash",
+  "Laundromat",
   "Other",
 ] as const;
 
