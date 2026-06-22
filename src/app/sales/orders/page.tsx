@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import {
   Loader2, ClipboardList, Plus, Search, AlertCircle,
-  ChevronRight, Package, MapPin, Coffee, Monitor, Wrench, DollarSign,
+  ChevronRight, Package, MapPin, Coffee, Monitor, Wrench, DollarSign, FileText,
 } from "lucide-react";
 
 interface OrderItem {
@@ -21,6 +21,7 @@ interface Order {
   order_number: number;
   order_status: string;
   order_type: string | null;
+  document_type: string | null;
   total_value: number;
   payment_status: string;
   invoice_status: string;
@@ -96,6 +97,7 @@ export default function OrdersPage() {
   const [token, setToken] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [docType, setDocType] = useState<"order" | "quote">("order");
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -110,29 +112,59 @@ export default function OrdersPage() {
     const params = new URLSearchParams();
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (search) params.set("search", search);
+    params.set("document_type", docType);
     const res = await fetch(`/api/sales/orders?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) setOrders(await res.json());
     setLoading(false);
-  }, [token, statusFilter, search]);
+  }, [token, statusFilter, search, docType]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  const isQuote = docType === "quote";
+  const docLabel = isQuote ? "Quote" : "Order";
 
   return (
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage post-sale execution and fulfillment</p>
+          <h1 className="text-2xl font-bold text-gray-900">Orders / Quotes</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Manage orders, quotes, and fulfillment</p>
         </div>
         <button
-          onClick={() => router.push("/sales/orders/new")}
+          onClick={() => router.push(`/sales/orders/new?type=${docType}`)}
           className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer"
         >
           <Plus className="h-4 w-4" />
-          New Order
+          New {docLabel}
+        </button>
+      </div>
+
+      {/* Document Type Toggle */}
+      <div className="mb-4 flex items-center gap-1 rounded-lg bg-gray-100 p-1 w-fit">
+        <button
+          onClick={() => { setDocType("order"); setStatusFilter("all"); }}
+          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
+            docType === "order"
+              ? "bg-white text-green-700 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <ClipboardList className="inline h-4 w-4 mr-1.5 -mt-0.5" />
+          Orders
+        </button>
+        <button
+          onClick={() => { setDocType("quote"); setStatusFilter("all"); }}
+          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
+            docType === "quote"
+              ? "bg-white text-green-700 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <FileText className="inline h-4 w-4 mr-1.5 -mt-0.5" />
+          Quotes
         </button>
       </div>
 
@@ -142,7 +174,7 @@ export default function OrdersPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search customer or order #..."
+            placeholder={`Search customer or ${docLabel.toLowerCase()} #...`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-lg border border-gray-200 pl-9 pr-3 py-2 text-sm focus:border-green-500 focus:outline-none"
@@ -172,9 +204,9 @@ export default function OrdersPage() {
         </div>
       ) : orders.length === 0 ? (
         <div className="py-16 text-center">
-          <ClipboardList className="mx-auto h-10 w-10 text-gray-300 mb-3" />
+          {isQuote ? <FileText className="mx-auto h-10 w-10 text-gray-300 mb-3" /> : <ClipboardList className="mx-auto h-10 w-10 text-gray-300 mb-3" />}
           <p className="text-sm text-gray-400">
-            {statusFilter !== "all" ? "No orders match this filter." : "No orders yet. Win a lead or create one manually."}
+            {statusFilter !== "all" ? `No ${docLabel.toLowerCase()}s match this filter.` : `No ${docLabel.toLowerCase()}s yet. Create one to get started.`}
           </p>
         </div>
       ) : (
@@ -182,7 +214,7 @@ export default function OrdersPage() {
           {orders.map((order) => {
             const Icon = order.order_items?.[0]?.item_type
               ? ITEM_ICONS[order.order_items[0].item_type] || Wrench
-              : ClipboardList;
+              : isQuote ? FileText : ClipboardList;
             return (
               <div
                 key={order.id}
@@ -201,6 +233,9 @@ export default function OrdersPage() {
                     <span className="font-semibold text-gray-900 truncate">
                       {order.sales_accounts?.business_name || "Unassigned"}
                     </span>
+                    {isQuote && (
+                      <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600 ring-1 ring-indigo-200">QUOTE</span>
+                    )}
                   </div>
                   <div className="mt-0.5 flex items-center gap-3 text-xs text-gray-500">
                     <span>{itemsSummary(order.order_items)}</span>
