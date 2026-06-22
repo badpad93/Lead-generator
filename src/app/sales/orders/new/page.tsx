@@ -70,6 +70,7 @@ function NewOrderContent() {
     account_id: accountId || "",
     lead_id: leadId || "",
     order_type: "",
+    recipient_email: "",
     notes: "",
     next_required_action: "Collect customer business information",
   });
@@ -152,6 +153,7 @@ function NewOrderContent() {
         account_id: form.account_id || null,
         lead_id: form.lead_id || null,
         order_type: form.order_type || null,
+        recipient_email: form.recipient_email.trim() || null,
         notes: form.notes || null,
         next_required_action: form.next_required_action || null,
         document_type: documentType,
@@ -276,6 +278,17 @@ function NewOrderContent() {
               <option value="combo">Combo / Bundle</option>
             </select>
           </div>
+        </div>
+        <div className="mt-3">
+          <label className="text-xs text-gray-500 mb-1 block">Recipient Email</label>
+          <input
+            type="email"
+            placeholder="customer@example.com (overrides account email)"
+            value={form.recipient_email}
+            onChange={(e) => setForm((f) => ({ ...f, recipient_email: e.target.value }))}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+          />
+          <p className="text-[10px] text-gray-400 mt-1">Leave blank to use the account&apos;s email on file. Use this to send to someone not in the system.</p>
         </div>
         <div className="mt-3">
           <label className="text-xs text-gray-500 mb-1 block">Next Required Action</label>
@@ -428,6 +441,27 @@ function NewOrderContent() {
           ))}
         </div>
       </div>
+
+      {/* Running Total */}
+      {items.some((i) => i.item_name.trim() && i.unit_price) && (
+        <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-900">{docLabel} Total</span>
+            <span className="text-xl font-bold text-green-700">
+              ${items.reduce((sum, i) => {
+                if (!i.item_name.trim() || !i.unit_price) return sum;
+                const qty = Number(i.quantity) || 1;
+                const price = Number(i.unit_price) || 0;
+                const discount = Number(i.discount_percent) || 0;
+                return sum + qty * price * (1 - discount / 100);
+              }, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          {items.filter((i) => i.item_name.trim() && Number(i.discount_percent) > 0).length > 0 && (
+            <p className="text-xs text-gray-400 mt-1 text-right">Includes discounts applied</p>
+          )}
+        </div>
+      )}
 
       {/* Create button */}
       <div className="flex gap-3">
