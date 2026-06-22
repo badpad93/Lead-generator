@@ -148,8 +148,21 @@ export async function POST(req: NextRequest) {
         };
       });
     if (rows.length > 0) {
-      await supabaseAdmin.from("order_items").insert(rows);
+      const { error: itemErr } = await supabaseAdmin.from("order_items").insert(rows);
+      if (itemErr) {
+        // Retry without discount_percent in case migration 086 hasn't been run
+        const fallbackRows = rows.map(({ discount_percent: _dp, ...rest }) => rest);
+        await supabaseAdmin.from("order_items").insert(fallbackRows);
+      }
     }
+  }
+
+  // Update total_value on the order to ensure it matches items
+  if (total > 0) {
+    await supabaseAdmin
+      .from("sales_orders")
+      .update({ total_value: total, remaining_balance: total })
+      .eq("id", order.id);
   }
 
   // Log creation activity
