@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { Suspense } from "react";
 import {
-  Loader2, ArrowLeft, Plus, X, Package, MapPin, Coffee, Monitor, Wrench, DollarSign, BookOpen,
+  Loader2, ArrowLeft, Plus, X, Package, MapPin, Coffee, Monitor, Wrench, DollarSign, BookOpen, CheckCircle2,
 } from "lucide-react";
 
 interface Account {
@@ -61,6 +61,7 @@ function NewOrderContent() {
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [documentType, setDocumentType] = useState<"order" | "quote">(
     typeParam === "quote" ? "quote" : "order"
   );
@@ -160,12 +161,15 @@ function NewOrderContent() {
 
     if (res.ok) {
       const order = await res.json();
-      // Fire-and-forget: send email in background, don't block redirect
+      // Fire-and-forget: send email in background
       fetch(`/api/sales/orders/${order.id}/send`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
-      router.push(`/sales/orders/${order.id}`);
+      // Show success screen, then redirect to dashboard
+      setSubmitted(true);
+      setSaving(false);
+      setTimeout(() => router.push("/sales"), 2500);
     } else {
       const err = await res.json().catch(() => ({}));
       alert(err.error || `Failed to create ${documentType}`);
@@ -180,6 +184,29 @@ function NewOrderContent() {
     return (
       <div className="flex justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+      </div>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 px-6 text-center">
+        <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-5">
+          <CheckCircle2 className="w-9 h-9 text-green-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">{docLabel} Submitted!</h2>
+        <p className="text-sm text-gray-500 max-w-sm">
+          Your {docLabel.toLowerCase()} has been created and the email is being sent. Redirecting to the dashboard...
+        </p>
+        <div className="mt-6">
+          <Loader2 className="h-5 w-5 animate-spin text-green-500 mx-auto" />
+        </div>
+        <button
+          onClick={() => router.push("/sales")}
+          className="mt-6 text-sm text-green-600 hover:text-green-700 font-medium cursor-pointer"
+        >
+          Go to Dashboard now
+        </button>
       </div>
     );
   }
