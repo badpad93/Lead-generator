@@ -10,6 +10,9 @@ import {
   ShoppingBag,
   Landmark,
   MapPin,
+  Scissors,
+  CarFront,
+  WashingMachine,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -23,6 +26,9 @@ const iconMap: Record<LocationType, LucideIcon> = {
   warehouse: Warehouse,
   retail: ShoppingBag,
   government: Landmark,
+  barbershop: Scissors,
+  carwash: CarFront,
+  laundromat: WashingMachine,
   other: MapPin,
 };
 
