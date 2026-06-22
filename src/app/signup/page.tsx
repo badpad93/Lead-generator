@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Truck, Building2, Search, ArrowLeft, Loader2, LogOut, Briefcase } from "lucide-react";
-import { signUpWithGoogle, signUpWithMicrosoft, storeSignupRole, storeSignupLead, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
+import { signUpWithGoogle, signUpWithMicrosoft, signUpWithYahoo, storeSignupRole, storeSignupLead, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
 
 type Role = "operator" | "locator" | "location_manager" | "employee";
@@ -56,7 +56,7 @@ function SignupContent() {
   const [step, setStep] = useState<1 | 2 | 3>(presetRole ? 2 : 1);
   const [role, setRole] = useState<Role | null>(presetRole);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<"google" | "microsoft" | null>(null);
+  const [loading, setLoading] = useState<"google" | "microsoft" | "yahoo" | null>(null);
   const [existingEmail, setExistingEmail] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -183,6 +183,30 @@ function SignupContent() {
       await signUpWithMicrosoft(role);
     } catch {
       setError("Failed to connect to Microsoft. Please try again.");
+      setLoading(null);
+    }
+  }
+
+  async function handleYahooSignup() {
+    if (!role) return;
+    setLoading("yahoo");
+    setError(null);
+
+    try {
+      const cleared = await ensureSignedOut();
+      if (!cleared) {
+        setError("Could not clear existing session. Please refresh and try again.");
+        setLoading(null);
+        return;
+      }
+      setExistingEmail(null);
+
+      storeSignupRole(role);
+      storeLead();
+      storeRedirectAfterLogin(redirectTo);
+      signUpWithYahoo(role);
+    } catch {
+      setError("Failed to connect to Yahoo. Please try again.");
       setLoading(null);
     }
   }
@@ -450,6 +474,53 @@ function SignupContent() {
                   </>
                 )}
               </button>
+
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+                <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or</span></div>
+              </div>
+
+              {/* Yahoo OAuth Button */}
+              <button
+                type="button"
+                onClick={handleYahooSignup}
+                disabled={!!loading}
+                className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700
+                  font-semibold rounded-xl transition-colors disabled:opacity-50
+                  disabled:cursor-not-allowed flex items-center justify-center gap-3
+                  cursor-pointer border border-gray-300 shadow-sm"
+              >
+                {loading === "yahoo" ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Connecting to Yahoo...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                      <path d="M13.31 9.693l4.655-9.693h-3.516l-2.889 6.487L8.682 0H5.168l4.61 9.693L9.047 24h3.476l.787-14.307z" fill="#6001D2"/>
+                    </svg>
+                    Sign up with Yahoo
+                  </>
+                )}
+              </button>
+
+              {/* Schedule a Call CTA */}
+              <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                <p className="text-sm font-medium text-black-primary mb-1">Want to talk to someone first?</p>
+                <p className="text-xs text-black-primary/50 mb-3">Schedule a free call with a representative who can walk you through the platform.</p>
+                <a
+                  href="https://calendly.com/james-apexaivending/james-padden-apex-ai-vending"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Schedule a Call
+                </a>
+              </div>
 
               <div className="mt-4 text-center">
                 <p className="text-xs text-black-primary/40">
