@@ -41,10 +41,13 @@ interface ItemForm {
   description: string;
   quantity: string;
   unit_price: string;
+  discount_percent: string;
   deposit_required: boolean;
   location_deposit_amount: string;
   location_service_price: string;
 }
+
+const DISCOUNT_OPTIONS = ["0", "5", "10", "15", "20", "25", "30", "35", "40", "45", "50"];
 
 function NewOrderContent() {
   const router = useRouter();
@@ -71,7 +74,7 @@ function NewOrderContent() {
   });
 
   const [items, setItems] = useState<ItemForm[]>([
-    { item_type: "machine_sale", item_name: "", description: "", quantity: "1", unit_price: "", deposit_required: false, location_deposit_amount: "100", location_service_price: "" },
+    { item_type: "machine_sale", item_name: "", description: "", quantity: "1", unit_price: "", discount_percent: "0", deposit_required: false, location_deposit_amount: "100", location_service_price: "" },
   ]);
 
   useEffect(() => {
@@ -96,7 +99,7 @@ function NewOrderContent() {
   }, [token]);
 
   function addItem() {
-    setItems((prev) => [...prev, { item_type: "machine_sale", item_name: "", description: "", quantity: "1", unit_price: "", deposit_required: false, location_deposit_amount: "100", location_service_price: "" }]);
+    setItems((prev) => [...prev, { item_type: "machine_sale", item_name: "", description: "", quantity: "1", unit_price: "", discount_percent: "0", deposit_required: false, location_deposit_amount: "100", location_service_price: "" }]);
   }
 
   function removeItem(idx: number) {
@@ -135,6 +138,7 @@ function NewOrderContent() {
         description: i.description.trim() || null,
         quantity: Number(i.quantity) || 1,
         unit_price: Number(i.unit_price) || 0,
+        discount_percent: Number(i.discount_percent) || 0,
         deposit_required: i.deposit_required,
         location_deposit_amount: i.deposit_required ? Number(i.location_deposit_amount) || 100 : null,
         location_service_price: i.item_type === "location_services" ? Number(i.location_service_price) || 0 : null,
@@ -156,6 +160,11 @@ function NewOrderContent() {
 
     if (res.ok) {
       const order = await res.json();
+      // Auto-send the order/quote email
+      await fetch(`/api/sales/orders/${order.id}/send`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
       router.push(`/sales/orders/${order.id}`);
     } else {
       const err = await res.json().catch(() => ({}));
@@ -343,6 +352,18 @@ function NewOrderContent() {
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                   />
                 </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Discount %</label>
+                  <select
+                    value={item.discount_percent}
+                    onChange={(e) => updateItem(idx, "discount_percent", e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  >
+                    {DISCOUNT_OPTIONS.map((d) => (
+                      <option key={d} value={d}>{d}% off</option>
+                    ))}
+                  </select>
+                </div>
                 {item.item_type === "location_services" && (
                   <>
                     <div>
@@ -370,7 +391,10 @@ function NewOrderContent() {
               </div>
               {item.item_name && item.unit_price && (
                 <p className="text-xs text-gray-400 mt-2">
-                  Subtotal: ${((Number(item.quantity) || 1) * (Number(item.unit_price) || 0)).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  Subtotal: ${((Number(item.quantity) || 1) * (Number(item.unit_price) || 0) * (1 - (Number(item.discount_percent) || 0) / 100)).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  {Number(item.discount_percent) > 0 && (
+                    <span className="ml-2 text-green-600 font-medium">({item.discount_percent}% off)</span>
+                  )}
                 </p>
               )}
             </div>

@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
     quantity?: number;
     unit_price?: number;
     price?: number;
+    discount_percent?: number;
     location_service_price?: number;
     deposit_required?: boolean;
     location_deposit_amount?: number;
@@ -77,7 +78,8 @@ export async function POST(req: NextRequest) {
   const total = itemList.reduce((sum, i) => {
     const qty = Number(i.quantity) || 1;
     const price = Number(i.unit_price || i.price) || 0;
-    return sum + qty * price;
+    const discount = Number(i.discount_percent) || 0;
+    return sum + qty * price * (1 - discount / 100);
   }, 0);
 
   const depositTotal = itemList.reduce((sum, i) => {
@@ -123,6 +125,8 @@ export async function POST(req: NextRequest) {
       .map((i) => {
         const qty = Number(i.quantity) || 1;
         const unitPrice = Number(i.unit_price || i.price) || 0;
+        const discount = Number(i.discount_percent) || 0;
+        const lineTotal = qty * unitPrice * (1 - discount / 100);
         return {
           order_id: order.id,
           service_name: i.item_name || i.service_name || "",
@@ -131,7 +135,8 @@ export async function POST(req: NextRequest) {
           description: i.description || null,
           quantity: qty,
           unit_price: unitPrice,
-          total_price: qty * unitPrice,
+          discount_percent: discount,
+          total_price: lineTotal,
           status: "pending",
           location_service_price: i.location_service_price || null,
           deposit_required: i.deposit_required || false,
