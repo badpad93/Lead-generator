@@ -42,6 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single();
 
   // Build CC list
+  const ALWAYS_CC = ["james@apexaivending.com", "katrina.cacdac@apexaivending.com"];
   const ccEmails: string[] = [];
   if (account?.notification_emails) {
     const extras = (account.notification_emails as string)
@@ -55,6 +56,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   if (repProfile?.email && !ccEmails.includes(repProfile.email) && repProfile.email !== recipientEmail) {
     ccEmails.push(repProfile.email);
+  }
+  for (const addr of ALWAYS_CC) {
+    if (!ccEmails.includes(addr) && addr !== recipientEmail) {
+      ccEmails.push(addr);
+    }
   }
 
   const docHtml = generateDocumentHtml(order, account, items, isQuote, repProfile?.email);
