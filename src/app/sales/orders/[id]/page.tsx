@@ -47,6 +47,7 @@ interface OrderDetail {
   order_number: number;
   order_status: string;
   order_type: string | null;
+  document_type: string | null;
   total_value: number;
   deposit_amount: number;
   deposit_paid: boolean;
@@ -249,8 +250,11 @@ export default function OrderDetailPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900">
-              Order #{order.order_number || order.id.slice(0, 6).toUpperCase()}
+              {order.document_type === "quote" ? "Quote" : "Order"} #{order.order_number || order.id.slice(0, 6).toUpperCase()}
             </h1>
+            {order.document_type === "quote" && (
+              <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600 ring-1 ring-indigo-200">QUOTE</span>
+            )}
             <span className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${STATUS_COLORS[order.order_status] || STATUS_COLORS.draft}`}>
               {formatStatus(order.order_status || "draft")}
             </span>

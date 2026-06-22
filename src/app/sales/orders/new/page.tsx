@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { Suspense } from "react";
 import {
-  Loader2, ArrowLeft, Plus, X, Package, MapPin, Coffee, Monitor, Wrench, DollarSign,
+  Loader2, ArrowLeft, Plus, X, Package, MapPin, Coffee, Monitor, Wrench, DollarSign, BookOpen,
 } from "lucide-react";
 
 interface Account {
@@ -14,6 +14,15 @@ interface Account {
   contact_name: string | null;
   email: string | null;
   phone: string | null;
+}
+
+interface CatalogItem {
+  id: string;
+  name: string;
+  description: string | null;
+  item_type: string;
+  unit_price: number;
+  sku: string | null;
 }
 
 const ITEM_TYPES = [
@@ -42,11 +51,16 @@ function NewOrderContent() {
   const searchParams = useSearchParams();
   const leadId = searchParams.get("lead_id");
   const accountId = searchParams.get("account_id");
+  const typeParam = searchParams.get("type");
 
   const [token, setToken] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [documentType, setDocumentType] = useState<"order" | "quote">(
+    typeParam === "quote" ? "quote" : "order"
+  );
 
   const [form, setForm] = useState({
     account_id: accountId || "",
@@ -69,10 +83,13 @@ function NewOrderContent() {
 
   useEffect(() => {
     if (!token) return;
-    fetch("/api/sales/accounts", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((data) => {
-        setAccounts(data || []);
+    Promise.all([
+      fetch("/api/sales/accounts", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+      fetch("/api/sales/catalog-items", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+    ])
+      .then(([accts, catalog]) => {
+        setAccounts(accts || []);
+        setCatalogItems(catalog || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -88,6 +105,24 @@ function NewOrderContent() {
 
   function updateItem(idx: number, field: string, value: string | boolean) {
     setItems((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+  }
+
+  function applyCatalogItem(idx: number, catalogId: string) {
+    const ci = catalogItems.find((c) => c.id === catalogId);
+    if (!ci) return;
+    setItems((prev) =>
+      prev.map((item, i) =>
+        i === idx
+          ? {
+              ...item,
+              item_type: ci.item_type || item.item_type,
+              item_name: ci.name,
+              description: ci.description || "",
+              unit_price: String(ci.unit_price || ""),
+            }
+          : item
+      )
+    );
   }
 
   async function handleCreate() {
@@ -114,6 +149,7 @@ function NewOrderContent() {
         order_type: form.order_type || null,
         notes: form.notes || null,
         next_required_action: form.next_required_action || null,
+        document_type: documentType,
         items: cleanItems,
       }),
     });
@@ -123,10 +159,13 @@ function NewOrderContent() {
       router.push(`/sales/orders/${order.id}`);
     } else {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || "Failed to create order");
+      alert(err.error || `Failed to create ${documentType}`);
       setSaving(false);
     }
   }
+
+  const isQuote = documentType === "quote";
+  const docLabel = isQuote ? "Quote" : "Order";
 
   if (loading) {
     return (
@@ -142,11 +181,37 @@ function NewOrderContent() {
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
 
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Create New Order</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Create New {docLabel}</h1>
+
+      {/* Document Type Selector */}
+      <div className="mb-6 flex items-center gap-1 rounded-lg bg-gray-100 p-1 w-fit">
+        <button
+          onClick={() => setDocumentType("order")}
+          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
+            !isQuote ? "bg-white text-green-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Order
+        </button>
+        <button
+          onClick={() => setDocumentType("quote")}
+          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
+            isQuote ? "bg-white text-green-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Quote
+        </button>
+      </div>
+
+      {isQuote && (
+        <div className="mb-6 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-700">
+          Quotes are sent as a no-reply email. The customer can reply to your sales rep email listed in the memo.
+        </div>
+      )}
 
       {/* Order Info */}
       <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Order Details</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">{docLabel} Details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Account</label>
@@ -162,7 +227,7 @@ function NewOrderContent() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-500 mb-1 block">Order Type</label>
+            <label className="text-xs text-gray-500 mb-1 block">{docLabel} Type</label>
             <select
               value={form.order_type}
               onChange={(e) => setForm((f) => ({ ...f, order_type: e.target.value }))}
@@ -215,6 +280,28 @@ function NewOrderContent() {
                   <X className="h-4 w-4" />
                 </button>
               )}
+
+              {/* Catalog Quick-Select */}
+              {catalogItems.length > 0 && (
+                <div className="mb-3">
+                  <label className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                    <BookOpen className="h-3 w-3" /> Quick-fill from Catalog
+                  </label>
+                  <select
+                    value=""
+                    onChange={(e) => applyCatalogItem(idx, e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-gray-50 focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="">Select a saved item...</option>
+                    {catalogItems.map((ci) => (
+                      <option key={ci.id} value={ci.id}>
+                        {ci.name}{ci.sku ? ` (${ci.sku})` : ""} — ${Number(ci.unit_price).toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Type</label>
@@ -298,7 +385,7 @@ function NewOrderContent() {
           disabled={saving || items.every((i) => !i.item_name.trim())}
           className="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
         >
-          {saving ? "Creating..." : "Create Order"}
+          {saving ? "Creating..." : `Create ${docLabel}`}
         </button>
         <button
           onClick={() => router.back()}

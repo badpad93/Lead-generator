@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
   const search = searchParams.get("search");
+  const docType = searchParams.get("document_type");
 
   let query = supabaseAdmin
     .from("sales_orders")
@@ -22,6 +23,10 @@ export async function GET(req: NextRequest) {
 
   if (status && status !== "all") {
     query = query.eq("order_status", status);
+  }
+
+  if (docType) {
+    query = query.eq("document_type", docType);
   }
 
   const { data, error } = await query;
@@ -53,7 +58,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
     account_id, lead_id, deal_id, recipient_email, notes, items,
-    order_type, next_required_action, assigned_rep_id,
+    order_type, next_required_action, assigned_rep_id, document_type,
   } = body;
 
   type Item = {
@@ -93,6 +98,7 @@ export async function POST(req: NextRequest) {
       total_value: total,
       status: "draft",
       order_status: "draft",
+      document_type: document_type || "order",
       order_type: order_type || null,
       deposit_amount: depositTotal,
       deposit_paid: false,

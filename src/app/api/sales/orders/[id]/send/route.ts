@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
 import { Resend } from "resend";
+import { createInvoice, sendInvoiceEmail } from "@/lib/quickbooks";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
+const NOREPLY_EMAIL = process.env.NOREPLY_EMAIL || "noreply@bytebitevending.com";
 const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || "";
 
 function getResend() {
@@ -25,9 +27,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const account = order.sales_accounts;
   const items = order.order_items || [];
-  const recipientEmail = order.recipient_email || "james@apexaivending.com";
+  const recipientEmail = order.recipient_email || account?.email || "";
+  const isQuote = order.document_type === "quote";
 
-  // Build CC list: account notification emails + admin + assigned rep
+  if (!recipientEmail) {
+    return NextResponse.json({ error: "No recipient email on order or account" }, { status: 400 });
+  }
+
+  // Look up the sending rep's email for quote memo
+  const { data: repProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("email, full_name")
+    .eq("id", order.assigned_rep_id || order.created_by)
+    .single();
+
+  // Build CC list
   const ccEmails: string[] = [];
   if (account?.notification_emails) {
     const extras = (account.notification_emails as string)
@@ -39,33 +53,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (ADMIN_EMAIL && !ccEmails.includes(ADMIN_EMAIL) && ADMIN_EMAIL !== recipientEmail) {
     ccEmails.push(ADMIN_EMAIL);
   }
-  // Look up assigned rep email from the deal
-  if (order.deal_id) {
-    const { data: deal } = await supabaseAdmin
-      .from("sales_deals")
-      .select("assigned_to")
-      .eq("id", order.deal_id)
-      .single();
-    if (deal?.assigned_to) {
-      const { data: repProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("email")
-        .eq("id", deal.assigned_to)
-        .single();
-      if (repProfile?.email && !ccEmails.includes(repProfile.email) && repProfile.email !== recipientEmail) {
-        ccEmails.push(repProfile.email);
-      }
-    }
+  if (repProfile?.email && !ccEmails.includes(repProfile.email) && repProfile.email !== recipientEmail) {
+    ccEmails.push(repProfile.email);
   }
 
-  const pdfHtml = generateOrderPdfHtml(order, account, items);
+  const docHtml = generateDocumentHtml(order, account, items, isQuote, repProfile?.email);
 
-  const fileName = `order-${orderId.slice(0, 8)}-${Date.now()}.html`;
+  // Upload document
+  const docLabel = isQuote ? "quote" : "order";
+  const fileName = `${docLabel}-${orderId.slice(0, 8)}-${Date.now()}.html`;
   const filePath = `orders/${fileName}`;
 
   const { error: uploadErr } = await supabaseAdmin.storage
     .from("documents")
-    .upload(filePath, new Blob([pdfHtml], { type: "text/html" }), {
+    .upload(filePath, new Blob([docHtml], { type: "text/html" }), {
       contentType: "text/html",
       upsert: true,
     });
@@ -83,53 +84,121 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       account_id: order.account_id,
       order_id: orderId,
       file_url: fileUrl,
-      type: "order_pdf",
+      type: isQuote ? "quote_pdf" : "order_pdf",
       file_name: fileName,
     });
   }
 
   let emailSent = false;
   let emailError: string | null = null;
+  let qbInvoiceId: string | null = null;
 
-  if (!process.env.RESEND_API_KEY) {
-    emailError = "RESEND_API_KEY is not configured on the server";
+  if (isQuote) {
+    // QUOTE: Send email from noreply with rep email in memo
+    if (!process.env.RESEND_API_KEY) {
+      emailError = "RESEND_API_KEY is not configured";
+    } else {
+      try {
+        const businessName = account?.business_name || "Customer";
+        const repEmail = repProfile?.email || "support@vendingconnector.com";
+        const emailPayload: {
+          from: string;
+          to: string;
+          cc?: string[];
+          replyTo: string;
+          subject: string;
+          html: string;
+        } = {
+          from: NOREPLY_EMAIL,
+          to: recipientEmail,
+          replyTo: repEmail,
+          subject: `Quote from Apex AI Vending — ${businessName}`,
+          html: `<p>Hi ${account?.contact_name || "there"},</p>
+<p>Please find your quote details below from <strong>Apex AI Vending</strong>.</p>
+<hr/>${docHtml}
+<hr/>
+<p style="color:#6b7280;font-size:13px;">For questions, please reply to: <a href="mailto:${repEmail}">${repEmail}</a></p>`,
+        };
+        if (ccEmails.length > 0) emailPayload.cc = ccEmails;
+
+        const result = await getResend().emails.send(emailPayload);
+        if (result.error) {
+          emailError = result.error.message || String(result.error);
+        } else {
+          emailSent = true;
+        }
+      } catch (e) {
+        emailError = e instanceof Error ? e.message : String(e);
+      }
+    }
   } else {
+    // ORDER: Create QB invoice and send payment link
     try {
-      const businessName = account?.business_name || "Customer";
-      const emailPayload: {
-        from: string;
-        to: string;
-        cc?: string[];
-        subject: string;
-        html: string;
-      } = {
-        from: FROM_EMAIL,
-        to: recipientEmail,
-        subject: `New Order – ${businessName}`,
-        html: `<p>A new service order has been submitted for <strong>${businessName}</strong>.</p><p>Please see the attached order summary below.</p><hr/>${pdfHtml}`,
-      };
-      if (ccEmails.length > 0) {
-        emailPayload.cc = ccEmails;
-      }
+      const lineItems = items.map((item: { service_name: string; unit_price: number; price?: number; quantity: number }) => ({
+        description: item.service_name,
+        amount: Number(item.unit_price) || Number(item.price) || 0,
+        quantity: Number(item.quantity) || 1,
+      }));
 
-      const result = await getResend().emails.send(emailPayload);
-      if (result.error) {
-        emailError = result.error.message || String(result.error);
-        console.error("Resend returned error:", result.error);
-      } else {
-        emailSent = true;
-      }
+      const invoice = await createInvoice({
+        customerEmail: recipientEmail,
+        customerName: account?.business_name || account?.contact_name || "Customer",
+        customerPhone: account?.phone || undefined,
+        lineItems,
+        memo: `Order #${order.order_number || orderId.slice(0, 8).toUpperCase()}`,
+      });
+
+      qbInvoiceId = invoice.Id;
+
+      await sendInvoiceEmail(invoice.Id, recipientEmail);
+      emailSent = true;
+
+      await supabaseAdmin
+        .from("sales_orders")
+        .update({
+          qb_invoice_id: qbInvoiceId,
+          invoice_status: "sent",
+        })
+        .eq("id", orderId);
     } catch (e) {
       emailError = e instanceof Error ? e.message : String(e);
-      console.error("Email send threw:", e);
+
+      // Fallback: send order summary via Resend if QB fails
+      if (process.env.RESEND_API_KEY) {
+        try {
+          const businessName = account?.business_name || "Customer";
+          const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to: recipientEmail,
+            cc: ccEmails.length > 0 ? ccEmails : undefined,
+            subject: `New Order – ${businessName}`,
+            html: `<p>A new service order has been submitted for <strong>${businessName}</strong>.</p><p>Please see the order summary below.</p><hr/>${docHtml}`,
+          });
+          if (!result.error) {
+            emailSent = true;
+            emailError = `QB invoice failed (${emailError}), but email was sent via fallback`;
+          }
+        } catch {
+          // Both QB and fallback failed
+        }
+      }
     }
   }
 
   if (emailSent) {
     await supabaseAdmin
       .from("sales_orders")
-      .update({ status: "sent" })
+      .update({ status: "sent", updated_at: new Date().toISOString() })
       .eq("id", orderId);
+
+    await supabaseAdmin.from("order_activity_log").insert({
+      order_id: orderId,
+      user_id: user.id,
+      activity_type: isQuote ? "quote_sent" : "order_sent",
+      description: isQuote
+        ? `Quote emailed to ${recipientEmail}`
+        : `Invoice/payment link sent to ${recipientEmail}`,
+    });
   }
 
   return NextResponse.json({
@@ -138,38 +207,50 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     emailError,
     recipient: recipientEmail,
     cc: ccEmails,
-    from: FROM_EMAIL,
+    from: isQuote ? NOREPLY_EMAIL : FROM_EMAIL,
     fileUrl,
+    qbInvoiceId,
+    documentType: isQuote ? "quote" : "order",
   });
 }
 
-function generateOrderPdfHtml(
+function generateDocumentHtml(
   order: Record<string, unknown>,
   account: Record<string, unknown> | null,
-  items: Array<{ service_name: string; price: number; notes: string | null }>
+  items: Array<{ service_name: string; price: number; unit_price?: number; quantity?: number; notes: string | null }>,
+  isQuote: boolean,
+  repEmail?: string | null,
 ) {
-  const total = items.reduce((s, i) => s + Number(i.price), 0);
+  const total = items.reduce((s, i) => {
+    const qty = Number(i.quantity) || 1;
+    const price = Number(i.unit_price || i.price) || 0;
+    return s + qty * price;
+  }, 0);
   const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const docLabel = isQuote ? "Quote" : "Service Order";
+  const idLabel = isQuote ? "Quote ID" : "Order ID";
 
   const rows = items
-    .map(
-      (item) =>
-        `<tr>
-          <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${item.service_name}</td>
-          <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${Number(item.price).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-          <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${item.notes || "—"}</td>
-        </tr>`
-    )
+    .map((item) => {
+      const qty = Number(item.quantity) || 1;
+      const price = Number(item.unit_price || item.price) || 0;
+      return `<tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${item.service_name}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${qty}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${price.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${(qty * price).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+      </tr>`;
+    })
     .join("");
 
   return `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"/><title>Service Order Summary</title></head>
+<head><meta charset="utf-8"/><title>${docLabel} Summary</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:700px;margin:0 auto;padding:40px 24px;color:#111827;">
   <div style="text-align:center;margin-bottom:32px;">
     <h1 style="color:#16a34a;font-size:22px;margin:0;">Apex AI Vending</h1>
-    <h2 style="font-size:18px;color:#374151;margin:8px 0 0;font-weight:500;">Service Order Summary</h2>
+    <h2 style="font-size:18px;color:#374151;margin:8px 0 0;font-weight:500;">${docLabel} Summary</h2>
   </div>
 
   <table style="width:100%;font-size:14px;margin-bottom:24px;">
@@ -178,7 +259,7 @@ function generateOrderPdfHtml(
       <td style="padding:4px 0;font-weight:600;">${date}</td>
     </tr>
     <tr>
-      <td style="padding:4px 0;color:#6b7280;">Order ID:</td>
+      <td style="padding:4px 0;color:#6b7280;">${idLabel}:</td>
       <td style="padding:4px 0;font-family:monospace;font-size:12px;">${String(order.id).slice(0, 8).toUpperCase()}</td>
     </tr>
     <tr>
@@ -197,18 +278,15 @@ function generateOrderPdfHtml(
       <td style="padding:4px 0;color:#6b7280;">Phone:</td>
       <td style="padding:4px 0;">${account?.phone || "—"}</td>
     </tr>
-    <tr>
-      <td style="padding:4px 0;color:#6b7280;">Address:</td>
-      <td style="padding:4px 0;">${account?.address || "—"}</td>
-    </tr>
   </table>
 
   <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px;">
     <thead>
       <tr style="background:#f9fafb;">
-        <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #e5e7eb;color:#6b7280;font-weight:600;">Service</th>
-        <th style="padding:10px 12px;text-align:right;border-bottom:2px solid #e5e7eb;color:#6b7280;font-weight:600;">Price</th>
-        <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #e5e7eb;color:#6b7280;font-weight:600;">Notes</th>
+        <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #e5e7eb;color:#6b7280;font-weight:600;">Item</th>
+        <th style="padding:10px 12px;text-align:center;border-bottom:2px solid #e5e7eb;color:#6b7280;font-weight:600;">Qty</th>
+        <th style="padding:10px 12px;text-align:right;border-bottom:2px solid #e5e7eb;color:#6b7280;font-weight:600;">Unit Price</th>
+        <th style="padding:10px 12px;text-align:right;border-bottom:2px solid #e5e7eb;color:#6b7280;font-weight:600;">Total</th>
       </tr>
     </thead>
     <tbody>
@@ -216,17 +294,18 @@ function generateOrderPdfHtml(
     </tbody>
     <tfoot>
       <tr style="background:#f9fafb;">
-        <td style="padding:12px;font-weight:700;font-size:15px;">Total</td>
+        <td colspan="3" style="padding:12px;font-weight:700;font-size:15px;">Total</td>
         <td style="padding:12px;text-align:right;font-weight:700;font-size:15px;color:#16a34a;">$${total.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-        <td style="padding:12px;"></td>
       </tr>
     </tfoot>
   </table>
 
   ${order.notes ? `<div style="background:#f9fafb;border-radius:8px;padding:16px;margin-bottom:24px;"><p style="margin:0 0 4px;font-weight:600;font-size:13px;color:#6b7280;">Notes</p><p style="margin:0;font-size:14px;">${String(order.notes)}</p></div>` : ""}
 
+  ${isQuote && repEmail ? `<p style="font-size:13px;color:#6b7280;">For questions, please reply to: <a href="mailto:${repEmail}" style="color:#16a34a;">${repEmail}</a></p>` : ""}
+
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;"/>
-  <p style="text-align:center;font-size:12px;color:#9ca3af;">Apex AI Vending &bull; Service Order &bull; Generated ${date}</p>
+  <p style="text-align:center;font-size:12px;color:#9ca3af;">Apex AI Vending &bull; ${docLabel} &bull; Generated ${date}</p>
 </body>
 </html>`;
 }

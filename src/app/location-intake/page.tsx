@@ -40,6 +40,10 @@ const LOCATION_TYPES = [
   { value: "hotel", label: "Hotel / Hospitality" },
   { value: "warehouse", label: "Warehouse / Industrial" },
   { value: "retail", label: "Retail / Shopping" },
+  { value: "government", label: "Government / Public" },
+  { value: "barbershop", label: "Barbershop / Salon" },
+  { value: "carwash", label: "Car Wash" },
+  { value: "laundromat", label: "Laundromat" },
 ];
 
 const SECTIONS = [

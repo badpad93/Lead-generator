@@ -29,6 +29,9 @@ const INDUSTRIES = [
   "cosmetology schools",
   "trucking schools",
   "nursing schools",
+  "barbershops",
+  "car washes",
+  "laundromats",
 ];
 
 const US_STATES = [
