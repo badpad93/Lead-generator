@@ -160,8 +160,8 @@ function NewOrderContent() {
 
     if (res.ok) {
       const order = await res.json();
-      // Auto-send the order/quote email
-      await fetch(`/api/sales/orders/${order.id}/send`, {
+      // Fire-and-forget: send email in background, don't block redirect
+      fetch(`/api/sales/orders/${order.id}/send`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
