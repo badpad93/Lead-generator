@@ -61,7 +61,9 @@ function CallbackContent() {
 
       if (isSignup) {
         const urlRole = searchParams.get("role");
-        const signupRole = urlRole || consumeSignupRole();
+        const storedRole = consumeSignupRole();
+        const metaRole = session.user.user_metadata?.role;
+        const signupRole = urlRole || storedRole || metaRole || null;
         const leadData = consumeSignupLead();
 
         isEmployeeSignup = signupRole === "employee";
