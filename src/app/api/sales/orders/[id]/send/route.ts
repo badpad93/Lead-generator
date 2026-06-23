@@ -68,8 +68,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const docHtml = generateDocumentHtml(order, account, items, isQuote, repProfile?.email);
 
   // Save document to account
-  const docLabel = isQuote ? "quote" : "order";
-  const fileName = `${docLabel}-${orderId.slice(0, 8)}-${Date.now()}.html`;
+  const docLabel = isQuote ? "Quote" : "Order";
+  const dateStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const cleanBusinessName = (account?.business_name || "Customer").replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_");
+  const displayName = `${docLabel} - ${account?.business_name || "Customer"} - ${dateStr}`;
+  const fileName = `${docLabel.toLowerCase()}-${cleanBusinessName}-${orderId.slice(0, 8)}.html`;
   const filePath = `orders/${fileName}`;
   let fileUrl = "";
 
@@ -89,7 +92,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Storage upload is non-critical
   }
 
-  // Link document to account regardless of storage success
+  // Link document to account — always save a record so it shows in the account
   if (order.account_id) {
     try {
       await supabaseAdmin.from("sales_documents").insert({
@@ -97,7 +100,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         order_id: orderId,
         file_url: fileUrl || null,
         type: isQuote ? "quote_pdf" : "order_pdf",
-        file_name: fileName,
+        file_name: displayName,
       });
     } catch {
       // Non-critical

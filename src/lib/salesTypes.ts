@@ -124,7 +124,7 @@ export interface SalesDocument {
   account_id: string | null;
   order_id: string | null;
   file_url: string;
-  type: "order_pdf" | "contract" | "receipt";
+  type: "order_pdf" | "quote_pdf" | "contract" | "receipt";
   file_name: string | null;
   created_at: string;
 }

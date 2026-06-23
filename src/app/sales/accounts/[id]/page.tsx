@@ -202,8 +202,15 @@ export default function AccountDetailPage() {
                 className="flex items-center gap-2 rounded-lg bg-gray-50 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50"
               >
                 <FileText className="h-4 w-4" />
-                {doc.file_name || doc.type}
-                <span className="ml-auto text-xs text-gray-400">{new Date(doc.created_at).toLocaleDateString()}</span>
+                <span className="flex-1 truncate">{doc.file_name || doc.type}</span>
+                {(doc.type === "quote_pdf" || doc.type === "order_pdf") && (
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    doc.type === "quote_pdf" ? "bg-indigo-50 text-indigo-600" : "bg-green-50 text-green-600"
+                  }`}>
+                    {doc.type === "quote_pdf" ? "Quote" : "Order"}
+                  </span>
+                )}
+                <span className="text-xs text-gray-400">{new Date(doc.created_at).toLocaleDateString()}</span>
               </a>
             ))}
           </div>
