@@ -18,15 +18,23 @@ export function consumeRedirectAfterLogin(): string | null {
   return path;
 }
 
-/** Store the role selected during signup (before OAuth redirect) */
+/** Store the role selected during signup (before OAuth redirect) — uses BOTH localStorage and cookie for resilience */
 export function storeSignupRole(role: string): void {
   localStorage.setItem(SIGNUP_ROLE_KEY, role);
+  document.cookie = `vc_signup_role=${encodeURIComponent(role)};path=/;max-age=600;SameSite=Lax`;
 }
 
-/** Retrieve and clear the stored signup role */
+/** Retrieve and clear the stored signup role — checks cookie first (survives OAuth redirects better) */
 export function consumeSignupRole(): string | null {
-  const role = localStorage.getItem(SIGNUP_ROLE_KEY);
-  if (role) localStorage.removeItem(SIGNUP_ROLE_KEY);
+  // Try cookie first (more reliable across OAuth redirects)
+  const cookieMatch = document.cookie.match(/(?:^|;\s*)vc_signup_role=([^;]*)/);
+  const cookieRole = cookieMatch ? decodeURIComponent(cookieMatch[1]) : null;
+  // Also check localStorage
+  const lsRole = localStorage.getItem(SIGNUP_ROLE_KEY);
+  const role = cookieRole || lsRole;
+  // Clean up both
+  localStorage.removeItem(SIGNUP_ROLE_KEY);
+  document.cookie = "vc_signup_role=;path=/;max-age=0";
   return role;
 }
 

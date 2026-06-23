@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     const resolvedRole =
       meta.role && meta.role !== "admin" && meta.role !== "sales"
         ? meta.role
-        : "location_manager";
+        : "operator";
 
     const newProfile: Record<string, unknown> = {
       id: user.id,
