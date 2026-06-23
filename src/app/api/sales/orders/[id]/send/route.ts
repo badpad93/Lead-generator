@@ -6,7 +6,7 @@ import { createInvoice, sendInvoiceEmail } from "@/lib/quickbooks";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 const NOREPLY_EMAIL = process.env.NOREPLY_EMAIL || "noreply@bytebitevending.com";
-const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || "";
+const ALWAYS_CC = ["james@apexaivending.com", "katrina.cacdac@apexaivending.com"];
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
@@ -31,10 +31,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const isQuote = order.document_type === "quote";
 
   if (!recipientEmail) {
-    return NextResponse.json({ error: "No recipient email on order or account" }, { status: 400 });
+    return NextResponse.json({ error: "No recipient email — please add a recipient email or select an account with an email on file." }, { status: 400 });
   }
 
-  // Look up the sending rep's email for quote memo
+  if (!process.env.RESEND_API_KEY) {
+    return NextResponse.json({ error: "Email service not configured (RESEND_API_KEY missing)" }, { status: 500 });
+  }
+
+  // Look up the sending rep's email
   const { data: repProfile } = await supabaseAdmin
     .from("profiles")
     .select("email, full_name")
@@ -42,19 +46,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single();
 
   // Build CC list
-  const ALWAYS_CC = ["james@apexaivending.com", "katrina.cacdac@apexaivending.com"];
   const ccEmails: string[] = [];
-  if (account?.notification_emails) {
-    const extras = (account.notification_emails as string)
-      .split(",")
-      .map((e: string) => e.trim())
-      .filter(Boolean);
-    ccEmails.push(...extras);
-  }
-  if (ADMIN_EMAIL && !ccEmails.includes(ADMIN_EMAIL) && ADMIN_EMAIL !== recipientEmail) {
-    ccEmails.push(ADMIN_EMAIL);
-  }
-  if (repProfile?.email && !ccEmails.includes(repProfile.email) && repProfile.email !== recipientEmail) {
+  if (repProfile?.email && repProfile.email !== recipientEmail) {
     ccEmails.push(repProfile.email);
   }
   for (const addr of ALWAYS_CC) {
@@ -62,90 +55,98 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ccEmails.push(addr);
     }
   }
+  if (account?.notification_emails) {
+    const extras = (account.notification_emails as string)
+      .split(",")
+      .map((e: string) => e.trim())
+      .filter(Boolean);
+    for (const e of extras) {
+      if (!ccEmails.includes(e) && e !== recipientEmail) ccEmails.push(e);
+    }
+  }
 
   const docHtml = generateDocumentHtml(order, account, items, isQuote, repProfile?.email);
 
-  // Upload document
-  const docLabel = isQuote ? "quote" : "order";
-  const fileName = `${docLabel}-${orderId.slice(0, 8)}-${Date.now()}.html`;
+  // Save document to account
+  const docLabel = isQuote ? "Quote" : "Order";
+  const dateStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const cleanBusinessName = (account?.business_name || "Customer").replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "_");
+  const displayName = `${docLabel} - ${account?.business_name || "Customer"} - ${dateStr}`;
+  const fileName = `${docLabel.toLowerCase()}-${cleanBusinessName}-${orderId.slice(0, 8)}.html`;
   const filePath = `orders/${fileName}`;
-
-  const { error: uploadErr } = await supabaseAdmin.storage
-    .from("documents")
-    .upload(filePath, new Blob([docHtml], { type: "text/html" }), {
-      contentType: "text/html",
-      upsert: true,
-    });
-
   let fileUrl = "";
-  if (!uploadErr) {
-    const { data: urlData } = supabaseAdmin.storage
+
+  try {
+    const { error: uploadErr } = await supabaseAdmin.storage
       .from("documents")
-      .getPublicUrl(filePath);
-    fileUrl = urlData.publicUrl;
+      .upload(filePath, new Blob([docHtml], { type: "text/html" }), {
+        contentType: "text/html",
+        upsert: true,
+      });
+
+    if (!uploadErr) {
+      const { data: urlData } = supabaseAdmin.storage.from("documents").getPublicUrl(filePath);
+      fileUrl = urlData.publicUrl;
+    }
+  } catch {
+    // Storage upload is non-critical
   }
 
-  if (fileUrl && order.account_id) {
-    await supabaseAdmin.from("sales_documents").insert({
-      account_id: order.account_id,
-      order_id: orderId,
-      file_url: fileUrl,
-      type: isQuote ? "quote_pdf" : "order_pdf",
-      file_name: fileName,
-    });
+  // Link document to account — always save a record so it shows in the account
+  if (order.account_id) {
+    try {
+      await supabaseAdmin.from("sales_documents").insert({
+        account_id: order.account_id,
+        order_id: orderId,
+        file_url: fileUrl || null,
+        type: isQuote ? "quote_pdf" : "order_pdf",
+        file_name: displayName,
+      });
+    } catch {
+      // Non-critical
+    }
   }
 
+  // === SEND EMAIL — always via Resend as primary ===
   let emailSent = false;
   let emailError: string | null = null;
   let qbInvoiceId: string | null = null;
 
+  const businessName = account?.business_name || "Customer";
+  const contactName = account?.contact_name || "there";
+  const repEmail = repProfile?.email || "support@vendingconnector.com";
+
   if (isQuote) {
-    // QUOTE: Send email from noreply with rep email in memo
-    if (!process.env.RESEND_API_KEY) {
-      emailError = "RESEND_API_KEY is not configured";
-    } else {
-      try {
-        const businessName = account?.business_name || "Customer";
-        const repEmail = repProfile?.email || "support@vendingconnector.com";
-        const emailPayload: {
-          from: string;
-          to: string;
-          cc?: string[];
-          replyTo: string;
-          subject: string;
-          html: string;
-        } = {
-          from: NOREPLY_EMAIL,
-          to: recipientEmail,
-          replyTo: repEmail,
-          subject: `Quote from Apex AI Vending — ${businessName}`,
-          html: `<p>Hi ${account?.contact_name || "there"},</p>
+    // QUOTE: noreply email with rep email in memo
+    try {
+      const result = await getResend().emails.send({
+        from: NOREPLY_EMAIL,
+        to: recipientEmail,
+        cc: ccEmails.length > 0 ? ccEmails : undefined,
+        replyTo: repEmail,
+        subject: `Quote from Apex AI Vending — ${businessName}`,
+        html: `<p>Hi ${contactName},</p>
 <p>Please find your quote details below from <strong>Apex AI Vending</strong>.</p>
 <hr/>${docHtml}
 <hr/>
 <p style="color:#6b7280;font-size:13px;">For questions, please reply to: <a href="mailto:${repEmail}">${repEmail}</a></p>`,
-        };
-        if (ccEmails.length > 0) emailPayload.cc = ccEmails;
-
-        const result = await getResend().emails.send(emailPayload);
-        if (result.error) {
-          emailError = result.error.message || String(result.error);
-        } else {
-          emailSent = true;
-        }
-      } catch (e) {
-        emailError = e instanceof Error ? e.message : String(e);
+      });
+      if (result.error) {
+        emailError = result.error.message || String(result.error);
+      } else {
+        emailSent = true;
       }
+    } catch (e) {
+      emailError = e instanceof Error ? e.message : String(e);
     }
   } else {
-    // ORDER: Create QB invoice and send payment link
+    // ORDER: Try QB invoice first, ALWAYS fallback to Resend email
     try {
       const lineItems = items.map((item: { service_name: string; unit_price: number; price?: number; quantity: number; discount_percent?: number; total_price?: number }) => {
         const qty = Number(item.quantity) || 1;
         const unitPrice = Number(item.unit_price) || Number(item.price) || 0;
         const discount = Number(item.discount_percent) || 0;
         let effectivePrice = unitPrice * (1 - discount / 100);
-        // Fallback to total_price / qty if unit calculation is 0
         if (effectivePrice === 0 && Number(item.total_price) > 0) {
           effectivePrice = Number(item.total_price) / qty;
         }
@@ -158,49 +159,48 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       const invoice = await createInvoice({
         customerEmail: recipientEmail,
-        customerName: account?.business_name || account?.contact_name || "Customer",
+        customerName: businessName,
         customerPhone: account?.phone || undefined,
         lineItems,
         memo: `Order #${order.order_number || orderId.slice(0, 8).toUpperCase()}`,
       });
 
       qbInvoiceId = invoice.Id;
-
       await sendInvoiceEmail(invoice.Id, recipientEmail);
       emailSent = true;
 
       await supabaseAdmin
         .from("sales_orders")
-        .update({
-          qb_invoice_id: qbInvoiceId,
-          invoice_status: "sent",
-        })
+        .update({ qb_invoice_id: qbInvoiceId, invoice_status: "sent" })
         .eq("id", orderId);
-    } catch (e) {
-      emailError = e instanceof Error ? e.message : String(e);
+    } catch {
+      // QB failed — send via Resend instead (this is the reliable fallback)
+    }
 
-      // Fallback: send order summary via Resend if QB fails
-      if (process.env.RESEND_API_KEY) {
-        try {
-          const businessName = account?.business_name || "Customer";
-          const result = await getResend().emails.send({
-            from: FROM_EMAIL,
-            to: recipientEmail,
-            cc: ccEmails.length > 0 ? ccEmails : undefined,
-            subject: `New Order – ${businessName}`,
-            html: `<p>A new service order has been submitted for <strong>${businessName}</strong>.</p><p>Please see the order summary below.</p><hr/>${docHtml}`,
-          });
-          if (!result.error) {
-            emailSent = true;
-            emailError = `QB invoice failed (${emailError}), but email was sent via fallback`;
-          }
-        } catch {
-          // Both QB and fallback failed
+    // If QB didn't work, send the order email via Resend
+    if (!emailSent) {
+      try {
+        const result = await getResend().emails.send({
+          from: FROM_EMAIL,
+          to: recipientEmail,
+          cc: ccEmails.length > 0 ? ccEmails : undefined,
+          subject: `Order Confirmation – ${businessName}`,
+          html: `<p>Hi ${contactName},</p>
+<p>Your order has been submitted. Please see the details below.</p>
+<hr/>${docHtml}`,
+        });
+        if (result.error) {
+          emailError = result.error.message || String(result.error);
+        } else {
+          emailSent = true;
         }
+      } catch (e) {
+        emailError = e instanceof Error ? e.message : String(e);
       }
     }
   }
 
+  // Update order status and log activity
   if (emailSent) {
     await supabaseAdmin
       .from("sales_orders")
@@ -211,25 +211,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       order_id: orderId,
       user_id: user.id,
       activity_type: isQuote ? "quote_sent" : "order_sent",
-      description: isQuote
-        ? `Quote emailed to ${recipientEmail}`
-        : `Invoice/payment link sent to ${recipientEmail}`,
+      description: `${isQuote ? "Quote" : "Order"} emailed to ${recipientEmail}` + (ccEmails.length > 0 ? ` (CC: ${ccEmails.join(", ")})` : ""),
     });
-
-    // Send confirmation copy to the sales rep
-    if (repProfile?.email && process.env.RESEND_API_KEY && repProfile.email !== recipientEmail) {
-      const docLabel = isQuote ? "Quote" : "Order";
-      try {
-        await getResend().emails.send({
-          from: FROM_EMAIL,
-          to: repProfile.email,
-          subject: `${docLabel} Sent — ${account?.business_name || "Customer"}`,
-          html: `<p>Your ${docLabel.toLowerCase()} for <strong>${account?.business_name || "Customer"}</strong> has been sent to ${recipientEmail}.</p><hr/>${docHtml}`,
-        });
-      } catch {
-        // Non-critical — don't fail the main flow
-      }
-    }
   }
 
   return NextResponse.json({
@@ -238,10 +221,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     emailError,
     recipient: recipientEmail,
     cc: ccEmails,
-    from: isQuote ? NOREPLY_EMAIL : FROM_EMAIL,
-    fileUrl,
     qbInvoiceId,
-    documentType: isQuote ? "quote" : "order",
   });
 }
 
@@ -258,9 +238,14 @@ function generateDocumentHtml(
     const discount = Number(i.discount_percent) || 0;
     return s + qty * price * (1 - discount / 100);
   }, 0);
-  // Fallback: use stored total_value if item calculation yields 0
-  if (total === 0 && Number(order.total_value) > 0) {
-    total = Number(order.total_value);
+  // Fallback: use stored total_value or sum of total_price fields
+  if (total === 0) {
+    const fromTotalPrice = items.reduce((s, i) => s + (Number(i.total_price) || 0), 0);
+    if (fromTotalPrice > 0) {
+      total = fromTotalPrice;
+    } else if (Number(order.total_value) > 0) {
+      total = Number(order.total_value);
+    }
   }
   const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const docLabel = isQuote ? "Quote" : "Service Order";
@@ -272,15 +257,15 @@ function generateDocumentHtml(
       const price = Number(item.unit_price || item.price) || 0;
       const discount = Number(item.discount_percent) || 0;
       let lineTotal = qty * price * (1 - discount / 100);
-      // Fallback to stored total_price if calculation is 0
       if (lineTotal === 0 && Number(item.total_price) > 0) {
         lineTotal = Number(item.total_price);
       }
+      const unitDisplay = price > 0 ? price : (lineTotal / qty);
       const discountLabel = discount > 0 ? ` <span style="color:#16a34a;font-size:11px;">(${discount}% off)</span>` : "";
       return `<tr>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${item.service_name}${discountLabel}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${qty}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${(price || lineTotal / qty).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${unitDisplay.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">$${lineTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
       </tr>`;
     })
