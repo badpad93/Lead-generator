@@ -62,6 +62,7 @@ function NewOrderContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [sendResult, setSendResult] = useState<{ ok: boolean; error?: string; recipient?: string } | null>(null);
   const [documentType, setDocumentType] = useState<"order" | "quote">(
     typeParam === "quote" ? "quote" : "order"
   );
@@ -163,15 +164,25 @@ function NewOrderContent() {
 
     if (res.ok) {
       const order = await res.json();
-      // Fire-and-forget: send email in background
-      fetch(`/api/sales/orders/${order.id}/send`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
-      // Show success screen, then redirect to dashboard
+      // Send the email and wait for result
+      let sendData: { ok?: boolean; emailSent?: boolean; emailError?: string; recipient?: string } = {};
+      try {
+        const sendRes = await fetch(`/api/sales/orders/${order.id}/send`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        sendData = await sendRes.json().catch(() => ({}));
+      } catch {
+        sendData = { ok: false, emailError: "Network error sending email" };
+      }
+      setSendResult({
+        ok: sendData.emailSent || sendData.ok || false,
+        error: sendData.emailError || undefined,
+        recipient: sendData.recipient || undefined,
+      });
       setSubmitted(true);
       setSaving(false);
-      setTimeout(() => router.push("/sales"), 2500);
+      setTimeout(() => router.push("/sales"), 3000);
     } else {
       const err = await res.json().catch(() => ({}));
       alert(err.error || `Failed to create ${documentType}`);
@@ -192,20 +203,34 @@ function NewOrderContent() {
 
   if (submitted) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 px-6 text-center">
-        <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-5">
-          <CheckCircle2 className="w-9 h-9 text-green-600" />
+      <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
+        <div className={`flex items-center justify-center w-16 h-16 rounded-full mb-5 ${sendResult?.ok ? "bg-green-100" : "bg-amber-100"}`}>
+          <CheckCircle2 className={`w-9 h-9 ${sendResult?.ok ? "text-green-600" : "text-amber-600"}`} />
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">{docLabel} Submitted!</h2>
-        <p className="text-sm text-gray-500 max-w-sm">
-          Your {docLabel.toLowerCase()} has been created and the email is being sent. Redirecting to the dashboard...
-        </p>
-        <div className="mt-6">
-          <Loader2 className="h-5 w-5 animate-spin text-green-500 mx-auto" />
-        </div>
+        {sendResult?.ok ? (
+          <p className="text-sm text-green-700 max-w-sm">
+            Email sent to <strong>{sendResult.recipient}</strong> and CC&apos;d to james@apexaivending.com &amp; katrina.cacdac@apexaivending.com
+          </p>
+        ) : (
+          <div className="max-w-sm">
+            <p className="text-sm text-amber-700">
+              {docLabel} was created but the email could not be sent.
+            </p>
+            {sendResult?.error && (
+              <p className="text-xs text-red-600 mt-2 bg-red-50 rounded-lg p-2">
+                {sendResult.error}
+              </p>
+            )}
+            <p className="text-xs text-gray-500 mt-2">
+              You can resend from the order detail page.
+            </p>
+          </div>
+        )}
+        <p className="text-xs text-gray-400 mt-4">Redirecting to dashboard...</p>
         <button
           onClick={() => router.push("/sales")}
-          className="mt-6 text-sm text-green-600 hover:text-green-700 font-medium cursor-pointer"
+          className="mt-4 text-sm text-green-600 hover:text-green-700 font-medium cursor-pointer"
         >
           Go to Dashboard now
         </button>
