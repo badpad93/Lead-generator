@@ -140,44 +140,56 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       emailError = e instanceof Error ? e.message : String(e);
     }
   } else {
-    // ORDER: Try QB invoice first, ALWAYS fallback to Resend email
-    try {
-      const lineItems = items.map((item: { service_name: string; unit_price: number; price?: number; quantity: number; discount_percent?: number; total_price?: number }) => {
-        const qty = Number(item.quantity) || 1;
-        const unitPrice = Number(item.unit_price) || Number(item.price) || 0;
-        const discount = Number(item.discount_percent) || 0;
-        let effectivePrice = unitPrice * (1 - discount / 100);
-        if (effectivePrice === 0 && Number(item.total_price) > 0) {
-          effectivePrice = Number(item.total_price) / qty;
-        }
-        return {
-          description: item.service_name + (discount > 0 ? ` (${discount}% off)` : ""),
-          amount: effectivePrice,
-          quantity: qty,
-        };
-      });
+    // ORDER: Send via Resend (primary). Try QB invoice only if configured.
+    const qbConfigured = !!(process.env.QB_CLIENT_ID && process.env.QB_CLIENT_SECRET);
 
-      const invoice = await createInvoice({
-        customerEmail: recipientEmail,
-        customerName: businessName,
-        customerPhone: account?.phone || undefined,
-        lineItems,
-        memo: `Order #${order.order_number || orderId.slice(0, 8).toUpperCase()}`,
-      });
+    if (qbConfigured) {
+      try {
+        const lineItems = items.map((item: { service_name: string; unit_price: number; price?: number; quantity: number; discount_percent?: number; total_price?: number }) => {
+          const qty = Number(item.quantity) || 1;
+          const unitPrice = Number(item.unit_price) || Number(item.price) || 0;
+          const discount = Number(item.discount_percent) || 0;
+          let effectivePrice = unitPrice * (1 - discount / 100);
+          if (effectivePrice === 0 && Number(item.total_price) > 0) {
+            effectivePrice = Number(item.total_price) / qty;
+          }
+          return {
+            description: item.service_name + (discount > 0 ? ` (${discount}% off)` : ""),
+            amount: effectivePrice,
+            quantity: qty,
+          };
+        });
 
-      qbInvoiceId = invoice.Id;
-      await sendInvoiceEmail(invoice.Id, recipientEmail);
-      emailSent = true;
+        // 8-second timeout so QB doesn't eat the entire function timeout
+        const invoicePromise = createInvoice({
+          customerEmail: recipientEmail,
+          customerName: businessName,
+          customerPhone: account?.phone || undefined,
+          lineItems,
+          memo: `Order #${order.order_number || orderId.slice(0, 8).toUpperCase()}`,
+        });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("QB timeout")), 8000)
+        );
+        const invoice = await Promise.race([invoicePromise, timeoutPromise]);
 
-      await supabaseAdmin
-        .from("sales_orders")
-        .update({ qb_invoice_id: qbInvoiceId, invoice_status: "sent" })
-        .eq("id", orderId);
-    } catch {
-      // QB failed — send via Resend instead (this is the reliable fallback)
+        qbInvoiceId = invoice.Id;
+        await Promise.race([
+          sendInvoiceEmail(invoice.Id, recipientEmail),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("QB email timeout")), 5000)),
+        ]);
+        emailSent = true;
+
+        await supabaseAdmin
+          .from("sales_orders")
+          .update({ qb_invoice_id: qbInvoiceId, invoice_status: "sent" })
+          .eq("id", orderId);
+      } catch {
+        // QB failed or timed out — fall through to Resend
+      }
     }
 
-    // If QB didn't work, send the order email via Resend
+    // Always send via Resend if QB didn't succeed
     if (!emailSent) {
       try {
         const result = await getResend().emails.send({
