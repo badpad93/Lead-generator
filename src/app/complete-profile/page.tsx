@@ -2,9 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, Truck, Search, Building2, Briefcase } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import { US_STATES } from "@/lib/types";
+
+type AccountType = "operator" | "locator" | "location_manager" | "employee";
+
+const ACCOUNT_TYPES: { value: AccountType; label: string; icon: typeof Truck; description: string }[] = [
+  { value: "operator", label: "Operator", icon: Truck, description: "I own/operate vending machines" },
+  { value: "locator", label: "Locator", icon: Search, description: "I find locations and sell leads" },
+  { value: "location_manager", label: "Location Manager", icon: Building2, description: "I want a vending machine at my business" },
+  { value: "employee", label: "Employee", icon: Briefcase, description: "I'm joining as a sales rep or team member" },
+];
 
 export default function CompleteProfilePage() {
   const router = useRouter();
@@ -12,6 +21,7 @@ export default function CompleteProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [accountType, setAccountType] = useState<AccountType | "">("");
   const [form, setForm] = useState({
     full_name: "",
     company_name: "",
@@ -38,9 +48,13 @@ export default function CompleteProfilePage() {
         });
         if (res.ok) {
           const profile = await res.json();
-          if (profile.phone && profile.address && profile.city && profile.state && profile.zip) {
+          const hasRole = profile.role && !["operator"].includes(profile.role);
+          if (hasRole && profile.phone && profile.address && profile.city && profile.state && profile.zip) {
             router.push("/dashboard");
             return;
+          }
+          if (profile.role && ["operator", "locator", "location_manager", "employee", "sales"].includes(profile.role)) {
+            setAccountType(profile.role === "sales" ? "employee" : profile.role);
           }
           setForm({
             full_name: profile.full_name || "",
@@ -60,6 +74,7 @@ export default function CompleteProfilePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!accountType) { setError("Please select an account type"); return; }
     if (!form.full_name.trim()) { setError("Full name is required"); return; }
     if (!form.phone.trim()) { setError("Phone number is required"); return; }
     if (!form.address.trim()) { setError("Address is required"); return; }
@@ -70,6 +85,8 @@ export default function CompleteProfilePage() {
     setSaving(true);
     setError("");
 
+    const role = accountType === "employee" ? "sales" : accountType;
+
     try {
       const res = await fetch("/api/auth/me", {
         method: "PATCH",
@@ -77,7 +94,7 @@ export default function CompleteProfilePage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, role }),
       });
 
       if (res.ok) {
@@ -119,6 +136,31 @@ export default function CompleteProfilePage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-2">Account Type <span className="text-red-500">*</span></label>
+              <div className="grid grid-cols-2 gap-2">
+                {ACCOUNT_TYPES.map((t) => {
+                  const Icon = t.icon;
+                  const selected = accountType === t.value;
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setAccountType(t.value)}
+                      className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center cursor-pointer ${
+                        selected
+                          ? "border-green-600 bg-green-50 text-green-700"
+                          : "border-gray-200 hover:border-gray-300 text-gray-600"
+                      }`}
+                    >
+                      <Icon className="h-5 w-5" />
+                      <span className="text-xs font-semibold">{t.label}</span>
+                      <span className="text-[10px] leading-tight opacity-70">{t.description}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Full Name <span className="text-red-500">*</span></label>
               <input
