@@ -4,8 +4,7 @@ import { getSalesUser } from "@/lib/salesAuth";
 import { Resend } from "resend";
 import { createInvoice, sendInvoiceEmail } from "@/lib/quickbooks";
 
-const FROM_EMAIL = process.env.FROM_EMAIL || "orders@apexaivending.com";
-const NOREPLY_EMAIL = process.env.NOREPLY_EMAIL || "noreply@apexaivending.com";
+const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 const ALWAYS_CC = ["james@apexaivending.com", "katrina.cacdac@apexaivending.com"];
 
 function getResend() {
@@ -120,7 +119,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // QUOTE: noreply email with rep email in memo
     try {
       const result = await getResend().emails.send({
-        from: NOREPLY_EMAIL,
+        from: FROM_EMAIL,
         to: recipientEmail,
         cc: ccEmails.length > 0 ? ccEmails : undefined,
         replyTo: repEmail,
