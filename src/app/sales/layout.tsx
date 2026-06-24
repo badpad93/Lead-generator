@@ -28,6 +28,7 @@ import {
   Link2,
   Timer,
   BookOpen,
+  ScrollText,
 } from "lucide-react";
 
 // minLevel: 1=Admin, 2=DOS, 3=Market Leader, 4=BDP/Sales
@@ -39,6 +40,7 @@ const NAV_ITEMS = [
   { href: "/sales/deals", label: "Deal Dashboard", icon: Kanban, minLevel: 4 as const },
   { href: "/sales/accounts", label: "Accounts", icon: Building2, minLevel: 4 as const },
   { href: "/sales/orders", label: "Orders / Quotes", icon: ClipboardList, minLevel: 4 as const },
+  { href: "/sales/agreements", label: "Agreements", icon: ScrollText, minLevel: 4 as const },
   { href: "/sales/catalog", label: "Item Catalog", icon: BookOpen, minLevel: 1 as const },
   { href: "/sales/team", label: "Team", icon: UserCog, minLevel: 3 as const },
   { href: "/sales/commissions", label: "Commissions", icon: DollarSign, minLevel: 4 as const },
