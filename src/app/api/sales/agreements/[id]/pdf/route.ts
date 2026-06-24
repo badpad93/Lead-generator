@@ -23,8 +23,22 @@ export async function GET(
   if (error || !ag)
     return NextResponse.json({ error: "Agreement not found" }, { status: 404 });
 
+  // Fetch signatures and initials
+  const [{ data: signatures }, { data: initials }] = await Promise.all([
+    supabaseAdmin
+      .from("agreement_signatures")
+      .select("*")
+      .eq("agreement_id", id)
+      .order("signed_at", { ascending: false }),
+    supabaseAdmin
+      .from("agreement_initials")
+      .select("*")
+      .eq("agreement_id", id)
+      .order("initialed_at", { ascending: true }),
+  ]);
+
   try {
-    const pdfBytes = await generatePurchaseAgreementPdf(ag);
+    const pdfBytes = await generatePurchaseAgreementPdf(ag, signatures || [], initials || []);
     const fileName = `Purchase-Agreement-${(ag.operator_company_name || "draft").replace(/[^a-zA-Z0-9]/g, "_")}-${id.slice(0, 8)}.pdf`;
 
     return new NextResponse(Buffer.from(pdfBytes), {
@@ -45,7 +59,7 @@ export async function GET(
 /* ================================================================== */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function generatePurchaseAgreementPdf(ag: any): Promise<Uint8Array> {
+async function generatePurchaseAgreementPdf(ag: any, signatures: any[], initials: any[]): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const helvetica = await doc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -138,12 +152,41 @@ async function generatePurchaseAgreementPdf(ag: any): Promise<Uint8Array> {
     y -= 6;
     drawText(page, `Section ${num}: ${title}`, LEFT, y, helveticaBold, 9, dark);
     y -= 16;
+    currentSectionNum = num;
+    currentScheduleKey = "";
+  }
+
+  const SECTION_KEY_MAP: Record<number, string> = {
+    3: "section_3", 4: "section_4", 5: "section_5", 6: "section_6",
+    7: "section_7", 8: "section_8",
+  };
+  const SCHEDULE_KEY_MAP: Record<string, string> = {
+    A: "schedule_a", B: "schedule_b", C: "schedule_c",
+  };
+  let currentSectionNum = 0;
+  let currentScheduleKey = "";
+
+  function getInitialsForSection(): string | null {
+    const key = currentScheduleKey
+      ? SCHEDULE_KEY_MAP[currentScheduleKey]
+      : SECTION_KEY_MAP[currentSectionNum];
+    if (!key) return null;
+    const found = initials.find(
+      (i: { section_key: string; signer_type: string }) =>
+        i.section_key === key && i.signer_type === "operator",
+    );
+    return found ? found.initials_data : null;
   }
 
   function initialsPlaceholder() {
     checkPage(20);
     y -= 4;
-    drawText(page, "Operator Initials: [______]", RIGHT - 180, y, helvetica, 8, gray);
+    const initialsData = getInitialsForSection();
+    if (initialsData) {
+      drawText(page, `Operator Initials:  ${initialsData}`, RIGHT - 220, y, helveticaBold, 9, green);
+    } else {
+      drawText(page, "Operator Initials: [______]", RIGHT - 180, y, helvetica, 8, gray);
+    }
     y -= 14;
   }
 
@@ -359,6 +402,8 @@ async function generatePurchaseAgreementPdf(ag: any): Promise<Uint8Array> {
   y -= 20;
   drawText(page, "SCHEDULE A: EQUIPMENT DETAILS", LEFT, y, helveticaBold, 10, green);
   y -= 20;
+  currentScheduleKey = "A";
+  currentSectionNum = 0;
 
   // Table header background
   checkPage(80);
@@ -402,6 +447,7 @@ async function generatePurchaseAgreementPdf(ag: any): Promise<Uint8Array> {
   y -= 20;
   drawText(page, "SCHEDULE B: LOCATION SERVICES", LEFT, y, helveticaBold, 10, green);
   y -= 20;
+  currentScheduleKey = "B";
 
   labelValue("Locations Purchased", String(ag.locations_purchased || 0));
   labelValue("Fee per Location Secured", money(ag.location_fee_per_secured));
@@ -425,6 +471,7 @@ async function generatePurchaseAgreementPdf(ag: any): Promise<Uint8Array> {
   y -= 20;
   drawText(page, "SCHEDULE C: DELIVERY & ADDRESSES", LEFT, y, helveticaBold, 10, green);
   y -= 20;
+  currentScheduleKey = "C";
 
   labelValue("Billing Address", ag.operator_billing_address || "—");
   labelValue("Delivery Address", ag.operator_delivery_address || "—");
@@ -449,44 +496,96 @@ async function generatePurchaseAgreementPdf(ag: any): Promise<Uint8Array> {
   );
   y -= 12;
 
+  // Look up actual signatures
+  const operatorSig = signatures.find((s: { signer_type: string }) => s.signer_type === "operator");
+  const apexSig = signatures.find((s: { signer_type: string }) => s.signer_type === "apex");
+
   // Operator signature block
   drawText(page, "OPERATOR", LEFT, y, helveticaBold, 9, gray);
   y -= 20;
+  if (operatorSig) {
+    drawText(page, operatorSig.signature_data, LEFT, y, helveticaBold, 14, dark);
+    y -= 8;
+  }
   drawLine(y + 2);
   drawText(page, "Signature", LEFT, y - 10, helvetica, 8, gray);
+  if (operatorSig) {
+    drawText(page, `Electronically signed`, LEFT + 100, y - 10, helvetica, 7, green);
+  }
   y -= 28;
+  if (operatorSig) {
+    drawText(page, operatorSig.signer_name, LEFT, y + 6, helveticaBold, 10, dark);
+  }
   drawLine(y + 2);
   drawText(page, "Printed Name", LEFT, y - 10, helvetica, 8, gray);
   if (ag.operator_signed_at) {
     drawText(page, `Signed: ${new Date(ag.operator_signed_at).toLocaleDateString()}`, LEFT + 300, y - 10, helvetica, 8, green);
   }
   y -= 28;
+  if (operatorSig?.signer_title) {
+    drawText(page, operatorSig.signer_title, LEFT, y + 6, helvetica, 9, dark);
+  }
   drawLine(y + 2);
   drawText(page, "Title", LEFT, y - 10, helvetica, 8, gray);
   y -= 28;
+  if (ag.operator_signed_at) {
+    drawText(page, new Date(ag.operator_signed_at).toLocaleDateString(), LEFT, y + 6, helvetica, 9, dark);
+  }
   drawLine(y + 2);
   drawText(page, "Date", LEFT, y - 10, helvetica, 8, gray);
+  if (operatorSig?.signer_company) {
+    y -= 16;
+    drawText(page, `Company: ${operatorSig.signer_company}`, LEFT, y, helvetica, 8, gray);
+  }
+  if (operatorSig?.signer_email) {
+    y -= 14;
+    drawText(page, `Email: ${operatorSig.signer_email}`, LEFT, y, helvetica, 8, gray);
+  }
+  if (operatorSig?.ip_address) {
+    y -= 14;
+    drawText(page, `IP: ${operatorSig.ip_address}`, LEFT, y, helvetica, 7, gray);
+  }
 
   y -= 30;
 
   // Apex signature block
-  checkPage(120);
+  checkPage(160);
   drawText(page, "APEX AI VENDING LLC", LEFT, y, helveticaBold, 9, gray);
   y -= 20;
+  if (apexSig) {
+    drawText(page, apexSig.signature_data, LEFT, y, helveticaBold, 14, dark);
+    y -= 8;
+  }
   drawLine(y + 2);
   drawText(page, "Signature", LEFT, y - 10, helvetica, 8, gray);
+  if (apexSig) {
+    drawText(page, `Electronically signed`, LEFT + 100, y - 10, helvetica, 7, green);
+  }
   y -= 28;
+  if (apexSig) {
+    drawText(page, apexSig.signer_name, LEFT, y + 6, helveticaBold, 10, dark);
+  }
   drawLine(y + 2);
   drawText(page, "Printed Name", LEFT, y - 10, helvetica, 8, gray);
   if (ag.apex_signed_at) {
     drawText(page, `Signed: ${new Date(ag.apex_signed_at).toLocaleDateString()}`, LEFT + 300, y - 10, helvetica, 8, green);
   }
   y -= 28;
+  if (apexSig?.signer_title) {
+    drawText(page, apexSig.signer_title, LEFT, y + 6, helvetica, 9, dark);
+  }
   drawLine(y + 2);
   drawText(page, "Title", LEFT, y - 10, helvetica, 8, gray);
   y -= 28;
+  if (ag.apex_signed_at) {
+    drawText(page, new Date(ag.apex_signed_at).toLocaleDateString(), LEFT, y + 6, helvetica, 9, dark);
+  }
   drawLine(y + 2);
   drawText(page, "Date", LEFT, y - 10, helvetica, 8, gray);
+  if (apexSig?.signer_email) {
+    y -= 16;
+    drawText(page, `Email: ${apexSig.signer_email}`, LEFT, y, helvetica, 8, gray);
+  }
 
   // Final footer on last page
   drawText(page, "Apex AI Vending — Purchase Agreement", LEFT, 30, helvetica, 7, gray);

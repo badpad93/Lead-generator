@@ -26,6 +26,7 @@ import {
   Clock,
   Activity,
   Ban,
+  ClipboardList,
 } from "lucide-react";
 
 interface AgreementActivity {
@@ -213,6 +214,7 @@ function StandaloneAgreementEditor() {
   const [showApexSign, setShowApexSign] = useState(false);
   const [apexSigning, setApexSigning] = useState(false);
   const [apexSignForm, setApexSignForm] = useState({ signer_name: "", signer_title: "", signature_data: "" });
+  const [creatingOrder, setCreatingOrder] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
@@ -439,6 +441,31 @@ function StandaloneAgreementEditor() {
       showToast(err.error || "Failed to countersign", "error");
     }
     setApexSigning(false);
+  }
+
+  async function handleCreateOrder() {
+    if (!agreement) return;
+    if (agreement.order_id) {
+      router.push(`/sales/orders/${agreement.order_id}`);
+      return;
+    }
+    if (!confirm("Create a sales order from this agreement? All agreement data will carry over automatically.")) return;
+
+    setCreatingOrder(true);
+    const res = await fetch(`/api/sales/agreements/${agreement.id}/create-order`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      showToast("Order created from agreement");
+      router.push(`/sales/orders/${data.order_id}`);
+    } else {
+      const err = await res.json().catch(() => ({ error: "Failed to create order" }));
+      showToast(err.error || "Failed to create order", "error");
+    }
+    setCreatingOrder(false);
   }
 
   if (loading) {
@@ -855,6 +882,14 @@ function StandaloneAgreementEditor() {
                 className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer inline-flex items-center justify-center gap-2"
               >
                 <Download className="h-4 w-4" /> Download PDF
+              </button>
+              <button
+                onClick={handleCreateOrder}
+                disabled={creatingOrder}
+                className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-2"
+              >
+                {creatingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+                {agreement.order_id ? "View Linked Order" : "Create Order from Agreement"}
               </button>
               {agreement.agreement_status === "partially_signed" && (
                 <button

@@ -474,7 +474,7 @@ export default function AgreementEditorPage() {
   // -----------------------------------------------------------------------
   function handleDownloadPdf() {
     if (!agreement) return;
-    window.open(`/api/agreements/${agreement.id}/pdf`, "_blank");
+    window.open(`/api/sales/agreements/${agreement.id}/pdf`, "_blank");
   }
 
   // -----------------------------------------------------------------------
