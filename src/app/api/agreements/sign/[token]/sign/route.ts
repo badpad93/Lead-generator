@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { Resend } from "resend";
+import { handleFullySignedAgreement } from "@/lib/generateAgreementPdf";
 
 const REQUIRED_INITIALS = [
   "section_3",
@@ -172,6 +173,15 @@ export async function POST(
       }
     } catch {
       // Notification is best-effort — failure should not block signing
+    }
+  }
+
+  // When fully signed: generate PDF, upload, email, save to account
+  if (isFullySigned) {
+    try {
+      await handleFullySignedAgreement(agreement.id);
+    } catch {
+      // Best-effort — signing itself already succeeded
     }
   }
 
