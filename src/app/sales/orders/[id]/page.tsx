@@ -6,7 +6,7 @@ import { createBrowserClient } from "@/lib/supabase";
 import {
   Loader2, ArrowLeft, Plus, Upload, AlertCircle, CheckCircle2,
   Package, MapPin, Coffee, Monitor, Wrench, DollarSign,
-  FileText, Clock, User, Building2, Trash2,
+  FileText, Clock, User, Building2, Trash2, ScrollText,
 } from "lucide-react";
 
 interface OrderItem {
@@ -126,6 +126,9 @@ export default function OrderDetailPage() {
   const [actionLoading, setActionLoading] = useState("");
   const [noteText, setNoteText] = useState("");
 
+  const [agreements, setAgreements] = useState<{ id: string; agreement_status: string; created_at: string; sent_at: string | null; operator_signed_at: string | null; apex_signed_at: string | null }[]>([]);
+  const [agreementLoading, setAgreementLoading] = useState(false);
+
   const [newItem, setNewItem] = useState({
     item_type: "machine_sale",
     item_name: "",
@@ -154,7 +157,15 @@ export default function OrderDetailPage() {
     setLoading(false);
   }, [token, id]);
 
-  useEffect(() => { fetchOrder(); }, [fetchOrder]);
+  const fetchAgreements = useCallback(async () => {
+    if (!token) return;
+    const res = await fetch(`/api/sales/orders/${id}/agreement`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) setAgreements(await res.json());
+  }, [token, id]);
+
+  useEffect(() => { fetchOrder(); fetchAgreements(); }, [fetchOrder, fetchAgreements]);
 
   async function handleStatusAction(action: string) {
     setActionLoading(action);
@@ -187,6 +198,19 @@ export default function OrderDetailPage() {
       setNewItem({ item_type: "machine_sale", item_name: "", description: "", quantity: "1", unit_price: "", deposit_required: false, location_deposit_amount: "100", location_service_price: "" });
       fetchOrder();
     }
+  }
+
+  async function handleGenerateAgreement() {
+    setAgreementLoading(true);
+    const res = await fetch(`/api/sales/orders/${id}/agreement`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const agreement = await res.json();
+      router.push(`/sales/orders/${id}/agreement?aid=${agreement.id}`);
+    }
+    setAgreementLoading(false);
   }
 
   async function handleDeleteItem(itemId: string) {
@@ -542,6 +566,62 @@ export default function OrderDetailPage() {
             <p className="text-sm text-gray-700">{order.assigned_profile?.full_name || "Unassigned"}</p>
             {order.assigned_profile?.email && (
               <p className="text-xs text-gray-400">{order.assigned_profile.email}</p>
+            )}
+          </div>
+
+          {/* Purchase Agreement */}
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-3">
+              <ScrollText className="h-4 w-4 text-gray-400" /> Purchase Agreement
+            </h3>
+            {agreements.length === 0 ? (
+              <div className="text-center py-3">
+                <p className="text-xs text-gray-400 mb-3">No agreement generated yet</p>
+                <button
+                  onClick={handleGenerateAgreement}
+                  disabled={agreementLoading}
+                  className="w-full rounded-lg px-3 py-2 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {agreementLoading ? "Generating..." : "Generate Purchase Agreement"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {agreements.map((ag) => (
+                  <div key={ag.id} className="border border-gray-100 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ring-1 ring-inset ${
+                        ag.agreement_status === "signed" ? "bg-green-50 text-green-700 ring-green-200" :
+                        ag.agreement_status === "sent" ? "bg-blue-50 text-blue-700 ring-blue-200" :
+                        ag.agreement_status === "viewed" ? "bg-indigo-50 text-indigo-700 ring-indigo-200" :
+                        ag.agreement_status === "partially_signed" ? "bg-purple-50 text-purple-700 ring-purple-200" :
+                        "bg-gray-50 text-gray-600 ring-gray-200"
+                      }`}>
+                        {ag.agreement_status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                      </span>
+                      <span className="text-[10px] text-gray-400">{new Date(ag.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="space-y-1 text-[10px] text-gray-400">
+                      {ag.sent_at && <p>Sent: {new Date(ag.sent_at).toLocaleDateString()}</p>}
+                      {ag.operator_signed_at && <p>Operator signed: {new Date(ag.operator_signed_at).toLocaleDateString()}</p>}
+                      {ag.apex_signed_at && <p>Apex signed: {new Date(ag.apex_signed_at).toLocaleDateString()}</p>}
+                    </div>
+                    <button
+                      onClick={() => router.push(`/sales/orders/${id}/agreement?aid=${ag.id}`)}
+                      className="mt-2 w-full rounded-lg px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer"
+                    >
+                      Open Agreement
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={handleGenerateAgreement}
+                  disabled={agreementLoading}
+                  className="w-full rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {agreementLoading ? "..." : "+ New Agreement"}
+                </button>
+              </div>
             )}
           </div>
 
