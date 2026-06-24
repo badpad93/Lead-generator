@@ -210,6 +210,9 @@ function StandaloneAgreementEditor() {
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showApexSign, setShowApexSign] = useState(false);
+  const [apexSigning, setApexSigning] = useState(false);
+  const [apexSignForm, setApexSignForm] = useState({ signer_name: "", signer_title: "", signature_data: "" });
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
@@ -402,6 +405,42 @@ function StandaloneAgreementEditor() {
     }
   }
 
+  async function handleApexSign() {
+    if (!agreement) return;
+    if (!apexSignForm.signer_name.trim()) {
+      showToast("Signer name is required", "error");
+      return;
+    }
+    if (!apexSignForm.signature_data.trim()) {
+      showToast("Signature is required", "error");
+      return;
+    }
+
+    setApexSigning(true);
+    const res = await fetch(`/api/sales/agreements/${agreement.id}/apex-sign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        signer_name: apexSignForm.signer_name.trim(),
+        signer_title: apexSignForm.signer_title.trim() || undefined,
+        signature_data: apexSignForm.signature_data.trim(),
+        signature_type: "typed",
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      showToast(data.fully_executed ? "Agreement fully executed!" : "Apex countersignature recorded");
+      setShowApexSign(false);
+      setApexSignForm({ signer_name: "", signer_title: "", signature_data: "" });
+      await fetchAgreement();
+    } else {
+      const err = await res.json().catch(() => ({ error: "Failed to sign" }));
+      showToast(err.error || "Failed to countersign", "error");
+    }
+    setApexSigning(false);
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
@@ -453,6 +492,49 @@ function StandaloneAgreementEditor() {
           agreement={agreement}
           onClose={() => setShowPreview(false)}
         />
+      )}
+
+      {showApexSign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Apex Countersignature</h2>
+                <p className="text-xs text-gray-500">Sign on behalf of Apex AI Vending LLC</p>
+              </div>
+              <button onClick={() => setShowApexSign(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Your Name <span className="text-red-400">*</span></label>
+                <input type="text" value={apexSignForm.signer_name} onChange={(e) => setApexSignForm((f) => ({ ...f, signer_name: e.target.value }))} placeholder="e.g. James Padden" className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600/30" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Title</label>
+                <input type="text" value={apexSignForm.signer_title} onChange={(e) => setApexSignForm((f) => ({ ...f, signer_title: e.target.value }))} placeholder="e.g. Director of Sales" className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600/30" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Type Your Signature <span className="text-red-400">*</span></label>
+                <input type="text" value={apexSignForm.signature_data} onChange={(e) => setApexSignForm((f) => ({ ...f, signature_data: e.target.value }))} placeholder="Type your full name as signature" className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600/30" style={{ fontFamily: "'Dancing Script', 'Brush Script MT', cursive", fontSize: "1.25rem" }} />
+                {apexSignForm.signature_data && (
+                  <div className="mt-2 rounded-lg border border-purple-100 bg-purple-50 px-4 py-3 text-center">
+                    <p className="text-xs text-purple-500 mb-1">Preview</p>
+                    <p style={{ fontFamily: "'Dancing Script', 'Brush Script MT', cursive", fontSize: "1.5rem" }} className="text-purple-800">{apexSignForm.signature_data}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+              <button onClick={() => setShowApexSign(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+              <button onClick={handleApexSign} disabled={apexSigning} className="rounded-lg bg-purple-600 px-5 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-50 cursor-pointer inline-flex items-center gap-2">
+                {apexSigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+                {apexSigning ? "Signing..." : "Countersign Agreement"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <button
@@ -776,12 +858,10 @@ function StandaloneAgreementEditor() {
               </button>
               {agreement.agreement_status === "partially_signed" && (
                 <button
-                  onClick={() => {
-                    showToast("Apex signing is handled through the admin panel", "error");
-                  }}
+                  onClick={() => setShowApexSign(true)}
                   className="w-full rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 cursor-pointer inline-flex items-center justify-center gap-2"
                 >
-                  <Shield className="h-4 w-4" /> Apex Sign
+                  <Shield className="h-4 w-4" /> Apex Countersign
                 </button>
               )}
               {!isCancelled && !isSigned && agreement.agreement_status !== "draft" && (
