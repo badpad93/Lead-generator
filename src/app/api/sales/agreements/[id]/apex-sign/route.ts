@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import { handleFullySignedAgreement } from "@/lib/generateAgreementPdf";
 
 /* ------------------------------------------------------------------ */
 /*  POST — Apex representative countersigns the agreement             */
@@ -100,6 +101,15 @@ export async function POST(
     activity_type: "apex_signed",
     description: `Apex countersigned by ${signer_name}${signer_title ? `, ${signer_title}` : ""}${isFullySigned ? " — Agreement fully executed" : ""}`,
   });
+
+  // When fully signed: generate PDF, upload, email, save to account
+  if (isFullySigned) {
+    try {
+      await handleFullySignedAgreement(agreement.id);
+    } catch {
+      // Best-effort — signing itself already succeeded
+    }
+  }
 
   return NextResponse.json({
     ok: true,
