@@ -94,6 +94,7 @@ export default function OrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
   const [token, setToken] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -109,14 +110,24 @@ export default function OrdersPage() {
   const fetchOrders = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setFetchError("");
     const params = new URLSearchParams();
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (search) params.set("search", search);
     params.set("document_type", docType);
-    const res = await fetch(`/api/sales/orders?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setOrders(await res.json());
+    try {
+      const res = await fetch(`/api/sales/orders?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setOrders(await res.json());
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setFetchError(err.error || "Failed to load orders");
+      }
+    } catch {
+      setFetchError("Failed to load orders");
+    }
     setLoading(false);
   }, [token, statusFilter, search, docType]);
 
@@ -201,6 +212,12 @@ export default function OrdersPage() {
       {loading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+        </div>
+      ) : fetchError ? (
+        <div className="py-16 text-center">
+          <AlertCircle className="mx-auto h-10 w-10 text-red-300 mb-3" />
+          <p className="text-sm text-red-500">{fetchError}</p>
+          <button onClick={fetchOrders} className="mt-3 text-sm text-green-600 hover:text-green-700 cursor-pointer">Try again</button>
         </div>
       ) : orders.length === 0 ? (
         <div className="py-16 text-center">

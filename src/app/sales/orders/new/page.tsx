@@ -182,7 +182,7 @@ function NewOrderContent() {
       });
       setSubmitted(true);
       setSaving(false);
-      setTimeout(() => router.push("/sales"), 3000);
+      setTimeout(() => router.push("/sales/orders"), 3000);
     } else {
       const err = await res.json().catch(() => ({}));
       alert(err.error || `Failed to create ${documentType}`);

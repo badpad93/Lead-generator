@@ -69,8 +69,12 @@ export default function CoffeeOrdersPage() {
         if (ordersRes.ok) {
           const data = await ordersRes.json();
           setOrders(data.orders || []);
+        } else {
+          console.error("[coffee/orders] Failed to fetch orders:", ordersRes.status);
         }
-      } catch {}
+      } catch (err) {
+        console.error("[coffee/orders] Error:", err);
+      }
       setLoading(false);
     }
     init();
