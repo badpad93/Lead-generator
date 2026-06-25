@@ -29,7 +29,28 @@ export async function GET(req: NextRequest) {
     query = query.eq("document_type", docType);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
+
+  // If query fails (e.g. missing column), retry without document_type filter
+  if (error && docType) {
+    let retryQuery = supabaseAdmin
+      .from("sales_orders")
+      .select("*, sales_accounts:account_id(id, business_name, contact_name, email, phone), order_items(*)")
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if (user.role === "sales") {
+      retryQuery = retryQuery.or(`created_by.eq.${user.id},assigned_rep_id.eq.${user.id}`);
+    }
+    if (status && status !== "all") {
+      retryQuery = retryQuery.eq("order_status", status);
+    }
+
+    const retry = await retryQuery;
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let results = data || [];

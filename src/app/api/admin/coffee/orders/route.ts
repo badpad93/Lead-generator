@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data, error } = await supabaseAdmin
       .from("coffee_orders")
-      .select("*, profiles!operator_id(id, full_name, email)")
+      .select("*, profiles!operator_id(id, full_name, email), coffee_order_items(*)")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "id and status required" }, { status: 400 });
     }
 
-    const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
+    const validStatuses = ["awaiting_payment", "pending", "processing", "shipped", "delivered", "cancelled"];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest) {
       .from("coffee_orders")
       .update({ status, updated_at: new Date().toISOString() })
       .eq("id", id)
-      .select("*, profiles!operator_id(id, full_name, email)")
+      .select("*, profiles!operator_id(id, full_name, email), coffee_order_items(*)")
       .single();
 
     if (error) {
