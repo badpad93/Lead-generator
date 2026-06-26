@@ -224,6 +224,17 @@ export default function CoffeeMarketplacePage() {
             )}
           </div>
 
+          {token && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link href="/coffee/orders" className="inline-flex items-center gap-1.5 rounded-lg bg-gray-800 border border-gray-700 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+                Your Orders
+              </Link>
+              <Link href="/coffee/pricing-calculator" className="inline-flex items-center gap-1.5 rounded-lg bg-gray-800 border border-gray-700 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+                Pricing Calculator
+              </Link>
+            </div>
+          )}
+
           <form onSubmit={handleSearch} className="mt-6 flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
