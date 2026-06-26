@@ -64,8 +64,7 @@ const DEFAULT_MARKUP: Record<string, number> = {
 };
 
 function computeItem(item: ProposalItem): ProposalItem {
-  const costPerUnit = item.pack_quantity > 1 ? item.unit_cost / item.pack_quantity : item.unit_cost;
-  const costSubtotal = costPerUnit * item.quantity;
+  const costSubtotal = item.unit_cost * item.quantity;
   const retailSubtotal = item.retail_price * item.quantity;
   const profit = retailSubtotal - costSubtotal;
   const marginPct = retailSubtotal > 0 ? (profit / retailSubtotal) * 100 : 0;
@@ -158,8 +157,7 @@ export default function PricingCalculatorPage() {
   const addProduct = useCallback((product: Product) => {
     const category = product.coffee_categories?.name || "Other";
     const markupPct = DEFAULT_MARKUP[category] || 40;
-    const costPerUnit = product.pack_quantity > 1 ? product.price / product.pack_quantity : product.price;
-    const retailPrice = Math.ceil(costPerUnit * (1 + markupPct / 100) * 100) / 100;
+    const retailPrice = Math.ceil(product.price * (1 + markupPct / 100) * 100) / 100;
 
     const newItem = computeItem({
       product_id: product.id,
@@ -198,8 +196,7 @@ export default function PricingCalculatorPage() {
     setUmbrellaMargin(marginPct);
     setItems(prev =>
       prev.map(item => {
-        const costPerUnit = item.pack_quantity > 1 ? item.unit_cost / item.pack_quantity : item.unit_cost;
-        const newRetail = Math.round((costPerUnit / (1 - marginPct / 100)) * 100) / 100;
+        const newRetail = Math.round((item.unit_cost / (1 - marginPct / 100)) * 100) / 100;
         if (!isFinite(newRetail) || newRetail < 0) return item;
         return computeItem({ ...item, retail_price: newRetail });
       })
@@ -594,7 +591,12 @@ export default function PricingCalculatorPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900 text-sm truncate">{item.product_name}</span>
+                          <span className="font-medium text-gray-900 text-sm truncate">
+                            {item.product_name}
+                            {item.pack_quantity > 1 && (
+                              <span className="ml-1.5 text-xs font-normal text-gray-400">({item.pack_quantity} pk)</span>
+                            )}
+                          </span>
                           <span className="text-xs text-gray-400">{item.sku}</span>
                           <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">{item.category}</span>
                         </div>
@@ -607,14 +609,7 @@ export default function PricingCalculatorPage() {
                     <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-[10px] font-medium text-gray-400 mb-0.5 uppercase">Your Cost</label>
-                        <div className="text-sm font-medium text-gray-700">
-                          ${item.unit_cost.toFixed(2)}
-                          {item.pack_quantity > 1 && (
-                            <span className="text-xs text-gray-400 ml-1">
-                              (${(item.unit_cost / item.pack_quantity).toFixed(2)}/ea)
-                            </span>
-                          )}
-                        </div>
+                        <div className="text-sm font-medium text-gray-700">${item.unit_cost.toFixed(2)}</div>
                       </div>
                       <div>
                         <label className="block text-[10px] font-medium text-gray-400 mb-0.5 uppercase">Retail Price</label>
@@ -658,8 +653,7 @@ export default function PricingCalculatorPage() {
                         value={Math.round(item.margin_pct)}
                         onChange={e => {
                           const marginPct = parseInt(e.target.value);
-                          const costPerUnit = item.pack_quantity > 1 ? item.unit_cost / item.pack_quantity : item.unit_cost;
-                          const newRetail = Math.round(costPerUnit / (1 - marginPct / 100) * 100) / 100;
+                          const newRetail = Math.round(item.unit_cost / (1 - marginPct / 100) * 100) / 100;
                           if (isFinite(newRetail) && newRetail >= 0) {
                             updateItem(idx, "retail_price", newRetail);
                           }
@@ -853,7 +847,12 @@ export default function PricingCalculatorPage() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {product.name}
+                        {product.pack_quantity > 1 && (
+                          <span className="ml-1.5 text-xs font-normal text-gray-400">({product.pack_quantity} pk)</span>
+                        )}
+                      </p>
                       <p className="text-xs text-gray-500">
                         {product.coffee_categories?.name || "Other"} · {product.sku} · ${product.price.toFixed(2)}/{product.unit}
                       </p>
