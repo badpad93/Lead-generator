@@ -6,7 +6,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
   const { data: proposal, error } = await supabaseAdmin
     .from("coffee_pricing_proposals")
-    .select("id, proposal_number, status, client_name, client_company, client_email, client_phone, company_name, company_email, company_phone, company_website, company_address, company_city, company_state, company_zip, total_retail, notes, valid_until, created_at, coffee_pricing_proposal_items(id, product_name, category, unit, retail_price, quantity, retail_subtotal, sort_order)")
+    .select("id, proposal_number, status, client_name, client_company, client_email, client_phone, company_name, company_email, company_phone, company_website, company_address, company_city, company_state, company_zip, total_retail, notes, valid_until, created_at, coffee_pricing_proposal_items(id, product_name, category, unit, pack_quantity, retail_price, quantity, retail_subtotal, sort_order)")
     .eq("share_token", token)
     .single();
 
