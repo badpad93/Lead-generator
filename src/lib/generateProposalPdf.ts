@@ -24,6 +24,7 @@ interface ProposalItem {
   product_name: string;
   category: string | null;
   unit: string;
+  pack_quantity?: number;
   retail_price: number;
   quantity: number;
   retail_subtotal: number;
@@ -161,7 +162,10 @@ export async function generateProposalPdf(proposal: ProposalData, items: Proposa
     }
 
     checkPage(20);
-    const nameLines = wrapText(item.product_name, helvetica, 9, 280);
+    const displayName = item.pack_quantity && item.pack_quantity > 1
+      ? `${item.product_name} (${item.pack_quantity} packets/box)`
+      : item.product_name;
+    const nameLines = wrapText(displayName, helvetica, 9, 280);
     for (let i = 0; i < nameLines.length; i++) {
       drawText(page, nameLines[i], LEFT + 6, y, helvetica, 9, dark);
       if (i === 0) {

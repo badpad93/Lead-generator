@@ -8,6 +8,7 @@ interface ProposalItem {
   product_name: string;
   category: string | null;
   unit: string;
+  pack_quantity?: number;
   retail_price: number;
   quantity: number;
   retail_subtotal: number;
@@ -169,7 +170,12 @@ export default function PublicProposalPage({ params }: { params: Promise<{ token
                   </tr>
                   {catItems.map(item => (
                     <tr key={item.id} className="border-b border-gray-50 last:border-0">
-                      <td className="px-5 py-3 text-gray-900">{item.product_name}</td>
+                      <td className="px-5 py-3 text-gray-900">
+                        {item.product_name}
+                        {item.pack_quantity && item.pack_quantity > 1 && (
+                          <span className="ml-1.5 text-xs text-gray-400">({item.pack_quantity} packets/box)</span>
+                        )}
+                      </td>
                       <td className="px-5 py-3 text-center text-gray-600">{item.quantity}</td>
                       <td className="px-5 py-3 text-right text-gray-600">${Number(item.retail_price).toFixed(2)}</td>
                       <td className="px-5 py-3 text-right font-medium text-gray-900">${Number(item.retail_subtotal).toFixed(2)}</td>

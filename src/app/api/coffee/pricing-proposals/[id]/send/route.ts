@@ -53,13 +53,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const companyName = proposal.company_name || "Your Vending Partner";
     const itemRows = items
       .map(
-        (item: { product_name: string; quantity: number; retail_price: number; retail_subtotal: number }) => `
+        (item: { product_name: string; pack_quantity?: number; quantity: number; retail_price: number; retail_subtotal: number }) => {
+          const packLabel = item.pack_quantity && item.pack_quantity > 1
+            ? ` <span style="color: #9ca3af; font-size: 11px;">(${item.pack_quantity} packets/box)</span>`
+            : "";
+          return `
         <tr>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${item.product_name}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${item.product_name}${packLabel}</td>
           <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; color: #374151; text-align: center;">${item.quantity}</td>
           <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; color: #374151; text-align: right;">$${Number(item.retail_price).toFixed(2)}</td>
           <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; color: #374151; text-align: right;">$${Number(item.retail_subtotal).toFixed(2)}</td>
-        </tr>`
+        </tr>`;
+        }
       )
       .join("");
 
