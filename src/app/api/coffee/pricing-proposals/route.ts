@@ -31,37 +31,57 @@ export async function POST(req: NextRequest) {
 
     const p = profile.data;
 
-    const { count } = await supabaseAdmin
-      .from("coffee_pricing_proposals")
-      .select("*", { count: "exact", head: true })
-      .eq("operator_id", user.id);
+    // Generate a unique proposal number with retry for duplicates
+    let data = null;
+    let insertError = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { count } = await supabaseAdmin
+        .from("coffee_pricing_proposals")
+        .select("*", { count: "exact", head: true });
 
-    const proposalNumber = `PRC-${String((count || 0) + 1).padStart(4, "0")}`;
+      const seq = (count || 0) + 1 + attempt;
+      const proposalNumber = `PRC-${String(seq).padStart(5, "0")}`;
 
-    const { data, error } = await supabaseAdmin
-      .from("coffee_pricing_proposals")
-      .insert({
-        operator_id: user.id,
-        proposal_number: proposalNumber,
-        client_name: body.client_name || null,
-        client_company: body.client_company || null,
-        client_email: body.client_email || null,
-        client_phone: body.client_phone || null,
-        company_name: body.company_name || p?.company_name || null,
-        company_email: body.company_email || p?.email || user.email,
-        company_phone: body.company_phone || p?.phone || null,
-        company_website: body.company_website || p?.website || null,
-        company_address: body.company_address || p?.address || null,
-        company_city: body.company_city || p?.city || null,
-        company_state: body.company_state || p?.state || null,
-        company_zip: body.company_zip || p?.zip || null,
-        notes: body.notes || null,
-        valid_until: body.valid_until || null,
-      })
-      .select()
-      .single();
+      const result = await supabaseAdmin
+        .from("coffee_pricing_proposals")
+        .insert({
+          operator_id: user.id,
+          proposal_number: proposalNumber,
+          client_name: body.client_name || null,
+          client_company: body.client_company || null,
+          client_email: body.client_email || null,
+          client_phone: body.client_phone || null,
+          company_name: body.company_name || p?.company_name || null,
+          company_email: body.company_email || p?.email || user.email,
+          company_phone: body.company_phone || p?.phone || null,
+          company_website: body.company_website || p?.website || null,
+          company_address: body.company_address || p?.address || null,
+          company_city: body.company_city || p?.city || null,
+          company_state: body.company_state || p?.state || null,
+          company_zip: body.company_zip || p?.zip || null,
+          notes: body.notes || null,
+          valid_until: body.valid_until || null,
+        })
+        .select()
+        .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (!result.error) {
+        data = result.data;
+        insertError = null;
+        break;
+      }
+
+      if (result.error.code === "23505") {
+        insertError = result.error;
+        continue;
+      }
+
+      return NextResponse.json({ error: result.error.message }, { status: 500 });
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: insertError?.message || "Failed to create proposal" }, { status: 500 });
+    }
 
     if (body.items && Array.isArray(body.items) && body.items.length > 0) {
       const items = body.items.map((item: Record<string, unknown>, idx: number) => ({
