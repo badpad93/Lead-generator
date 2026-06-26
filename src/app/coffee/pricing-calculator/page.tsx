@@ -89,6 +89,7 @@ export default function PricingCalculatorPage() {
   const [showProposals, setShowProposals] = useState(false);
   const [shareToken, setShareToken] = useState("");
   const [showBranding, setShowBranding] = useState(false);
+  const [umbrellaMargin, setUmbrellaMargin] = useState(40);
 
   // Client info
   const [clientName, setClientName] = useState("");
@@ -191,6 +192,18 @@ export default function PricingCalculatorPage() {
 
   const removeItem = useCallback((idx: number) => {
     setItems(prev => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  const applyUmbrellaMargin = useCallback((marginPct: number) => {
+    setUmbrellaMargin(marginPct);
+    setItems(prev =>
+      prev.map(item => {
+        const costPerUnit = item.pack_quantity > 1 ? item.unit_cost / item.pack_quantity : item.unit_cost;
+        const newRetail = Math.round((costPerUnit / (1 - marginPct / 100)) * 100) / 100;
+        if (!isFinite(newRetail) || newRetail < 0) return item;
+        return computeItem({ ...item, retail_price: newRetail });
+      })
+    );
   }, []);
 
   const totals = useMemo(() => {
@@ -506,6 +519,41 @@ export default function PricingCalculatorPage() {
                 <Plus className="h-3.5 w-3.5" /> Add Product
               </button>
             </div>
+
+            {items.length > 0 && (
+              <div className="flex items-center gap-4 px-4 py-3 bg-gray-50 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-green-600" />
+                  <span className="text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Set All Margins</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="80"
+                  step="1"
+                  value={umbrellaMargin}
+                  onChange={e => applyUmbrellaMargin(parseInt(e.target.value))}
+                  className="flex-1 h-1.5 rounded-full appearance-none bg-gray-200 accent-green-600"
+                />
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="1"
+                    max="99"
+                    value={umbrellaMargin}
+                    onChange={e => applyUmbrellaMargin(parseInt(e.target.value) || 40)}
+                    className="w-14 rounded border border-gray-200 px-2 py-1 text-sm font-bold text-green-700 text-center focus:border-green-500 focus:outline-none"
+                  />
+                  <span className="text-sm font-medium text-gray-500">%</span>
+                </div>
+                <button
+                  onClick={() => applyUmbrellaMargin(umbrellaMargin)}
+                  className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 cursor-pointer whitespace-nowrap"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
 
             {items.length === 0 ? (
               <div className="p-8 text-center">

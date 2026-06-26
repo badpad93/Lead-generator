@@ -5,7 +5,6 @@ import { generateProposalPdf } from "@/lib/generateProposalPdf";
 import { Resend } from "resend";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
-const ALWAYS_CC = ["james@apexaivending.com", "katrina.cacdac@apexaivending.com"];
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
@@ -118,7 +117,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await getResend().emails.send({
       from: FROM_EMAIL,
       to: proposal.client_email,
-      cc: ALWAYS_CC,
+      replyTo: proposal.company_email || undefined,
       subject: `Coffee Service Proposal from ${companyName} — ${proposal.proposal_number}`,
       html,
       attachments: [
