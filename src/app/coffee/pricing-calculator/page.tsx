@@ -206,6 +206,14 @@ export default function PricingCalculatorPage() {
     );
   }, []);
 
+  const roundAllPrices = useCallback((direction: "up" | "down") => {
+    const fn = direction === "up" ? Math.ceil : Math.floor;
+    setItems(prev => prev.map(item => {
+      const rounded = fn(item.retail_price);
+      return computeItem({ ...item, retail_price: rounded > 0 ? rounded : 1 });
+    }));
+  }, []);
+
   const totals = useMemo(() => {
     const totalCost = items.reduce((s, i) => s + i.cost_subtotal, 0);
     const totalRetail = items.reduce((s, i) => s + i.retail_subtotal, 0);
@@ -552,6 +560,22 @@ export default function PricingCalculatorPage() {
                 >
                   Apply
                 </button>
+                <div className="border-l border-gray-200 pl-3 flex items-center gap-1">
+                  <button
+                    onClick={() => roundAllPrices("down")}
+                    className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 cursor-pointer whitespace-nowrap"
+                    title="Round all prices down to nearest dollar"
+                  >
+                    Round Down
+                  </button>
+                  <button
+                    onClick={() => roundAllPrices("up")}
+                    className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 cursor-pointer whitespace-nowrap"
+                    title="Round all prices up to nearest dollar"
+                  >
+                    Round Up
+                  </button>
+                </div>
               </div>
             )}
 
