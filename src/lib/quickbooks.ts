@@ -164,6 +164,14 @@ export async function findCustomerByEmail(email: string): Promise<QBCustomer | n
   return data.QueryResponse?.Customer?.[0] || null;
 }
 
+export async function findCustomerByName(displayName: string): Promise<QBCustomer | null> {
+  const query = `SELECT * FROM Customer WHERE DisplayName = '${displayName.replace(/'/g, "\\'")}'`;
+  const res = await qbFetch(`/query?query=${encodeURIComponent(query)}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.QueryResponse?.Customer?.[0] || null;
+}
+
 export async function createCustomer(params: {
   displayName: string;
   email: string;
@@ -184,6 +192,13 @@ export async function createCustomer(params: {
 
   if (!res.ok) {
     const text = await res.text();
+
+    // Handle duplicate name — look up the existing customer and return it
+    if (text.includes("6240") || text.includes("Duplicate Name")) {
+      const existing = await findCustomerByName(params.displayName);
+      if (existing) return existing;
+    }
+
     throw new Error(`QB create customer failed: ${text}`);
   }
 
@@ -196,8 +211,14 @@ export async function findOrCreateCustomer(params: {
   email: string;
   phone?: string;
 }): Promise<QBCustomer> {
-  const existing = await findCustomerByEmail(params.email);
-  if (existing) return existing;
+  // Try email first
+  const byEmail = await findCustomerByEmail(params.email);
+  if (byEmail) return byEmail;
+
+  // Try display name (QB enforces unique names)
+  const byName = await findCustomerByName(params.displayName);
+  if (byName) return byName;
+
   return createCustomer(params);
 }
 
