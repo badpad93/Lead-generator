@@ -79,6 +79,10 @@ interface Agreement {
   total_due_prior_to_procurement: number;
   payment_due_date: string | null;
   payment_method_notes: string | null;
+  include_equipment: boolean;
+  include_location_services: boolean;
+  include_shipping_storage: boolean;
+  auto_send_invoice_on_signing: boolean;
   effective_date: string | null;
   governing_state: string | null;
   venue_state: string | null;
@@ -140,6 +144,10 @@ type FormData = {
   contract_expiration_date: string;
   internal_notes: string;
   customer_notes: string;
+  include_equipment: boolean;
+  include_location_services: boolean;
+  include_shipping_storage: boolean;
+  auto_send_invoice_on_signing: boolean;
 };
 
 const AGREEMENT_STATUS_COLORS: Record<string, string> = {
@@ -194,6 +202,10 @@ function agreementToForm(ag: Agreement): FormData {
     contract_expiration_date: ag.contract_expiration_date || "",
     internal_notes: ag.internal_notes || "",
     customer_notes: ag.customer_notes || "",
+    include_equipment: ag.include_equipment !== false,
+    include_location_services: ag.include_location_services !== false,
+    include_shipping_storage: ag.include_shipping_storage !== false,
+    auto_send_invoice_on_signing: ag.auto_send_invoice_on_signing === true,
   };
 }
 
@@ -248,6 +260,11 @@ function StandaloneAgreementEditor() {
   useEffect(() => {
     fetchAgreement();
   }, [fetchAgreement]);
+
+  function updateBool(field: keyof FormData, value: boolean) {
+    setForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+    setDirty(true);
+  }
 
   function updateField(field: keyof FormData, value: string) {
     setForm((prev) => (prev ? { ...prev, [field]: value } : prev));
@@ -305,6 +322,10 @@ function StandaloneAgreementEditor() {
       contract_expiration_date: form.contract_expiration_date || null,
       internal_notes: form.internal_notes,
       customer_notes: form.customer_notes,
+      include_equipment: form.include_equipment,
+      include_location_services: form.include_location_services,
+      include_shipping_storage: form.include_shipping_storage,
+      auto_send_invoice_on_signing: form.auto_send_invoice_on_signing,
     };
 
     const res = await fetch(`/api/sales/agreements/${agreement.id}`, {
@@ -678,52 +699,83 @@ function StandaloneAgreementEditor() {
           </div>
 
           {/* Equipment Purchase */}
-          <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
-              <Package className="h-4 w-4 text-gray-400" /> Equipment Purchase
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField label="Machine Model" value={form.machine_model} onChange={(v) => updateField("machine_model", v)} disabled={isReadOnly} />
-              <InputField label="Quantity" type="number" value={form.machine_quantity} onChange={(v) => updateField("machine_quantity", v)} disabled={isReadOnly} min="1" />
-              <CurrencyField label="Unit Price" value={form.machine_unit_price} onChange={(v) => updateField("machine_unit_price", v)} disabled={isReadOnly} />
-              <ReadOnlyField label="Equipment Subtotal" value={`$${currency(computed.equipmentSubtotal)}`} />
+          <div className={`rounded-xl border bg-white p-5 ${form.include_equipment ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <Package className="h-4 w-4 text-gray-400" /> Equipment Purchase
+              </h3>
+              <SectionToggle
+                included={form.include_equipment}
+                onChange={(v) => updateBool("include_equipment", v)}
+                disabled={isReadOnly}
+              />
             </div>
-            <div className="mt-4">
-              <TextareaField label="Machine Notes" value={form.machine_notes} onChange={(v) => updateField("machine_notes", v)} disabled={isReadOnly} rows={2} />
-            </div>
+            {form.include_equipment && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <InputField label="Machine Model" value={form.machine_model} onChange={(v) => updateField("machine_model", v)} disabled={isReadOnly} />
+                  <InputField label="Quantity" type="number" value={form.machine_quantity} onChange={(v) => updateField("machine_quantity", v)} disabled={isReadOnly} min="1" />
+                  <CurrencyField label="Unit Price" value={form.machine_unit_price} onChange={(v) => updateField("machine_unit_price", v)} disabled={isReadOnly} />
+                  <ReadOnlyField label="Equipment Subtotal" value={`$${currency(computed.equipmentSubtotal)}`} />
+                </div>
+                <div className="mt-4">
+                  <TextareaField label="Machine Notes" value={form.machine_notes} onChange={(v) => updateField("machine_notes", v)} disabled={isReadOnly} rows={2} />
+                </div>
+              </>
+            )}
           </div>
 
           {/* Location Services */}
-          <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
-              <MapPin className="h-4 w-4 text-gray-400" /> Location Services
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField label="Locations Purchased" type="number" value={form.locations_purchased} onChange={(v) => updateField("locations_purchased", v)} disabled={isReadOnly} min="0" />
-              <CurrencyField label="Fee per Location" value={form.location_fee_per_secured} onChange={(v) => updateField("location_fee_per_secured", v)} disabled={isReadOnly} />
-              <ReadOnlyField label="Max Location Service Value" value={`$${currency(computed.maxLocationServiceValue)}`} />
-              <InputField label="Timeline (Days)" type="number" value={form.location_service_timeline_days} onChange={(v) => updateField("location_service_timeline_days", v)} disabled={isReadOnly} />
-              <InputField label="Rejection Allowance" value={form.location_rejection_allowance} onChange={(v) => updateField("location_rejection_allowance", v)} disabled={isReadOnly} />
-              <InputField label="Payment Terms" value={form.location_payment_terms} onChange={(v) => updateField("location_payment_terms", v)} disabled={isReadOnly} />
+          <div className={`rounded-xl border bg-white p-5 ${form.include_location_services ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-gray-400" /> Location Services
+              </h3>
+              <SectionToggle
+                included={form.include_location_services}
+                onChange={(v) => updateBool("include_location_services", v)}
+                disabled={isReadOnly}
+              />
             </div>
+            {form.include_location_services && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputField label="Locations Purchased" type="number" value={form.locations_purchased} onChange={(v) => updateField("locations_purchased", v)} disabled={isReadOnly} min="0" />
+                <CurrencyField label="Fee per Location" value={form.location_fee_per_secured} onChange={(v) => updateField("location_fee_per_secured", v)} disabled={isReadOnly} />
+                <ReadOnlyField label="Max Location Service Value" value={`$${currency(computed.maxLocationServiceValue)}`} />
+                <InputField label="Timeline (Days)" type="number" value={form.location_service_timeline_days} onChange={(v) => updateField("location_service_timeline_days", v)} disabled={isReadOnly} />
+                <InputField label="Rejection Allowance" value={form.location_rejection_allowance} onChange={(v) => updateField("location_rejection_allowance", v)} disabled={isReadOnly} />
+                <InputField label="Payment Terms" value={form.location_payment_terms} onChange={(v) => updateField("location_payment_terms", v)} disabled={isReadOnly} />
+              </div>
+            )}
           </div>
 
           {/* Shipping & Storage */}
-          <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
-              <Truck className="h-4 w-4 text-gray-400" /> Shipping &amp; Storage
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <CurrencyField label="Standard Freight Rate" value={form.standard_freight_rate} onChange={(v) => updateField("standard_freight_rate", v)} disabled={isReadOnly} />
-              <CurrencyField label="Discounted Freight Rate" value={form.discounted_freight_rate} onChange={(v) => updateField("discounted_freight_rate", v)} disabled={isReadOnly} />
-              <CurrencyField label="Freight per Machine" value={form.freight_per_machine} onChange={(v) => updateField("freight_per_machine", v)} disabled={isReadOnly} />
-              <ReadOnlyField label="Freight Total" value={`$${currency(computed.freightTotal)}`} />
-              <CurrencyField label="Storage Fee / Month" value={form.storage_fee_per_machine_month} onChange={(v) => updateField("storage_fee_per_machine_month", v)} disabled={isReadOnly} />
-              <InputField label="Free Storage Months" type="number" value={form.free_storage_months} onChange={(v) => updateField("free_storage_months", v)} disabled={isReadOnly} min="0" />
+          <div className={`rounded-xl border bg-white p-5 ${form.include_shipping_storage ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <Truck className="h-4 w-4 text-gray-400" /> Shipping &amp; Storage
+              </h3>
+              <SectionToggle
+                included={form.include_shipping_storage}
+                onChange={(v) => updateBool("include_shipping_storage", v)}
+                disabled={isReadOnly}
+              />
             </div>
-            <div className="mt-4">
-              <TextareaField label="Shipping Notes" value={form.shipping_notes} onChange={(v) => updateField("shipping_notes", v)} disabled={isReadOnly} rows={2} />
-            </div>
+            {form.include_shipping_storage && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <CurrencyField label="Standard Freight Rate" value={form.standard_freight_rate} onChange={(v) => updateField("standard_freight_rate", v)} disabled={isReadOnly} />
+                  <CurrencyField label="Discounted Freight Rate" value={form.discounted_freight_rate} onChange={(v) => updateField("discounted_freight_rate", v)} disabled={isReadOnly} />
+                  <CurrencyField label="Freight per Machine" value={form.freight_per_machine} onChange={(v) => updateField("freight_per_machine", v)} disabled={isReadOnly} />
+                  <ReadOnlyField label="Freight Total" value={`$${currency(computed.freightTotal)}`} />
+                  <CurrencyField label="Storage Fee / Month" value={form.storage_fee_per_machine_month} onChange={(v) => updateField("storage_fee_per_machine_month", v)} disabled={isReadOnly} />
+                  <InputField label="Free Storage Months" type="number" value={form.free_storage_months} onChange={(v) => updateField("free_storage_months", v)} disabled={isReadOnly} min="0" />
+                </div>
+                <div className="mt-4">
+                  <TextareaField label="Shipping Notes" value={form.shipping_notes} onChange={(v) => updateField("shipping_notes", v)} disabled={isReadOnly} rows={2} />
+                </div>
+              </>
+            )}
           </div>
 
           {/* Payment Terms */}
@@ -737,6 +789,23 @@ function StandaloneAgreementEditor() {
             </div>
             <div className="mt-4">
               <TextareaField label="Payment Method Notes" value={form.payment_method_notes} onChange={(v) => updateField("payment_method_notes", v)} disabled={isReadOnly} rows={2} />
+            </div>
+            <div className="mt-4 flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+              <input
+                id="auto-invoice"
+                type="checkbox"
+                checked={form.auto_send_invoice_on_signing}
+                onChange={(e) => updateBool("auto_send_invoice_on_signing", e.target.checked)}
+                disabled={isReadOnly}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
+              />
+              <label htmlFor="auto-invoice" className="flex-1 cursor-pointer">
+                <span className="block text-sm font-medium text-gray-900">Auto-send invoice after both parties sign</span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  When both parties have signed, automatically create an order and send the invoice to the operator in a separate email.
+                  Leave off if you prefer to manually create the order and send the invoice later.
+                </span>
+              </label>
             </div>
           </div>
 
@@ -986,6 +1055,37 @@ function CurrencyField({ label, value, onChange, disabled = false }: {
         <input type="number" value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} min="0" step="0.01"
           className="w-full rounded-xl border border-gray-200 pl-7 pr-4 py-2.5 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600/30 disabled:bg-gray-50 disabled:text-gray-500" />
       </div>
+    </div>
+  );
+}
+
+function SectionToggle({ included, onChange, disabled = false }: { included: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-0.5">
+      <button
+        type="button"
+        onClick={() => !disabled && onChange(true)}
+        disabled={disabled}
+        className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+          included
+            ? "bg-green-600 text-white shadow-sm"
+            : "text-gray-500 hover:text-gray-700"
+        } ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+      >
+        Included
+      </button>
+      <button
+        type="button"
+        onClick={() => !disabled && onChange(false)}
+        disabled={disabled}
+        className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+          !included
+            ? "bg-gray-600 text-white shadow-sm"
+            : "text-gray-500 hover:text-gray-700"
+        } ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+      >
+        Excluded
+      </button>
     </div>
   );
 }

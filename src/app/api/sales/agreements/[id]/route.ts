@@ -115,6 +115,11 @@ export async function PATCH(
     "contract_expiration_date",
     "internal_notes",
     "customer_notes",
+    // Section toggles & auto-invoice
+    "include_equipment",
+    "include_location_services",
+    "include_shipping_storage",
+    "auto_send_invoice_on_signing",
     // Legal (admin/director only — already guarded above)
     "legal_overrides",
   ];
