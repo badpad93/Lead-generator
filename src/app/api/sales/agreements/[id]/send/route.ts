@@ -41,17 +41,23 @@ export async function POST(
   if (agErr || !agreement)
     return NextResponse.json({ error: "Agreement not found" }, { status: 404 });
 
-  // Validate required fields
+  // Validate required fields. Equipment fields are only required when
+  // the Equipment section is included.
+  const includeEquipment = agreement.include_equipment !== false;
   const requiredFields: Array<{ key: string; label: string }> = [
     { key: "operator_company_name", label: "Operator company name" },
     { key: "operator_legal_name", label: "Operator legal name" },
     { key: "operator_email", label: "Operator email" },
-    { key: "machine_model", label: "Machine model" },
-    { key: "machine_quantity", label: "Machine quantity" },
-    { key: "machine_unit_price", label: "Machine unit price" },
     { key: "effective_date", label: "Effective date" },
     { key: "apex_representative_name", label: "Apex representative name" },
   ];
+  if (includeEquipment) {
+    requiredFields.push(
+      { key: "machine_model", label: "Machine model" },
+      { key: "machine_quantity", label: "Machine quantity" },
+      { key: "machine_unit_price", label: "Machine unit price" },
+    );
+  }
 
   const missing = requiredFields.filter(
     (f) =>
@@ -101,12 +107,13 @@ export async function POST(
 
   <p>Hi ${agreement.operator_legal_name || agreement.operator_company_name},</p>
 
-  <p>Your purchase agreement for <strong>${agreement.machine_quantity} ${agreement.machine_model}</strong> machine${agreement.machine_quantity > 1 ? "s" : ""} is ready for review and signature.</p>
+  <p>Your purchase agreement is ready for review and signature.</p>
 
   <p>This agreement covers:</p>
   <ul style="color:#374151;line-height:1.8;">
-    <li>Equipment: ${agreement.machine_quantity}x ${agreement.machine_model} @ $${Number(agreement.machine_unit_price).toLocaleString("en-US", { minimumFractionDigits: 2 })} each</li>
-    ${agreement.locations_purchased > 0 ? `<li>Location Services: ${agreement.locations_purchased} location${agreement.locations_purchased > 1 ? "s" : ""}</li>` : ""}
+    ${includeEquipment && agreement.machine_quantity > 0 ? `<li>Equipment: ${agreement.machine_quantity}x ${agreement.machine_model} @ $${Number(agreement.machine_unit_price).toLocaleString("en-US", { minimumFractionDigits: 2 })} each</li>` : ""}
+    ${agreement.include_location_services !== false && Number(agreement.locations_purchased) > 0 ? `<li>Location Services: ${agreement.locations_purchased} location${agreement.locations_purchased > 1 ? "s" : ""} @ $${Number(agreement.location_fee_per_secured || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })} each</li>` : ""}
+    ${agreement.include_shipping_storage !== false && Number(agreement.freight_total) > 0 ? `<li>Shipping &amp; Freight: $${Number(agreement.freight_total).toLocaleString("en-US", { minimumFractionDigits: 2 })}</li>` : ""}
     <li>Total Due Prior to Procurement: <strong>$${Number(agreement.total_due_prior_to_procurement || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong></li>
   </ul>
 

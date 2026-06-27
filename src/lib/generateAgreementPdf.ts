@@ -693,10 +693,14 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
         <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Operator</td>
         <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#111;font-size:13px;font-weight:600;">${ag.operator_company_name || "—"}</td>
       </tr>
-      <tr>
+      ${ag.include_equipment !== false && ag.machine_quantity > 0 ? `<tr>
         <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Machine(s)</td>
-        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#111;font-size:13px;">${ag.machine_quantity || 1}x ${ag.machine_model || "VendEra AI Machine"}</td>
-      </tr>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#111;font-size:13px;">${ag.machine_quantity}x ${ag.machine_model || "VendEra AI Machine"}</td>
+      </tr>` : ""}
+      ${ag.include_location_services !== false && Number(ag.locations_purchased) > 0 ? `<tr>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Location Services</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#111;font-size:13px;">${ag.locations_purchased} location${ag.locations_purchased > 1 ? "s" : ""}</td>
+      </tr>` : ""}
       <tr>
         <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Total Due</td>
         <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#16a34a;font-size:13px;font-weight:700;">$${totalDue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>

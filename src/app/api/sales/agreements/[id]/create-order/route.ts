@@ -23,11 +23,15 @@ export async function POST(
   if (agErr || !ag)
     return NextResponse.json({ error: "Agreement not found" }, { status: 404 });
 
-  // Build order items from agreement data
+  // Respect section toggles when building line items
+  const includeEquipment = ag.include_equipment !== false;
+  const includeLocationServices = ag.include_location_services !== false;
+  const includeShippingStorage = ag.include_shipping_storage !== false;
+
   const items: Array<Record<string, unknown>> = [];
 
   // Machine sale item
-  if (ag.machine_quantity > 0) {
+  if (includeEquipment && ag.machine_quantity > 0 && Number(ag.machine_unit_price) > 0) {
     const unitPrice = Number(ag.machine_unit_price) || 0;
     const qty = Number(ag.machine_quantity) || 1;
     items.push({
@@ -45,7 +49,7 @@ export async function POST(
   }
 
   // Location services item
-  if (Number(ag.locations_purchased) > 0) {
+  if (includeLocationServices && Number(ag.locations_purchased) > 0) {
     const locFee = Number(ag.location_fee_per_secured) || 0;
     const locQty = Number(ag.locations_purchased) || 0;
     items.push({
@@ -63,9 +67,9 @@ export async function POST(
     });
   }
 
-  // Freight item (if freight > 0)
+  // Freight item (if freight > 0 and shipping included)
   const freightTotal = Number(ag.freight_total) || 0;
-  if (freightTotal > 0) {
+  if (includeShippingStorage && freightTotal > 0) {
     items.push({
       item_type: "other",
       service_name: "Shipping & Freight",
