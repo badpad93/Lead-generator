@@ -98,6 +98,8 @@ export async function PATCH(
     "location_rejection_allowance",
     "location_service_timeline_days",
     "location_payment_terms",
+    "location_services_deposit_only",
+    "location_services_deposit_amount",
     // Shipping / freight
     "standard_freight_rate",
     "discounted_freight_rate",
@@ -135,7 +137,7 @@ export async function PATCH(
   // inputs to a computed field don't fall back to 0.
   const { data: current } = await supabaseAdmin
     .from("purchase_agreements")
-    .select("machine_quantity, machine_unit_price, freight_per_machine, locations_purchased, location_fee_per_secured, include_equipment, include_location_services, include_shipping_storage")
+    .select("machine_quantity, machine_unit_price, freight_per_machine, locations_purchased, location_fee_per_secured, include_equipment, include_location_services, include_shipping_storage, location_services_deposit_only, location_services_deposit_amount")
     .eq("id", id)
     .single();
 
@@ -149,16 +151,24 @@ export async function PATCH(
   const includeLocationServices = (updates.include_location_services ?? current?.include_location_services) !== false;
   const includeShippingStorage = (updates.include_shipping_storage ?? current?.include_shipping_storage) !== false;
 
+  const depositOnly = (updates.location_services_deposit_only ?? current?.location_services_deposit_only) === true;
+  const depositAmount = Number(updates.location_services_deposit_amount ?? current?.location_services_deposit_amount) || 0;
+
   // Always recalculate so zeroing inputs zeros the subtotal, and so
   // excluded sections contribute nothing to the totals.
   updates.equipment_subtotal = includeEquipment ? qty * unitPrice : 0;
   updates.freight_total = includeShippingStorage ? qty * freightPerMachine : 0;
   updates.max_location_service_value = includeLocationServices ? locationsPurchased * locationFee : 0;
 
+  // Upfront location-services amount: deposit when deposit-only, else full max value.
+  const locationUpfront = includeLocationServices
+    ? (depositOnly ? Math.min(depositAmount, Number(updates.max_location_service_value)) : Number(updates.max_location_service_value))
+    : 0;
+
   updates.total_due_prior_to_procurement =
     Number(updates.equipment_subtotal) +
     Number(updates.freight_total) +
-    Number(updates.max_location_service_value);
+    locationUpfront;
 
   const { data, error } = await supabaseAdmin
     .from("purchase_agreements")

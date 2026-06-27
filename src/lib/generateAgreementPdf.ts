@@ -267,11 +267,26 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     labelValue("Max Location Service Value", money(ag.max_location_service_value));
     labelValue("Rejection Allowance", ag.location_rejection_allowance || "Per service terms");
     labelValue("Service Timeline", ag.location_service_timeline_days ? `${ag.location_service_timeline_days} days` : "Per service terms");
+    if (ag.location_services_deposit_only) {
+      const deposit = Math.min(Number(ag.location_services_deposit_amount) || 0, Number(ag.max_location_service_value) || 0);
+      const remaining = Math.max(0, Number(ag.max_location_service_value) - deposit);
+      labelValue("Deposit Due Upfront", money(deposit));
+      labelValue("Balance Due on Fulfillment", money(remaining));
+    }
     y -= 4;
     drawWrapped(
       "If Operator has elected location services, Apex will identify and secure suitable commercial locations for machine placement. Each location will meet minimum traffic and suitability criteria. Operator may reject a proposed location within the allowance specified above; additional rejections may incur supplemental fees.",
       helvetica, 8.5, gray,
     );
+    if (ag.location_services_deposit_only) {
+      y -= 4;
+      const deposit = Math.min(Number(ag.location_services_deposit_amount) || 0, Number(ag.max_location_service_value) || 0);
+      const remaining = Math.max(0, Number(ag.max_location_service_value) - deposit);
+      drawWrapped(
+        `Payment Schedule: A non-refundable deposit of ${money(deposit)} is due prior to procurement. The remaining balance of ${money(remaining)} shall be invoiced upon fulfillment of secured locations and is due on receipt.`,
+        helvetica, 8.5, gray,
+      );
+    }
     initialsPlaceholder();
   }
 
@@ -433,9 +448,17 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     drawText(page, s, RIGHT - 4 - helvetica.widthOfTextAtSize(s, 9), y, helvetica, 9, dark);
     y -= 14;
   }
+  const depositOnly = ag.location_services_deposit_only === true;
+  const locDeposit = Math.min(Number(ag.location_services_deposit_amount) || 0, Number(ag.max_location_service_value) || 0);
+  const locRemaining = depositOnly ? Math.max(0, Number(ag.max_location_service_value) - locDeposit) : 0;
+
   if (includeLocationServices && Number(ag.max_location_service_value) > 0) {
-    drawText(page, `Location Services (${ag.locations_purchased || 0} location${(ag.locations_purchased || 0) === 1 ? "" : "s"})`, LEFT + 4, y, helvetica, 9, dark);
-    const s = money(ag.max_location_service_value);
+    const upfront = depositOnly ? locDeposit : Number(ag.max_location_service_value);
+    const label = depositOnly
+      ? `Location Services Deposit (${ag.locations_purchased || 0} location${(ag.locations_purchased || 0) === 1 ? "" : "s"})`
+      : `Location Services (${ag.locations_purchased || 0} location${(ag.locations_purchased || 0) === 1 ? "" : "s"})`;
+    drawText(page, label, LEFT + 4, y, helvetica, 9, dark);
+    const s = money(upfront);
     drawText(page, s, RIGHT - 4 - helvetica.widthOfTextAtSize(s, 9), y, helvetica, 9, dark);
     y -= 14;
   }
@@ -451,6 +474,11 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   const totalStr = money(ag.total_due_prior_to_procurement);
   drawText(page, totalStr, RIGHT - 4 - helveticaBold.widthOfTextAtSize(totalStr, 12), y, helveticaBold, 12, green);
   y -= 16;
+
+  if (includeLocationServices && depositOnly && locRemaining > 0) {
+    drawText(page, `+ ${money(locRemaining)} Location Services balance due upon fulfillment of secured locations`, LEFT + 4, y, helvetica, 8, gray);
+    y -= 14;
+  }
 
   /* ================================================================ */
   /*  SCHEDULE C — Delivery & Addresses                               */
@@ -786,19 +814,53 @@ async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
   if (includeLocationServices && Number(ag.locations_purchased) > 0) {
     const locFee = Number(ag.location_fee_per_secured) || 0;
     const locQty = Number(ag.locations_purchased) || 0;
-    items.push({
-      item_type: "location_services",
-      service_name: "Location Sourcing & Placement",
-      description: `${locQty} locations at $${locFee.toFixed(2)} each. Timeline: ${ag.location_service_timeline_days || 180} days.`,
-      quantity: locQty,
-      unit_price: locFee,
-      price: locFee,
-      total_price: locQty * locFee,
-      discount_percent: 0,
-      status: "pending",
-      location_service_price: locQty * locFee,
-      deposit_required: false,
-    });
+    const locTotal = locQty * locFee;
+    const depositOnly = ag.location_services_deposit_only === true;
+    const deposit = depositOnly ? Math.min(Number(ag.location_services_deposit_amount) || 0, locTotal) : locTotal;
+    const remaining = depositOnly ? Math.max(0, locTotal - deposit) : 0;
+
+    if (depositOnly) {
+      items.push({
+        item_type: "location_services",
+        service_name: "Location Services Deposit",
+        description: `Non-refundable deposit for ${locQty} location${locQty === 1 ? "" : "s"} ($${locFee.toFixed(2)} each, $${locTotal.toFixed(2)} total). Balance of $${remaining.toFixed(2)} due on fulfillment.`,
+        quantity: 1,
+        unit_price: deposit,
+        price: deposit,
+        total_price: deposit,
+        discount_percent: 0,
+        status: "pending",
+        deposit_required: false,
+      });
+      if (remaining > 0) {
+        items.push({
+          item_type: "location_services",
+          service_name: "Location Services Remaining Balance",
+          description: `Balance due after fulfillment of secured locations. Invoiced upon completion.`,
+          quantity: 1,
+          unit_price: remaining,
+          price: remaining,
+          total_price: remaining,
+          discount_percent: 0,
+          status: "pending_fulfillment",
+          deposit_required: false,
+        });
+      }
+    } else {
+      items.push({
+        item_type: "location_services",
+        service_name: "Location Sourcing & Placement",
+        description: `${locQty} locations at $${locFee.toFixed(2)} each. Timeline: ${ag.location_service_timeline_days || 180} days.`,
+        quantity: locQty,
+        unit_price: locFee,
+        price: locFee,
+        total_price: locTotal,
+        discount_percent: 0,
+        status: "pending",
+        location_service_price: locTotal,
+        deposit_required: false,
+      });
+    }
   }
 
   const freightTotal = Number(ag.freight_total) || 0;
@@ -819,7 +881,9 @@ async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
 
   if (items.length === 0) return;
 
-  const totalValue = items.reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
+  // Upfront total excludes the deferred location-services balance.
+  const upfrontItems = items.filter((i) => i.status !== "pending_fulfillment");
+  const totalValue = upfrontItems.reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
 
   const { data: order, error: orderErr } = await supabaseAdmin
     .from("sales_orders")
@@ -871,7 +935,7 @@ async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
   if (qbConfigured && ag.operator_email) {
     try {
       const { createInvoice, sendInvoiceEmail } = await import("@/lib/quickbooks");
-      const lineItems = items.map((item) => ({
+      const lineItems = upfrontItems.map((item) => ({
         description: String(item.service_name || "Service"),
         amount: Number(item.unit_price) || 0,
         quantity: Number(item.quantity) || 1,
@@ -907,7 +971,7 @@ async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
 
   // Fallback: send invoice via Resend if QB didn't succeed
   if (!qbSent && process.env.RESEND_API_KEY && ag.operator_email) {
-    const itemRows = items
+    const itemRows = upfrontItems
       .map((item) => {
         const qty = Number(item.quantity) || 1;
         const unitPrice = Number(item.unit_price) || 0;

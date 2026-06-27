@@ -57,6 +57,8 @@ interface OrderDetail {
   invoice_status: string;
   agreement_status: string;
   fulfillment_status: string;
+  location_remaining_invoice_status?: string;
+  location_remaining_invoice_sent_at?: string | null;
   next_required_action: string | null;
   notes: string | null;
   lead_id: string | null;
@@ -174,6 +176,19 @@ export default function OrderDetailPage() {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ action }),
     });
+    await fetchOrder();
+    setActionLoading("");
+  }
+
+  async function handleSendRemainingBalance() {
+    if (!confirm("Send the Location Services remaining balance invoice to the customer? This typically goes out once secured locations have been fulfilled.")) return;
+    setActionLoading("send_remaining_balance");
+    const res = await fetch(`/api/sales/orders/${id}/send-remaining-balance`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) alert(data.error || "Failed to send remaining balance invoice");
     await fetchOrder();
     setActionLoading("");
   }
@@ -643,6 +658,34 @@ export default function OrderDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Location Services Remaining Balance */}
+          {(() => {
+            const pendingBalance = order.order_items.find(
+              (i) => i.status === "pending_fulfillment" && i.service_name === "Location Services Remaining Balance"
+            );
+            if (!pendingBalance) return null;
+            const alreadySent = order.location_remaining_invoice_status === "sent" || order.location_remaining_invoice_status === "paid";
+            return (
+              <div className="rounded-xl border border-purple-200 bg-purple-50 p-5">
+                <h3 className="text-sm font-semibold text-purple-900 mb-1">Location Services Balance</h3>
+                <p className="text-xs text-purple-700 mb-3">
+                  {alreadySent
+                    ? `Remaining balance invoice was sent${order.location_remaining_invoice_sent_at ? ` on ${new Date(order.location_remaining_invoice_sent_at).toLocaleDateString()}` : ""}.`
+                    : `$${Number(pendingBalance.total_price).toLocaleString("en-US", { minimumFractionDigits: 2 })} pending. Send this invoice after secured locations have been fulfilled.`}
+                </p>
+                {!alreadySent && (
+                  <button
+                    onClick={handleSendRemainingBalance}
+                    disabled={actionLoading === "send_remaining_balance"}
+                    className="w-full rounded-lg px-3 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {actionLoading === "send_remaining_balance" ? "Sending..." : "Send Remaining Balance Invoice"}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           {(order.order_status === "completed" || order.order_status === "cancelled") && (
             <div className={`rounded-xl p-5 text-center ${order.order_status === "completed" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>

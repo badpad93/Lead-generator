@@ -83,6 +83,8 @@ interface Agreement {
   include_location_services: boolean;
   include_shipping_storage: boolean;
   auto_send_invoice_on_signing: boolean;
+  location_services_deposit_only: boolean;
+  location_services_deposit_amount: number;
   effective_date: string | null;
   governing_state: string | null;
   venue_state: string | null;
@@ -148,6 +150,8 @@ type FormData = {
   include_location_services: boolean;
   include_shipping_storage: boolean;
   auto_send_invoice_on_signing: boolean;
+  location_services_deposit_only: boolean;
+  location_services_deposit_amount: string;
 };
 
 const AGREEMENT_STATUS_COLORS: Record<string, string> = {
@@ -206,6 +210,8 @@ function agreementToForm(ag: Agreement): FormData {
     include_location_services: ag.include_location_services !== false,
     include_shipping_storage: ag.include_shipping_storage !== false,
     auto_send_invoice_on_signing: ag.auto_send_invoice_on_signing === true,
+    location_services_deposit_only: ag.location_services_deposit_only === true,
+    location_services_deposit_amount: String(ag.location_services_deposit_amount ?? 100),
   };
 }
 
@@ -272,19 +278,29 @@ function StandaloneAgreementEditor() {
   }
 
   const computed = useMemo(() => {
-    if (!form) return { equipmentSubtotal: 0, freightTotal: 0, maxLocationServiceValue: 0, totalDue: 0 };
+    if (!form) return { equipmentSubtotal: 0, freightTotal: 0, maxLocationServiceValue: 0, locationUpfront: 0, locationRemaining: 0, totalDue: 0 };
     const qty = Number(form.machine_quantity) || 0;
     const unitPrice = Number(form.machine_unit_price) || 0;
     const freightPerMachine = Number(form.freight_per_machine) || 0;
     const locPurchased = Number(form.locations_purchased) || 0;
     const locFee = Number(form.location_fee_per_secured) || 0;
+    const depositAmount = Number(form.location_services_deposit_amount) || 0;
 
     const equipmentSubtotal = form.include_equipment ? qty * unitPrice : 0;
     const freightTotal = form.include_shipping_storage ? qty * freightPerMachine : 0;
     const maxLocationServiceValue = form.include_location_services ? locPurchased * locFee : 0;
-    const totalDue = equipmentSubtotal + freightTotal + maxLocationServiceValue;
 
-    return { equipmentSubtotal, freightTotal, maxLocationServiceValue, totalDue };
+    // When deposit-only is on, only the deposit is due upfront. The rest is due on fulfillment.
+    const locationUpfront = form.include_location_services
+      ? (form.location_services_deposit_only ? Math.min(depositAmount, maxLocationServiceValue) : maxLocationServiceValue)
+      : 0;
+    const locationRemaining = form.include_location_services && form.location_services_deposit_only
+      ? Math.max(0, maxLocationServiceValue - depositAmount)
+      : 0;
+
+    const totalDue = equipmentSubtotal + freightTotal + locationUpfront;
+
+    return { equipmentSubtotal, freightTotal, maxLocationServiceValue, locationUpfront, locationRemaining, totalDue };
   }, [form]);
 
   async function handleSave() {
@@ -326,6 +342,8 @@ function StandaloneAgreementEditor() {
       include_location_services: form.include_location_services,
       include_shipping_storage: form.include_shipping_storage,
       auto_send_invoice_on_signing: form.auto_send_invoice_on_signing,
+      location_services_deposit_only: form.location_services_deposit_only,
+      location_services_deposit_amount: Number(form.location_services_deposit_amount) || 0,
     };
 
     const res = await fetch(`/api/sales/agreements/${agreement.id}`, {
@@ -738,14 +756,46 @@ function StandaloneAgreementEditor() {
               />
             </div>
             {form.include_location_services && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InputField label="Locations Purchased" type="number" value={form.locations_purchased} onChange={(v) => updateField("locations_purchased", v)} disabled={isReadOnly} min="0" />
-                <CurrencyField label="Fee per Location" value={form.location_fee_per_secured} onChange={(v) => updateField("location_fee_per_secured", v)} disabled={isReadOnly} />
-                <ReadOnlyField label="Max Location Service Value" value={`$${currency(computed.maxLocationServiceValue)}`} />
-                <InputField label="Timeline (Days)" type="number" value={form.location_service_timeline_days} onChange={(v) => updateField("location_service_timeline_days", v)} disabled={isReadOnly} />
-                <InputField label="Rejection Allowance" value={form.location_rejection_allowance} onChange={(v) => updateField("location_rejection_allowance", v)} disabled={isReadOnly} />
-                <InputField label="Payment Terms" value={form.location_payment_terms} onChange={(v) => updateField("location_payment_terms", v)} disabled={isReadOnly} />
-              </div>
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <InputField label="Locations Purchased" type="number" value={form.locations_purchased} onChange={(v) => updateField("locations_purchased", v)} disabled={isReadOnly} min="0" />
+                  <CurrencyField label="Fee per Location" value={form.location_fee_per_secured} onChange={(v) => updateField("location_fee_per_secured", v)} disabled={isReadOnly} />
+                  <ReadOnlyField label="Max Location Service Value" value={`$${currency(computed.maxLocationServiceValue)}`} />
+                  <InputField label="Timeline (Days)" type="number" value={form.location_service_timeline_days} onChange={(v) => updateField("location_service_timeline_days", v)} disabled={isReadOnly} />
+                  <InputField label="Rejection Allowance" value={form.location_rejection_allowance} onChange={(v) => updateField("location_rejection_allowance", v)} disabled={isReadOnly} />
+                  <InputField label="Payment Terms" value={form.location_payment_terms} onChange={(v) => updateField("location_payment_terms", v)} disabled={isReadOnly} />
+                </div>
+
+                <div className="mt-4 flex items-start gap-3 rounded-lg border border-purple-100 bg-purple-50/50 p-3">
+                  <input
+                    id="location-deposit-only"
+                    type="checkbox"
+                    checked={form.location_services_deposit_only}
+                    onChange={(e) => updateBool("location_services_deposit_only", e.target.checked)}
+                    disabled={isReadOnly}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <label htmlFor="location-deposit-only" className="flex-1 cursor-pointer">
+                    <span className="block text-sm font-medium text-gray-900">Deposit Only Due Upfront</span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      Only collect a deposit upfront; the remaining balance is invoiced after fulfillment of secured locations.
+                    </span>
+                  </label>
+                </div>
+
+                {form.location_services_deposit_only && (
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <CurrencyField
+                      label="Deposit Amount"
+                      value={form.location_services_deposit_amount}
+                      onChange={(v) => updateField("location_services_deposit_amount", v)}
+                      disabled={isReadOnly}
+                    />
+                    <ReadOnlyField label="Due Upfront" value={`$${currency(computed.locationUpfront)}`} highlight />
+                    <ReadOnlyField label="Due on Fulfillment" value={`$${currency(computed.locationRemaining)}`} />
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -1146,7 +1196,7 @@ function StatusDateRow({ label, date }: { label: string; date: string | null }) 
 
 function AgreementPreviewModal({ form, computed, agreement, onClose }: {
   form: FormData;
-  computed: { equipmentSubtotal: number; freightTotal: number; maxLocationServiceValue: number; totalDue: number };
+  computed: { equipmentSubtotal: number; freightTotal: number; maxLocationServiceValue: number; locationUpfront: number; locationRemaining: number; totalDue: number };
   agreement: Agreement;
   onClose: () => void;
 }) {
@@ -1235,7 +1285,11 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
               <p><strong>4. Location Services.</strong> Apex will source and secure {locPurchased} vending location{locPurchased > 1 ? "s" : ""} at ${currency(locFee)} per secured location, max <strong>${currency(computed.maxLocationServiceValue)}</strong>.</p>
               <p><strong>5. Service Timeline.</strong> Apex shall use commercially reasonable efforts to secure locations within {timelineDays} days.</p>
               <p><strong>6. Rejection Allowance.</strong> {rejectionAllowance}.</p>
-              <p><strong>7. Location Service Payment.</strong> {locPaymentTerms}.</p>
+              {form.location_services_deposit_only ? (
+                <p><strong>7. Location Service Payment.</strong> A non-refundable deposit of <strong>${currency(computed.locationUpfront)}</strong> is due prior to procurement. The remaining balance of <strong>${currency(computed.locationRemaining)}</strong> shall be invoiced upon fulfillment of secured locations and is due on receipt.</p>
+              ) : (
+                <p><strong>7. Location Service Payment.</strong> {locPaymentTerms}.</p>
+              )}
               <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
             </>
           )}
@@ -1270,13 +1324,25 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
               {form.include_equipment && computed.equipmentSubtotal > 0 && (
                 <div className="flex justify-between"><span>Equipment ({qty}x {machineModel})</span><span className="font-medium">${currency(computed.equipmentSubtotal)}</span></div>
               )}
-              {form.include_location_services && computed.maxLocationServiceValue > 0 && (
-                <div className="flex justify-between"><span>Location Services ({locPurchased} location{locPurchased > 1 ? "s" : ""})</span><span className="font-medium">${currency(computed.maxLocationServiceValue)}</span></div>
+              {form.include_location_services && computed.locationUpfront > 0 && (
+                <div className="flex justify-between">
+                  <span>
+                    {form.location_services_deposit_only
+                      ? `Location Services Deposit (${locPurchased} location${locPurchased > 1 ? "s" : ""})`
+                      : `Location Services (${locPurchased} location${locPurchased > 1 ? "s" : ""})`}
+                  </span>
+                  <span className="font-medium">${currency(computed.locationUpfront)}</span>
+                </div>
               )}
               {form.include_shipping_storage && computed.freightTotal > 0 && (
                 <div className="flex justify-between"><span>Shipping &amp; Freight</span><span className="font-medium">${currency(computed.freightTotal)}</span></div>
               )}
               <div className="border-t border-green-200 pt-2 flex justify-between text-base font-bold text-green-800"><span>Total Due Prior to Procurement</span><span>${currency(computed.totalDue)}</span></div>
+              {form.location_services_deposit_only && computed.locationRemaining > 0 && (
+                <div className="text-xs text-gray-600 italic mt-1">
+                  + ${currency(computed.locationRemaining)} Location Services balance due upon fulfillment
+                </div>
+              )}
             </div>
           </div>
           <p><strong>10. Payment Due Date.</strong> Full payment of <strong>${currency(computed.totalDue)}</strong> is due on or before <strong>{paymentDueDate}</strong>.</p>
