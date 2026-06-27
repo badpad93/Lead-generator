@@ -276,13 +276,13 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   }
 
   if (includeShippingStorage) {
-    sectionHeader(5, "Shipping & Freight");
+    sectionHeader(5, "Shipping & Storage");
     labelValue("Freight per Machine", money(ag.freight_per_machine));
-    labelValue("Freight Total", money(ag.freight_total));
-    if (ag.standard_freight_rate) labelValue("Standard Rate", money(ag.standard_freight_rate));
-    if (ag.discounted_freight_rate) labelValue("Discounted Rate", money(ag.discounted_freight_rate));
-    if (ag.storage_fee_per_machine_month) labelValue("Storage Fee/Month", money(ag.storage_fee_per_machine_month));
-    if (ag.free_storage_months) labelValue("Free Storage Months", String(ag.free_storage_months));
+    labelValue(`Freight Total (${ag.machine_quantity || 0} machine${(ag.machine_quantity || 0) === 1 ? "" : "s"})`, money(ag.freight_total));
+    if (Number(ag.standard_freight_rate) > 0) labelValue("Standard Freight Rate", money(ag.standard_freight_rate));
+    if (Number(ag.discounted_freight_rate) > 0) labelValue("Discounted Freight Rate", money(ag.discounted_freight_rate));
+    labelValue("Storage Fee per Machine / Month", money(ag.storage_fee_per_machine_month));
+    labelValue("Free Storage Period", `${ag.free_storage_months || 0} month${(ag.free_storage_months || 0) === 1 ? "" : "s"}`);
     y -= 4;
     drawWrapped(
       "Freight charges cover shipping from the distribution center to the Operator's designated delivery address. Machines are shipped via common carrier. Risk of loss transfers to Operator upon delivery. Storage fees apply if Operator is unable to accept delivery within the free storage period.",
@@ -377,7 +377,7 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     y -= 16;
     drawLine(y);
     y -= 16;
-    if (includeShippingStorage) {
+    if (includeShippingStorage && Number(ag.freight_total) > 0) {
       drawText(page, "Freight", LEFT + 4, y, helvetica, 8.5, dark);
       drawText(page, `${money(ag.freight_per_machine)} x ${ag.machine_quantity || 0}`, LEFT + 310, y, helvetica, 8.5, dark);
       drawText(page, money(ag.freight_total), LEFT + 450, y, helveticaBold, 8.5, dark);
@@ -385,11 +385,8 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
       drawLine(y);
       y -= 16;
     }
-    drawText(page, "TOTAL DUE PRIOR TO PROCUREMENT", LEFT + 4, y, helveticaBold, 9, dark);
-    drawText(page, money(ag.total_due_prior_to_procurement), LEFT + 450, y, helveticaBold, 10, green);
-    y -= 10;
     if (ag.machine_notes) {
-      y -= 10;
+      y -= 4;
       drawWrapped(`Notes: ${ag.machine_notes}`, helvetica, 8, gray);
     }
     initialsPlaceholder();
@@ -420,6 +417,40 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     );
     initialsPlaceholder();
   }
+
+  /* ================================================================ */
+  /*  PAYMENT SUMMARY — always shown, reflects only included sections */
+  /* ================================================================ */
+  checkPage(80);
+  y -= 10;
+  drawLine(y);
+  y -= 20;
+  drawText(page, "PAYMENT SUMMARY", LEFT, y, helveticaBold, 10, green);
+  y -= 18;
+  if (includeEquipment && Number(ag.equipment_subtotal) > 0) {
+    drawText(page, `Equipment (${ag.machine_quantity || 0}x ${ag.machine_model || "VendEra AI Machine"})`, LEFT + 4, y, helvetica, 9, dark);
+    const s = money(ag.equipment_subtotal);
+    drawText(page, s, RIGHT - 4 - helvetica.widthOfTextAtSize(s, 9), y, helvetica, 9, dark);
+    y -= 14;
+  }
+  if (includeLocationServices && Number(ag.max_location_service_value) > 0) {
+    drawText(page, `Location Services (${ag.locations_purchased || 0} location${(ag.locations_purchased || 0) === 1 ? "" : "s"})`, LEFT + 4, y, helvetica, 9, dark);
+    const s = money(ag.max_location_service_value);
+    drawText(page, s, RIGHT - 4 - helvetica.widthOfTextAtSize(s, 9), y, helvetica, 9, dark);
+    y -= 14;
+  }
+  if (includeShippingStorage && Number(ag.freight_total) > 0) {
+    drawText(page, `Shipping & Freight (${ag.machine_quantity || 0} machine${(ag.machine_quantity || 0) === 1 ? "" : "s"})`, LEFT + 4, y, helvetica, 9, dark);
+    const s = money(ag.freight_total);
+    drawText(page, s, RIGHT - 4 - helvetica.widthOfTextAtSize(s, 9), y, helvetica, 9, dark);
+    y -= 14;
+  }
+  y -= 2;
+  drawLine(y + 6);
+  drawText(page, "TOTAL DUE PRIOR TO PROCUREMENT", LEFT + 4, y, helveticaBold, 10, dark);
+  const totalStr = money(ag.total_due_prior_to_procurement);
+  drawText(page, totalStr, RIGHT - 4 - helveticaBold.widthOfTextAtSize(totalStr, 12), y, helveticaBold, 12, green);
+  y -= 16;
 
   /* ================================================================ */
   /*  SCHEDULE C — Delivery & Addresses                               */

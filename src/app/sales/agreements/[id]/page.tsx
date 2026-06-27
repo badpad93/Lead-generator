@@ -279,10 +279,10 @@ function StandaloneAgreementEditor() {
     const locPurchased = Number(form.locations_purchased) || 0;
     const locFee = Number(form.location_fee_per_secured) || 0;
 
-    const equipmentSubtotal = qty * unitPrice;
-    const freightTotal = freightPerMachine * qty;
-    const maxLocationServiceValue = locPurchased * locFee;
-    const totalDue = equipmentSubtotal + freightTotal;
+    const equipmentSubtotal = form.include_equipment ? qty * unitPrice : 0;
+    const freightTotal = form.include_shipping_storage ? qty * freightPerMachine : 0;
+    const maxLocationServiceValue = form.include_location_services ? locPurchased * locFee : 0;
+    const totalDue = equipmentSubtotal + freightTotal + maxLocationServiceValue;
 
     return { equipmentSubtotal, freightTotal, maxLocationServiceValue, totalDue };
   }, [form]);
@@ -1204,21 +1204,25 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
           <p><strong>{companyName}</strong>, with its principal office at {billingAddr} (&ldquo;Operator&rdquo; or &ldquo;Buyer&rdquo;).</p>
           <p className="text-xs text-gray-500 italic">Operator Contact: {legalName}, {title} | Email: {email} | Phone: {phone}</p>
 
-          <hr className="my-4" />
-          <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SCHEDULE A &mdash; EQUIPMENT PURCHASE</h2>
-          <div className="rounded-lg border border-gray-200 overflow-hidden mb-4">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50"><tr><th className="text-left px-4 py-2 font-medium text-gray-600">Item</th><th className="text-center px-4 py-2 font-medium text-gray-600">Qty</th><th className="text-right px-4 py-2 font-medium text-gray-600">Unit Price</th><th className="text-right px-4 py-2 font-medium text-gray-600">Subtotal</th></tr></thead>
-              <tbody><tr className="border-t border-gray-100"><td className="px-4 py-2">{machineModel}</td><td className="px-4 py-2 text-center">{qty}</td><td className="px-4 py-2 text-right">${currency(unitPrice)}</td><td className="px-4 py-2 text-right font-medium">${currency(computed.equipmentSubtotal)}</td></tr></tbody>
-            </table>
-          </div>
+          {form.include_equipment && (
+            <>
+              <hr className="my-4" />
+              <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SCHEDULE A &mdash; EQUIPMENT PURCHASE</h2>
+              <div className="rounded-lg border border-gray-200 overflow-hidden mb-4">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50"><tr><th className="text-left px-4 py-2 font-medium text-gray-600">Item</th><th className="text-center px-4 py-2 font-medium text-gray-600">Qty</th><th className="text-right px-4 py-2 font-medium text-gray-600">Unit Price</th><th className="text-right px-4 py-2 font-medium text-gray-600">Subtotal</th></tr></thead>
+                  <tbody><tr className="border-t border-gray-100"><td className="px-4 py-2">{machineModel}</td><td className="px-4 py-2 text-center">{qty}</td><td className="px-4 py-2 text-right">${currency(unitPrice)}</td><td className="px-4 py-2 text-right font-medium">${currency(computed.equipmentSubtotal)}</td></tr></tbody>
+                </table>
+              </div>
 
-          <p><strong>1. Equipment Purchase.</strong> Apex agrees to sell and Operator agrees to purchase {qty} {machineModel} machine{qty > 1 ? "s" : ""} (the &ldquo;Equipment&rdquo;) at a per-unit price of ${currency(unitPrice)}, for a total equipment cost of <strong>${currency(computed.equipmentSubtotal)}</strong>.</p>
-          <p><strong>2. Machine Specifications.</strong> Each VendEra AI Smart Vending Machine includes: AI-powered product recognition, touchscreen display, cashless payment system, remote monitoring capabilities, cloud-based inventory management, and temperature control system.</p>
-          <p><strong>3. Warranty.</strong> Each machine is covered by a standard manufacturer&rsquo;s warranty of twelve (12) months from the date of delivery.</p>
-          <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
+              <p><strong>1. Equipment Purchase.</strong> Apex agrees to sell and Operator agrees to purchase {qty} {machineModel} machine{qty > 1 ? "s" : ""} (the &ldquo;Equipment&rdquo;) at a per-unit price of ${currency(unitPrice)}, for a total equipment cost of <strong>${currency(computed.equipmentSubtotal)}</strong>.</p>
+              <p><strong>2. Machine Specifications.</strong> Each VendEra AI Smart Vending Machine includes: AI-powered product recognition, touchscreen display, cashless payment system, remote monitoring capabilities, cloud-based inventory management, and temperature control system.</p>
+              <p><strong>3. Warranty.</strong> Each machine is covered by a standard manufacturer&rsquo;s warranty of twelve (12) months from the date of delivery.</p>
+              <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
+            </>
+          )}
 
-          {locPurchased > 0 && (
+          {form.include_location_services && locPurchased > 0 && (
             <>
               <hr className="my-4" />
               <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SCHEDULE B &mdash; LOCATION SERVICES</h2>
@@ -1236,31 +1240,42 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
             </>
           )}
 
-          <hr className="my-4" />
-          <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SCHEDULE C &mdash; SHIPPING, STORAGE &amp; PAYMENT</h2>
-          <div className="rounded-lg border border-gray-200 overflow-hidden mb-4">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50"><tr><th className="text-left px-4 py-2 font-medium text-gray-600">Item</th><th className="text-right px-4 py-2 font-medium text-gray-600">Amount</th></tr></thead>
-              <tbody>
-                <tr className="border-t border-gray-100"><td className="px-4 py-2">Standard Freight Rate</td><td className="px-4 py-2 text-right">${currency(stdFreight)} / machine</td></tr>
-                <tr className="border-t border-gray-100"><td className="px-4 py-2">Discounted Freight Rate</td><td className="px-4 py-2 text-right">${currency(discFreight)} / machine</td></tr>
-                <tr className="border-t border-gray-100"><td className="px-4 py-2">Freight per Machine</td><td className="px-4 py-2 text-right">${currency(freightPer)}</td></tr>
-                <tr className="border-t border-gray-100 font-medium"><td className="px-4 py-2">Freight Total</td><td className="px-4 py-2 text-right">${currency(computed.freightTotal)}</td></tr>
-                <tr className="border-t border-gray-100"><td className="px-4 py-2">Storage Fee</td><td className="px-4 py-2 text-right">${currency(storageFee)} / machine / month</td></tr>
-                <tr className="border-t border-gray-100"><td className="px-4 py-2">Free Storage Period</td><td className="px-4 py-2 text-right">{freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""}</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p><strong>8. Shipping.</strong> Standard freight is ${currency(stdFreight)} per machine. Discounted rate of ${currency(freightPer)} per machine, total <strong>${currency(computed.freightTotal)}</strong>. Delivery: {deliveryAddr || "[Delivery Address]"}.</p>
-          <p><strong>9. Storage.</strong> {freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""} free storage. After that, ${currency(storageFee)} per machine per month.</p>
-          <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
+          {form.include_shipping_storage && (
+            <>
+              <hr className="my-4" />
+              <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SCHEDULE C &mdash; SHIPPING &amp; STORAGE</h2>
+              <div className="rounded-lg border border-gray-200 overflow-hidden mb-4">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50"><tr><th className="text-left px-4 py-2 font-medium text-gray-600">Item</th><th className="text-right px-4 py-2 font-medium text-gray-600">Amount</th></tr></thead>
+                  <tbody>
+                    {stdFreight > 0 && (<tr className="border-t border-gray-100"><td className="px-4 py-2">Standard Freight Rate</td><td className="px-4 py-2 text-right">${currency(stdFreight)} / machine</td></tr>)}
+                    {discFreight > 0 && (<tr className="border-t border-gray-100"><td className="px-4 py-2">Discounted Freight Rate</td><td className="px-4 py-2 text-right">${currency(discFreight)} / machine</td></tr>)}
+                    <tr className="border-t border-gray-100"><td className="px-4 py-2">Freight per Machine</td><td className="px-4 py-2 text-right">${currency(freightPer)}</td></tr>
+                    <tr className="border-t border-gray-100 font-medium"><td className="px-4 py-2">Freight Total ({qty} machine{qty > 1 ? "s" : ""})</td><td className="px-4 py-2 text-right">${currency(computed.freightTotal)}</td></tr>
+                    {storageFee > 0 && (<tr className="border-t border-gray-100"><td className="px-4 py-2">Storage Fee</td><td className="px-4 py-2 text-right">${currency(storageFee)} / machine / month</td></tr>)}
+                    <tr className="border-t border-gray-100"><td className="px-4 py-2">Free Storage Period</td><td className="px-4 py-2 text-right">{freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p><strong>8. Shipping.</strong> Freight is ${currency(freightPer)} per machine for a total of <strong>${currency(computed.freightTotal)}</strong>. Delivery: {deliveryAddr || "[Delivery Address]"}.</p>
+              <p><strong>9. Storage.</strong> {freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""} free storage. After that, ${currency(storageFee)} per machine per month.</p>
+              <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
+            </>
+          )}
 
           <hr className="my-4" />
           <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">PAYMENT SUMMARY</h2>
           <div className="rounded-lg border-2 border-green-200 bg-green-50 p-4 mb-4">
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span>Equipment ({qty}x {machineModel})</span><span className="font-medium">${currency(computed.equipmentSubtotal)}</span></div>
-              <div className="flex justify-between"><span>Shipping &amp; Freight</span><span className="font-medium">${currency(computed.freightTotal)}</span></div>
+              {form.include_equipment && computed.equipmentSubtotal > 0 && (
+                <div className="flex justify-between"><span>Equipment ({qty}x {machineModel})</span><span className="font-medium">${currency(computed.equipmentSubtotal)}</span></div>
+              )}
+              {form.include_location_services && computed.maxLocationServiceValue > 0 && (
+                <div className="flex justify-between"><span>Location Services ({locPurchased} location{locPurchased > 1 ? "s" : ""})</span><span className="font-medium">${currency(computed.maxLocationServiceValue)}</span></div>
+              )}
+              {form.include_shipping_storage && computed.freightTotal > 0 && (
+                <div className="flex justify-between"><span>Shipping &amp; Freight</span><span className="font-medium">${currency(computed.freightTotal)}</span></div>
+              )}
               <div className="border-t border-green-200 pt-2 flex justify-between text-base font-bold text-green-800"><span>Total Due Prior to Procurement</span><span>${currency(computed.totalDue)}</span></div>
             </div>
           </div>

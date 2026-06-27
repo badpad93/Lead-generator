@@ -81,6 +81,10 @@ interface PurchaseAgreement {
   payment_due_date: string | null;
   payment_method_notes: string | null;
 
+  include_equipment?: boolean;
+  include_location_services?: boolean;
+  include_shipping_storage?: boolean;
+
   effective_date: string | null;
   governing_state: string | null;
   venue_state: string | null;
@@ -556,11 +560,13 @@ function SigningContent() {
               <p className="text-xs font-medium text-green-700 uppercase tracking-wider mb-2">
                 Agreement Details
               </p>
-              <p className="text-sm text-gray-700">
-                <span className="font-semibold">
-                  {agreement.machine_quantity}x {agreement.machine_model}
-                </span>
-              </p>
+              {agreement.include_equipment !== false && (
+                <p className="text-sm text-gray-700">
+                  <span className="font-semibold">
+                    {agreement.machine_quantity}x {agreement.machine_model}
+                  </span>
+                </p>
+              )}
               <p className="text-sm text-gray-700">
                 Operator: {agreement.operator_company_name}
               </p>
@@ -782,6 +788,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 3: Equipment Purchase ============ */}
+            {agreement.include_equipment !== false && (<>
             <SectionHeader num={3} title="Equipment Purchase" requiresInitials />
             <div>
               <p>
@@ -849,8 +856,10 @@ function SigningContent() {
                 onInitialed={handleInitialed}
               />
             </div>
+            </>)}
 
             {/* ============ SECTION 4: Shipping & Freight ============ */}
+            {agreement.include_shipping_storage !== false && (<>
             <SectionHeader
               num={4}
               title="Shipping &amp; Freight"
@@ -914,8 +923,10 @@ function SigningContent() {
                 onInitialed={handleInitialed}
               />
             </div>
+            </>)}
 
             {/* ============ SECTION 5: Location Services ============ */}
+            {agreement.include_location_services !== false && (<>
             <SectionHeader
               num={5}
               title="Location Services"
@@ -1001,6 +1012,7 @@ function SigningContent() {
                 onInitialed={handleInitialed}
               />
             </div>
+            </>)}
 
             {/* ============ SECTION 6: Payment Terms ============ */}
             <SectionHeader
