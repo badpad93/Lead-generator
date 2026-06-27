@@ -14,10 +14,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
   }
 
-  if (proposal.status === "draft") {
-    return NextResponse.json({ error: "This proposal is not yet available" }, { status: 403 });
-  }
-
   if (proposal.valid_until && new Date(proposal.valid_until) < new Date()) {
     await supabaseAdmin
       .from("coffee_pricing_proposals")
