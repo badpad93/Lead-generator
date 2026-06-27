@@ -242,44 +242,54 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     y -= 2;
   }
 
-  sectionHeader(3, "Equipment Purchase");
-  labelValue("Machine Model", ag.machine_model || "—");
-  labelValue("Quantity", String(ag.machine_quantity || 0));
-  labelValue("Unit Price", money(ag.machine_unit_price));
-  labelValue("Equipment Subtotal", money(ag.equipment_subtotal));
-  y -= 4;
-  drawWrapped(
-    "Operator agrees to purchase the above-described VendEra AI Machine(s) at the stated unit price. All machines are new and come with standard manufacturer warranties. Apex warrants that machines will be free from defects in materials and workmanship for a period of twelve (12) months from delivery.",
-    helvetica, 8.5, gray,
-  );
-  initialsPlaceholder();
+  const includeEquipment = ag.include_equipment !== false;
+  const includeLocationServices = ag.include_location_services !== false;
+  const includeShippingStorage = ag.include_shipping_storage !== false;
 
-  sectionHeader(4, "Location Services");
-  labelValue("Locations Purchased", String(ag.locations_purchased || 0));
-  labelValue("Fee per Location Secured", money(ag.location_fee_per_secured));
-  labelValue("Max Location Service Value", money(ag.max_location_service_value));
-  labelValue("Rejection Allowance", ag.location_rejection_allowance || "Per service terms");
-  labelValue("Service Timeline", ag.location_service_timeline_days ? `${ag.location_service_timeline_days} days` : "Per service terms");
-  y -= 4;
-  drawWrapped(
-    "If Operator has elected location services, Apex will identify and secure suitable commercial locations for machine placement. Each location will meet minimum traffic and suitability criteria. Operator may reject a proposed location within the allowance specified above; additional rejections may incur supplemental fees.",
-    helvetica, 8.5, gray,
-  );
-  initialsPlaceholder();
+  if (includeEquipment) {
+    sectionHeader(3, "Equipment Purchase");
+    labelValue("Machine Model", ag.machine_model || "—");
+    labelValue("Quantity", String(ag.machine_quantity || 0));
+    labelValue("Unit Price", money(ag.machine_unit_price));
+    labelValue("Equipment Subtotal", money(ag.equipment_subtotal));
+    y -= 4;
+    drawWrapped(
+      "Operator agrees to purchase the above-described VendEra AI Machine(s) at the stated unit price. All machines are new and come with standard manufacturer warranties. Apex warrants that machines will be free from defects in materials and workmanship for a period of twelve (12) months from delivery.",
+      helvetica, 8.5, gray,
+    );
+    initialsPlaceholder();
+  }
 
-  sectionHeader(5, "Shipping & Freight");
-  labelValue("Freight per Machine", money(ag.freight_per_machine));
-  labelValue("Freight Total", money(ag.freight_total));
-  if (ag.standard_freight_rate) labelValue("Standard Rate", money(ag.standard_freight_rate));
-  if (ag.discounted_freight_rate) labelValue("Discounted Rate", money(ag.discounted_freight_rate));
-  if (ag.storage_fee_per_machine_month) labelValue("Storage Fee/Month", money(ag.storage_fee_per_machine_month));
-  if (ag.free_storage_months) labelValue("Free Storage Months", String(ag.free_storage_months));
-  y -= 4;
-  drawWrapped(
-    "Freight charges cover shipping from the distribution center to the Operator's designated delivery address. Machines are shipped via common carrier. Risk of loss transfers to Operator upon delivery. Storage fees apply if Operator is unable to accept delivery within the free storage period.",
-    helvetica, 8.5, gray,
-  );
-  initialsPlaceholder();
+  if (includeLocationServices) {
+    sectionHeader(4, "Location Services");
+    labelValue("Locations Purchased", String(ag.locations_purchased || 0));
+    labelValue("Fee per Location Secured", money(ag.location_fee_per_secured));
+    labelValue("Max Location Service Value", money(ag.max_location_service_value));
+    labelValue("Rejection Allowance", ag.location_rejection_allowance || "Per service terms");
+    labelValue("Service Timeline", ag.location_service_timeline_days ? `${ag.location_service_timeline_days} days` : "Per service terms");
+    y -= 4;
+    drawWrapped(
+      "If Operator has elected location services, Apex will identify and secure suitable commercial locations for machine placement. Each location will meet minimum traffic and suitability criteria. Operator may reject a proposed location within the allowance specified above; additional rejections may incur supplemental fees.",
+      helvetica, 8.5, gray,
+    );
+    initialsPlaceholder();
+  }
+
+  if (includeShippingStorage) {
+    sectionHeader(5, "Shipping & Freight");
+    labelValue("Freight per Machine", money(ag.freight_per_machine));
+    labelValue("Freight Total", money(ag.freight_total));
+    if (ag.standard_freight_rate) labelValue("Standard Rate", money(ag.standard_freight_rate));
+    if (ag.discounted_freight_rate) labelValue("Discounted Rate", money(ag.discounted_freight_rate));
+    if (ag.storage_fee_per_machine_month) labelValue("Storage Fee/Month", money(ag.storage_fee_per_machine_month));
+    if (ag.free_storage_months) labelValue("Free Storage Months", String(ag.free_storage_months));
+    y -= 4;
+    drawWrapped(
+      "Freight charges cover shipping from the distribution center to the Operator's designated delivery address. Machines are shipped via common carrier. Risk of loss transfers to Operator upon delivery. Storage fees apply if Operator is unable to accept delivery within the free storage period.",
+      helvetica, 8.5, gray,
+    );
+    initialsPlaceholder();
+  }
 
   sectionHeader(6, "Payment Terms");
   labelValue("Total Due Prior to Procurement", money(ag.total_due_prior_to_procurement));
@@ -340,70 +350,76 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   /* ================================================================ */
   /*  SCHEDULE A — Equipment Details                                  */
   /* ================================================================ */
-  checkPage(60);
-  y -= 10;
-  drawLine(y);
-  y -= 20;
-  drawText(page, "SCHEDULE A: EQUIPMENT DETAILS", LEFT, y, helveticaBold, 10, green);
-  y -= 20;
-  currentScheduleKey = "A";
-  currentSectionNum = 0;
-
-  checkPage(80);
-  page.drawRectangle({ x: LEFT, y: y - 4, width: MAX_W, height: 18, color: lightBg });
-  drawText(page, "Item", LEFT + 4, y, helveticaBold, 8, dark);
-  drawText(page, "Model", LEFT + 140, y, helveticaBold, 8, dark);
-  drawText(page, "Qty", LEFT + 310, y, helveticaBold, 8, dark);
-  drawText(page, "Unit Price", LEFT + 370, y, helveticaBold, 8, dark);
-  drawText(page, "Subtotal", LEFT + 450, y, helveticaBold, 8, dark);
-  y -= 20;
-
-  drawText(page, "VendEra AI Machine", LEFT + 4, y, helvetica, 8.5, dark);
-  drawText(page, ag.machine_model || "—", LEFT + 140, y, helvetica, 8.5, dark);
-  drawText(page, String(ag.machine_quantity || 0), LEFT + 310, y, helvetica, 8.5, dark);
-  drawText(page, money(ag.machine_unit_price), LEFT + 370, y, helvetica, 8.5, dark);
-  drawText(page, money(ag.equipment_subtotal), LEFT + 450, y, helveticaBold, 8.5, dark);
-  y -= 16;
-  drawLine(y);
-  y -= 16;
-  drawText(page, "Freight", LEFT + 4, y, helvetica, 8.5, dark);
-  drawText(page, `${money(ag.freight_per_machine)} x ${ag.machine_quantity || 0}`, LEFT + 310, y, helvetica, 8.5, dark);
-  drawText(page, money(ag.freight_total), LEFT + 450, y, helveticaBold, 8.5, dark);
-  y -= 16;
-  drawLine(y);
-  y -= 16;
-  drawText(page, "TOTAL DUE PRIOR TO PROCUREMENT", LEFT + 4, y, helveticaBold, 9, dark);
-  drawText(page, money(ag.total_due_prior_to_procurement), LEFT + 450, y, helveticaBold, 10, green);
-  y -= 10;
-  if (ag.machine_notes) {
+  if (includeEquipment) {
+    checkPage(60);
     y -= 10;
-    drawWrapped(`Notes: ${ag.machine_notes}`, helvetica, 8, gray);
+    drawLine(y);
+    y -= 20;
+    drawText(page, "SCHEDULE A: EQUIPMENT DETAILS", LEFT, y, helveticaBold, 10, green);
+    y -= 20;
+    currentScheduleKey = "A";
+    currentSectionNum = 0;
+
+    checkPage(80);
+    page.drawRectangle({ x: LEFT, y: y - 4, width: MAX_W, height: 18, color: lightBg });
+    drawText(page, "Item", LEFT + 4, y, helveticaBold, 8, dark);
+    drawText(page, "Model", LEFT + 140, y, helveticaBold, 8, dark);
+    drawText(page, "Qty", LEFT + 310, y, helveticaBold, 8, dark);
+    drawText(page, "Unit Price", LEFT + 370, y, helveticaBold, 8, dark);
+    drawText(page, "Subtotal", LEFT + 450, y, helveticaBold, 8, dark);
+    y -= 20;
+
+    drawText(page, "VendEra AI Machine", LEFT + 4, y, helvetica, 8.5, dark);
+    drawText(page, ag.machine_model || "—", LEFT + 140, y, helvetica, 8.5, dark);
+    drawText(page, String(ag.machine_quantity || 0), LEFT + 310, y, helvetica, 8.5, dark);
+    drawText(page, money(ag.machine_unit_price), LEFT + 370, y, helvetica, 8.5, dark);
+    drawText(page, money(ag.equipment_subtotal), LEFT + 450, y, helveticaBold, 8.5, dark);
+    y -= 16;
+    drawLine(y);
+    y -= 16;
+    if (includeShippingStorage) {
+      drawText(page, "Freight", LEFT + 4, y, helvetica, 8.5, dark);
+      drawText(page, `${money(ag.freight_per_machine)} x ${ag.machine_quantity || 0}`, LEFT + 310, y, helvetica, 8.5, dark);
+      drawText(page, money(ag.freight_total), LEFT + 450, y, helveticaBold, 8.5, dark);
+      y -= 16;
+      drawLine(y);
+      y -= 16;
+    }
+    drawText(page, "TOTAL DUE PRIOR TO PROCUREMENT", LEFT + 4, y, helveticaBold, 9, dark);
+    drawText(page, money(ag.total_due_prior_to_procurement), LEFT + 450, y, helveticaBold, 10, green);
+    y -= 10;
+    if (ag.machine_notes) {
+      y -= 10;
+      drawWrapped(`Notes: ${ag.machine_notes}`, helvetica, 8, gray);
+    }
+    initialsPlaceholder();
   }
-  initialsPlaceholder();
 
   /* ================================================================ */
   /*  SCHEDULE B — Location Services                                  */
   /* ================================================================ */
-  checkPage(60);
-  y -= 10;
-  drawLine(y);
-  y -= 20;
-  drawText(page, "SCHEDULE B: LOCATION SERVICES", LEFT, y, helveticaBold, 10, green);
-  y -= 20;
-  currentScheduleKey = "B";
+  if (includeLocationServices) {
+    checkPage(60);
+    y -= 10;
+    drawLine(y);
+    y -= 20;
+    drawText(page, "SCHEDULE B: LOCATION SERVICES", LEFT, y, helveticaBold, 10, green);
+    y -= 20;
+    currentScheduleKey = "B";
 
-  labelValue("Locations Purchased", String(ag.locations_purchased || 0));
-  labelValue("Fee per Location Secured", money(ag.location_fee_per_secured));
-  labelValue("Maximum Service Value", money(ag.max_location_service_value));
-  labelValue("Rejection Allowance", ag.location_rejection_allowance || "Per service terms");
-  labelValue("Service Timeline", ag.location_service_timeline_days ? `${ag.location_service_timeline_days} days` : "Per service terms");
-  labelValue("Payment Terms", ag.location_payment_terms || "Included in total due");
-  y -= 4;
-  drawWrapped(
-    "Location services include site identification, traffic analysis, decision-maker outreach, and lease/placement agreement facilitation. Locations that do not meet Operator's reasonable criteria may be rejected within the allowance above.",
-    helvetica, 8.5, gray,
-  );
-  initialsPlaceholder();
+    labelValue("Locations Purchased", String(ag.locations_purchased || 0));
+    labelValue("Fee per Location Secured", money(ag.location_fee_per_secured));
+    labelValue("Maximum Service Value", money(ag.max_location_service_value));
+    labelValue("Rejection Allowance", ag.location_rejection_allowance || "Per service terms");
+    labelValue("Service Timeline", ag.location_service_timeline_days ? `${ag.location_service_timeline_days} days` : "Per service terms");
+    labelValue("Payment Terms", ag.location_payment_terms || "Included in total due");
+    y -= 4;
+    drawWrapped(
+      "Location services include site identification, traffic analysis, decision-maker outreach, and lease/placement agreement facilitation. Locations that do not meet Operator's reasonable criteria may be rejected within the allowance above.",
+      helvetica, 8.5, gray,
+    );
+    initialsPlaceholder();
+  }
 
   /* ================================================================ */
   /*  SCHEDULE C — Delivery & Addresses                               */
@@ -418,7 +434,7 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
 
   labelValue("Billing Address", ag.operator_billing_address || "—");
   labelValue("Delivery Address", ag.operator_delivery_address || "—");
-  if (ag.shipping_notes) {
+  if (includeShippingStorage && ag.shipping_notes) {
     y -= 4;
     drawWrapped(`Shipping Notes: ${ag.shipping_notes}`, helvetica, 8.5, gray);
   }
@@ -684,5 +700,258 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
     agreement_id: agreementId,
     activity_type: "signed_pdf_sent",
     description: `Fully signed PDF generated, emailed to ${ag.operator_email || "operator"} and james@apexaivending.com, and saved to account documents.`,
+  });
+
+  // Auto-create order and send invoice in a separate email if enabled
+  if (ag.auto_send_invoice_on_signing && !ag.order_id) {
+    try {
+      await autoCreateOrderAndSendInvoice(ag);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await supabaseAdmin.from("agreement_activity_log").insert({
+        agreement_id: agreementId,
+        activity_type: "auto_invoice_failed",
+        description: `Auto-invoice failed: ${msg}`,
+      });
+    }
+  }
+}
+
+/* ================================================================== */
+/*  autoCreateOrderAndSendInvoice                                     */
+/*  Builds a sales_order from an agreement and sends the invoice in   */
+/*  a separate email so the operator can pay (mirrors create-order +  */
+/*  orders/[id]/send routes).                                         */
+/* ================================================================== */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
+  const includeEquipment = ag.include_equipment !== false;
+  const includeLocationServices = ag.include_location_services !== false;
+  const includeShippingStorage = ag.include_shipping_storage !== false;
+
+  const items: Array<Record<string, unknown>> = [];
+
+  if (includeEquipment && Number(ag.machine_quantity) > 0) {
+    const unitPrice = Number(ag.machine_unit_price) || 0;
+    const qty = Number(ag.machine_quantity) || 1;
+    items.push({
+      item_type: "machine_sale",
+      service_name: ag.machine_model || "VendEra AI Machine",
+      description: ag.machine_notes || null,
+      quantity: qty,
+      unit_price: unitPrice,
+      price: unitPrice,
+      total_price: qty * unitPrice,
+      discount_percent: 0,
+      status: "pending",
+      deposit_required: false,
+    });
+  }
+
+  if (includeLocationServices && Number(ag.locations_purchased) > 0) {
+    const locFee = Number(ag.location_fee_per_secured) || 0;
+    const locQty = Number(ag.locations_purchased) || 0;
+    items.push({
+      item_type: "location_services",
+      service_name: "Location Sourcing & Placement",
+      description: `${locQty} locations at $${locFee.toFixed(2)} each. Timeline: ${ag.location_service_timeline_days || 180} days.`,
+      quantity: locQty,
+      unit_price: locFee,
+      price: locFee,
+      total_price: locQty * locFee,
+      discount_percent: 0,
+      status: "pending",
+      location_service_price: locQty * locFee,
+      deposit_required: false,
+    });
+  }
+
+  const freightTotal = Number(ag.freight_total) || 0;
+  if (includeShippingStorage && freightTotal > 0) {
+    items.push({
+      item_type: "other",
+      service_name: "Shipping & Freight",
+      description: `${ag.machine_quantity || 1} machine(s) at $${(Number(ag.freight_per_machine) || 0).toFixed(2)} each`,
+      quantity: 1,
+      unit_price: freightTotal,
+      price: freightTotal,
+      total_price: freightTotal,
+      discount_percent: 0,
+      status: "pending",
+      deposit_required: false,
+    });
+  }
+
+  if (items.length === 0) return;
+
+  const totalValue = items.reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
+
+  const { data: order, error: orderErr } = await supabaseAdmin
+    .from("sales_orders")
+    .insert({
+      account_id: ag.account_id || null,
+      created_by: ag.created_by,
+      assigned_rep_id: ag.created_by,
+      total_value: totalValue,
+      status: "draft",
+      order_status: "awaiting_payment",
+      document_type: "order",
+      order_type: "machine_purchase",
+      deposit_amount: 0,
+      deposit_paid: false,
+      remaining_balance: totalValue,
+      payment_status: "unpaid",
+      invoice_status: "not_sent",
+      agreement_status: "signed",
+      fulfillment_status: "pending",
+      next_required_action: "Awaiting payment",
+      recipient_email: ag.operator_email || null,
+      notes: `Auto-created from fully-signed agreement. Operator: ${ag.operator_company_name || ""}. ${ag.machine_quantity || 1}x ${ag.machine_model || "VendEra AI Machine"}.`,
+      updated_at: new Date().toISOString(),
+    })
+    .select("*")
+    .single();
+
+  if (orderErr || !order) {
+    throw new Error(`Failed to create order: ${orderErr?.message || "unknown"}`);
+  }
+
+  const orderItems = items.map((item) => ({
+    order_id: order.id,
+    ...item,
+    location_deposit_paid: false,
+  }));
+  await supabaseAdmin.from("order_items").insert(orderItems);
+
+  await supabaseAdmin
+    .from("purchase_agreements")
+    .update({ order_id: order.id, updated_at: new Date().toISOString() })
+    .eq("id", ag.id);
+
+  // Try QuickBooks invoice first if configured
+  let qbInvoiceId: string | null = null;
+  let qbSent = false;
+  const qbConfigured = !!(process.env.QB_CLIENT_ID && process.env.QB_CLIENT_SECRET);
+
+  if (qbConfigured && ag.operator_email) {
+    try {
+      const { createInvoice, sendInvoiceEmail } = await import("@/lib/quickbooks");
+      const lineItems = items.map((item) => ({
+        description: String(item.service_name || "Service"),
+        amount: Number(item.unit_price) || 0,
+        quantity: Number(item.quantity) || 1,
+      }));
+
+      const invoicePromise = createInvoice({
+        customerEmail: ag.operator_email,
+        customerName: ag.operator_company_name || ag.operator_legal_name || "Customer",
+        customerPhone: ag.operator_phone || undefined,
+        lineItems,
+        memo: `Order #${order.order_number || order.id.slice(0, 8).toUpperCase()} (from agreement)`,
+      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("QB timeout")), 8000)
+      );
+      const invoice = await Promise.race([invoicePromise, timeoutPromise]);
+      qbInvoiceId = invoice.Id;
+
+      await Promise.race([
+        sendInvoiceEmail(invoice.Id, ag.operator_email),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("QB email timeout")), 5000)),
+      ]);
+      qbSent = true;
+
+      await supabaseAdmin
+        .from("sales_orders")
+        .update({ qb_invoice_id: qbInvoiceId, invoice_status: "sent" })
+        .eq("id", order.id);
+    } catch {
+      // Fall through to Resend
+    }
+  }
+
+  // Fallback: send invoice via Resend if QB didn't succeed
+  if (!qbSent && process.env.RESEND_API_KEY && ag.operator_email) {
+    const itemRows = items
+      .map((item) => {
+        const qty = Number(item.quantity) || 1;
+        const unitPrice = Number(item.unit_price) || 0;
+        const lineTotal = Number(item.total_price) || qty * unitPrice;
+        return `
+          <tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#111;">${item.service_name}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151;text-align:center;">${qty}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151;text-align:right;">$${unitPrice.toFixed(2)}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151;text-align:right;">$${lineTotal.toFixed(2)}</td>
+          </tr>`;
+      })
+      .join("");
+
+    try {
+      await getResend().emails.send({
+        from: FROM_EMAIL,
+        to: ag.operator_email,
+        cc: ["james@apexaivending.com"],
+        subject: `Invoice — Order #${order.order_number || order.id.slice(0, 8).toUpperCase()} (Apex AI Vending)`,
+        html: `
+<div style="max-width:640px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:32px 24px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <h1 style="color:#16a34a;font-size:24px;margin:0;">Apex AI Vending</h1>
+    <p style="color:#6b7280;font-size:14px;margin:4px 0 0;">Invoice for Order #${order.order_number || order.id.slice(0, 8).toUpperCase()}</p>
+  </div>
+
+  <div style="background:#f9fafb;border-radius:12px;padding:24px;margin-bottom:24px;">
+    <p style="margin:0 0 16px;font-size:14px;color:#374151;">
+      Hello ${ag.operator_legal_name || ag.operator_company_name || "there"},
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+      Thank you for executing your purchase agreement with Apex AI Vending. The invoice for your order is below.
+      Please remit payment to begin procurement.
+    </p>
+
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:16px;">
+      <thead>
+        <tr style="background:#e5e7eb;">
+          <th style="padding:8px 12px;text-align:left;color:#374151;">Item</th>
+          <th style="padding:8px 12px;text-align:center;color:#374151;">Qty</th>
+          <th style="padding:8px 12px;text-align:right;color:#374151;">Unit</th>
+          <th style="padding:8px 12px;text-align:right;color:#374151;">Total</th>
+        </tr>
+      </thead>
+      <tbody>${itemRows}</tbody>
+    </table>
+
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;">
+      <tr style="border-top:2px solid #e5e7eb;">
+        <td style="padding:8px 0 0;color:#111;font-weight:700;">Total Due</td>
+        <td style="padding:8px 0 0;text-align:right;color:#16a34a;font-weight:700;font-size:18px;">$${totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+      </tr>
+    </table>
+
+    ${ag.payment_method_notes ? `<p style="margin:16px 0 0;font-size:13px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:12px;"><strong>Payment Instructions:</strong> ${ag.payment_method_notes}</p>` : ""}
+  </div>
+
+  <p style="font-size:13px;color:#6b7280;text-align:center;">
+    Questions about this invoice? Contact us at
+    <a href="mailto:james@apexaivending.com" style="color:#16a34a;">james@apexaivending.com</a>
+    or call <a href="tel:+18888511462" style="color:#16a34a;">(888) 851-1462</a>
+  </p>
+</div>
+        `.trim(),
+      });
+
+      await supabaseAdmin
+        .from("sales_orders")
+        .update({ invoice_status: "sent", updated_at: new Date().toISOString() })
+        .eq("id", order.id);
+    } catch (e) {
+      throw new Error(`Resend invoice failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  await supabaseAdmin.from("agreement_activity_log").insert({
+    agreement_id: ag.id,
+    activity_type: "auto_invoice_sent",
+    description: `Order #${order.order_number || order.id.slice(0, 6)} auto-created and invoice sent to ${ag.operator_email}`,
   });
 }
