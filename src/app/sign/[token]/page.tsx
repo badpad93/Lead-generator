@@ -109,17 +109,23 @@ interface PurchaseAgreement {
 /*  Helpers                                                            */
 /* ================================================================== */
 
-const REQUIRED_INITIALS = [
-  "section_3",
-  "section_4",
-  "section_5",
-  "section_6",
-  "section_7",
-  "section_8",
-  "schedule_a",
-  "schedule_b",
-  "schedule_c",
-] as const;
+function getRequiredInitials(agreement: PurchaseAgreement | null): string[] {
+  if (!agreement) return [];
+  const includeEq = agreement.include_equipment !== false;
+  const includeLoc = agreement.include_location_services !== false;
+  const includeShip = agreement.include_shipping_storage !== false;
+  const keys: string[] = [];
+  if (includeEq) keys.push("section_3");
+  if (includeShip) keys.push("section_4");
+  if (includeLoc) keys.push("section_5");
+  keys.push("section_6"); // Payment Terms always required
+  if (includeLoc) keys.push("section_7");
+  if (includeShip) keys.push("section_8");
+  if (includeEq) keys.push("schedule_a");
+  if (includeLoc) keys.push("schedule_b");
+  if (includeShip) keys.push("schedule_c");
+  return keys;
+}
 
 function currency(val: number | null | undefined): string {
   if (val == null) return "$0.00";
@@ -497,7 +503,8 @@ function SigningContent() {
     setSigning(false);
   }
 
-  const allInitialsComplete = REQUIRED_INITIALS.every(
+  const requiredInitials = getRequiredInitials(agreement);
+  const allInitialsComplete = requiredInitials.every(
     (key) => initialsMap[key],
   );
 
@@ -673,15 +680,15 @@ function SigningContent() {
               Signing Progress
             </span>
             <span className="text-sm text-gray-500">
-              {Object.keys(initialsMap).length} of{" "}
-              {REQUIRED_INITIALS.length} sections initialed
+              {requiredInitials.filter((k) => initialsMap[k]).length} of{" "}
+              {requiredInitials.length} sections initialed
             </span>
           </div>
           <div className="h-2 w-full rounded-full bg-gray-100">
             <div
               className="h-2 rounded-full bg-green-500 transition-all duration-500"
               style={{
-                width: `${(Object.keys(initialsMap).length / REQUIRED_INITIALS.length) * 100}%`,
+                width: `${(requiredInitials.filter((k) => initialsMap[k]).length / Math.max(1, requiredInitials.length)) * 100}%`,
               }}
             />
           </div>
@@ -730,14 +737,27 @@ function SigningContent() {
             <div>
               <p>
                 WHEREAS, Seller is in the business of selling smart vending
-                machines, specifically the <strong>{v.model}</strong>,
-                along with associated location placement services, shipping and
-                logistics coordination, and optional storage solutions;
+                machines and providing location placement, shipping, logistics,
+                and storage services;
               </p>
-              <p className="mt-3">
-                WHEREAS, Buyer desires to purchase one or more vending machines
-                and optionally engage Seller for location placement services;
-              </p>
+              {agreement.include_equipment !== false && agreement.include_location_services !== false && (
+                <p className="mt-3">
+                  WHEREAS, Buyer desires to purchase one or more vending machines
+                  and engage Seller for location placement services;
+                </p>
+              )}
+              {agreement.include_equipment !== false && agreement.include_location_services === false && (
+                <p className="mt-3">
+                  WHEREAS, Buyer desires to purchase one or more vending machines
+                  from Seller;
+                </p>
+              )}
+              {agreement.include_equipment === false && agreement.include_location_services !== false && (
+                <p className="mt-3">
+                  WHEREAS, Buyer desires to engage Seller to provide location
+                  placement services for vending machines;
+                </p>
+              )}
               <p className="mt-3">
                 NOW, THEREFORE, in consideration of the mutual covenants and
                 agreements set forth herein, and for other good and valuable
@@ -749,37 +769,49 @@ function SigningContent() {
             {/* ============ SECTION 2 ============ */}
             <SectionHeader num={2} title="Definitions" />
             <div className="space-y-2">
-              <p>
-                <strong>&quot;Equipment&quot;</strong> means the{" "}
-                {v.model} vending machine(s) specified in Schedule A.
-              </p>
-              <p>
-                <strong>&quot;Location Services&quot;</strong> means the
-                services provided by Seller to identify, vet, and secure
-                suitable vending machine placement locations on behalf of Buyer,
-                as further described in Section 5 and Schedule B.
-              </p>
-              <p>
-                <strong>&quot;Secured Location&quot;</strong> means a location
-                that has been identified, vetted, contacted, and confirmed by
-                Seller as having agreed to host Buyer&apos;s vending machine(s),
-                and for which Seller provides written confirmation to Buyer.
-              </p>
-              <p>
-                <strong>&quot;Storage Program&quot;</strong> means Seller&apos;s
-                optional warehousing and storage services for Equipment prior to
-                deployment, as further described in Section 8 and Schedule C.
-              </p>
-              <p>
-                <strong>&quot;Procurement&quot;</strong> means the process of
-                ordering, manufacturing, and preparing Equipment for shipment to
-                Buyer or Seller&apos;s warehouse facility.
-              </p>
-              <p>
-                <strong>&quot;Delivery&quot;</strong> means the physical transfer
-                of Equipment to Buyer&apos;s designated delivery address or
-                Seller&apos;s storage facility.
-              </p>
+              {agreement.include_equipment !== false && (
+                <p>
+                  <strong>&quot;Equipment&quot;</strong> means the{" "}
+                  {v.model} vending machine(s) specified in Schedule A.
+                </p>
+              )}
+              {agreement.include_location_services !== false && (
+                <>
+                  <p>
+                    <strong>&quot;Location Services&quot;</strong> means the
+                    services provided by Seller to identify, vet, and secure
+                    suitable vending machine placement locations on behalf of Buyer,
+                    as further described in Section 5 and Schedule B.
+                  </p>
+                  <p>
+                    <strong>&quot;Secured Location&quot;</strong> means a location
+                    that has been identified, vetted, contacted, and confirmed by
+                    Seller as having agreed to host Buyer&apos;s vending machine(s),
+                    and for which Seller provides written confirmation to Buyer.
+                  </p>
+                </>
+              )}
+              {agreement.include_shipping_storage !== false && (
+                <p>
+                  <strong>&quot;Storage Program&quot;</strong> means Seller&apos;s
+                  optional warehousing and storage services for Equipment prior to
+                  deployment, as further described in Section 8 and Schedule C.
+                </p>
+              )}
+              {agreement.include_equipment !== false && (
+                <>
+                  <p>
+                    <strong>&quot;Procurement&quot;</strong> means the process of
+                    ordering, manufacturing, and preparing Equipment for shipment to
+                    Buyer or Seller&apos;s warehouse facility.
+                  </p>
+                  <p>
+                    <strong>&quot;Delivery&quot;</strong> means the physical transfer
+                    of Equipment to Buyer&apos;s designated delivery address or
+                    Seller&apos;s storage facility.
+                  </p>
+                </>
+              )}
               <p>
                 <strong>&quot;Business Day&quot;</strong> means any day other
                 than a Saturday, Sunday, or federal holiday observed in the
@@ -1072,6 +1104,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 7: Location Service Payment Terms ============ */}
+            {agreement.include_location_services !== false && (<>
             <SectionHeader
               num={7}
               title="Location Service Payment Terms"
@@ -1108,8 +1141,10 @@ function SigningContent() {
                 onInitialed={handleInitialed}
               />
             </div>
+            </>)}
 
             {/* ============ SECTION 8: Storage Program ============ */}
+            {agreement.include_shipping_storage !== false && (<>
             <SectionHeader
               num={8}
               title="Storage Program"
@@ -1179,6 +1214,7 @@ function SigningContent() {
                 onInitialed={handleInitialed}
               />
             </div>
+            </>)}
 
             {/* ============ SECTION 9 ============ */}
             <SectionHeader num={9} title="Warranty" />
@@ -1570,6 +1606,7 @@ function SigningContent() {
             <hr className="border-gray-200 my-8" />
 
             {/* ============ SCHEDULE A ============ */}
+            {agreement.include_equipment !== false && (
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">
                 Schedule A &mdash; Equipment Order Details
@@ -1631,8 +1668,10 @@ function SigningContent() {
                 onInitialed={handleInitialed}
               />
             </div>
+            )}
 
             {/* ============ SCHEDULE B ============ */}
+            {agreement.include_location_services !== false && (
             <div className="mt-8">
               <h2 className="text-xl font-bold text-gray-900 mb-1">
                 Schedule B &mdash; Location Services Details
@@ -1699,8 +1738,10 @@ function SigningContent() {
                 onInitialed={handleInitialed}
               />
             </div>
+            )}
 
             {/* ============ SCHEDULE C ============ */}
+            {agreement.include_shipping_storage !== false && (
             <div className="mt-8">
               <h2 className="text-xl font-bold text-gray-900 mb-1">
                 Schedule C &mdash; Shipping &amp; Storage Details
@@ -1778,6 +1819,7 @@ function SigningContent() {
                 onInitialed={handleInitialed}
               />
             </div>
+            )}
           </div>
 
           {/* ============================================================ */}
@@ -1802,13 +1844,13 @@ function SigningContent() {
                       Initials Required
                     </p>
                     <p className="text-sm text-amber-700 mt-1">
-                      Please initial all {REQUIRED_INITIALS.length} required
+                      Please initial all {requiredInitials.length} required
                       sections before signing. You have completed{" "}
-                      {Object.keys(initialsMap).length} of{" "}
-                      {REQUIRED_INITIALS.length}.
+                      {requiredInitials.filter((k) => initialsMap[k]).length} of{" "}
+                      {requiredInitials.length}.
                     </p>
                     <ul className="mt-2 space-y-1">
-                      {REQUIRED_INITIALS.filter(
+                      {requiredInitials.filter(
                         (key) => !initialsMap[key],
                       ).map((key) => (
                         <li
