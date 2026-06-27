@@ -131,35 +131,34 @@ export async function PATCH(
     if (key in body) updates[key] = body[key];
   }
 
-  // Auto-recalculate derived fields
-  const qty =
-    Number(updates.machine_quantity ?? body._current_machine_quantity) || 0;
-  const unitPrice =
-    Number(updates.machine_unit_price ?? body._current_machine_unit_price) || 0;
-  const freightPerMachine =
-    Number(updates.freight_per_machine ?? body._current_freight_per_machine) || 0;
-  const locationsPurchased =
-    Number(updates.locations_purchased ?? body._current_locations_purchased) || 0;
-  const locationFee =
-    Number(updates.location_fee_per_secured ?? body._current_location_fee_per_secured) || 0;
+  // Auto-recalculate derived fields. Re-fetch current row so unchanged
+  // inputs to a computed field don't fall back to 0.
+  const { data: current } = await supabaseAdmin
+    .from("purchase_agreements")
+    .select("machine_quantity, machine_unit_price, freight_per_machine, locations_purchased, location_fee_per_secured, include_equipment, include_location_services, include_shipping_storage")
+    .eq("id", id)
+    .single();
 
-  // Only recalculate when we have values to work with
-  if (qty > 0 && unitPrice > 0) {
-    updates.equipment_subtotal = qty * unitPrice;
-  }
-  if (qty > 0 && freightPerMachine > 0) {
-    updates.freight_total = freightPerMachine * qty;
-  }
-  if (locationsPurchased > 0 && locationFee > 0) {
-    updates.max_location_service_value = locationsPurchased * locationFee;
-  }
+  const qty = Number(updates.machine_quantity ?? current?.machine_quantity) || 0;
+  const unitPrice = Number(updates.machine_unit_price ?? current?.machine_unit_price) || 0;
+  const freightPerMachine = Number(updates.freight_per_machine ?? current?.freight_per_machine) || 0;
+  const locationsPurchased = Number(updates.locations_purchased ?? current?.locations_purchased) || 0;
+  const locationFee = Number(updates.location_fee_per_secured ?? current?.location_fee_per_secured) || 0;
 
-  // Recalculate total if equipment or freight changed
-  const eqSub = Number(updates.equipment_subtotal) || 0;
-  const frTotal = Number(updates.freight_total) || 0;
-  if (eqSub > 0 || frTotal > 0) {
-    updates.total_due_prior_to_procurement = eqSub + frTotal;
-  }
+  const includeEquipment = (updates.include_equipment ?? current?.include_equipment) !== false;
+  const includeLocationServices = (updates.include_location_services ?? current?.include_location_services) !== false;
+  const includeShippingStorage = (updates.include_shipping_storage ?? current?.include_shipping_storage) !== false;
+
+  // Always recalculate so zeroing inputs zeros the subtotal, and so
+  // excluded sections contribute nothing to the totals.
+  updates.equipment_subtotal = includeEquipment ? qty * unitPrice : 0;
+  updates.freight_total = includeShippingStorage ? qty * freightPerMachine : 0;
+  updates.max_location_service_value = includeLocationServices ? locationsPurchased * locationFee : 0;
+
+  updates.total_due_prior_to_procurement =
+    Number(updates.equipment_subtotal) +
+    Number(updates.freight_total) +
+    Number(updates.max_location_service_value);
 
   const { data, error } = await supabaseAdmin
     .from("purchase_agreements")
