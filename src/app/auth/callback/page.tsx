@@ -30,32 +30,51 @@ function CallbackContent() {
         return;
       }
 
+      const supabase = createBrowserClient();
       const code = searchParams.get("code");
-      if (!code) {
-        setError("Missing authorization code. Please try again.");
-        setTimeout(() => {
-          window.location.href = "/login?error=" + encodeURIComponent("Missing authorization code. Please try signing in again.");
-        }, 2000);
-        return;
+
+      // Three paths can land here, depending on how the session was issued:
+      // 1. PKCE OAuth (Google/Microsoft): ?code=... -> exchangeCodeForSession
+      // 2. Magic-link / Yahoo flow PKCE: ?code=... -> exchangeCodeForSession
+      // 3. Magic-link / Yahoo flow implicit: #access_token=... -> auto-detected
+      //    by the browser client on instantiation, surfaces via getSession
+      let session = null;
+
+      if (code) {
+        const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (cancelled) return;
+        if (!exchangeErr && data.session) {
+          session = data.session;
+        } else if (exchangeErr) {
+          // Fall through to the hash/cookie check before declaring failure.
+          // Some flows (Yahoo magic-link) don't have a usable code verifier
+          // on this client.
+        }
       }
 
-      const supabase = createBrowserClient();
-      const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-      if (cancelled) return;
+      // Hash-fragment / cookie path: the browser client auto-detects an
+      // `#access_token=` hash on construction and persists it. Give it a
+      // moment, then poll for a session.
+      if (!session) {
+        for (let i = 0; i < 10; i++) {
+          const { data } = await supabase.auth.getSession();
+          if (cancelled) return;
+          if (data.session) {
+            session = data.session;
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
 
-      if (exchangeErr || !data.session) {
-        const raw = exchangeErr?.message || "Failed to complete sign-in.";
-        const msg = raw.includes("code verifier")
-          ? "Session expired. Please try signing in again."
-          : raw;
+      if (!session) {
+        const msg = "Failed to complete sign-in. Please try again.";
         setError(msg);
         setTimeout(() => {
           window.location.href = "/login?error=" + encodeURIComponent(msg);
         }, 2000);
         return;
       }
-
-      const session = data.session;
 
       let isEmployeeSignup = false;
 
