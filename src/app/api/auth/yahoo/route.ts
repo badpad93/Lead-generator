@@ -19,12 +19,16 @@ export async function GET(req: NextRequest) {
 
   const redirectUri = `${APP_URL}/api/auth/yahoo/callback`;
 
-  const authUrl = new URL("https://api.login.yahoo.com/oauth2/request_auth");
-  authUrl.searchParams.set("client_id", YAHOO_CLIENT_ID);
-  authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("scope", "openid email profile");
-  authUrl.searchParams.set("state", state);
+  // Build the query string manually so spaces in the scope are encoded as
+  // %20 rather than the URLSearchParams default of '+'. Yahoo's OAuth
+  // endpoint rejects '+' in the scope param with invalid_scope.
+  const qs = [
+    `client_id=${encodeURIComponent(YAHOO_CLIENT_ID)}`,
+    `redirect_uri=${encodeURIComponent(redirectUri)}`,
+    `response_type=code`,
+    `scope=${encodeURIComponent("openid email profile")}`,
+    `state=${encodeURIComponent(state)}`,
+  ].join("&");
 
-  return NextResponse.redirect(authUrl.toString());
+  return NextResponse.redirect(`https://api.login.yahoo.com/oauth2/request_auth?${qs}`);
 }
