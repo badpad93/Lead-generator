@@ -123,6 +123,7 @@ export default function OrderDetailPage() {
   const router = useRouter();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
   const [token, setToken] = useState("");
   const [showAddItem, setShowAddItem] = useState(false);
   const [actionLoading, setActionLoading] = useState("");
@@ -152,10 +153,23 @@ export default function OrderDetailPage() {
   const fetchOrder = useCallback(async () => {
     if (!token) return;
     setLoading(true);
-    const res = await fetch(`/api/sales/orders/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setOrder(await res.json());
+    setFetchError("");
+    try {
+      const res = await fetch(`/api/sales/orders/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setOrder(await res.json());
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setFetchError(err.error || `Failed to load (status ${res.status})`);
+        console.error("[orders/[id]] Failed to load:", res.status, err);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setFetchError(msg);
+      console.error("[orders/[id]] Fetch error:", e);
+    }
     setLoading(false);
   }, [token, id]);
 
@@ -272,10 +286,30 @@ export default function OrderDetailPage() {
     fetchOrder();
   }
 
-  if (loading || !order) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <button onClick={() => router.push("/sales/orders")} className="flex items-center gap-1 text-sm text-gray-500 hover:text-green-600 mb-4 cursor-pointer">
+          <ArrowLeft className="h-4 w-4" /> Back to Orders
+        </button>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+          <p className="text-sm font-semibold text-red-700 mb-2">Failed to load order</p>
+          <p className="text-xs text-red-600">{fetchError || "The order could not be found or you don't have access."}</p>
+          <button
+            onClick={() => fetchOrder()}
+            className="mt-4 inline-flex items-center gap-1 rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white hover:bg-red-700 cursor-pointer"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
