@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     `client_id=${encodeURIComponent(YAHOO_CLIENT_ID)}`,
     `redirect_uri=${encodeURIComponent(redirectUri)}`,
     `response_type=code`,
-    `scope=${encodeURIComponent("openid")}`,
+    `scope=${encodeURIComponent("openid email profile")}`,
     `nonce=${encodeURIComponent(nonce)}`,
     `state=${encodeURIComponent(state)}`,
   ].join("&");
