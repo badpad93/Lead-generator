@@ -88,9 +88,29 @@ export async function GET(req: NextRequest) {
 
   const yahooUser: YahooUserInfo = await userInfoRes.json();
 
+  // Fallback: pull email/name from the id_token JWT claims when the
+  // userinfo endpoint doesn't include them (happens when the Yahoo app
+  // is configured with OIDC permissions but the scope param can only
+  // include 'openid').
+  if (!yahooUser.email && tokens.id_token) {
+    try {
+      const payload = tokens.id_token.split(".")[1];
+      const claims = JSON.parse(
+        Buffer.from(payload, "base64url").toString("utf8")
+      );
+      if (claims.email) yahooUser.email = claims.email;
+      if (!yahooUser.name && claims.name) yahooUser.name = claims.name;
+      if (!yahooUser.given_name && claims.given_name) yahooUser.given_name = claims.given_name;
+      if (!yahooUser.family_name && claims.family_name) yahooUser.family_name = claims.family_name;
+      if (!yahooUser.picture && claims.picture) yahooUser.picture = claims.picture;
+    } catch {
+      // Ignore decode errors; fall through to the email check below.
+    }
+  }
+
   if (!yahooUser.email) {
     return NextResponse.redirect(
-      `${APP_URL}/login?error=${encodeURIComponent("Yahoo account does not have an email address")}`
+      `${APP_URL}/login?error=${encodeURIComponent("Yahoo did not return an email address. Enable the Email permission under OpenID Connect Permissions in your Yahoo app.")}`
     );
   }
 
