@@ -657,6 +657,31 @@ function SigningContent() {
   };
 
   /* ---------- Render ---------- */
+  // Branch on agreement type — Location Placement uses a different layout
+  if (agreement.agreement_type === "location_placement") {
+    return (
+      <LocationPlacementSignView
+        agreement={agreement}
+        token={token}
+        signerName={signerName}
+        setSignerName={setSignerName}
+        signerCompany={signerCompany}
+        setSignerCompany={setSignerCompany}
+        signerTitle={signerTitle}
+        setSignerTitle={setSignerTitle}
+        signatureMode={signatureMode}
+        setSignatureMode={setSignatureMode}
+        typedSignature={typedSignature}
+        setTypedSignature={setTypedSignature}
+        drawnSignature={drawnSignature}
+        setDrawnSignature={setDrawnSignature}
+        signing={signing}
+        signError={signError}
+        handleSign={handleSign}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 print:bg-white">
       <div className="mx-auto max-w-4xl py-8 px-4 sm:px-6 lg:px-8">
@@ -2124,6 +2149,221 @@ function SectionHeader({
           Requires Initials
         </p>
       )}
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Location Placement Sign View                                        */
+/* ================================================================== */
+
+interface LocationPlacementSignViewProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  agreement: any;
+  token: string;
+  signerName: string;
+  setSignerName: (v: string) => void;
+  signerCompany: string;
+  setSignerCompany: (v: string) => void;
+  signerTitle: string;
+  setSignerTitle: (v: string) => void;
+  signatureMode: "type" | "draw";
+  setSignatureMode: (m: "type" | "draw") => void;
+  typedSignature: string;
+  setTypedSignature: (v: string) => void;
+  drawnSignature: string;
+  setDrawnSignature: (v: string) => void;
+  signing: boolean;
+  signError: string | null;
+  handleSign: () => void;
+}
+
+function LocationPlacementSignView(props: LocationPlacementSignViewProps) {
+  const { agreement: ag, signerName, setSignerName, signerCompany, setSignerCompany, signerTitle, setSignerTitle, signatureMode, setSignatureMode, typedSignature, setTypedSignature, signing, signError, handleSign } = props;
+  const isSigned = !!ag.operator_signed_at;
+  const operatorCompany = ag.placement_operator_company || "Vending Operator";
+  const termMonths = ag.placement_term_months || 24;
+  const machineCount = ag.placement_machine_count || 1;
+  const machineType = ag.placement_machine_type || "VendEra AI Machine";
+  const effectiveDate = ag.effective_date ? new Date(ag.effective_date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "—";
+
+  const fmtMoney = (n: number) => `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-3xl py-8 px-4 sm:px-6">
+        <div className="mb-8 text-center">
+          <div className="inline-block rounded-lg bg-green-600 px-4 py-1 mb-3">
+            <span className="text-sm font-bold text-white tracking-wider uppercase">{operatorCompany}</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">Location Placement Agreement</h1>
+          <p className="text-sm text-gray-500">Effective Date: {effectiveDate}</p>
+        </div>
+
+        {isSigned && (
+          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-5 flex items-center gap-3">
+            <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" />
+            <div>
+              <p className="font-semibold text-green-900">You&apos;ve signed this agreement</p>
+              <p className="text-sm text-green-700">Signed on {ag.operator_signed_at ? new Date(ag.operator_signed_at).toLocaleString() : ""}. A fully-executed copy will be emailed to you once the operator countersigns.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Parties */}
+        <div className="rounded-xl border border-gray-200 bg-white p-5 mb-4">
+          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Parties</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1">OPERATOR</p>
+              <p className="font-medium text-gray-900">{ag.placement_operator_company || "—"}</p>
+              <p className="text-gray-600">{ag.placement_operator_contact || ""}</p>
+              <p className="text-gray-600 text-xs">{ag.placement_operator_email || ""}</p>
+              <p className="text-gray-600 text-xs">{ag.placement_operator_phone || ""}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1">LOCATION (HOST)</p>
+              <p className="font-medium text-gray-900">{ag.location_business_name || "—"}</p>
+              <p className="text-gray-600">{ag.location_contact_name || ""}{ag.location_contact_title ? ` — ${ag.location_contact_title}` : ""}</p>
+              <p className="text-gray-600 text-xs">{ag.location_contact_email || ""}</p>
+              <p className="text-gray-600 text-xs">{ag.location_contact_phone || ""}</p>
+              {ag.location_address && (
+                <p className="text-gray-600 text-xs">{ag.location_address}{ag.location_city ? `, ${ag.location_city}` : ""}{ag.location_state ? `, ${ag.location_state}` : ""} {ag.location_zip || ""}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Placement Terms */}
+        {ag.include_placement_terms !== false && (
+          <div className="rounded-xl border border-gray-200 bg-white p-5 mb-4">
+            <h2 className="text-base font-bold text-gray-900 mb-2">Section 1 — Placement Terms</h2>
+            <p className="text-sm text-gray-700 leading-relaxed mb-3">
+              Operator agrees to install <strong>{machineCount} {machineType}{machineCount === 1 ? "" : "s"}</strong> at the Location for a term of <strong>{termMonths} months</strong> commencing on the Effective Date or installation date, whichever is later.
+            </p>
+            {ag.placement_exclusivity && (
+              <p className="text-sm text-gray-700 leading-relaxed mb-3">
+                Location agrees that during the Term, Operator&apos;s machines shall be the <strong>exclusive vending equipment</strong> installed at the premises.
+              </p>
+            )}
+            {ag.placement_notes && (
+              <p className="text-sm text-gray-600 italic">Additional terms: {ag.placement_notes}</p>
+            )}
+          </div>
+        )}
+
+        {/* Compensation */}
+        {ag.include_compensation !== false && (
+          <div className="rounded-xl border border-gray-200 bg-white p-5 mb-4">
+            <h2 className="text-base font-bold text-gray-900 mb-2">Section 2 — Compensation</h2>
+            {ag.commission_type === "revenue_share" && (
+              <p className="text-sm text-gray-700 leading-relaxed">
+                Location shall receive <strong>{Number(ag.commission_pct || 0).toFixed(1)}% of net revenue</strong> from machine sales, payable <strong>{ag.commission_payout_schedule || "monthly"}</strong>. Net revenue is calculated as gross sales less applicable taxes and processing fees.
+              </p>
+            )}
+            {ag.commission_type === "flat_monthly" && (
+              <p className="text-sm text-gray-700 leading-relaxed">
+                Operator shall pay Location <strong>{fmtMoney(ag.commission_monthly_fee)} per month</strong> for the duration of the Term, payable <strong>{ag.commission_payout_schedule || "monthly"}</strong>.
+              </p>
+            )}
+            {ag.commission_type === "none" && (
+              <p className="text-sm text-gray-700 leading-relaxed">
+                No monetary compensation is provided to Location under this agreement.
+              </p>
+            )}
+            {ag.commission_notes && <p className="text-sm text-gray-600 italic mt-2">{ag.commission_notes}</p>}
+          </div>
+        )}
+
+        {/* Duration & Termination */}
+        {ag.include_duration_termination !== false && (
+          <div className="rounded-xl border border-gray-200 bg-white p-5 mb-4">
+            <h2 className="text-base font-bold text-gray-900 mb-2">Section 3 — Duration &amp; Termination</h2>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              This Agreement shall remain in effect for {termMonths} months from the Effective Date (or installation date, whichever is later). Either party may terminate this Agreement for cause upon 30 days&apos; written notice if the other party materially breaches any provision and fails to cure such breach within the notice period. Upon termination, Operator shall remove all machines and equipment from the premises within thirty (30) days.
+            </p>
+          </div>
+        )}
+
+        {/* Responsibilities */}
+        {ag.include_responsibilities !== false && (
+          <div className="rounded-xl border border-gray-200 bg-white p-5 mb-4">
+            <h2 className="text-base font-bold text-gray-900 mb-2">Section 4 — Responsibilities</h2>
+            <div className="text-sm text-gray-700 leading-relaxed space-y-2">
+              <p><strong>OPERATOR shall:</strong> install, service, restock, and maintain the machines at its own expense; carry general commercial liability insurance; pay applicable taxes and provide accurate payout reports; promptly respond to service requests.</p>
+              <p><strong>LOCATION shall:</strong> provide a suitable, accessible location with a standard 120V electrical outlet; allow reasonable access for installation, service, restocking, and removal; notify Operator of any service issues; refrain from operating, modifying, or relocating the machines without Operator&apos;s consent.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Standard provisions */}
+        <div className="rounded-xl border border-gray-200 bg-white p-5 mb-4">
+          <h2 className="text-base font-bold text-gray-900 mb-2">Standard Provisions</h2>
+          <div className="text-sm text-gray-700 leading-relaxed space-y-2">
+            <p><strong>Ownership.</strong> Title to the machines and equipment remains with Operator at all times. Operator bears the risk of loss.</p>
+            <p><strong>Confidentiality.</strong> Each party agrees to keep confidential all non-public business information disclosed in connection with this Agreement.</p>
+            <p><strong>Independent Contractors.</strong> The parties are independent contractors; nothing in this Agreement creates a partnership or employer-employee relationship.</p>
+            <p><strong>Governing Law.</strong> This Agreement is governed by the laws of the State of {ag.governing_state || "Texas"}.</p>
+            <p><strong>Entire Agreement.</strong> This Agreement constitutes the entire understanding between the parties and supersedes all prior agreements. Amendments must be in writing and signed by both parties.</p>
+          </div>
+        </div>
+
+        {/* Signature */}
+        {!isSigned && (
+          <div className="rounded-xl border-2 border-green-200 bg-white p-6 mt-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Sign this Agreement</h2>
+            <p className="text-sm text-gray-500 mb-5">By signing below, you agree to the terms of this Location Placement Agreement.</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+                <input type="text" value={signerName} onChange={(e) => setSignerName(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600/30" placeholder="Your full legal name" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Title / Role</label>
+                <input type="text" value={signerTitle} onChange={(e) => setSignerTitle(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600/30" placeholder="e.g. Owner, Manager" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Business / Location Name</label>
+                <input type="text" value={signerCompany} onChange={(e) => setSignerCompany(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600/30" placeholder={ag.location_business_name || "Your business name"} />
+              </div>
+            </div>
+
+            <label className="block text-xs font-medium text-gray-700 mb-1">Signature <span className="text-red-500">*</span></label>
+            <div className="mb-2 flex gap-2">
+              <button type="button" onClick={() => setSignatureMode("type")} className={`text-xs font-medium px-3 py-1.5 rounded-lg cursor-pointer ${signatureMode === "type" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>Type</button>
+              <button type="button" onClick={() => setSignatureMode("draw")} className={`text-xs font-medium px-3 py-1.5 rounded-lg cursor-pointer ${signatureMode === "draw" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>Draw</button>
+            </div>
+            {signatureMode === "type" ? (
+              <input
+                type="text"
+                value={typedSignature}
+                onChange={(e) => setTypedSignature(e.target.value)}
+                placeholder="Type your full name as signature"
+                className="w-full rounded-lg border border-gray-300 px-3 py-3 text-lg italic font-serif focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600/30"
+                style={{ fontFamily: "'Brush Script MT', cursive" }}
+              />
+            ) : (
+              <p className="text-xs text-gray-500 italic">Use the draw view in the full signing flow above to draw your signature.</p>
+            )}
+
+            {signError && (
+              <div className="mt-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{signError}</div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSign}
+              disabled={signing}
+              className="mt-5 w-full rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-2"
+            >
+              {signing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenTool className="h-4 w-4" />}
+              {signing ? "Signing..." : "Sign Agreement"}
+            </button>
+            <p className="mt-2 text-xs text-gray-400 text-center">A fully-executed copy will be emailed to you once {operatorCompany} countersigns.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

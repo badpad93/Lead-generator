@@ -41,22 +41,34 @@ export async function POST(
   if (agErr || !agreement)
     return NextResponse.json({ error: "Agreement not found" }, { status: 404 });
 
-  // Validate required fields. Equipment fields are only required when
-  // the Equipment section is included.
+  const isLocationPlacement = agreement.agreement_type === "location_placement";
   const includeEquipment = agreement.include_equipment !== false;
-  const requiredFields: Array<{ key: string; label: string }> = [
-    { key: "operator_company_name", label: "Operator company name" },
-    { key: "operator_legal_name", label: "Operator legal name" },
-    { key: "operator_email", label: "Operator email" },
-    { key: "effective_date", label: "Effective date" },
-    { key: "apex_representative_name", label: "Apex representative name" },
-  ];
-  if (includeEquipment) {
-    requiredFields.push(
-      { key: "machine_model", label: "Machine model" },
-      { key: "machine_quantity", label: "Machine quantity" },
-      { key: "machine_unit_price", label: "Machine unit price" },
-    );
+
+  let requiredFields: Array<{ key: string; label: string }>;
+  if (isLocationPlacement) {
+    requiredFields = [
+      { key: "location_business_name", label: "Location business name" },
+      { key: "location_contact_name", label: "Location contact name" },
+      { key: "location_contact_email", label: "Location contact email" },
+      { key: "placement_operator_company", label: "Operator company name" },
+      { key: "placement_operator_email", label: "Operator email" },
+      { key: "effective_date", label: "Effective date" },
+    ];
+  } else {
+    requiredFields = [
+      { key: "operator_company_name", label: "Operator company name" },
+      { key: "operator_legal_name", label: "Operator legal name" },
+      { key: "operator_email", label: "Operator email" },
+      { key: "effective_date", label: "Effective date" },
+      { key: "apex_representative_name", label: "Apex representative name" },
+    ];
+    if (includeEquipment) {
+      requiredFields.push(
+        { key: "machine_model", label: "Machine model" },
+        { key: "machine_quantity", label: "Machine quantity" },
+        { key: "machine_unit_price", label: "Machine unit price" },
+      );
+    }
   }
 
   const missing = requiredFields.filter(
@@ -80,22 +92,70 @@ export async function POST(
     process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
   const signingUrl = `${siteUrl}/sign/${agreement.sign_token}`;
 
-  // Build CC list
+  // Determine recipient and CCs based on agreement type
+  const recipientEmail = isLocationPlacement
+    ? agreement.location_contact_email
+    : agreement.operator_email;
+
   const ccEmails: string[] = [];
-  if (
-    agreement.apex_representative_email &&
-    agreement.apex_representative_email !== agreement.operator_email
-  ) {
-    ccEmails.push(agreement.apex_representative_email);
-  }
-  for (const addr of ALWAYS_CC) {
-    if (!ccEmails.includes(addr) && addr !== agreement.operator_email) {
-      ccEmails.push(addr);
+  if (isLocationPlacement) {
+    // For location placement: rep gets CC during initial send (NOT operator —
+    // they get the fully signed copy later)
+    if (agreement.rep_email && agreement.rep_email !== recipientEmail) {
+      ccEmails.push(agreement.rep_email);
+    }
+  } else {
+    if (
+      agreement.apex_representative_email &&
+      agreement.apex_representative_email !== recipientEmail
+    ) {
+      ccEmails.push(agreement.apex_representative_email);
+    }
+    for (const addr of ALWAYS_CC) {
+      if (!ccEmails.includes(addr) && addr !== recipientEmail) {
+        ccEmails.push(addr);
+      }
     }
   }
 
   // Build email HTML
-  const html = `
+  const html = isLocationPlacement ? `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:40px 24px;color:#111827;">
+  <div style="text-align:center;margin-bottom:32px;">
+    <h1 style="color:#16a34a;font-size:22px;margin:0;">${agreement.placement_operator_company || "Vending Operator"}</h1>
+    <p style="color:#6b7280;font-size:14px;margin:8px 0 0;">Location Placement Agreement</p>
+  </div>
+
+  <p>Hi ${agreement.location_contact_name || agreement.location_business_name},</p>
+
+  <p>Please review and sign the location placement agreement below. This agreement covers placement of ${agreement.placement_machine_count || 1} ${agreement.placement_machine_type || "VendEra AI Machine"}${(agreement.placement_machine_count || 1) === 1 ? "" : "s"} at <strong>${agreement.location_business_name}</strong>.</p>
+
+  <p>This agreement covers:</p>
+  <ul style="color:#374151;line-height:1.8;">
+    <li>${agreement.placement_machine_count || 1} machine${(agreement.placement_machine_count || 1) === 1 ? "" : "s"} placed at your location at no cost</li>
+    <li>Term length: ${agreement.placement_term_months || 24} months</li>
+    ${agreement.commission_type === "revenue_share" ? `<li>Compensation: <strong>${Number(agreement.commission_pct || 0).toFixed(1)}% revenue share</strong> (${agreement.commission_payout_schedule || "monthly"})</li>` : ""}
+    ${agreement.commission_type === "flat_monthly" ? `<li>Compensation: <strong>$${Number(agreement.commission_monthly_fee || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}/month</strong></li>` : ""}
+    <li>Operator handles installation, restocking, and maintenance</li>
+  </ul>
+
+  <div style="text-align:center;margin:32px 0;">
+    <a href="${signingUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Review &amp; Sign Agreement</a>
+  </div>
+
+  <p style="font-size:13px;color:#6b7280;">If the button doesn't work, copy and paste this link into your browser:</p>
+  <p style="font-size:12px;word-break:break-all;color:#16a34a;">${signingUrl}</p>
+
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:32px 0;"/>
+
+  <p style="font-size:13px;color:#6b7280;">Questions? Reply to this email and ${agreement.rep_name || "your sales rep"} will get back to you.</p>
+
+  <p style="text-align:center;font-size:12px;color:#9ca3af;margin-top:32px;">${agreement.placement_operator_company || "Vending Operator"}</p>
+</body>
+</html>`.trim() : `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"/></head>
@@ -132,14 +192,24 @@ export async function POST(
 </body>
 </html>`.trim();
 
+  if (!recipientEmail) {
+    return NextResponse.json(
+      { error: isLocationPlacement ? "Location contact email is required" : "Operator email is required" },
+      { status: 400 },
+    );
+  }
+
+  const subject = isLocationPlacement
+    ? `Location Placement Agreement — ${agreement.location_business_name || "Your Location"}`
+    : "Your VendEra AI Machine Purchase & Services Agreement";
+
   // Send email
   try {
     const result = await getResend().emails.send({
       from: FROM_EMAIL,
-      to: agreement.operator_email,
+      to: recipientEmail,
       cc: ccEmails.length > 0 ? ccEmails : undefined,
-      subject:
-        "Your VendEra AI Machine Purchase & Services Agreement",
+      subject,
       html,
     });
 
@@ -169,7 +239,7 @@ export async function POST(
     agreement_id: id,
     user_id: user.id,
     activity_type: "sent",
-    description: `Agreement emailed to ${agreement.operator_email}${ccEmails.length > 0 ? ` (CC: ${ccEmails.join(", ")})` : ""}`,
+    description: `Agreement emailed to ${recipientEmail}${ccEmails.length > 0 ? ` (CC: ${ccEmails.join(", ")})` : ""}`,
   });
 
   return NextResponse.json({ ok: true, emailSent: true });
