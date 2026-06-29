@@ -3,6 +3,7 @@ import "./globals.css";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import FinancingFab from "./components/FinancingFab";
+import MagicLinkHashCatcher from "./components/MagicLinkHashCatcher";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -50,6 +51,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-light min-h-screen flex flex-col antialiased">
+        <MagicLinkHashCatcher />
         <Navbar />
         <main className="flex-1">{children}</main>
         <Footer />
