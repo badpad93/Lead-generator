@@ -18,15 +18,18 @@ export async function GET(req: NextRequest) {
   ).toString("base64url");
 
   const redirectUri = `${APP_URL}/api/auth/yahoo/callback`;
+  const nonce = crypto.randomBytes(16).toString("hex");
 
-  // Build the query string manually so spaces in the scope are encoded as
-  // %20 rather than the URLSearchParams default of '+'. Yahoo's OAuth
-  // endpoint rejects '+' in the scope param with invalid_scope.
+  // Yahoo OIDC requires the nonce param. Start with the minimum scope
+  // (openid) to confirm OIDC is wired up on the app; once that succeeds
+  // we can layer in 'email' and 'profile' (which need the matching
+  // OpenID Connect Permissions enabled in the Yahoo Developer Console).
   const qs = [
     `client_id=${encodeURIComponent(YAHOO_CLIENT_ID)}`,
     `redirect_uri=${encodeURIComponent(redirectUri)}`,
     `response_type=code`,
-    `scope=${encodeURIComponent("openid email profile")}`,
+    `scope=${encodeURIComponent("openid")}`,
+    `nonce=${encodeURIComponent(nonce)}`,
     `state=${encodeURIComponent(state)}`,
   ].join("&");
 
