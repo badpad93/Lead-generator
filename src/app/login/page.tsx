@@ -14,6 +14,11 @@ function LoginContent() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    const urlError = searchParams.get("error");
+    if (urlError) setError(decodeURIComponent(urlError));
+  }, [searchParams]);
+
+  useEffect(() => {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
