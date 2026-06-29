@@ -391,20 +391,20 @@ export default function DashboardPage() {
             Please log in or create an account to access your Vending Connector dashboard.
           </p>
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <Link
+            <a
               href="/login"
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover sm:w-auto"
             >
               <LogIn className="h-4 w-4" />
               Log In
-            </Link>
-            <Link
+            </a>
+            <a
               href="/signup"
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-black-primary transition-colors hover:border-green-200 hover:bg-green-50 sm:w-auto"
             >
               <UserPlus className="h-4 w-4" />
               Create Account
-            </Link>
+            </a>
           </div>
         </div>
       </div>
