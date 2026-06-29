@@ -48,23 +48,57 @@ export async function POST(
     });
   }
 
-  // Location services item
+  // Location services item — split into deposit + remaining when deposit-only is on
   if (includeLocationServices && Number(ag.locations_purchased) > 0) {
     const locFee = Number(ag.location_fee_per_secured) || 0;
     const locQty = Number(ag.locations_purchased) || 0;
-    items.push({
-      item_type: "location_services",
-      service_name: "Location Sourcing & Placement",
-      description: `${locQty} locations at $${locFee.toFixed(2)} each. Timeline: ${ag.location_service_timeline_days || 180} days.`,
-      quantity: locQty,
-      unit_price: locFee,
-      price: locFee,
-      total_price: locQty * locFee,
-      discount_percent: 0,
-      status: "pending",
-      location_service_price: locQty * locFee,
-      deposit_required: false,
-    });
+    const locTotal = locQty * locFee;
+    const depositOnly = ag.location_services_deposit_only === true;
+    const deposit = depositOnly ? Math.min(Number(ag.location_services_deposit_amount) || 0, locTotal) : locTotal;
+    const remaining = depositOnly ? Math.max(0, locTotal - deposit) : 0;
+
+    if (depositOnly) {
+      items.push({
+        item_type: "location_services",
+        service_name: "Location Services Deposit",
+        description: `Non-refundable deposit for ${locQty} location${locQty === 1 ? "" : "s"} ($${locFee.toFixed(2)} each, $${locTotal.toFixed(2)} total). Balance of $${remaining.toFixed(2)} due on fulfillment.`,
+        quantity: 1,
+        unit_price: deposit,
+        price: deposit,
+        total_price: deposit,
+        discount_percent: 0,
+        status: "pending",
+        deposit_required: false,
+      });
+      if (remaining > 0) {
+        items.push({
+          item_type: "location_services",
+          service_name: "Location Services Remaining Balance",
+          description: `Balance due after fulfillment of secured locations. Invoiced upon completion.`,
+          quantity: 1,
+          unit_price: remaining,
+          price: remaining,
+          total_price: remaining,
+          discount_percent: 0,
+          status: "pending_fulfillment",
+          deposit_required: false,
+        });
+      }
+    } else {
+      items.push({
+        item_type: "location_services",
+        service_name: "Location Sourcing & Placement",
+        description: `${locQty} locations at $${locFee.toFixed(2)} each. Timeline: ${ag.location_service_timeline_days || 180} days.`,
+        quantity: locQty,
+        unit_price: locFee,
+        price: locFee,
+        total_price: locTotal,
+        discount_percent: 0,
+        status: "pending",
+        location_service_price: locTotal,
+        deposit_required: false,
+      });
+    }
   }
 
   // Freight item (if freight > 0 and shipping included)
@@ -84,7 +118,10 @@ export async function POST(
     });
   }
 
-  const totalValue = items.reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
+  // Upfront total excludes the deferred location-services balance.
+  const totalValue = items
+    .filter((i) => i.status !== "pending_fulfillment")
+    .reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
 
   // Create the order
   const { data: order, error: orderErr } = await supabaseAdmin

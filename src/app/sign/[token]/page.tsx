@@ -84,6 +84,8 @@ interface PurchaseAgreement {
   include_equipment?: boolean;
   include_location_services?: boolean;
   include_shipping_storage?: boolean;
+  location_services_deposit_only?: boolean;
+  location_services_deposit_amount?: number;
 
   effective_date: string | null;
   governing_state: string | null;
@@ -1066,6 +1068,11 @@ function SigningContent() {
                     {v.totalDue}
                   </span>
                 </div>
+                {agreement.location_services_deposit_only && agreement.include_location_services !== false && (
+                  <p className="mt-2 text-xs text-green-700 italic">
+                    + {currency(Math.max(0, (Number(agreement.max_location_service_value) || 0) - (Number(agreement.location_services_deposit_amount) || 0)))} Location Services balance due upon fulfillment of secured locations
+                  </p>
+                )}
               </div>
               <p className="mt-4">
                 <strong>6.2 Payment Schedule.</strong> Full payment of the
@@ -1117,17 +1124,35 @@ function SigningContent() {
                 Invoices shall include the location details and the applicable
                 fee.
               </p>
-              <p className="mt-3">
-                <strong>7.2 Payment Terms.</strong> Payment for Location
-                Services is{" "}
-                <strong>{v.locationPayTerms}</strong>.
-              </p>
-              <p className="mt-3">
-                <strong>7.3 Maximum Value.</strong> The total amount invoiced
-                for Location Services shall not exceed the Maximum Service Value
-                of <strong>{v.maxLocationValue}</strong> without Buyer&apos;s
-                prior written consent.
-              </p>
+              {agreement.location_services_deposit_only ? (
+                <>
+                  <p className="mt-3">
+                    <strong>7.2 Deposit Payment.</strong> A non-refundable deposit of{" "}
+                    <strong>{currency(Math.min(Number(agreement.location_services_deposit_amount) || 0, Number(agreement.max_location_service_value) || 0))}</strong>{" "}
+                    is due prior to procurement of Location Services. Procurement will not begin until the deposit is received and cleared.
+                  </p>
+                  <p className="mt-3">
+                    <strong>7.3 Remaining Balance.</strong> The remaining balance of{" "}
+                    <strong>{currency(Math.max(0, (Number(agreement.max_location_service_value) || 0) - (Number(agreement.location_services_deposit_amount) || 0)))}</strong>{" "}
+                    shall be invoiced upon fulfillment of secured locations and is due on receipt of the invoice. The total amount invoiced for Location Services shall not exceed the Maximum Service Value of{" "}
+                    <strong>{v.maxLocationValue}</strong>.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-3">
+                    <strong>7.2 Payment Terms.</strong> Payment for Location
+                    Services is{" "}
+                    <strong>{v.locationPayTerms}</strong>.
+                  </p>
+                  <p className="mt-3">
+                    <strong>7.3 Maximum Value.</strong> The total amount invoiced
+                    for Location Services shall not exceed the Maximum Service Value
+                    of <strong>{v.maxLocationValue}</strong> without Buyer&apos;s
+                    prior written consent.
+                  </p>
+                </>
+              )}
               <p className="mt-3">
                 <strong>7.4 Refund Policy.</strong> Location Services fees are
                 non-refundable once a location has been secured and delivered to
