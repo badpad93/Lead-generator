@@ -81,6 +81,11 @@ function SignupContent() {
     });
   }, []);
 
+  useEffect(() => {
+    const urlError = searchParams.get("error");
+    if (urlError) setError(decodeURIComponent(urlError));
+  }, [searchParams]);
+
   async function handleSignOutAndContinue() {
     setSigningOut(true);
     try {
