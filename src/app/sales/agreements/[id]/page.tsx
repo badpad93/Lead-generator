@@ -492,17 +492,38 @@ function StandaloneAgreementEditor() {
   async function handleSend() {
     if (!agreement) return;
 
-    if (!form?.operator_email?.trim()) {
-      showToast("Operator email is required to send", "error");
-      return;
-    }
-    if (!form?.operator_company_name?.trim()) {
-      showToast("Operator company name is required to send", "error");
-      return;
-    }
-    if (!form?.operator_legal_name?.trim()) {
-      showToast("Operator legal name is required to send", "error");
-      return;
+    const isLocationPlacement = agreement.agreement_type === "location_placement";
+
+    if (isLocationPlacement) {
+      if (!form?.location_contact_email?.trim()) {
+        showToast("Location contact email is required to send", "error");
+        return;
+      }
+      if (!form?.location_business_name?.trim()) {
+        showToast("Location business name is required to send", "error");
+        return;
+      }
+      if (!form?.location_contact_name?.trim()) {
+        showToast("Location contact name is required to send", "error");
+        return;
+      }
+      if (!form?.placement_operator_email?.trim()) {
+        showToast("Operator email is required (gets the signed copy)", "error");
+        return;
+      }
+    } else {
+      if (!form?.operator_email?.trim()) {
+        showToast("Operator email is required to send", "error");
+        return;
+      }
+      if (!form?.operator_company_name?.trim()) {
+        showToast("Operator company name is required to send", "error");
+        return;
+      }
+      if (!form?.operator_legal_name?.trim()) {
+        showToast("Operator legal name is required to send", "error");
+        return;
+      }
     }
 
     if (dirty) {
@@ -510,7 +531,10 @@ function StandaloneAgreementEditor() {
       return;
     }
 
-    if (!confirm("Send this agreement to the operator? They will receive an email with a signing link.")) return;
+    const confirmMsg = isLocationPlacement
+      ? `Send this agreement to ${form?.location_contact_email}? They will receive an email with a signing link.`
+      : "Send this agreement to the operator? They will receive an email with a signing link.";
+    if (!confirm(confirmMsg)) return;
 
     setSending(true);
     const res = await fetch(`/api/sales/agreements/${agreement.id}/send`, {
@@ -519,7 +543,7 @@ function StandaloneAgreementEditor() {
     });
 
     if (res.ok) {
-      showToast("Agreement sent to operator");
+      showToast(isLocationPlacement ? "Agreement sent to location" : "Agreement sent to operator");
       await fetchAgreement();
     } else {
       const err = await res.json().catch(() => ({ error: "Send failed" }));
@@ -690,8 +714,14 @@ function StandaloneAgreementEditor() {
           <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Apex Countersignature</h2>
-                <p className="text-xs text-gray-500">Sign on behalf of Apex AI Vending LLC</p>
+                <h2 className="text-lg font-bold text-gray-900">
+                  {agreement.agreement_type === "location_placement" ? "Operator Countersignature" : "Apex Countersignature"}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  {agreement.agreement_type === "location_placement"
+                    ? `Sign on behalf of ${agreement.placement_operator_company || "the operator"}`
+                    : "Sign on behalf of Apex AI Vending LLC"}
+                </p>
               </div>
               <button onClick={() => setShowApexSign(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 cursor-pointer">
                 <X className="h-5 w-5" />
@@ -1071,7 +1101,8 @@ function StandaloneAgreementEditor() {
             </div>
           </div>
 
-          {/* Preview */}
+          {/* Preview — purchase agreements only (location placement uses the PDF preview) */}
+          {agreement.agreement_type !== "location_placement" && (
           <div className="rounded-xl border border-gray-200 bg-white p-5">
             <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-3">
               <Eye className="h-4 w-4 text-gray-400" /> Agreement Preview
@@ -1084,6 +1115,7 @@ function StandaloneAgreementEditor() {
               <Eye className="h-4 w-4" /> Preview Full Agreement
             </button>
           </div>
+          )}
 
           {/* Signing Link */}
           {agreement.sign_token && ["sent", "viewed", "partially_signed"].includes(agreement.agreement_status) && (
@@ -1091,7 +1123,11 @@ function StandaloneAgreementEditor() {
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-3">
                 <Send className="h-4 w-4 text-gray-400" /> Signing Link
               </h3>
-              <p className="text-xs text-gray-500 mb-2">Share this link with the operator to sign:</p>
+              <p className="text-xs text-gray-500 mb-2">
+                {agreement.agreement_type === "location_placement"
+                  ? "Share this link with the location to sign:"
+                  : "Share this link with the operator to sign:"}
+              </p>
               <div className="flex gap-2">
                 <input
                   readOnly
@@ -1133,7 +1169,7 @@ function StandaloneAgreementEditor() {
                   title={dirty ? "Save changes first" : ""}
                 >
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Send to Operator
+                  {agreement.agreement_type === "location_placement" ? "Send to Location" : "Send to Operator"}
                 </button>
               )}
               <button
@@ -1142,20 +1178,22 @@ function StandaloneAgreementEditor() {
               >
                 <Download className="h-4 w-4" /> Download PDF
               </button>
-              <button
-                onClick={handleCreateOrder}
-                disabled={creatingOrder}
-                className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-2"
-              >
-                {creatingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-                {agreement.order_id ? "View Linked Order" : "Create Order from Agreement"}
-              </button>
+              {agreement.agreement_type !== "location_placement" && (
+                <button
+                  onClick={handleCreateOrder}
+                  disabled={creatingOrder}
+                  className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-2"
+                >
+                  {creatingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+                  {agreement.order_id ? "View Linked Order" : "Create Order from Agreement"}
+                </button>
+              )}
               {agreement.agreement_status === "partially_signed" && (
                 <button
                   onClick={() => setShowApexSign(true)}
                   className="w-full rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 cursor-pointer inline-flex items-center justify-center gap-2"
                 >
-                  <Shield className="h-4 w-4" /> Apex Countersign
+                  <Shield className="h-4 w-4" /> {agreement.agreement_type === "location_placement" ? "Operator Countersign" : "Apex Countersign"}
                 </button>
               )}
               {!isCancelled && !isSigned && agreement.agreement_status !== "draft" && (
