@@ -35,9 +35,10 @@ function CallbackContent() {
 
       // Three paths can land here, depending on how the session was issued:
       // 1. PKCE OAuth (Google/Microsoft): ?code=... -> exchangeCodeForSession
-      // 2. Magic-link / Yahoo flow PKCE: ?code=... -> exchangeCodeForSession
-      // 3. Magic-link / Yahoo flow implicit: #access_token=... -> auto-detected
-      //    by the browser client on instantiation, surfaces via getSession
+      // 2. Magic-link with PKCE config: ?code=... -> exchangeCodeForSession
+      // 3. Magic-link with implicit config (Yahoo flow): #access_token=...
+      //    The browser client uses PKCE by default and IGNORES hash
+      //    fragments, so we have to parse them ourselves and call setSession.
       let session = null;
 
       if (code) {
@@ -45,18 +46,49 @@ function CallbackContent() {
         if (cancelled) return;
         if (!exchangeErr && data.session) {
           session = data.session;
-        } else if (exchangeErr) {
-          // Fall through to the hash/cookie check before declaring failure.
-          // Some flows (Yahoo magic-link) don't have a usable code verifier
-          // on this client.
         }
       }
 
-      // Hash-fragment / cookie path: the browser client auto-detects an
-      // `#access_token=` hash on construction and persists it. Give it a
-      // moment, then poll for a session.
+      // Implicit-flow hash path: parse tokens from window.location.hash
+      // and set the session manually.
+      if (!session && typeof window !== "undefined" && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+        const hashError = hashParams.get("error_description") || hashParams.get("error");
+
+        if (hashError) {
+          setError(hashError);
+          setTimeout(() => {
+            window.location.href = "/login?error=" + encodeURIComponent(hashError);
+          }, 2000);
+          return;
+        }
+
+        if (accessToken && refreshToken) {
+          const { data, error: setErr } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (cancelled) return;
+          if (!setErr && data.session) {
+            session = data.session;
+            // Clear the hash so the tokens don't linger in the URL
+            window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          } else if (setErr) {
+            const msg = setErr.message || "Failed to complete sign-in.";
+            setError(msg);
+            setTimeout(() => {
+              window.location.href = "/login?error=" + encodeURIComponent(msg);
+            }, 2000);
+            return;
+          }
+        }
+      }
+
+      // Cookie fallback: maybe the session was already established server-side.
       if (!session) {
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 5; i++) {
           const { data } = await supabase.auth.getSession();
           if (cancelled) return;
           if (data.session) {
