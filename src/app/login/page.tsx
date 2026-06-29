@@ -203,9 +203,9 @@ function LoginContent() {
         {/* Footer link */}
         <p className="text-center mt-6 text-sm text-black-primary/60">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="text-green-primary hover:underline font-medium">
+          <a href="/signup" className="text-green-primary hover:underline font-medium">
             Create one
-          </Link>
+          </a>
         </p>
       </div>
     </div>
