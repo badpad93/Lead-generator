@@ -10,7 +10,11 @@ export function getRoleLevel(role: SalesRole): RoleLevel {
   switch (role) {
     case "admin": return 1;
     case "director_of_sales": return 2;
+    // Sales Manager and Market Leader share nav-level access (Team page, etc.)
+    // but Sales Manager has restricted lead visibility — see the leads API
+    // for the explicit role-based filter.
     case "market_leader": return 3;
+    case "sales_manager": return 3;
     case "sales": return 4;
     default: return 4;
   }
