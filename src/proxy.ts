@@ -92,16 +92,30 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Email verification gate for protected routes — block unverified users.
-  // email_confirmed_at on auth.users is set by:
-  //  - OAuth providers (Google/Microsoft/Yahoo) on first sign-in
-  //  - Our email/password verify flow (via auth.admin.updateUserById)
-  // So this check naturally lets all OAuth users through.
+  // Email verification gate for protected routes.
+  // We trust OAuth users (Google/Microsoft/Yahoo) automatically — the provider
+  // already verified the address, even if email_confirmed_at isn't set on the
+  // user row (existing Yahoo users from before today's deploy may not have it).
   if (user && isProtected && !user.email_confirmed_at) {
-    const verifyUrl = req.nextUrl.clone();
-    verifyUrl.pathname = "/verify-email-required";
-    verifyUrl.search = "";
-    return NextResponse.redirect(verifyUrl);
+    const appMeta = (user.app_metadata || {}) as Record<string, unknown>;
+    const userMeta = (user.user_metadata || {}) as Record<string, unknown>;
+    const providers: string[] = [];
+    if (typeof appMeta.provider === "string") providers.push(appMeta.provider);
+    if (Array.isArray(appMeta.providers)) {
+      for (const p of appMeta.providers) {
+        if (typeof p === "string") providers.push(p);
+      }
+    }
+    if (typeof userMeta.provider === "string") providers.push(userMeta.provider);
+    const isOAuthUser = providers.some((p) =>
+      ["google", "azure", "yahoo", "microsoft"].includes(p.toLowerCase()),
+    );
+    if (!isOAuthUser) {
+      const verifyUrl = req.nextUrl.clone();
+      verifyUrl.pathname = "/verify-email-required";
+      verifyUrl.search = "";
+      return NextResponse.redirect(verifyUrl);
+    }
   }
 
   return response;
