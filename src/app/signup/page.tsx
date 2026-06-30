@@ -1,44 +1,37 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Truck, Building2, Search, ArrowLeft, Loader2, LogOut, Briefcase } from "lucide-react";
-import { signUpWithGoogle, signUpWithMicrosoft, signUpWithYahoo, storeSignupRole, storeSignupLead, storeRedirectAfterLogin, ensureSignedOut } from "@/lib/auth";
+import { Truck, Building2, Search, Loader2, LogOut, Briefcase } from "lucide-react";
+import {
+  signUpWithGoogle,
+  signUpWithMicrosoft,
+  signUpWithYahoo,
+  storeSignupRole,
+  storeSignupLead,
+  storeRedirectAfterLogin,
+  ensureSignedOut,
+} from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
 
 type Role = "operator" | "locator" | "location_manager" | "employee";
 
-const roles: { value: Role; label: string; icon: typeof Truck; description: string }[] = [
-  {
-    value: "operator",
-    label: "Operator",
-    icon: Truck,
-    description: "I own/operate vending machines and want new locations",
-  },
-  {
-    value: "locator",
-    label: "Locator",
-    icon: Search,
-    description: "I find locations and sell leads on the marketplace",
-  },
-  {
-    value: "location_manager",
-    label: "Location Manager",
-    icon: Building2,
-    description: "I manage a business and want a vending machine placed",
-  },
-  {
-    value: "employee",
-    label: "Employee",
-    icon: Briefcase,
-    description: "I'm joining the team as a sales rep or team member",
-  },
+const roles: { value: Role; label: string; icon: typeof Truck }[] = [
+  { value: "operator", label: "Operator", icon: Truck },
+  { value: "locator", label: "Locator", icon: Search },
+  { value: "location_manager", label: "Location Manager", icon: Building2 },
+  { value: "employee", label: "Employee", icon: Briefcase },
 ];
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={<div className="min-h-[calc(100vh-160px)] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-green-primary" /></div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-[calc(100vh-160px)] flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-green-primary" />
+        </div>
+      }
+    >
       <SignupContent />
     </Suspense>
   );
@@ -48,31 +41,26 @@ function SignupContent() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/dashboard";
   const roleParam = searchParams.get("role");
-  const presetRole = roleParam === "locator" ? "locator" as Role
-    : roleParam === "location_manager" ? "location_manager" as Role
-    : roleParam === "operator" ? "operator" as Role
-    : roleParam === "employee" ? "employee" as Role
-    : null;
-  const [step, setStep] = useState<1 | 2 | 3>(presetRole ? 2 : 1);
-  const [role, setRole] = useState<Role | null>(presetRole);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<"google" | "microsoft" | "yahoo" | "email" | null>(null);
+  const presetRole: Role =
+    roleParam === "locator"
+      ? "locator"
+      : roleParam === "location_manager"
+        ? "location_manager"
+        : roleParam === "employee"
+          ? "employee"
+          : "operator";
+
+  const [role, setRole] = useState<Role>(presetRole);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState<"google" | "microsoft" | "yahoo" | "email" | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [existingEmail, setExistingEmail] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
-
-  const [leadForm, setLeadForm] = useState({
-    business_name: "",
-    first_name: "",
-    last_name: "",
-    email: "",
-    phone: "",
-    address: "",
-    city: "",
-    state: "",
-    zip: "",
-  });
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -94,143 +82,43 @@ function SignupContent() {
       const cleared = await ensureSignedOut();
       if (!cleared) {
         setError("Failed to fully sign out. Please refresh and try again.");
-      } else {
-        setExistingEmail(null);
+        setSigningOut(false);
+        return;
       }
+      setExistingEmail(null);
     } catch {
       setError("Failed to sign out. Please try again.");
-    } finally {
-      setSigningOut(false);
     }
+    setSigningOut(false);
   }
 
-  function handleRoleSelect(selected: Role) {
-    setRole(selected);
-    setError(null);
-  }
-
-  function handleContinueToInfo() {
-    if (!role) return;
-    setStep(2);
-  }
-
-  function handleContinueToAuth() {
-    if (!leadForm.first_name.trim()) { setError("First name is required"); return; }
-    if (!leadForm.last_name.trim()) { setError("Last name is required"); return; }
-    if (!leadForm.email.trim()) { setError("Email is required"); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadForm.email.trim())) { setError("Please enter a valid email address"); return; }
-    if (!leadForm.phone.trim()) { setError("Phone number is required"); return; }
-    if (!leadForm.address.trim()) { setError("Address is required"); return; }
-    if (!leadForm.city.trim()) { setError("City is required"); return; }
-    if (!leadForm.state.trim()) { setError("State is required"); return; }
-    if (!leadForm.zip.trim()) { setError("Zip code is required"); return; }
-    if (role !== "locator" && !leadForm.business_name.trim()) { setError("Business name is required"); return; }
-    setError(null);
-    setStep(3);
-  }
-
+  // Stash whatever we have so the OAuth callback can patch the new profile.
+  // Missing fields are left blank and collected on /complete-profile.
   function storeLead() {
-    const entityType = role === "operator" ? "operator" : role === "locator" ? "locator" : role === "location_manager" ? "location" : "";
-    const businessName = leadForm.business_name.trim() || `${leadForm.first_name.trim()} ${leadForm.last_name.trim()}`;
     storeSignupLead({
-      business_name: businessName,
-      contact_name: `${leadForm.first_name.trim()} ${leadForm.last_name.trim()}`,
-      email: leadForm.email.trim(),
-      phone: leadForm.phone.trim(),
-      address: leadForm.address.trim(),
-      city: leadForm.city.trim(),
-      state: leadForm.state.trim(),
-      zip: leadForm.zip.trim(),
-      entity_type: entityType,
+      business_name: companyName,
+      contact_name: `${firstName} ${lastName}`.trim(),
+      email,
+      phone: "",
+      address: "",
+      city: "",
+      state: "",
+      zip: "",
+      entity_type: role === "operator" ? "operator" : role === "locator" ? "locator" : "location",
       immediate_need: "",
     });
   }
 
-  async function handleGoogleSignup() {
-    if (!role) return;
-    setLoading("google");
-    setError(null);
-
-    try {
-      const cleared = await ensureSignedOut();
-      if (!cleared) {
-        setError("Could not clear existing session. Please refresh and try again.");
-        setLoading(null);
-        return;
-      }
-      setExistingEmail(null);
-
-      storeSignupRole(role);
-      storeLead();
-      storeRedirectAfterLogin(redirectTo);
-      await signUpWithGoogle(role);
-    } catch {
-      setError("Failed to connect to Google. Please try again.");
-      setLoading(null);
-    }
-  }
-
-  async function handleMicrosoftSignup() {
-    if (!role) return;
-    setLoading("microsoft");
-    setError(null);
-
-    try {
-      const cleared = await ensureSignedOut();
-      if (!cleared) {
-        setError("Could not clear existing session. Please refresh and try again.");
-        setLoading(null);
-        return;
-      }
-      setExistingEmail(null);
-
-      storeSignupRole(role);
-      storeLead();
-      storeRedirectAfterLogin(redirectTo);
-      await signUpWithMicrosoft(role);
-    } catch {
-      setError("Failed to connect to Microsoft. Please try again.");
-      setLoading(null);
-    }
-  }
-
-  async function handleYahooSignup() {
-    if (!role) return;
-    setLoading("yahoo");
-    setError(null);
-
-    try {
-      const cleared = await ensureSignedOut();
-      if (!cleared) {
-        setError("Could not clear existing session. Please refresh and try again.");
-        setLoading(null);
-        return;
-      }
-      setExistingEmail(null);
-
-      storeSignupRole(role);
-      storeLead();
-      storeRedirectAfterLogin(redirectTo);
-      signUpWithYahoo(role);
-    } catch {
-      setError("Failed to connect to Yahoo. Please try again.");
-      setLoading(null);
-    }
-  }
-
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
-    if (!role) return;
     setError(null);
 
-    if (!password || password.length < 8) {
-      setError("Password must be at least 8 characters");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
+    if (!firstName.trim()) return setError("First name is required");
+    if (!lastName.trim()) return setError("Last name is required");
+    if (!email.trim()) return setError("Email is required");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError("Please enter a valid email address");
+    if (!password || password.length < 8) return setError("Password must be at least 8 characters");
+    if (password !== confirmPassword) return setError("Passwords do not match");
 
     setLoading("email");
     try {
@@ -246,10 +134,10 @@ function SignupContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          first_name: leadForm.first_name,
-          last_name: leadForm.last_name,
-          company_name: leadForm.business_name,
-          email: leadForm.email,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          company_name: companyName.trim(),
+          email: email.trim().toLowerCase(),
           password,
           role,
         }),
@@ -257,49 +145,108 @@ function SignupContent() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        if (data.code === "ACCOUNT_EXISTS") {
-          setError(data.error || "An account already exists with this email.");
-        } else {
-          setError(data.error || "Failed to create account");
-        }
+        setError(data.error || "Failed to create account");
         setLoading(null);
         return;
       }
 
-      // Save the lead data so it's persisted when the user verifies & logs in
       storeSignupRole(role);
       storeLead();
-      // Also fire the signup-lead API in the background
+      // Best-effort: stash a minimal lead record (no required fields, so failures are OK)
       try {
         await fetch("/api/auth/signup-lead", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...leadForm, role }),
+          body: JSON.stringify({
+            first_name: firstName,
+            last_name: lastName,
+            business_name: companyName,
+            email,
+            role,
+          }),
         });
       } catch {}
 
-      window.location.href = `/check-email?email=${encodeURIComponent(leadForm.email)}`;
+      window.location.href = `/check-email?email=${encodeURIComponent(email.trim().toLowerCase())}`;
     } catch {
       setError("Failed to create account. Please try again.");
       setLoading(null);
     }
   }
 
-  const inputClass = "w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary/30 transition-colors";
+  async function handleGoogleSignup() {
+    setLoading("google");
+    setError(null);
+    try {
+      const cleared = await ensureSignedOut();
+      if (!cleared) {
+        setError("Could not clear existing session. Please refresh and try again.");
+        setLoading(null);
+        return;
+      }
+      setExistingEmail(null);
+      storeSignupRole(role);
+      storeLead();
+      storeRedirectAfterLogin(redirectTo);
+      await signUpWithGoogle(role);
+    } catch {
+      setError("Failed to connect to Google. Please try again.");
+      setLoading(null);
+    }
+  }
+
+  async function handleMicrosoftSignup() {
+    setLoading("microsoft");
+    setError(null);
+    try {
+      const cleared = await ensureSignedOut();
+      if (!cleared) {
+        setError("Could not clear existing session. Please refresh and try again.");
+        setLoading(null);
+        return;
+      }
+      setExistingEmail(null);
+      storeSignupRole(role);
+      storeLead();
+      storeRedirectAfterLogin(redirectTo);
+      await signUpWithMicrosoft(role);
+    } catch {
+      setError("Failed to connect to Microsoft. Please try again.");
+      setLoading(null);
+    }
+  }
+
+  async function handleYahooSignup() {
+    setLoading("yahoo");
+    setError(null);
+    try {
+      const cleared = await ensureSignedOut();
+      if (!cleared) {
+        setError("Could not clear existing session. Please refresh and try again.");
+        setLoading(null);
+        return;
+      }
+      setExistingEmail(null);
+      storeSignupRole(role);
+      storeLead();
+      storeRedirectAfterLogin(redirectTo);
+      signUpWithYahoo(role);
+    } catch {
+      setError("Failed to connect to Yahoo. Please try again.");
+      setLoading(null);
+    }
+  }
+
+  const inputClass =
+    "w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary/30 transition-colors disabled:bg-gray-50";
 
   return (
     <div className="min-h-[calc(100vh-160px)] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">Join Vending Connector</h1>
-          <p className="text-black-primary/60 mt-2">
-            {step === 1
-              ? "Select your account type to get started"
-              : step === 2
-              ? "Tell us about yourself"
-              : "Connect your account to continue"}
-          </p>
+          <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">Create your account</h1>
+          <p className="text-black-primary/60 mt-2">Join Vending Connector in under a minute</p>
         </div>
 
         {/* Existing session banner */}
@@ -312,356 +259,180 @@ function SignupContent() {
               type="button"
               onClick={handleSignOutAndContinue}
               disabled={signingOut}
-              className="inline-flex items-center gap-1.5 shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 border border-amber-300 transition-colors hover:bg-amber-100 cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
             >
-              {signingOut ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <LogOut className="h-3.5 w-3.5" />
-              )}
-              Sign out &amp; continue
+              {signingOut ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
+              Sign out
             </button>
           </div>
         )}
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8">
-          {/* Error alert */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
               {error}
             </div>
           )}
 
-          {/* Step 1: Role Selection */}
-          {step === 1 && (
-            <div className="space-y-4">
-              {roles.map(({ value, label, icon: Icon, description }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => handleRoleSelect(value)}
-                  className={`w-full flex items-start gap-4 p-5 rounded-xl border-2 transition-all duration-200
-                    text-left cursor-pointer group ${
-                      role === value
-                        ? "border-green-primary bg-light-warm/50"
-                        : "border-gray-100 hover:border-green-primary hover:bg-light-warm/50"
+          {/* Role chip selector */}
+          <div className="mb-5">
+            <label className="block text-xs font-medium text-gray-600 mb-2">I&apos;m signing up as</label>
+            <div className="flex flex-wrap gap-2">
+              {roles.map((r) => {
+                const Icon = r.icon;
+                const active = role === r.value;
+                return (
+                  <button
+                    key={r.value}
+                    type="button"
+                    onClick={() => setRole(r.value)}
+                    disabled={!!loading}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 ${
+                      active
+                        ? "bg-green-primary text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                     }`}
-                >
-                  <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center
-                    transition-colors ${
-                      role === value
-                        ? "bg-green-primary/10"
-                        : "bg-light-warm group-hover:bg-green-primary/10"
-                    }`}>
-                    <Icon className="w-6 h-6 text-green-primary" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-black-primary">{label}</p>
-                    <p className="text-sm text-black-primary/60 mt-0.5">{description}</p>
-                  </div>
-                </button>
-              ))}
-
-              <button
-                type="button"
-                onClick={handleContinueToInfo}
-                disabled={!role}
-                className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white
-                  font-semibold rounded-xl transition-colors disabled:opacity-40
-                  disabled:cursor-not-allowed mt-2 cursor-pointer"
-              >
-                Continue
-              </button>
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {r.label}
+                  </button>
+                );
+              })}
             </div>
-          )}
+          </div>
 
-          {/* Step 2: Business & Contact Info */}
-          {step === 2 && (
-            <>
-              <button
-                type="button"
-                onClick={() => { setStep(1); setError(null); }}
-                className="flex items-center gap-1.5 text-sm text-black-primary/60 hover:text-green-primary transition-colors mb-6 cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Change role
-              </button>
-
-              <div className="flex items-center gap-2 mb-6 px-3 py-2 bg-light-warm rounded-lg w-fit">
-                {(() => {
-                  const selected = roles.find((r) => r.value === role);
-                  if (!selected) return null;
-                  const Icon = selected.icon;
-                  return (
-                    <>
-                      <Icon className="w-4 h-4 text-green-primary" />
-                      <span className="text-sm font-medium text-black-primary">{selected.label}</span>
-                    </>
-                  );
-                })()}
+          {/* Email/Password Signup (primary) */}
+          <form onSubmit={handleEmailSignup} className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">First Name <span className="text-red-500">*</span></label>
+                <input value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={!!loading} placeholder="First name" className={inputClass} autoComplete="given-name" />
               </div>
-
-              <div className="space-y-4">
-                {role !== "locator" && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Name <span className="text-red-500">*</span></label>
-                    <input value={leadForm.business_name} onChange={(e) => setLeadForm((f) => ({ ...f, business_name: e.target.value }))} placeholder="Your business or company name" className={inputClass} />
-                  </div>
-                )}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">First Name <span className="text-red-500">*</span></label>
-                    <input value={leadForm.first_name} onChange={(e) => setLeadForm((f) => ({ ...f, first_name: e.target.value }))} placeholder="First name" className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Last Name <span className="text-red-500">*</span></label>
-                    <input value={leadForm.last_name} onChange={(e) => setLeadForm((f) => ({ ...f, last_name: e.target.value }))} placeholder="Last name" className={inputClass} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Email <span className="text-red-500">*</span></label>
-                    <input value={leadForm.email} onChange={(e) => setLeadForm((f) => ({ ...f, email: e.target.value }))} placeholder="you@company.com" type="email" className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Phone <span className="text-red-500">*</span></label>
-                    <input value={leadForm.phone} onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))} placeholder="(555) 555-5555" type="tel" className={inputClass} />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Address <span className="text-red-500">*</span></label>
-                  <input value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} placeholder="Street address" className={inputClass} />
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">City <span className="text-red-500">*</span></label>
-                    <input value={leadForm.city} onChange={(e) => setLeadForm((f) => ({ ...f, city: e.target.value }))} placeholder="City" className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">State <span className="text-red-500">*</span></label>
-                    <input value={leadForm.state} onChange={(e) => setLeadForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} placeholder="e.g. TX" maxLength={2} className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Zip Code <span className="text-red-500">*</span></label>
-                    <input value={leadForm.zip} onChange={(e) => setLeadForm((f) => ({ ...f, zip: e.target.value }))} placeholder="e.g. 75001" maxLength={10} className={inputClass} />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleContinueToAuth}
-                  className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white
-                    font-semibold rounded-xl transition-colors mt-2 cursor-pointer"
-                >
-                  Continue
-                </button>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Last Name <span className="text-red-500">*</span></label>
+                <input value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={!!loading} placeholder="Last name" className={inputClass} autoComplete="family-name" />
               </div>
-            </>
-          )}
+            </div>
 
-          {/* Step 3: OAuth */}
-          {step === 3 && (
-            <>
-              <button
-                type="button"
-                onClick={() => { setStep(2); setError(null); }}
-                className="flex items-center gap-1.5 text-sm text-black-primary/60 hover:text-green-primary
-                  transition-colors mb-6 cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to details
-              </button>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Company <span className="text-gray-400 text-[10px]">(optional)</span></label>
+              <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} disabled={!!loading} placeholder="Your company name" className={inputClass} autoComplete="organization" />
+            </div>
 
-              <div className="flex items-center gap-2 mb-6 px-3 py-2 bg-light-warm rounded-lg w-fit">
-                {(() => {
-                  const selected = roles.find((r) => r.value === role);
-                  if (!selected) return null;
-                  const Icon = selected.icon;
-                  return (
-                    <>
-                      <Icon className="w-4 h-4 text-green-primary" />
-                      <span className="text-sm font-medium text-black-primary">{selected.label}</span>
-                      <span className="text-xs text-black-primary/40 ml-1">· {leadForm.first_name} {leadForm.last_name}{leadForm.business_name ? ` — ${leadForm.business_name}` : ""}</span>
-                    </>
-                  );
-                })()}
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Email <span className="text-red-500">*</span></label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!loading} placeholder="you@example.com" className={inputClass} autoComplete="email" />
+            </div>
 
-              {/* Google OAuth Button */}
-              <button
-                type="button"
-                onClick={handleGoogleSignup}
-                disabled={!!loading}
-                className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700
-                  font-semibold rounded-xl transition-colors disabled:opacity-50
-                  disabled:cursor-not-allowed flex items-center justify-center gap-3
-                  cursor-pointer border border-gray-300 shadow-sm"
-              >
-                {loading === "google" ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Connecting to Google...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                    </svg>
-                    Sign up with Google
-                  </>
-                )}
-              </button>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Password <span className="text-red-500">*</span></label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={!!loading} placeholder="At least 8 characters" className={inputClass} autoComplete="new-password" />
+            </div>
 
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-                <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or</span></div>
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Confirm Password <span className="text-red-500">*</span></label>
+              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={!!loading} placeholder="Re-enter your password" className={inputClass} autoComplete="new-password" />
+            </div>
 
-              {/* Microsoft OAuth Button */}
-              <button
-                type="button"
-                onClick={handleMicrosoftSignup}
-                disabled={!!loading}
-                className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700
-                  font-semibold rounded-xl transition-colors disabled:opacity-50
-                  disabled:cursor-not-allowed flex items-center justify-center gap-3
-                  cursor-pointer border border-gray-300 shadow-sm"
-              >
-                {loading === "microsoft" ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Connecting to Microsoft...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" viewBox="0 0 21 21">
-                      <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
-                      <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
-                      <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
-                      <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
-                    </svg>
-                    Sign up with Microsoft
-                  </>
-                )}
-              </button>
+            <button
+              type="submit"
+              disabled={!!loading}
+              className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {loading === "email" ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Creating account...</>
+              ) : (
+                "Create Account"
+              )}
+            </button>
 
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-                <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or</span></div>
-              </div>
+            <p className="text-xs text-black-primary/40 text-center">
+              We&apos;ll email you a verification link to confirm your address.
+            </p>
+          </form>
 
-              {/* Yahoo OAuth Button */}
-              <button
-                type="button"
-                onClick={handleYahooSignup}
-                disabled={!!loading}
-                className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700
-                  font-semibold rounded-xl transition-colors disabled:opacity-50
-                  disabled:cursor-not-allowed flex items-center justify-center gap-3
-                  cursor-pointer border border-gray-300 shadow-sm"
-              >
-                {loading === "yahoo" ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Connecting to Yahoo...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                      <path d="M13.31 9.693l4.655-9.693h-3.516l-2.889 6.487L8.682 0H5.168l4.61 9.693L9.047 24h3.476l.787-14.307z" fill="#6001D2"/>
-                    </svg>
-                    Sign up with Yahoo
-                  </>
-                )}
-              </button>
+          <p className="mt-4 text-center text-sm text-black-primary/60">
+            Already have an account?{" "}
+            <a href="/login" className="text-green-primary hover:underline font-medium">
+              Sign in
+            </a>
+          </p>
 
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-                <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or sign up with email &amp; password</span></div>
-              </div>
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+            <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or sign up with</span></div>
+          </div>
 
-              {/* Email + Password Signup */}
-              <form onSubmit={handleEmailSignup} className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Password <span className="text-red-500">*</span></label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={!!loading}
-                    placeholder="At least 8 characters"
-                    className={inputClass}
-                    autoComplete="new-password"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Confirm Password <span className="text-red-500">*</span></label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    disabled={!!loading}
-                    placeholder="Re-enter your password"
-                    className={inputClass}
-                    autoComplete="new-password"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={!!loading}
-                  className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {loading === "email" ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Creating account...
-                    </>
-                  ) : (
-                    "Create Account"
-                  )}
-                </button>
-                <p className="text-xs text-black-primary/40 text-center">
-                  We&apos;ll email you a verification link to confirm your address.
-                </p>
-              </form>
-
-              {/* Schedule a Call CTA */}
-              <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
-                <p className="text-sm font-medium text-black-primary mb-1">Want to talk to someone first?</p>
-                <p className="text-xs text-black-primary/50 mb-3">Schedule a free call with a representative who can walk you through the platform.</p>
-                <a
-                  href="https://calendly.com/james-apexaivending/james-padden-apex-ai-vending"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-800 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          {/* OAuth buttons (secondary) */}
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={handleGoogleSignup}
+              disabled={!!loading}
+              className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 cursor-pointer border border-gray-300 shadow-sm"
+            >
+              {loading === "google" ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Connecting to Google...</>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                   </svg>
-                  Schedule a Call
-                </a>
-              </div>
+                  Continue with Google
+                </>
+              )}
+            </button>
 
-              <div className="mt-4 text-center">
-                <p className="text-xs text-black-primary/40">
-                  By signing up, you agree to our Terms of Service and Privacy Policy.
-                </p>
-              </div>
-            </>
-          )}
+            <button
+              type="button"
+              onClick={handleMicrosoftSignup}
+              disabled={!!loading}
+              className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 cursor-pointer border border-gray-300 shadow-sm"
+            >
+              {loading === "microsoft" ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Connecting to Microsoft...</>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" viewBox="0 0 21 21">
+                    <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+                    <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+                    <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+                    <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+                  </svg>
+                  Continue with Microsoft
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleYahooSignup}
+              disabled={!!loading}
+              className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 cursor-pointer border border-gray-300 shadow-sm"
+            >
+              {loading === "yahoo" ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Connecting to Yahoo...</>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path d="M13.31 9.693l4.655-9.693h-3.516l-2.889 6.487L8.682 0H5.168l4.61 9.693L9.047 24h3.476l.787-14.307z" fill="#6001D2"/>
+                  </svg>
+                  Continue with Yahoo
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="mt-6 text-center">
+            <p className="text-xs text-black-primary/40">
+              By signing up, you agree to our Terms of Service and Privacy Policy.
+            </p>
+          </div>
         </div>
-
-        {/* Footer link */}
-        <p className="text-center mt-6 text-sm text-black-primary/60">
-          Already have an account?{" "}
-          <a href="/login" className="text-green-primary hover:underline font-medium">
-            Sign in
-          </a>
-        </p>
       </div>
     </div>
   );
