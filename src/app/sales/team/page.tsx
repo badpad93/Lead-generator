@@ -51,6 +51,7 @@ const FILTERS = [
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
   sales: "Sales Rep",
+  sales_manager: "Sales Manager",
   director_of_sales: "Director of Sales",
   market_leader: "Market Leader",
 };
@@ -90,7 +91,7 @@ export default function TeamPage() {
         .then((r) => r.ok ? r.json() : [])
         .then((users: TeamMember[]) => {
           const me = users.find((u) => u.id === session.user.id);
-          if (!me || (me.role !== "admin" && me.role !== "director_of_sales" && me.role !== "market_leader")) {
+          if (!me || (me.role !== "admin" && me.role !== "director_of_sales" && me.role !== "market_leader" && me.role !== "sales_manager")) {
             router.push("/sales");
           } else {
             setAuthorized(true);

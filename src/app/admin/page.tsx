@@ -381,6 +381,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
       requestor: "Location",
       admin: "Admin",
       sales: "Sales",
+      sales_manager: "Sales Manager",
       director_of_sales: "Dir. of Sales",
       market_leader: "Market Leader",
     };
@@ -418,6 +419,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
           <option value="admin">Admins</option>
           <option value="director_of_sales">Directors of Sales</option>
           <option value="market_leader">Market Leaders</option>
+          <option value="sales_manager">Sales Managers</option>
           <option value="sales">Sales Reps</option>
           <option value="operator">Operators</option>
           <option value="locator">Locators</option>
@@ -688,6 +690,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                   <option value="location_manager">Location Manager</option>
                   <option value="requestor">Location</option>
                   <option value="sales">Sales Rep</option>
+                  <option value="sales_manager">Sales Manager</option>
                   <option value="market_leader">Market Leader</option>
                   <option value="director_of_sales">Director of Sales</option>
                   <option value="admin">Admin</option>

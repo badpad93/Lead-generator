@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
+import { getSalesUser, isElevatedRole, canSeeTeamAssignedLeads } from "@/lib/salesAuth";
 import { createAndSendAgreement } from "@/lib/locationAgreement";
 
 export async function GET(req: NextRequest) {
@@ -13,7 +13,16 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(500);
 
-  if (!isElevatedRole(user.role)) {
+  // Lead visibility by role:
+  //  - admin / director_of_sales / market_leader: all leads, assigned + unassigned
+  //  - sales_manager: all ASSIGNED leads across the team, NO unassigned
+  //  - sales: only their own assigned leads
+  if (isElevatedRole(user.role)) {
+    // no filter — see everything
+  } else if (canSeeTeamAssignedLeads(user.role)) {
+    // sales_manager — assigned leads only, across the whole team
+    query = query.not("assigned_to", "is", null);
+  } else {
     query = query.eq("assigned_to", user.id);
   }
 
