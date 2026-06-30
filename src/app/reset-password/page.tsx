@@ -59,6 +59,10 @@ export default function ResetPasswordPage() {
         return;
       }
       setDone(true);
+      // Recovery session is already active — drop the user into the app.
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 1500);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to reset password");
     }
@@ -82,18 +86,18 @@ export default function ResetPasswordPage() {
             </h1>
             <p className="text-sm text-black-primary/60">
               {done
-                ? "Your password has been changed. You can now sign in with your new password."
+                ? "Your password has been changed. Taking you to your dashboard..."
                 : "Enter a new password for your account."}
             </p>
           </div>
 
           {done ? (
-            <Link
-              href="/login"
-              className="block w-full text-center py-3 px-4 bg-green-primary hover:bg-green-hover text-white font-semibold rounded-xl transition-colors"
-            >
-              Sign In
-            </Link>
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="w-6 h-6 animate-spin text-green-primary" />
+              <Link href="/dashboard" className="text-sm text-green-primary hover:underline">
+                Continue to dashboard
+              </Link>
+            </div>
           ) : !sessionReady ? (
             <div className="text-center py-4">
               <Loader2 className="w-6 h-6 animate-spin text-green-primary mx-auto" />

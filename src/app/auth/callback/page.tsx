@@ -30,6 +30,17 @@ function CallbackContent() {
         return;
       }
 
+      // Password recovery tokens MUST land on /reset-password — never
+      // auto-establish a session here or redirect to /complete-profile.
+      // The /reset-password page handles setSession and the password update.
+      if (typeof window !== "undefined" && window.location.hash) {
+        const recoveryParams = new URLSearchParams(window.location.hash.substring(1));
+        if (recoveryParams.get("type") === "recovery") {
+          window.location.replace(`/reset-password${window.location.hash}`);
+          return;
+        }
+      }
+
       const supabase = createBrowserClient();
       const code = searchParams.get("code");
 
