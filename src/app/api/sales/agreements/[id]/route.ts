@@ -155,6 +155,9 @@ export async function PATCH(
     "include_compensation",
     "include_duration_termination",
     "include_responsibilities",
+    // Apex billing (operator-only)
+    "apex_placement_fee",
+    "apex_placement_fee_notes",
     // Sales rep tracking
     "rep_name",
     "rep_email",

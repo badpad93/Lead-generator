@@ -117,6 +117,10 @@ interface Agreement {
   include_compensation: boolean | null;
   include_duration_termination: boolean | null;
   include_responsibilities: boolean | null;
+  apex_placement_fee: number | null;
+  apex_placement_fee_notes: string | null;
+  apex_placement_invoice_status: string | null;
+  apex_placement_invoice_sent_at: string | null;
   effective_date: string | null;
   governing_state: string | null;
   venue_state: string | null;
@@ -215,6 +219,8 @@ type FormData = {
   include_compensation: boolean;
   include_duration_termination: boolean;
   include_responsibilities: boolean;
+  apex_placement_fee: string;
+  apex_placement_fee_notes: string;
 };
 
 const AGREEMENT_STATUS_COLORS: Record<string, string> = {
@@ -306,6 +312,8 @@ function agreementToForm(ag: Agreement): FormData {
     include_compensation: ag.include_compensation !== false,
     include_duration_termination: ag.include_duration_termination !== false,
     include_responsibilities: ag.include_responsibilities !== false,
+    apex_placement_fee: String(ag.apex_placement_fee ?? 0),
+    apex_placement_fee_notes: ag.apex_placement_fee_notes || "",
   };
 }
 
@@ -327,6 +335,7 @@ function StandaloneAgreementEditor() {
   const [apexSigning, setApexSigning] = useState(false);
   const [apexSignForm, setApexSignForm] = useState({ signer_name: "", signer_title: "", signature_data: "" });
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [sendingApexInvoice, setSendingApexInvoice] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
@@ -469,6 +478,8 @@ function StandaloneAgreementEditor() {
       include_compensation: form.include_compensation,
       include_duration_termination: form.include_duration_termination,
       include_responsibilities: form.include_responsibilities,
+      apex_placement_fee: Number(form.apex_placement_fee) || 0,
+      apex_placement_fee_notes: form.apex_placement_fee_notes || null,
     };
 
     const res = await fetch(`/api/sales/agreements/${agreement.id}`, {
@@ -654,6 +665,25 @@ function StandaloneAgreementEditor() {
       showToast(err.error || "Failed to create order", "error");
     }
     setCreatingOrder(false);
+  }
+
+  async function handleSendApexPlacementInvoice() {
+    if (!agreement) return;
+    if (!confirm(`Send the Apex Placement Fee invoice ($${Number(form?.apex_placement_fee || 0).toFixed(2)}) to ${form?.placement_operator_email || "the operator"}?`)) return;
+
+    setSendingApexInvoice(true);
+    const res = await fetch(`/api/sales/agreements/${agreement.id}/send-apex-placement-invoice`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      showToast("Apex Placement invoice sent to operator");
+      await fetchAgreement();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.error || "Failed to send Apex Placement invoice", "error");
+    }
+    setSendingApexInvoice(false);
   }
 
   if (loading) {
@@ -1196,6 +1226,26 @@ function StandaloneAgreementEditor() {
                   <Shield className="h-4 w-4" /> {agreement.agreement_type === "location_placement" ? "Operator Countersign" : "Apex Countersign"}
                 </button>
               )}
+              {agreement.agreement_type === "location_placement" &&
+                Number(form?.apex_placement_fee || 0) > 0 &&
+                agreement.apex_placement_invoice_status !== "sent" &&
+                agreement.apex_placement_invoice_status !== "paid" && (
+                  <button
+                    onClick={handleSendApexPlacementInvoice}
+                    disabled={sendingApexInvoice}
+                    className="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-700 cursor-pointer inline-flex items-center justify-center gap-2 disabled:opacity-50"
+                    title="Bill the operator for the Apex Placement Fee"
+                  >
+                    {sendingApexInvoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4" />}
+                    Send Apex Placement Invoice
+                  </button>
+                )}
+              {agreement.agreement_type === "location_placement" &&
+                agreement.apex_placement_invoice_status === "sent" && (
+                  <div className="w-full rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 text-center">
+                    Apex placement invoice sent{agreement.apex_placement_invoice_sent_at ? ` on ${new Date(agreement.apex_placement_invoice_sent_at).toLocaleDateString()}` : ""}
+                  </div>
+                )}
               {!isCancelled && !isSigned && agreement.agreement_status !== "draft" && (
                 <button
                   onClick={handleCancel}
@@ -1424,6 +1474,50 @@ function LocationPlacementSections({
             Standard responsibility language is included. The Operator handles installation, maintenance, stocking, and removal; the Location provides electrical access and reasonable host cooperation.
           </p>
         )}
+      </div>
+
+      {/* Apex Billing (operator-only — never shown to the location) */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-5">
+        <h3 className="text-sm font-semibold text-amber-900 flex items-center gap-2 mb-1">
+          <DollarSign className="h-4 w-4 text-amber-600" /> Apex Billing — Operator Only
+        </h3>
+        <p className="text-xs text-amber-800/70 mb-4">
+          This is what Apex charges the operator for placing this location. It&apos;s hidden from the location&apos;s view of the agreement and only shown to the operator.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <CurrencyField label="Apex Placement Fee" value={form.apex_placement_fee} onChange={(v) => updateField("apex_placement_fee", v)} disabled={isReadOnly} />
+          <div className="flex items-center">
+            <ReadOnlyField label="Status" value={
+              form.location_business_name && (
+                {
+                  not_sent: "Not Invoiced",
+                  sent: "Invoice Sent",
+                  paid: "Paid",
+                  void: "Void",
+                }[(form as unknown as { apex_placement_invoice_status?: string }).apex_placement_invoice_status || "not_sent"]
+              ) || "Not Invoiced"
+            } />
+          </div>
+        </div>
+        <div className="mt-4">
+          <TextareaField label="Billing Notes (operator only)" value={form.apex_placement_fee_notes} onChange={(v) => updateField("apex_placement_fee_notes", v)} disabled={isReadOnly} rows={2} hint="Internal/operator notes about the billing — never shown to the location." />
+        </div>
+        <div className="mt-4 flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+          <input
+            id="auto-invoice-placement"
+            type="checkbox"
+            checked={form.auto_send_invoice_on_signing}
+            onChange={(e) => updateBool("auto_send_invoice_on_signing", e.target.checked)}
+            disabled={isReadOnly}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
+          />
+          <label htmlFor="auto-invoice-placement" className="flex-1 cursor-pointer">
+            <span className="block text-sm font-medium text-gray-900">Auto-invoice operator on signing</span>
+            <span className="block text-xs text-gray-500 mt-0.5">
+              When both parties have signed, automatically invoice the operator for the Apex Placement Fee.
+            </span>
+          </label>
+        </div>
       </div>
 
       {/* Sales Rep */}
