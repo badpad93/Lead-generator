@@ -141,6 +141,16 @@ export async function GET(req: NextRequest) {
         `${APP_URL}/login?error=${encodeURIComponent(createErr.message || "Failed to create account")}`
       );
     }
+  } else if (!existingUser.email_confirmed_at) {
+    // Existing Yahoo user with unconfirmed email — Yahoo verified the email
+    // address for us, so confirm it now to satisfy the verification gate.
+    try {
+      await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+        email_confirm: true,
+      });
+    } catch {
+      // Non-fatal
+    }
   }
 
   // Generate a magic link to create a valid Supabase session
