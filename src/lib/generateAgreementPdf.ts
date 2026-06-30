@@ -642,12 +642,23 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
       .order("initialed_at", { ascending: true }),
   ]);
 
+  const isLocationPlacement = ag.agreement_type === "location_placement";
+
   // Generate the signed PDF
-  const pdfBytes = await generatePurchaseAgreementPdf(ag, signatures || [], initials || []);
+  let pdfBytes: Uint8Array;
+  if (isLocationPlacement) {
+    const { generateLocationPlacementPdf } = await import("./generateLocationPlacementPdf");
+    pdfBytes = await generateLocationPlacementPdf(ag, signatures || [], initials || []);
+  } else {
+    pdfBytes = await generatePurchaseAgreementPdf(ag, signatures || [], initials || []);
+  }
   const pdfBuffer = Buffer.from(pdfBytes);
 
-  const companySlug = (ag.operator_company_name || "operator").replace(/[^a-zA-Z0-9]/g, "_");
-  const fileName = `Signed-Agreement-${companySlug}-${agreementId.slice(0, 8)}.pdf`;
+  const companySlug = isLocationPlacement
+    ? (ag.location_business_name || "location").replace(/[^a-zA-Z0-9]/g, "_")
+    : (ag.operator_company_name || "operator").replace(/[^a-zA-Z0-9]/g, "_");
+  const docKind = isLocationPlacement ? "Location-Placement" : "Agreement";
+  const fileName = `Signed-${docKind}-${companySlug}-${agreementId.slice(0, 8)}.pdf`;
   const storagePath = `agreements/${agreementId}/${fileName}`;
 
   // Upload to Supabase storage
@@ -682,7 +693,9 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
         account_id: ag.account_id,
         order_id: ag.order_id || null,
         file_url: publicUrl || null,
-        file_name: `Purchase Agreement — ${ag.operator_company_name || "Signed"}`,
+        file_name: isLocationPlacement
+          ? `Location Placement Agreement — ${ag.location_business_name || "Signed"}`
+          : `Purchase Agreement — ${ag.operator_company_name || "Signed"}`,
         type: "contract",
       });
     } catch {
@@ -690,22 +703,80 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
     }
   }
 
-  // Email the signed PDF to operator + james@apexaivending.com
+  // Email the signed PDF
+  // - Purchase agreement: operator + james@
+  // - Location placement: operator + james@ + rep (all three get the signed copy)
   if (process.env.RESEND_API_KEY) {
     try {
       const recipients: string[] = [];
-      if (ag.operator_email) recipients.push(ag.operator_email);
-      if (!recipients.includes("james@apexaivending.com")) {
-        recipients.push("james@apexaivending.com");
+      if (isLocationPlacement) {
+        if (ag.placement_operator_email) recipients.push(ag.placement_operator_email);
+        if (!recipients.includes("james@apexaivending.com")) {
+          recipients.push("james@apexaivending.com");
+        }
+        if (ag.rep_email && !recipients.includes(ag.rep_email)) {
+          recipients.push(ag.rep_email);
+        }
+      } else {
+        if (ag.operator_email) recipients.push(ag.operator_email);
+        if (!recipients.includes("james@apexaivending.com")) {
+          recipients.push("james@apexaivending.com");
+        }
       }
 
       const totalDue = Number(ag.total_due_prior_to_procurement || 0);
+      const subject = isLocationPlacement
+        ? `Fully Executed Location Placement Agreement — ${ag.location_business_name || ""}`
+        : `Fully Executed Agreement — ${ag.operator_company_name || "Purchase Agreement"}`;
 
-      await getResend().emails.send({
-        from: FROM_EMAIL,
-        to: recipients,
-        subject: `Fully Executed Agreement — ${ag.operator_company_name || "Purchase Agreement"}`,
-        html: `
+      const html = isLocationPlacement ? `
+<div style="max-width:600px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="text-align:center;padding:24px 0;border-bottom:2px solid #16a34a;">
+    <span style="font-size:22px;font-weight:700;color:#16a34a;">${ag.placement_operator_company || "Vending Operator"}</span>
+  </div>
+  <div style="padding:24px 0;">
+    <h2 style="color:#111;font-size:18px;margin-bottom:16px;">Location Placement Agreement Fully Executed</h2>
+    <p style="color:#374151;font-size:14px;line-height:1.6;">
+      The Location Placement Agreement between <strong>${ag.placement_operator_company || "Operator"}</strong> and
+      <strong>${ag.location_business_name || "Location"}</strong> has been signed by both parties.
+    </p>
+    <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+      <tr>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Location</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#111;font-size:13px;font-weight:600;">${ag.location_business_name || "—"}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Operator</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#111;font-size:13px;">${ag.placement_operator_company || "—"}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Machines</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#111;font-size:13px;">${ag.placement_machine_count || 0}x ${ag.placement_machine_type || "VendEra AI Machine"}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Term</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#111;font-size:13px;">${ag.placement_term_months || 0} months</td>
+      </tr>
+      ${ag.commission_type === "revenue_share" ? `<tr>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Compensation</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#111;font-size:13px;">${Number(ag.commission_pct || 0).toFixed(1)}% revenue share</td>
+      </tr>` : ""}
+      ${ag.commission_type === "flat_monthly" ? `<tr>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Compensation</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#111;font-size:13px;">$${Number(ag.commission_monthly_fee || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}/month</td>
+      </tr>` : ""}
+      <tr>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Status</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;color:#16a34a;font-size:13px;font-weight:600;">Fully Executed</td>
+      </tr>
+    </table>
+    <p style="color:#374151;font-size:14px;line-height:1.6;">
+      The fully signed agreement is attached to this email as a PDF for your records.
+    </p>
+  </div>
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+  <p style="color:#9ca3af;font-size:11px;text-align:center;">${ag.placement_operator_company || "Vending Operator"}</p>
+</div>` : `
 <div style="max-width:600px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <div style="text-align:center;padding:24px 0;border-bottom:2px solid #16a34a;">
     <span style="font-size:22px;font-weight:700;color:#16a34a;">Apex AI Vending</span>
@@ -744,8 +815,13 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
   </div>
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
   <p style="color:#9ca3af;font-size:11px;text-align:center;">Apex AI Vending LLC &bull; vendingconnector.com</p>
-</div>
-        `.trim(),
+</div>`;
+
+      await getResend().emails.send({
+        from: FROM_EMAIL,
+        to: recipients,
+        subject,
+        html: html.trim(),
         attachments: [
           {
             filename: fileName,
@@ -759,14 +835,17 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
   }
 
   // Log activity
+  const recipientSummary = isLocationPlacement
+    ? `${ag.placement_operator_email || "operator"}, james@apexaivending.com${ag.rep_email ? `, ${ag.rep_email}` : ""}`
+    : `${ag.operator_email || "operator"} and james@apexaivending.com`;
   await supabaseAdmin.from("agreement_activity_log").insert({
     agreement_id: agreementId,
     activity_type: "signed_pdf_sent",
-    description: `Fully signed PDF generated, emailed to ${ag.operator_email || "operator"} and james@apexaivending.com, and saved to account documents.`,
+    description: `Fully signed PDF generated, emailed to ${recipientSummary}, and saved to account documents.`,
   });
 
-  // Auto-create order and send invoice in a separate email if enabled
-  if (ag.auto_send_invoice_on_signing && !ag.order_id) {
+  // Auto-create order + invoice only for purchase agreements
+  if (!isLocationPlacement && ag.auto_send_invoice_on_signing && !ag.order_id) {
     try {
       await autoCreateOrderAndSendInvoice(ag);
     } catch (e) {

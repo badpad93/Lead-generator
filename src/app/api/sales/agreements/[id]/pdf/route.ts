@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
 import { generatePurchaseAgreementPdf } from "@/lib/generateAgreementPdf";
+import { generateLocationPlacementPdf } from "@/lib/generateLocationPlacementPdf";
 
 /* ------------------------------------------------------------------ */
 /*  GET — Generate and return the purchase agreement as PDF           */
@@ -38,8 +39,15 @@ export async function GET(
   ]);
 
   try {
-    const pdfBytes = await generatePurchaseAgreementPdf(ag, signatures || [], initials || []);
-    const fileName = `Purchase-Agreement-${(ag.operator_company_name || "draft").replace(/[^a-zA-Z0-9]/g, "_")}-${id.slice(0, 8)}.pdf`;
+    const isLocationPlacement = ag.agreement_type === "location_placement";
+    const pdfBytes = isLocationPlacement
+      ? await generateLocationPlacementPdf(ag, signatures || [], initials || [])
+      : await generatePurchaseAgreementPdf(ag, signatures || [], initials || []);
+    const namePart = isLocationPlacement
+      ? (ag.location_business_name || "draft")
+      : (ag.operator_company_name || "draft");
+    const docKind = isLocationPlacement ? "Location-Placement-Agreement" : "Purchase-Agreement";
+    const fileName = `${docKind}-${namePart.replace(/[^a-zA-Z0-9]/g, "_")}-${id.slice(0, 8)}.pdf`;
 
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,

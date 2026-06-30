@@ -27,6 +27,7 @@ import {
   Activity,
   Ban,
   ClipboardList,
+  UserPlus,
 } from "lucide-react";
 
 interface AgreementActivity {
@@ -85,6 +86,37 @@ interface Agreement {
   auto_send_invoice_on_signing: boolean;
   location_services_deposit_only: boolean;
   location_services_deposit_amount: number;
+  // Location Placement Agreement fields
+  location_business_name: string | null;
+  location_contact_name: string | null;
+  location_contact_email: string | null;
+  location_contact_phone: string | null;
+  location_contact_title: string | null;
+  location_address: string | null;
+  location_city: string | null;
+  location_state: string | null;
+  location_zip: string | null;
+  placement_machine_count: number | null;
+  placement_machine_type: string | null;
+  placement_installation_date: string | null;
+  placement_term_months: number | null;
+  placement_exclusivity: boolean | null;
+  placement_notes: string | null;
+  commission_type: string | null;
+  commission_pct: number | null;
+  commission_monthly_fee: number | null;
+  commission_payout_schedule: string | null;
+  commission_notes: string | null;
+  placement_operator_company: string | null;
+  placement_operator_contact: string | null;
+  placement_operator_email: string | null;
+  placement_operator_phone: string | null;
+  rep_name: string | null;
+  rep_email: string | null;
+  include_placement_terms: boolean | null;
+  include_compensation: boolean | null;
+  include_duration_termination: boolean | null;
+  include_responsibilities: boolean | null;
   effective_date: string | null;
   governing_state: string | null;
   venue_state: string | null;
@@ -152,6 +184,37 @@ type FormData = {
   auto_send_invoice_on_signing: boolean;
   location_services_deposit_only: boolean;
   location_services_deposit_amount: string;
+  // Location Placement Agreement fields
+  location_business_name: string;
+  location_contact_name: string;
+  location_contact_email: string;
+  location_contact_phone: string;
+  location_contact_title: string;
+  location_address: string;
+  location_city: string;
+  location_state: string;
+  location_zip: string;
+  placement_machine_count: string;
+  placement_machine_type: string;
+  placement_installation_date: string;
+  placement_term_months: string;
+  placement_exclusivity: boolean;
+  placement_notes: string;
+  commission_type: string;
+  commission_pct: string;
+  commission_monthly_fee: string;
+  commission_payout_schedule: string;
+  commission_notes: string;
+  placement_operator_company: string;
+  placement_operator_contact: string;
+  placement_operator_email: string;
+  placement_operator_phone: string;
+  rep_name: string;
+  rep_email: string;
+  include_placement_terms: boolean;
+  include_compensation: boolean;
+  include_duration_termination: boolean;
+  include_responsibilities: boolean;
 };
 
 const AGREEMENT_STATUS_COLORS: Record<string, string> = {
@@ -212,6 +275,37 @@ function agreementToForm(ag: Agreement): FormData {
     auto_send_invoice_on_signing: ag.auto_send_invoice_on_signing === true,
     location_services_deposit_only: ag.location_services_deposit_only === true,
     location_services_deposit_amount: String(ag.location_services_deposit_amount ?? 100),
+    // Location Placement Agreement
+    location_business_name: ag.location_business_name || "",
+    location_contact_name: ag.location_contact_name || "",
+    location_contact_email: ag.location_contact_email || "",
+    location_contact_phone: ag.location_contact_phone || "",
+    location_contact_title: ag.location_contact_title || "",
+    location_address: ag.location_address || "",
+    location_city: ag.location_city || "",
+    location_state: ag.location_state || "",
+    location_zip: ag.location_zip || "",
+    placement_machine_count: String(ag.placement_machine_count ?? 1),
+    placement_machine_type: ag.placement_machine_type || "VendEra AI Machine",
+    placement_installation_date: ag.placement_installation_date || "",
+    placement_term_months: String(ag.placement_term_months ?? 24),
+    placement_exclusivity: ag.placement_exclusivity !== false,
+    placement_notes: ag.placement_notes || "",
+    commission_type: ag.commission_type || "revenue_share",
+    commission_pct: String(ag.commission_pct ?? 10),
+    commission_monthly_fee: String(ag.commission_monthly_fee ?? 0),
+    commission_payout_schedule: ag.commission_payout_schedule || "monthly",
+    commission_notes: ag.commission_notes || "",
+    placement_operator_company: ag.placement_operator_company || "",
+    placement_operator_contact: ag.placement_operator_contact || "",
+    placement_operator_email: ag.placement_operator_email || "",
+    placement_operator_phone: ag.placement_operator_phone || "",
+    rep_name: ag.rep_name || "",
+    rep_email: ag.rep_email || "",
+    include_placement_terms: ag.include_placement_terms !== false,
+    include_compensation: ag.include_compensation !== false,
+    include_duration_termination: ag.include_duration_termination !== false,
+    include_responsibilities: ag.include_responsibilities !== false,
   };
 }
 
@@ -344,6 +438,37 @@ function StandaloneAgreementEditor() {
       auto_send_invoice_on_signing: form.auto_send_invoice_on_signing,
       location_services_deposit_only: form.location_services_deposit_only,
       location_services_deposit_amount: Number(form.location_services_deposit_amount) || 0,
+      // Location Placement Agreement
+      location_business_name: form.location_business_name || null,
+      location_contact_name: form.location_contact_name || null,
+      location_contact_email: form.location_contact_email || null,
+      location_contact_phone: form.location_contact_phone || null,
+      location_contact_title: form.location_contact_title || null,
+      location_address: form.location_address || null,
+      location_city: form.location_city || null,
+      location_state: form.location_state || null,
+      location_zip: form.location_zip || null,
+      placement_machine_count: Number(form.placement_machine_count) || 0,
+      placement_machine_type: form.placement_machine_type || null,
+      placement_installation_date: form.placement_installation_date || null,
+      placement_term_months: Number(form.placement_term_months) || 0,
+      placement_exclusivity: form.placement_exclusivity,
+      placement_notes: form.placement_notes || null,
+      commission_type: form.commission_type || null,
+      commission_pct: Number(form.commission_pct) || 0,
+      commission_monthly_fee: Number(form.commission_monthly_fee) || 0,
+      commission_payout_schedule: form.commission_payout_schedule || null,
+      commission_notes: form.commission_notes || null,
+      placement_operator_company: form.placement_operator_company || null,
+      placement_operator_contact: form.placement_operator_contact || null,
+      placement_operator_email: form.placement_operator_email || null,
+      placement_operator_phone: form.placement_operator_phone || null,
+      rep_name: form.rep_name || null,
+      rep_email: form.rep_email || null,
+      include_placement_terms: form.include_placement_terms,
+      include_compensation: form.include_compensation,
+      include_duration_termination: form.include_duration_termination,
+      include_responsibilities: form.include_responsibilities,
     };
 
     const res = await fetch(`/api/sales/agreements/${agreement.id}`, {
@@ -367,17 +492,38 @@ function StandaloneAgreementEditor() {
   async function handleSend() {
     if (!agreement) return;
 
-    if (!form?.operator_email?.trim()) {
-      showToast("Operator email is required to send", "error");
-      return;
-    }
-    if (!form?.operator_company_name?.trim()) {
-      showToast("Operator company name is required to send", "error");
-      return;
-    }
-    if (!form?.operator_legal_name?.trim()) {
-      showToast("Operator legal name is required to send", "error");
-      return;
+    const isLocationPlacement = agreement.agreement_type === "location_placement";
+
+    if (isLocationPlacement) {
+      if (!form?.location_contact_email?.trim()) {
+        showToast("Location contact email is required to send", "error");
+        return;
+      }
+      if (!form?.location_business_name?.trim()) {
+        showToast("Location business name is required to send", "error");
+        return;
+      }
+      if (!form?.location_contact_name?.trim()) {
+        showToast("Location contact name is required to send", "error");
+        return;
+      }
+      if (!form?.placement_operator_email?.trim()) {
+        showToast("Operator email is required (gets the signed copy)", "error");
+        return;
+      }
+    } else {
+      if (!form?.operator_email?.trim()) {
+        showToast("Operator email is required to send", "error");
+        return;
+      }
+      if (!form?.operator_company_name?.trim()) {
+        showToast("Operator company name is required to send", "error");
+        return;
+      }
+      if (!form?.operator_legal_name?.trim()) {
+        showToast("Operator legal name is required to send", "error");
+        return;
+      }
     }
 
     if (dirty) {
@@ -385,7 +531,10 @@ function StandaloneAgreementEditor() {
       return;
     }
 
-    if (!confirm("Send this agreement to the operator? They will receive an email with a signing link.")) return;
+    const confirmMsg = isLocationPlacement
+      ? `Send this agreement to ${form?.location_contact_email}? They will receive an email with a signing link.`
+      : "Send this agreement to the operator? They will receive an email with a signing link.";
+    if (!confirm(confirmMsg)) return;
 
     setSending(true);
     const res = await fetch(`/api/sales/agreements/${agreement.id}/send`, {
@@ -394,7 +543,7 @@ function StandaloneAgreementEditor() {
     });
 
     if (res.ok) {
-      showToast("Agreement sent to operator");
+      showToast(isLocationPlacement ? "Agreement sent to location" : "Agreement sent to operator");
       await fetchAgreement();
     } else {
       const err = await res.json().catch(() => ({ error: "Send failed" }));
@@ -565,8 +714,14 @@ function StandaloneAgreementEditor() {
           <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Apex Countersignature</h2>
-                <p className="text-xs text-gray-500">Sign on behalf of Apex AI Vending LLC</p>
+                <h2 className="text-lg font-bold text-gray-900">
+                  {agreement.agreement_type === "location_placement" ? "Operator Countersignature" : "Apex Countersignature"}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  {agreement.agreement_type === "location_placement"
+                    ? `Sign on behalf of ${agreement.placement_operator_company || "the operator"}`
+                    : "Sign on behalf of Apex AI Vending LLC"}
+                </p>
               </div>
               <button onClick={() => setShowApexSign(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 cursor-pointer">
                 <X className="h-5 w-5" />
@@ -613,7 +768,9 @@ function StandaloneAgreementEditor() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">Purchase Agreement</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {agreement.agreement_type === "location_placement" ? "Location Placement Agreement" : "Purchase Agreement"}
+            </h1>
             <span
               className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${
                 AGREEMENT_STATUS_COLORS[agreement.agreement_status] || AGREEMENT_STATUS_COLORS.draft
@@ -700,6 +857,17 @@ function StandaloneAgreementEditor() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {agreement.agreement_type === "location_placement" && (
+            <LocationPlacementSections
+              form={form}
+              updateField={updateField}
+              updateBool={updateBool}
+              isReadOnly={isReadOnly}
+            />
+          )}
+
+          {agreement.agreement_type !== "location_placement" && (
+          <>
           {/* Operator Information */}
           <div className="rounded-xl border border-gray-200 bg-white p-5">
             <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
@@ -858,6 +1026,8 @@ function StandaloneAgreementEditor() {
               </label>
             </div>
           </div>
+          </>
+          )}
 
           {/* Agreement Settings */}
           <div className="rounded-xl border border-gray-200 bg-white p-5">
@@ -931,7 +1101,8 @@ function StandaloneAgreementEditor() {
             </div>
           </div>
 
-          {/* Preview */}
+          {/* Preview — purchase agreements only (location placement uses the PDF preview) */}
+          {agreement.agreement_type !== "location_placement" && (
           <div className="rounded-xl border border-gray-200 bg-white p-5">
             <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-3">
               <Eye className="h-4 w-4 text-gray-400" /> Agreement Preview
@@ -944,6 +1115,7 @@ function StandaloneAgreementEditor() {
               <Eye className="h-4 w-4" /> Preview Full Agreement
             </button>
           </div>
+          )}
 
           {/* Signing Link */}
           {agreement.sign_token && ["sent", "viewed", "partially_signed"].includes(agreement.agreement_status) && (
@@ -951,7 +1123,11 @@ function StandaloneAgreementEditor() {
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-3">
                 <Send className="h-4 w-4 text-gray-400" /> Signing Link
               </h3>
-              <p className="text-xs text-gray-500 mb-2">Share this link with the operator to sign:</p>
+              <p className="text-xs text-gray-500 mb-2">
+                {agreement.agreement_type === "location_placement"
+                  ? "Share this link with the location to sign:"
+                  : "Share this link with the operator to sign:"}
+              </p>
               <div className="flex gap-2">
                 <input
                   readOnly
@@ -993,7 +1169,7 @@ function StandaloneAgreementEditor() {
                   title={dirty ? "Save changes first" : ""}
                 >
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Send to Operator
+                  {agreement.agreement_type === "location_placement" ? "Send to Location" : "Send to Operator"}
                 </button>
               )}
               <button
@@ -1002,20 +1178,22 @@ function StandaloneAgreementEditor() {
               >
                 <Download className="h-4 w-4" /> Download PDF
               </button>
-              <button
-                onClick={handleCreateOrder}
-                disabled={creatingOrder}
-                className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-2"
-              >
-                {creatingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-                {agreement.order_id ? "View Linked Order" : "Create Order from Agreement"}
-              </button>
+              {agreement.agreement_type !== "location_placement" && (
+                <button
+                  onClick={handleCreateOrder}
+                  disabled={creatingOrder}
+                  className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-2"
+                >
+                  {creatingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+                  {agreement.order_id ? "View Linked Order" : "Create Order from Agreement"}
+                </button>
+              )}
               {agreement.agreement_status === "partially_signed" && (
                 <button
                   onClick={() => setShowApexSign(true)}
                   className="w-full rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 cursor-pointer inline-flex items-center justify-center gap-2"
                 >
-                  <Shield className="h-4 w-4" /> Apex Countersign
+                  <Shield className="h-4 w-4" /> {agreement.agreement_type === "location_placement" ? "Operator Countersign" : "Apex Countersign"}
                 </button>
               )}
               {!isCancelled && !isSigned && agreement.agreement_status !== "draft" && (
@@ -1079,6 +1257,191 @@ export default function StandaloneAgreementPage() {
 // ===========================================================================
 // Sub-components
 // ===========================================================================
+
+function LocationPlacementSections({
+  form,
+  updateField,
+  updateBool,
+  isReadOnly,
+}: {
+  form: FormData;
+  updateField: (field: keyof FormData, value: string) => void;
+  updateBool: (field: keyof FormData, value: boolean) => void;
+  isReadOnly: boolean;
+}) {
+  return (
+    <>
+      {/* Location Contact (Host) */}
+      <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
+          <MapPin className="h-4 w-4 text-gray-400" /> Location / Host Information
+        </h3>
+        <p className="text-xs text-gray-500 mb-4">
+          The location is the recipient — this agreement will be sent to <strong>{form.location_contact_email || "their email"}</strong> for signature.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <InputField label="Business / Location Name" value={form.location_business_name} onChange={(v) => updateField("location_business_name", v)} disabled={isReadOnly} required />
+          <InputField label="Contact Name" value={form.location_contact_name} onChange={(v) => updateField("location_contact_name", v)} disabled={isReadOnly} required />
+          <InputField label="Contact Email" type="email" value={form.location_contact_email} onChange={(v) => updateField("location_contact_email", v)} disabled={isReadOnly} required />
+          <InputField label="Contact Phone" type="tel" value={form.location_contact_phone} onChange={(v) => updateField("location_contact_phone", v)} disabled={isReadOnly} />
+          <InputField label="Title / Role" value={form.location_contact_title} onChange={(v) => updateField("location_contact_title", v)} disabled={isReadOnly} />
+          <InputField label="Address" value={form.location_address} onChange={(v) => updateField("location_address", v)} disabled={isReadOnly} />
+          <InputField label="City" value={form.location_city} onChange={(v) => updateField("location_city", v)} disabled={isReadOnly} />
+          <div className="grid grid-cols-2 gap-2">
+            <InputField label="State" value={form.location_state} onChange={(v) => updateField("location_state", v)} disabled={isReadOnly} />
+            <InputField label="ZIP" value={form.location_zip} onChange={(v) => updateField("location_zip", v)} disabled={isReadOnly} />
+          </div>
+        </div>
+      </div>
+
+      {/* Operator (the vending company placing the machine) */}
+      <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
+          <Building2 className="h-4 w-4 text-gray-400" /> Operator (Vending Company)
+        </h3>
+        <p className="text-xs text-gray-500 mb-4">
+          The vending operator placing the machine — a fully-signed copy is sent to their email.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <InputField label="Operator Company Name" value={form.placement_operator_company} onChange={(v) => updateField("placement_operator_company", v)} disabled={isReadOnly} required />
+          <InputField label="Contact Name" value={form.placement_operator_contact} onChange={(v) => updateField("placement_operator_contact", v)} disabled={isReadOnly} />
+          <InputField label="Email" type="email" value={form.placement_operator_email} onChange={(v) => updateField("placement_operator_email", v)} disabled={isReadOnly} required />
+          <InputField label="Phone" type="tel" value={form.placement_operator_phone} onChange={(v) => updateField("placement_operator_phone", v)} disabled={isReadOnly} />
+        </div>
+      </div>
+
+      {/* Placement Terms */}
+      <div className={`rounded-xl border bg-white p-5 ${form.include_placement_terms ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+            <Package className="h-4 w-4 text-gray-400" /> Placement Terms
+          </h3>
+          <SectionToggle included={form.include_placement_terms} onChange={(v) => updateBool("include_placement_terms", v)} disabled={isReadOnly} />
+        </div>
+        {form.include_placement_terms && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <InputField label="Machine Count" type="number" value={form.placement_machine_count} onChange={(v) => updateField("placement_machine_count", v)} disabled={isReadOnly} min="1" />
+              <InputField label="Machine Type" value={form.placement_machine_type} onChange={(v) => updateField("placement_machine_type", v)} disabled={isReadOnly} />
+              <InputField label="Target Installation Date" type="date" value={form.placement_installation_date} onChange={(v) => updateField("placement_installation_date", v)} disabled={isReadOnly} />
+              <InputField label="Term Length (months)" type="number" value={form.placement_term_months} onChange={(v) => updateField("placement_term_months", v)} disabled={isReadOnly} min="0" />
+            </div>
+            <div className="mt-4 flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+              <input
+                id="placement-exclusivity"
+                type="checkbox"
+                checked={form.placement_exclusivity}
+                onChange={(e) => updateBool("placement_exclusivity", e.target.checked)}
+                disabled={isReadOnly}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
+              />
+              <label htmlFor="placement-exclusivity" className="flex-1 cursor-pointer">
+                <span className="block text-sm font-medium text-gray-900">Exclusive Placement</span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  Location agrees to host this operator exclusively for the term.
+                </span>
+              </label>
+            </div>
+            <div className="mt-4">
+              <TextareaField label="Placement Notes" value={form.placement_notes} onChange={(v) => updateField("placement_notes", v)} disabled={isReadOnly} rows={2} />
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Compensation */}
+      <div className={`rounded-xl border bg-white p-5 ${form.include_compensation ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-gray-400" /> Compensation
+          </h3>
+          <SectionToggle included={form.include_compensation} onChange={(v) => updateBool("include_compensation", v)} disabled={isReadOnly} />
+        </div>
+        {form.include_compensation && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <SelectField
+                label="Compensation Type"
+                value={form.commission_type}
+                onChange={(v) => updateField("commission_type", v)}
+                disabled={isReadOnly}
+                options={[
+                  { value: "revenue_share", label: "Revenue Share (%)" },
+                  { value: "flat_monthly", label: "Flat Monthly Payment" },
+                  { value: "none", label: "No Compensation" },
+                ]}
+              />
+              <SelectField
+                label="Payout Schedule"
+                value={form.commission_payout_schedule}
+                onChange={(v) => updateField("commission_payout_schedule", v)}
+                disabled={isReadOnly}
+                options={[
+                  { value: "monthly", label: "Monthly" },
+                  { value: "quarterly", label: "Quarterly" },
+                  { value: "annual", label: "Annual" },
+                ]}
+              />
+              {form.commission_type === "revenue_share" && (
+                <InputField label="Revenue Share %" type="number" value={form.commission_pct} onChange={(v) => updateField("commission_pct", v)} disabled={isReadOnly} min="0" />
+              )}
+              {form.commission_type === "flat_monthly" && (
+                <CurrencyField label="Monthly Payment" value={form.commission_monthly_fee} onChange={(v) => updateField("commission_monthly_fee", v)} disabled={isReadOnly} />
+              )}
+            </div>
+            <div className="mt-4">
+              <TextareaField label="Compensation Notes" value={form.commission_notes} onChange={(v) => updateField("commission_notes", v)} disabled={isReadOnly} rows={2} />
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Duration & Termination */}
+      <div className={`rounded-xl border bg-white p-5 ${form.include_duration_termination ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+            <Clock className="h-4 w-4 text-gray-400" /> Duration & Termination
+          </h3>
+          <SectionToggle included={form.include_duration_termination} onChange={(v) => updateBool("include_duration_termination", v)} disabled={isReadOnly} />
+        </div>
+        {form.include_duration_termination && (
+          <p className="text-xs text-gray-500">
+            Standard duration & termination language is included. The Term Length set in Placement Terms ({form.placement_term_months || "—"} months) governs the contract length, with 30-day written notice required for early termination.
+          </p>
+        )}
+      </div>
+
+      {/* Responsibilities */}
+      <div className={`rounded-xl border bg-white p-5 ${form.include_responsibilities ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+            <Settings className="h-4 w-4 text-gray-400" /> Responsibilities
+          </h3>
+          <SectionToggle included={form.include_responsibilities} onChange={(v) => updateBool("include_responsibilities", v)} disabled={isReadOnly} />
+        </div>
+        {form.include_responsibilities && (
+          <p className="text-xs text-gray-500">
+            Standard responsibility language is included. The Operator handles installation, maintenance, stocking, and removal; the Location provides electrical access and reasonable host cooperation.
+          </p>
+        )}
+      </div>
+
+      {/* Sales Rep */}
+      <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
+          <UserPlus className="h-4 w-4 text-gray-400" /> Sales Rep
+        </h3>
+        <p className="text-xs text-gray-500 mb-4">
+          The rep handling this deal — auto-populated from your account; receives a copy of the fully signed agreement.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <InputField label="Rep Name" value={form.rep_name} onChange={(v) => updateField("rep_name", v)} disabled={isReadOnly} />
+          <InputField label="Rep Email" type="email" value={form.rep_email} onChange={(v) => updateField("rep_email", v)} disabled={isReadOnly} />
+        </div>
+      </div>
+    </>
+  );
+}
 
 function InputField({ label, value, onChange, type = "text", disabled = false, required = false, min }: {
   label: string; value: string; onChange: (v: string) => void; type?: string; disabled?: boolean; required?: boolean; min?: string;

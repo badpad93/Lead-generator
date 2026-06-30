@@ -122,6 +122,42 @@ export async function PATCH(
     "include_location_services",
     "include_shipping_storage",
     "auto_send_invoice_on_signing",
+    // Location Placement Agreement — location contact
+    "location_business_name",
+    "location_contact_name",
+    "location_contact_email",
+    "location_contact_phone",
+    "location_contact_title",
+    "location_address",
+    "location_city",
+    "location_state",
+    "location_zip",
+    // Location Placement Agreement — terms
+    "placement_machine_count",
+    "placement_machine_type",
+    "placement_installation_date",
+    "placement_term_months",
+    "placement_exclusivity",
+    "placement_notes",
+    // Location Placement Agreement — compensation
+    "commission_type",
+    "commission_pct",
+    "commission_monthly_fee",
+    "commission_payout_schedule",
+    "commission_notes",
+    // Location Placement Agreement — operator (the vending company)
+    "placement_operator_company",
+    "placement_operator_contact",
+    "placement_operator_email",
+    "placement_operator_phone",
+    // Location Placement Agreement — section toggles
+    "include_placement_terms",
+    "include_compensation",
+    "include_duration_termination",
+    "include_responsibilities",
+    // Sales rep tracking
+    "rep_name",
+    "rep_email",
     // Legal (admin/director only — already guarded above)
     "legal_overrides",
   ];
@@ -137,38 +173,42 @@ export async function PATCH(
   // inputs to a computed field don't fall back to 0.
   const { data: current } = await supabaseAdmin
     .from("purchase_agreements")
-    .select("machine_quantity, machine_unit_price, freight_per_machine, locations_purchased, location_fee_per_secured, include_equipment, include_location_services, include_shipping_storage, location_services_deposit_only, location_services_deposit_amount")
+    .select("agreement_type, machine_quantity, machine_unit_price, freight_per_machine, locations_purchased, location_fee_per_secured, include_equipment, include_location_services, include_shipping_storage, location_services_deposit_only, location_services_deposit_amount")
     .eq("id", id)
     .single();
 
-  const qty = Number(updates.machine_quantity ?? current?.machine_quantity) || 0;
-  const unitPrice = Number(updates.machine_unit_price ?? current?.machine_unit_price) || 0;
-  const freightPerMachine = Number(updates.freight_per_machine ?? current?.freight_per_machine) || 0;
-  const locationsPurchased = Number(updates.locations_purchased ?? current?.locations_purchased) || 0;
-  const locationFee = Number(updates.location_fee_per_secured ?? current?.location_fee_per_secured) || 0;
+  // Location placement agreements don't have machine/freight/location-services
+  // totals — skip the purchase-agreement recalc entirely for that type.
+  if (current?.agreement_type !== "location_placement") {
+    const qty = Number(updates.machine_quantity ?? current?.machine_quantity) || 0;
+    const unitPrice = Number(updates.machine_unit_price ?? current?.machine_unit_price) || 0;
+    const freightPerMachine = Number(updates.freight_per_machine ?? current?.freight_per_machine) || 0;
+    const locationsPurchased = Number(updates.locations_purchased ?? current?.locations_purchased) || 0;
+    const locationFee = Number(updates.location_fee_per_secured ?? current?.location_fee_per_secured) || 0;
 
-  const includeEquipment = (updates.include_equipment ?? current?.include_equipment) !== false;
-  const includeLocationServices = (updates.include_location_services ?? current?.include_location_services) !== false;
-  const includeShippingStorage = (updates.include_shipping_storage ?? current?.include_shipping_storage) !== false;
+    const includeEquipment = (updates.include_equipment ?? current?.include_equipment) !== false;
+    const includeLocationServices = (updates.include_location_services ?? current?.include_location_services) !== false;
+    const includeShippingStorage = (updates.include_shipping_storage ?? current?.include_shipping_storage) !== false;
 
-  const depositOnly = (updates.location_services_deposit_only ?? current?.location_services_deposit_only) === true;
-  const depositAmount = Number(updates.location_services_deposit_amount ?? current?.location_services_deposit_amount) || 0;
+    const depositOnly = (updates.location_services_deposit_only ?? current?.location_services_deposit_only) === true;
+    const depositAmount = Number(updates.location_services_deposit_amount ?? current?.location_services_deposit_amount) || 0;
 
-  // Always recalculate so zeroing inputs zeros the subtotal, and so
-  // excluded sections contribute nothing to the totals.
-  updates.equipment_subtotal = includeEquipment ? qty * unitPrice : 0;
-  updates.freight_total = includeShippingStorage ? qty * freightPerMachine : 0;
-  updates.max_location_service_value = includeLocationServices ? locationsPurchased * locationFee : 0;
+    // Always recalculate so zeroing inputs zeros the subtotal, and so
+    // excluded sections contribute nothing to the totals.
+    updates.equipment_subtotal = includeEquipment ? qty * unitPrice : 0;
+    updates.freight_total = includeShippingStorage ? qty * freightPerMachine : 0;
+    updates.max_location_service_value = includeLocationServices ? locationsPurchased * locationFee : 0;
 
-  // Upfront location-services amount: deposit when deposit-only, else full max value.
-  const locationUpfront = includeLocationServices
-    ? (depositOnly ? Math.min(depositAmount, Number(updates.max_location_service_value)) : Number(updates.max_location_service_value))
-    : 0;
+    // Upfront location-services amount: deposit when deposit-only, else full max value.
+    const locationUpfront = includeLocationServices
+      ? (depositOnly ? Math.min(depositAmount, Number(updates.max_location_service_value)) : Number(updates.max_location_service_value))
+      : 0;
 
-  updates.total_due_prior_to_procurement =
-    Number(updates.equipment_subtotal) +
-    Number(updates.freight_total) +
-    locationUpfront;
+    updates.total_due_prior_to_procurement =
+      Number(updates.equipment_subtotal) +
+      Number(updates.freight_total) +
+      locationUpfront;
+  }
 
   const { data, error } = await supabaseAdmin
     .from("purchase_agreements")
