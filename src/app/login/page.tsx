@@ -9,9 +9,11 @@ import { createBrowserClient } from "@/lib/supabase";
 
 function LoginContent() {
   const searchParams = useSearchParams();
-  const [loading, setLoading] = useState<"google" | "microsoft" | "yahoo" | null>(null);
+  const [loading, setLoading] = useState<"google" | "microsoft" | "yahoo" | "email" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     const urlError = searchParams.get("error");
@@ -74,6 +76,54 @@ function LoginContent() {
     const redirect = searchParams.get("redirect") || "/dashboard";
     storeRedirectAfterLogin(redirect);
     signInWithYahoo();
+  }
+
+  async function handleEmailLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!email.trim()) {
+      setError("Email is required");
+      return;
+    }
+    if (!password) {
+      setError("Password is required");
+      return;
+    }
+    setLoading("email");
+    try {
+      const supabase = createBrowserClient();
+      const { data, error: signInErr } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      if (signInErr || !data.session) {
+        setError(signInErr?.message || "Invalid email or password");
+        setLoading(null);
+        return;
+      }
+
+      // Verify email_verified on profile before letting them in
+      const profileRes = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
+      if (profileRes.ok) {
+        const profile = await profileRes.json();
+        if (profile.email_verified === false) {
+          window.location.href = "/verify-email-required";
+          return;
+        }
+        if (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip) {
+          window.location.href = "/complete-profile";
+          return;
+        }
+      }
+
+      const redirect = searchParams.get("redirect") || "/dashboard";
+      window.location.href = redirect;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sign in failed");
+      setLoading(null);
+    }
   }
 
   if (checking) {
@@ -192,6 +242,56 @@ function LoginContent() {
               </>
             )}
           </button>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+            <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or sign in with email</span></div>
+          </div>
+
+          {/* Email/Password Sign In */}
+          <form onSubmit={handleEmailLogin} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={!!loading}
+                placeholder="you@example.com"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary/30 disabled:bg-gray-50"
+                autoComplete="email"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-gray-600">Password</label>
+                <a href="/forgot-password" className="text-xs text-green-primary hover:underline">Forgot password?</a>
+              </div>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={!!loading}
+                placeholder="Enter your password"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary/30 disabled:bg-gray-50"
+                autoComplete="current-password"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!!loading}
+              className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {loading === "email" ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </button>
+          </form>
 
           <div className="mt-6 text-center">
             <p className="text-xs text-black-primary/40">

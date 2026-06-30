@@ -56,7 +56,9 @@ function SignupContent() {
   const [step, setStep] = useState<1 | 2 | 3>(presetRole ? 2 : 1);
   const [role, setRole] = useState<Role | null>(presetRole);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<"google" | "microsoft" | "yahoo" | null>(null);
+  const [loading, setLoading] = useState<"google" | "microsoft" | "yahoo" | "email" | null>(null);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [existingEmail, setExistingEmail] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -212,6 +214,73 @@ function SignupContent() {
       signUpWithYahoo(role);
     } catch {
       setError("Failed to connect to Yahoo. Please try again.");
+      setLoading(null);
+    }
+  }
+
+  async function handleEmailSignup(e: React.FormEvent) {
+    e.preventDefault();
+    if (!role) return;
+    setError(null);
+
+    if (!password || password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    setLoading("email");
+    try {
+      const cleared = await ensureSignedOut();
+      if (!cleared) {
+        setError("Could not clear existing session. Please refresh and try again.");
+        setLoading(null);
+        return;
+      }
+      setExistingEmail(null);
+
+      const res = await fetch("/api/auth/signup-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: leadForm.first_name,
+          last_name: leadForm.last_name,
+          company_name: leadForm.business_name,
+          email: leadForm.email,
+          password,
+          role,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.code === "ACCOUNT_EXISTS") {
+          setError(data.error || "An account already exists with this email.");
+        } else {
+          setError(data.error || "Failed to create account");
+        }
+        setLoading(null);
+        return;
+      }
+
+      // Save the lead data so it's persisted when the user verifies & logs in
+      storeSignupRole(role);
+      storeLead();
+      // Also fire the signup-lead API in the background
+      try {
+        await fetch("/api/auth/signup-lead", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...leadForm, role }),
+        });
+      } catch {}
+
+      window.location.href = `/check-email?email=${encodeURIComponent(leadForm.email)}`;
+    } catch {
+      setError("Failed to create account. Please try again.");
       setLoading(null);
     }
   }
@@ -509,6 +578,56 @@ function SignupContent() {
                   </>
                 )}
               </button>
+
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+                <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or sign up with email &amp; password</span></div>
+              </div>
+
+              {/* Email + Password Signup */}
+              <form onSubmit={handleEmailSignup} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Password <span className="text-red-500">*</span></label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={!!loading}
+                    placeholder="At least 8 characters"
+                    className={inputClass}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Confirm Password <span className="text-red-500">*</span></label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={!!loading}
+                    placeholder="Re-enter your password"
+                    className={inputClass}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={!!loading}
+                  className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {loading === "email" ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Creating account...
+                    </>
+                  ) : (
+                    "Create Account"
+                  )}
+                </button>
+                <p className="text-xs text-black-primary/40 text-center">
+                  We&apos;ll email you a verification link to confirm your address.
+                </p>
+              </form>
 
               {/* Schedule a Call CTA */}
               <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">

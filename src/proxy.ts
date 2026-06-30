@@ -92,6 +92,18 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Email verification gate for protected routes — block unverified users.
+  // email_confirmed_at on auth.users is set by:
+  //  - OAuth providers (Google/Microsoft/Yahoo) on first sign-in
+  //  - Our email/password verify flow (via auth.admin.updateUserById)
+  // So this check naturally lets all OAuth users through.
+  if (user && isProtected && !user.email_confirmed_at) {
+    const verifyUrl = req.nextUrl.clone();
+    verifyUrl.pathname = "/verify-email-required";
+    verifyUrl.search = "";
+    return NextResponse.redirect(verifyUrl);
+  }
+
   return response;
 }
 
