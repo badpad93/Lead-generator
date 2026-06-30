@@ -4,8 +4,10 @@ import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
 /*  PDF Generation — Location Placement Agreement                     */
 /* ================================================================== */
 
+export type LocationPlacementAudience = "operator" | "location";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function generateLocationPlacementPdf(ag: any, signatures: any[], initials: any[]): Promise<Uint8Array> {
+export async function generateLocationPlacementPdf(ag: any, signatures: any[], initials: any[], audience: LocationPlacementAudience = "operator"): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const helvetica = await doc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -331,6 +333,34 @@ export async function generateLocationPlacementPdf(ag: any, signatures: any[], i
     "This Agreement constitutes the entire understanding between the parties and supersedes all prior agreements regarding its subject matter. Amendments must be in writing and signed by both parties.",
     helvetica, 9, gray
   );
+
+  /* ================================================================ */
+  /*  Operator-only billing addendum (never shown to the location)    */
+  /* ================================================================ */
+  if (audience === "operator" && Number(ag.apex_placement_fee) > 0) {
+    checkPage(80);
+    y -= 16;
+    drawLine(y);
+    y -= 22;
+    drawText(page, "SCHEDULE A — APEX BILLING (OPERATOR COPY ONLY)", LEFT, y, helveticaBold, 10, green);
+    y -= 18;
+    drawWrapped(
+      "This schedule is included only on the operator's executed copy of the Agreement and is not part of the Location's copy. It memorializes the placement fee owed by the Operator to Apex AI Vending for sourcing and securing this Location.",
+      helvetica, 9, gray
+    );
+    y -= 6;
+    labelValue("Apex Placement Fee:", money(ag.apex_placement_fee));
+    labelValue("Payable To:", "Apex AI Vending LLC");
+    if (ag.apex_placement_fee_notes) {
+      y -= 2;
+      drawWrapped(`Notes: ${ag.apex_placement_fee_notes}`, helvetica, 9, gray);
+    }
+    y -= 4;
+    drawWrapped(
+      "The Apex Placement Fee is due upon execution of this Agreement unless otherwise stated above. Apex AI Vending will invoice the Operator separately.",
+      helvetica, 9, gray
+    );
+  }
 
   /* ================================================================ */
   /*  Signature blocks                                                */

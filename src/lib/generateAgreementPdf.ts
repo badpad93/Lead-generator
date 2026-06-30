@@ -648,7 +648,9 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
   let pdfBytes: Uint8Array;
   if (isLocationPlacement) {
     const { generateLocationPlacementPdf } = await import("./generateLocationPlacementPdf");
-    pdfBytes = await generateLocationPlacementPdf(ag, signatures || [], initials || []);
+    // Signed copy goes to operator + james@ + rep — never the location —
+    // so include the Apex Billing addendum.
+    pdfBytes = await generateLocationPlacementPdf(ag, signatures || [], initials || [], "operator");
   } else {
     pdfBytes = await generatePurchaseAgreementPdf(ag, signatures || [], initials || []);
   }
@@ -844,7 +846,7 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
     description: `Fully signed PDF generated, emailed to ${recipientSummary}, and saved to account documents.`,
   });
 
-  // Auto-create order + invoice only for purchase agreements
+  // Auto-create order + invoice for purchase agreements
   if (!isLocationPlacement && ag.auto_send_invoice_on_signing && !ag.order_id) {
     try {
       await autoCreateOrderAndSendInvoice(ag);
@@ -857,6 +859,159 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
       });
     }
   }
+
+  // Auto-invoice the operator for the Apex Placement Fee on a fully-signed
+  // location placement agreement (when the toggle is on AND a fee is set).
+  if (
+    isLocationPlacement &&
+    ag.auto_send_invoice_on_signing &&
+    Number(ag.apex_placement_fee) > 0 &&
+    ag.apex_placement_invoice_status !== "sent" &&
+    ag.apex_placement_invoice_status !== "paid"
+  ) {
+    try {
+      await sendApexPlacementFeeInvoice(ag);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await supabaseAdmin.from("agreement_activity_log").insert({
+        agreement_id: agreementId,
+        activity_type: "auto_invoice_failed",
+        description: `Apex placement fee invoice failed: ${msg}`,
+      });
+    }
+  }
+}
+
+/* ================================================================== */
+/*  sendApexPlacementFeeInvoice                                       */
+/*  Bills the operator (placement_operator_email) for the Apex        */
+/*  Placement Fee. Uses QuickBooks if configured, falls back to       */
+/*  Resend. Records status on the agreement row.                      */
+/* ================================================================== */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function sendApexPlacementFeeInvoice(ag: any): Promise<void> {
+  const amount = Number(ag.apex_placement_fee) || 0;
+  if (amount <= 0) return;
+
+  const recipientEmail = ag.placement_operator_email;
+  if (!recipientEmail) {
+    throw new Error("Operator email missing — cannot send placement fee invoice");
+  }
+
+  const operatorName = ag.placement_operator_company || ag.placement_operator_contact || "Operator";
+  const locationName = ag.location_business_name || "Location";
+
+  let qbInvoiceId: string | null = null;
+  let qbSent = false;
+  const qbConfigured = !!(process.env.QB_CLIENT_ID && process.env.QB_CLIENT_SECRET);
+
+  if (qbConfigured) {
+    try {
+      const { createInvoice, sendInvoiceEmail } = await import("@/lib/quickbooks");
+      const invoicePromise = createInvoice({
+        customerEmail: recipientEmail,
+        customerName: operatorName,
+        customerPhone: ag.placement_operator_phone || undefined,
+        lineItems: [
+          {
+            description: `Location Placement Services — ${locationName}`,
+            amount,
+            quantity: 1,
+          },
+        ],
+        memo: `Apex Placement Fee — Agreement #${(ag.id || "").slice(0, 8).toUpperCase()}`,
+      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("QB timeout")), 8000),
+      );
+      const invoice = await Promise.race([invoicePromise, timeoutPromise]);
+      qbInvoiceId = invoice.Id;
+
+      await Promise.race([
+        sendInvoiceEmail(invoice.Id, recipientEmail),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("QB email timeout")), 5000),
+        ),
+      ]);
+      qbSent = true;
+    } catch {
+      // Fall through to Resend
+    }
+  }
+
+  if (!qbSent && process.env.RESEND_API_KEY) {
+    await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: recipientEmail,
+      cc: ["james@apexaivending.com"],
+      subject: `Invoice — Location Placement Services for ${locationName}`,
+      html: `
+<div style="max-width:640px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:32px 24px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <h1 style="color:#16a34a;font-size:24px;margin:0;">Apex AI Vending</h1>
+    <p style="color:#6b7280;font-size:14px;margin:4px 0 0;">Location Placement Services Invoice</p>
+  </div>
+  <div style="background:#f9fafb;border-radius:12px;padding:24px;margin-bottom:24px;">
+    <p style="margin:0 0 16px;font-size:14px;color:#374151;">
+      Hello ${ag.placement_operator_contact || operatorName},
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+      The Location Placement Agreement for <strong>${locationName}</strong> has been fully executed. Please find your invoice for placement services below.
+    </p>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:16px;">
+      <thead>
+        <tr style="background:#e5e7eb;">
+          <th style="padding:8px 12px;text-align:left;color:#374151;">Item</th>
+          <th style="padding:8px 12px;text-align:right;color:#374151;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#111;">
+            Location Placement Services — ${locationName}
+          </td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151;text-align:right;">
+            $${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;">
+      <tr style="border-top:2px solid #e5e7eb;">
+        <td style="padding:8px 0 0;color:#111;font-weight:700;">Total Due</td>
+        <td style="padding:8px 0 0;text-align:right;color:#16a34a;font-weight:700;font-size:18px;">
+          $${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+        </td>
+      </tr>
+    </table>
+    ${ag.apex_placement_fee_notes ? `<p style="margin:16px 0 0;font-size:13px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:12px;"><strong>Notes:</strong> ${ag.apex_placement_fee_notes}</p>` : ""}
+  </div>
+  <p style="font-size:13px;color:#6b7280;text-align:center;">
+    Questions? Contact us at <a href="mailto:james@apexaivending.com" style="color:#16a34a;">james@apexaivending.com</a>
+    or call <a href="tel:+18888511462" style="color:#16a34a;">(888) 851-1462</a>
+  </p>
+</div>
+      `.trim(),
+    });
+  } else if (!qbSent) {
+    throw new Error("No email service available — set RESEND_API_KEY or QuickBooks creds");
+  }
+
+  await supabaseAdmin
+    .from("purchase_agreements")
+    .update({
+      apex_placement_invoice_status: "sent",
+      apex_placement_invoice_sent_at: new Date().toISOString(),
+      apex_placement_qb_invoice_id: qbInvoiceId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", ag.id);
+
+  await supabaseAdmin.from("agreement_activity_log").insert({
+    agreement_id: ag.id,
+    activity_type: "apex_placement_invoice_sent",
+    description: `Apex Placement Fee invoice ($${amount.toFixed(2)}) sent to ${recipientEmail}`,
+  });
 }
 
 /* ================================================================== */
