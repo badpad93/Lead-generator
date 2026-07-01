@@ -1,0 +1,16 @@
+export const INDUSTRIES = [
+  "Warehouse",
+  "Manufacturing",
+  "Office",
+  "Hotel",
+  "Hospital",
+  "Retail",
+  "Education",
+  "Government",
+  "Automotive",
+  "Fitness",
+  "Entertainment",
+  "Transportation",
+  "Restaurant",
+  "Other",
+] as const;

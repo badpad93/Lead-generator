@@ -92,6 +92,25 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Placement Partner isolation: block them from CRM/admin/account pages.
+  // Their entire experience lives under /marketplace. Keeps team-agent
+  // accounts from stumbling into internal sales tools.
+  if (user) {
+    const meta = { ...(user.user_metadata || {}), ...(user.app_metadata || {}) } as Record<string, unknown>;
+    // Cheap fast-path: check metadata role first to avoid DB call on every hit.
+    const isMaybePartner = meta.role === "placement_partner";
+    if (isMaybePartner) {
+      const CRM_LOCKED = ["/sales", "/admin", "/crm", "/coffee/orders/admin"];
+      const isLocked = CRM_LOCKED.some((p) => pathname === p || pathname.startsWith(p + "/"));
+      if (isLocked) {
+        const url = req.nextUrl.clone();
+        url.pathname = "/placement";
+        url.search = "";
+        return NextResponse.redirect(url);
+      }
+    }
+  }
+
   // Email verification gate for protected routes.
   // We trust OAuth users (Google/Microsoft/Yahoo) automatically — the provider
   // already verified the address, even if email_confirmed_at isn't set on the
