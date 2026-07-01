@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
+import { pdfSafeInline, pdfSafeMultiline } from "./pdfSafeText";
 
 /* ================================================================== */
 /*  PDF Generation — Location Placement Agreement                     */
@@ -42,7 +43,7 @@ export async function generateLocationPlacementPdf(ag: any, signatures: any[], i
   }
 
   function drawText(p: PDFPage, text: string, x: number, yPos: number, font: PDFFont, size: number, color = dark) {
-    p.drawText(text, { x, y: yPos, size, font, color });
+    p.drawText(pdfSafeInline(text), { x, y: yPos, size, font, color });
   }
 
   function drawLine(yPos: number) {
@@ -72,11 +73,21 @@ export async function generateLocationPlacementPdf(ag: any, signatures: any[], i
   }
 
   function drawWrapped(text: string, font: PDFFont, size: number, color = dark, indent = 0) {
-    const lines = wrapText(text, font, size, MAX_W - indent);
-    for (const line of lines) {
-      checkPage(size + 4);
-      drawText(page, line, LEFT + indent, y, font, size, color);
-      y -= size + 4;
+    // Split on author-provided newlines first, then word-wrap each paragraph.
+    const safe = pdfSafeMultiline(text);
+    const paragraphs = safe.split("\n");
+    for (const para of paragraphs) {
+      if (para === "") {
+        checkPage(size + 4);
+        y -= size + 4;
+        continue;
+      }
+      const lines = wrapText(para, font, size, MAX_W - indent);
+      for (const line of lines) {
+        checkPage(size + 4);
+        drawText(page, line, LEFT + indent, y, font, size, color);
+        y -= size + 4;
+      }
     }
   }
 

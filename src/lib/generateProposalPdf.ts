@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
+import { pdfSafeInline, pdfSafeMultiline } from "./pdfSafeText";
 
 interface ProposalData {
   proposal_number: string;
@@ -51,7 +52,7 @@ export async function generateProposalPdf(proposal: ProposalData, items: Proposa
   let y = 740;
 
   function drawText(p: PDFPage, text: string, x: number, yPos: number, font: PDFFont, size: number, color = dark) {
-    p.drawText(text, { x, y: yPos, size, font, color });
+    p.drawText(pdfSafeInline(text), { x, y: yPos, size, font, color });
   }
 
   function drawLine(yPos: number, color = rgb(0.85, 0.85, 0.85)) {
@@ -199,11 +200,19 @@ export async function generateProposalPdf(proposal: ProposalData, items: Proposa
     y -= 20;
     drawText(page, "NOTES", LEFT, y, helveticaBold, 8, green);
     y -= 16;
-    const noteLines = wrapText(proposal.notes, helvetica, 9, MAX_W);
-    for (const line of noteLines) {
-      checkPage(14);
-      drawText(page, line, LEFT, y, helvetica, 9, gray);
-      y -= 14;
+    const safeNotes = pdfSafeMultiline(proposal.notes);
+    for (const paragraph of safeNotes.split("\n")) {
+      if (paragraph === "") {
+        checkPage(14);
+        y -= 6;
+        continue;
+      }
+      const noteLines = wrapText(paragraph, helvetica, 9, MAX_W);
+      for (const line of noteLines) {
+        checkPage(14);
+        drawText(page, line, LEFT, y, helvetica, 9, gray);
+        y -= 14;
+      }
     }
   }
 

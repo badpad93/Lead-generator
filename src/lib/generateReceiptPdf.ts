@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
+import { pdfSafeInline, pdfSafeMultiline } from "./pdfSafeText";
 
 interface ReceiptItem {
   service_name: string;
@@ -50,7 +51,7 @@ export async function generateReceiptPdf(data: ReceiptData): Promise<Uint8Array>
   let y = 740;
 
   function drawText(p: PDFPage, text: string, x: number, yPos: number, font: PDFFont, size: number, color = dark) {
-    p.drawText(text, { x, y: yPos, size, font, color });
+    p.drawText(pdfSafeInline(text), { x, y: yPos, size, font, color });
   }
 
   function drawLine(yPos: number, color = rgb(0.85, 0.85, 0.85)) {
@@ -235,11 +236,19 @@ export async function generateReceiptPdf(data: ReceiptData): Promise<Uint8Array>
     checkPage(30);
     drawText(page, "NOTES", LEFT, y, helveticaBold, 8, green);
     y -= 14;
-    const noteLines = wrapText(data.notes, helvetica, 9, MAX_W);
-    for (const line of noteLines) {
-      checkPage(14);
-      drawText(page, line, LEFT, y, helvetica, 9, gray);
-      y -= 12;
+    const safe = pdfSafeMultiline(data.notes);
+    for (const paragraph of safe.split("\n")) {
+      if (paragraph === "") {
+        checkPage(14);
+        y -= 6;
+        continue;
+      }
+      const noteLines = wrapText(paragraph, helvetica, 9, MAX_W);
+      for (const line of noteLines) {
+        checkPage(14);
+        drawText(page, line, LEFT, y, helvetica, 9, gray);
+        y -= 12;
+      }
     }
   }
 

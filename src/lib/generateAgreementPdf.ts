@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { Resend } from "resend";
+import { pdfSafeInline, pdfSafeMultiline } from "./pdfSafeText";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 
@@ -55,7 +56,7 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     size: number,
     color = dark,
   ) {
-    p.drawText(text, { x, y: yPos, size, font, color });
+    p.drawText(pdfSafeInline(text), { x, y: yPos, size, font, color });
   }
 
   function drawLine(yPos: number) {
@@ -91,11 +92,24 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     color = gray,
     indent = 0,
   ) {
-    const lines = wrapText(text, font, size, MAX_W - indent);
-    for (const line of lines) {
-      checkPage(size + 6);
-      drawText(page, line, LEFT + indent, y, font, size, color);
-      y -= size + 4;
+    // Preserve author-provided paragraph breaks by splitting on newlines
+    // first, then word-wrap each paragraph.
+    const safe = pdfSafeMultiline(text);
+    const paragraphs = safe.split("\n");
+    for (let p = 0; p < paragraphs.length; p++) {
+      const para = paragraphs[p];
+      if (para === "") {
+        // Blank line — just advance
+        checkPage(size + 4);
+        y -= size + 4;
+        continue;
+      }
+      const lines = wrapText(para, font, size, MAX_W - indent);
+      for (const line of lines) {
+        checkPage(size + 6);
+        drawText(page, line, LEFT + indent, y, font, size, color);
+        y -= size + 4;
+      }
     }
   }
 
