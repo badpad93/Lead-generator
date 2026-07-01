@@ -620,18 +620,30 @@ export default function OrderDetailPage() {
 
           {/* Purchase Agreement */}
           <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-3">
-              <ScrollText className="h-4 w-4 text-gray-400" /> Purchase Agreement
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
+              <ScrollText className="h-4 w-4 text-gray-400" />
+              {order.document_type === "quote" ? "Convert to Agreement" : "Purchase Agreement"}
             </h3>
+            {order.document_type === "quote" && agreements.length === 0 && (
+              <p className="text-xs text-gray-500 mb-3">
+                Optional — turn this quote into a purchase agreement using the same items and totals. The quote stays intact.
+              </p>
+            )}
             {agreements.length === 0 ? (
               <div className="text-center py-3">
-                <p className="text-xs text-gray-400 mb-3">No agreement generated yet</p>
+                {order.document_type !== "quote" && (
+                  <p className="text-xs text-gray-400 mb-3">No agreement generated yet</p>
+                )}
                 <button
                   onClick={handleGenerateAgreement}
                   disabled={agreementLoading}
                   className="w-full rounded-lg px-3 py-2 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  {agreementLoading ? "Generating..." : "Generate Purchase Agreement"}
+                  {agreementLoading
+                    ? "Generating..."
+                    : order.document_type === "quote"
+                      ? "Convert Quote to Agreement"
+                      : "Generate Purchase Agreement"}
                 </button>
               </div>
             ) : (
