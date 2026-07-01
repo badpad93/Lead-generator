@@ -14,6 +14,8 @@ export interface ReceiptData {
   invoice_number?: string | null;
   paid_at: string;
   payment_type: "deposit" | "full";
+  /** Optional custom stamp label. Defaults to "DEPOSIT RECEIVED" / "PAID IN FULL". */
+  stamp_label?: string | null;
   payment_method?: string | null;
   payment_reference?: string | null;
   amount_paid: number;
@@ -96,7 +98,8 @@ export async function generateReceiptPdf(data: ReceiptData): Promise<Uint8Array>
   y = PAGE_H - 90;
 
   // PAID stamp
-  const stampText = data.payment_type === "deposit" ? "DEPOSIT RECEIVED" : "PAID IN FULL";
+  const defaultStamp = data.payment_type === "deposit" ? "DEPOSIT RECEIVED" : "PAID IN FULL";
+  const stampText = (data.stamp_label || defaultStamp).toUpperCase();
   const stampWidth = helveticaBold.widthOfTextAtSize(stampText, 14) + 24;
   const stampX = RIGHT - stampWidth;
   page.drawRectangle({

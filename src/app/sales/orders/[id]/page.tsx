@@ -132,6 +132,7 @@ export default function OrderDetailPage() {
   const [fetchError, setFetchError] = useState("");
   const [token, setToken] = useState("");
   const [showAddItem, setShowAddItem] = useState(false);
+  const [showCustomReceipt, setShowCustomReceipt] = useState(false);
   const [actionLoading, setActionLoading] = useState("");
   const [noteText, setNoteText] = useState("");
 
@@ -765,11 +766,12 @@ export default function OrderDetailPage() {
           })()}
 
           {/* Customer Receipts */}
-          {(order.payment_status === "paid" || order.payment_status === "deposit_paid" || order.receipt_status === "sent" || order.deposit_receipt_status === "sent") && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-              <h3 className="text-sm font-semibold text-emerald-900 mb-2 flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" /> Customer Receipts
-              </h3>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+            <h3 className="text-sm font-semibold text-emerald-900 mb-2 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" /> Customer Receipts
+            </h3>
+            {(order.payment_status === "paid" || order.payment_status === "deposit_paid" || order.receipt_status === "sent" || order.deposit_receipt_status === "sent") && (
+              <div className="mb-3">
               <div className="space-y-2">
                 {/* Deposit receipt */}
                 {(order.payment_status === "deposit_paid" || order.deposit_receipt_status === "sent") && (
@@ -828,8 +830,18 @@ export default function OrderDetailPage() {
                   </div>
                 )}
               </div>
-            </div>
-          )}
+              </div>
+            )}
+            <button
+              onClick={() => setShowCustomReceipt(true)}
+              className="w-full rounded-lg px-3 py-2 text-xs font-semibold text-emerald-700 border border-emerald-200 bg-white hover:bg-emerald-100 cursor-pointer inline-flex items-center justify-center gap-1.5"
+            >
+              <FileText className="h-3.5 w-3.5" /> Send Custom Receipt
+            </button>
+            <p className="mt-2 text-[10px] text-emerald-700/70 text-center">
+              Custom receipts don&apos;t change the order status — useful for partial payments, adjustments, or one-off invoicing.
+            </p>
+          </div>
 
           {(order.order_status === "completed" || order.order_status === "cancelled") && (
             <div className={`rounded-xl p-5 text-center ${order.order_status === "completed" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
@@ -839,6 +851,370 @@ export default function OrderDetailPage() {
               </p>
             </div>
           )}
+        </div>
+      </div>
+
+      {showCustomReceipt && (
+        <CustomReceiptModal
+          order={order}
+          token={token}
+          onClose={() => setShowCustomReceipt(false)}
+          onSent={() => {
+            setShowCustomReceipt(false);
+            fetchOrder();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+interface CustomReceiptModalProps {
+  order: OrderDetail;
+  token: string;
+  onClose: () => void;
+  onSent: () => void;
+}
+
+interface CustomLineItem {
+  service_name: string;
+  description: string;
+  quantity: string;
+  unit_price: string;
+}
+
+function CustomReceiptModal({ order, token, onClose, onSent }: CustomReceiptModalProps) {
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [stampLabel, setStampLabel] = useState("Payment Received");
+  const [amount, setAmount] = useState("");
+  const [balanceRemaining, setBalanceRemaining] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paidAt, setPaidAt] = useState(new Date().toISOString().slice(0, 10));
+  const [recipientEmail, setRecipientEmail] = useState(order.sales_accounts?.email || "");
+  const [ccInput, setCcInput] = useState("");
+  const [subject, setSubject] = useState("");
+  const [notes, setNotes] = useState("");
+  const [reason, setReason] = useState("");
+
+  const [items, setItems] = useState<CustomLineItem[]>(
+    order.order_items.length > 0
+      ? order.order_items.map((i) => ({
+          service_name: i.service_name || "",
+          description: i.description || "",
+          quantity: String(i.quantity || 1),
+          unit_price: String(i.unit_price || 0),
+        }))
+      : [{ service_name: "", description: "", quantity: "1", unit_price: "0" }],
+  );
+
+  const itemsSubtotal = items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unit_price) || 0), 0);
+  const finalAmount = amount ? Number(amount) : itemsSubtotal;
+
+  function addItem() {
+    setItems([...items, { service_name: "", description: "", quantity: "1", unit_price: "0" }]);
+  }
+  function updateItem(idx: number, field: keyof CustomLineItem, value: string) {
+    const copy = [...items];
+    copy[idx] = { ...copy[idx], [field]: value };
+    setItems(copy);
+  }
+  function removeItem(idx: number) {
+    setItems(items.filter((_, i) => i !== idx));
+  }
+
+  async function handleSend() {
+    setError(null);
+    if (!recipientEmail.trim()) {
+      setError("Recipient email is required");
+      return;
+    }
+    if (finalAmount <= 0) {
+      setError("Amount must be greater than $0");
+      return;
+    }
+    if (items.filter((i) => i.service_name.trim()).length === 0) {
+      setError("At least one line item is required");
+      return;
+    }
+
+    setSending(true);
+    const body = {
+      payment_type: "full", // stamp label overrides display anyway
+      payment_method: paymentMethod || null,
+      payment_reference: paymentReference || null,
+      custom_amount: finalAmount,
+      custom_balance_remaining: balanceRemaining !== "" ? Number(balanceRemaining) : undefined,
+      custom_items: items
+        .filter((i) => i.service_name.trim())
+        .map((i) => ({
+          service_name: i.service_name,
+          description: i.description || null,
+          quantity: Number(i.quantity) || 1,
+          unit_price: Number(i.unit_price) || 0,
+          total_price: (Number(i.quantity) || 0) * (Number(i.unit_price) || 0),
+        })),
+      custom_notes: notes || null,
+      custom_stamp_label: stampLabel || null,
+      custom_subject: subject || null,
+      custom_paid_at: paidAt ? new Date(paidAt).toISOString() : undefined,
+      custom_recipient_email: recipientEmail.trim(),
+      custom_cc: ccInput
+        .split(",")
+        .map((e) => e.trim())
+        .filter(Boolean),
+      reason: reason || null,
+    };
+
+    const res = await fetch(`/api/sales/orders/${order.id}/send-receipt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      onSent();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Failed to send receipt");
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
+      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl my-4 max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Send Custom Receipt</h2>
+            <p className="text-xs text-gray-500">Send a one-off receipt with fully custom fields. Does not change the order&apos;s receipt status.</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 cursor-pointer">
+            <Trash2 className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+          )}
+
+          {/* Recipient */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Recipient Email <span className="text-red-500">*</span></label>
+              <input
+                type="email"
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">CC (comma-separated)</label>
+              <input
+                type="text"
+                value={ccInput}
+                onChange={(e) => setCcInput(e.target.value)}
+                placeholder="rep@apex.com, ops@apex.com"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Stamp / subject */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Stamp Label</label>
+              <input
+                type="text"
+                value={stampLabel}
+                onChange={(e) => setStampLabel(e.target.value)}
+                placeholder="PAID IN FULL"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+              />
+              <p className="mt-1 text-[10px] text-gray-400">Big green badge at the top of the PDF.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Email Subject (optional)</label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder={`Payment received — Order #${order.order_number}`}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Line items */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Line Items</label>
+            <div className="space-y-2">
+              {items.map((item, idx) => (
+                <div key={idx} className="grid grid-cols-[1fr_70px_100px_32px] gap-2 items-start">
+                  <div>
+                    <input
+                      type="text"
+                      value={item.service_name}
+                      onChange={(e) => updateItem(idx, "service_name", e.target.value)}
+                      placeholder="Line item description"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+                    />
+                    {item.description !== undefined && (
+                      <input
+                        type="text"
+                        value={item.description}
+                        onChange={(e) => updateItem(idx, "description", e.target.value)}
+                        placeholder="Sub-description (optional)"
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 focus:border-emerald-500 focus:outline-none"
+                      />
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={item.quantity}
+                    onChange={(e) => updateItem(idx, "quantity", e.target.value)}
+                    placeholder="Qty"
+                    className="w-full rounded-lg border border-gray-200 px-2 py-2 text-sm text-center focus:border-emerald-500 focus:outline-none"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={item.unit_price}
+                    onChange={(e) => updateItem(idx, "unit_price", e.target.value)}
+                    placeholder="Unit"
+                    className="w-full rounded-lg border border-gray-200 px-2 py-2 text-sm text-right focus:border-emerald-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => removeItem(idx)}
+                    disabled={items.length === 1}
+                    className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 cursor-pointer"
+                    title="Remove"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addItem}
+                className="w-full rounded-lg border border-dashed border-gray-300 py-2 text-xs text-gray-500 hover:bg-gray-50 cursor-pointer"
+              >
+                + Add line item
+              </button>
+            </div>
+          </div>
+
+          {/* Amount + balance */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Amount Paid</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder={itemsSubtotal.toFixed(2)}
+                  className="w-full rounded-lg border border-gray-200 pl-6 pr-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <p className="mt-1 text-[10px] text-gray-400">Blank = sum of line items ({`$${itemsSubtotal.toFixed(2)}`})</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Balance Remaining</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={balanceRemaining}
+                  onChange={(e) => setBalanceRemaining(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-lg border border-gray-200 pl-6 pr-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Payment Date</label>
+              <input
+                type="date"
+                value={paidAt}
+                onChange={(e) => setPaidAt(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Payment details */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Payment Method</label>
+              <input
+                type="text"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                placeholder="Wire Transfer / ACH / Credit Card / Cash / Check"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Reference / Confirmation #</label>
+              <input
+                type="text"
+                value={paymentReference}
+                onChange={(e) => setPaymentReference(e.target.value)}
+                placeholder="e.g. #123456"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Notes on Receipt (visible to customer)</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Anything you'd like the customer to see on their receipt."
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none resize-none"
+            />
+          </div>
+
+          {/* Internal reason */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Internal Reason (activity log only)</label>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Adjustment for partial refund"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 flex items-center justify-between border-t border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            disabled={sending}
+            className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={sending}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
+          >
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            Send Receipt (${finalAmount.toFixed(2)})
+          </button>
         </div>
       </div>
     </div>
