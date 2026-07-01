@@ -19,3 +19,12 @@ export function marketplaceOnboardingEnabled(): boolean {
 export function marketplaceOnboardingEnabledClient(): boolean {
   return on(process.env.NEXT_PUBLIC_MARKETPLACE_ONBOARDING);
 }
+
+/** Phase 2.2 — contracts + submissions */
+export function marketplaceContractsEnabled(): boolean {
+  return on(process.env.MARKETPLACE_CONTRACTS);
+}
+
+export function marketplaceContractsEnabledClient(): boolean {
+  return on(process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACTS);
+}
