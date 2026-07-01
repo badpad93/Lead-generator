@@ -59,6 +59,12 @@ interface OrderDetail {
   fulfillment_status: string;
   location_remaining_invoice_status?: string;
   location_remaining_invoice_sent_at?: string | null;
+  receipt_status?: string;
+  receipt_sent_at?: string | null;
+  deposit_receipt_status?: string;
+  deposit_receipt_sent_at?: string | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
   next_required_action: string | null;
   notes: string | null;
   lead_id: string | null;
@@ -203,6 +209,31 @@ export default function OrderDetailPage() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) alert(data.error || "Failed to send remaining balance invoice");
+    await fetchOrder();
+    setActionLoading("");
+  }
+
+  async function handleSendReceipt(paymentType: "deposit" | "full") {
+    const label = paymentType === "deposit" ? "deposit" : "payment";
+    const method = prompt(`Payment method (e.g. "Wire Transfer", "ACH", "Credit Card") for this ${label} receipt:`) || "";
+    if (method === null) return;
+    const reference = prompt(`Reference number for this ${label} receipt (optional):`) || "";
+    if (!confirm(`Send the ${label} receipt to the customer?`)) return;
+
+    setActionLoading(paymentType === "deposit" ? "send_deposit_receipt" : "send_receipt");
+    const res = await fetch(`/api/sales/orders/${id}/send-receipt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        payment_type: paymentType,
+        payment_method: method || null,
+        payment_reference: reference || null,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || "Failed to send receipt");
+    }
     await fetchOrder();
     setActionLoading("");
   }
@@ -732,6 +763,73 @@ export default function OrderDetailPage() {
               </div>
             );
           })()}
+
+          {/* Customer Receipts */}
+          {(order.payment_status === "paid" || order.payment_status === "deposit_paid" || order.receipt_status === "sent" || order.deposit_receipt_status === "sent") && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+              <h3 className="text-sm font-semibold text-emerald-900 mb-2 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" /> Customer Receipts
+              </h3>
+              <div className="space-y-2">
+                {/* Deposit receipt */}
+                {(order.payment_status === "deposit_paid" || order.deposit_receipt_status === "sent") && (
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <div className="text-emerald-800">
+                      <p className="font-medium">Deposit Receipt</p>
+                      {order.deposit_receipt_status === "sent" && order.deposit_receipt_sent_at && (
+                        <p className="text-emerald-600 text-[10px]">Sent {new Date(order.deposit_receipt_sent_at).toLocaleDateString()}</p>
+                      )}
+                    </div>
+                    {order.deposit_receipt_status !== "sent" ? (
+                      <button
+                        onClick={() => handleSendReceipt("deposit")}
+                        disabled={actionLoading === "send_deposit_receipt"}
+                        className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
+                      >
+                        {actionLoading === "send_deposit_receipt" ? "Sending..." : "Send Receipt"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleSendReceipt("deposit")}
+                        disabled={actionLoading === "send_deposit_receipt"}
+                        className="rounded-lg px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 cursor-pointer disabled:opacity-50"
+                      >
+                        Resend
+                      </button>
+                    )}
+                  </div>
+                )}
+                {/* Full payment receipt */}
+                {(order.payment_status === "paid" || order.receipt_status === "sent") && (
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <div className="text-emerald-800">
+                      <p className="font-medium">Payment Receipt</p>
+                      {order.receipt_status === "sent" && order.receipt_sent_at && (
+                        <p className="text-emerald-600 text-[10px]">Sent {new Date(order.receipt_sent_at).toLocaleDateString()}</p>
+                      )}
+                    </div>
+                    {order.receipt_status !== "sent" ? (
+                      <button
+                        onClick={() => handleSendReceipt("full")}
+                        disabled={actionLoading === "send_receipt"}
+                        className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
+                      >
+                        {actionLoading === "send_receipt" ? "Sending..." : "Send Receipt"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleSendReceipt("full")}
+                        disabled={actionLoading === "send_receipt"}
+                        className="rounded-lg px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 cursor-pointer disabled:opacity-50"
+                      >
+                        Resend
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {(order.order_status === "completed" || order.order_status === "cancelled") && (
             <div className={`rounded-xl p-5 text-center ${order.order_status === "completed" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
