@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import { sendOrderReceipt } from "@/lib/sendOrderReceipt";
 
 const STATUS_ACTIONS: Record<string, { order_status?: string; payment_status?: string; invoice_status?: string; agreement_status?: string; fulfillment_status?: string; next_action?: string | null }> = {
   send_invoice: { invoice_status: "sent", order_status: "invoice_sent", next_action: "Follow up on payment" },
@@ -57,6 +58,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     activity_type: "status_change",
     description: description.charAt(0).toUpperCase() + description.slice(1),
   });
+
+  // Auto-send customer receipt when a payment is marked
+  if (action === "mark_paid" || action === "mark_deposit_paid") {
+    const paymentType: "deposit" | "full" = action === "mark_deposit_paid" ? "deposit" : "full";
+    const alreadySentField = paymentType === "deposit"
+      ? (data as { deposit_receipt_status?: string }).deposit_receipt_status
+      : (data as { receipt_status?: string }).receipt_status;
+
+    if (alreadySentField !== "sent") {
+      try {
+        const result = await sendOrderReceipt({
+          orderId: id,
+          paymentType,
+          paymentMethod: body.payment_method || null,
+          paymentReference: body.payment_reference || null,
+          userId: user.id,
+        });
+        if (!result.ok) {
+          await supabaseAdmin.from("order_activity_log").insert({
+            order_id: id,
+            user_id: user.id,
+            activity_type: "receipt_failed",
+            description: `Auto-receipt failed: ${result.error || "unknown"}`,
+          });
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await supabaseAdmin.from("order_activity_log").insert({
+          order_id: id,
+          user_id: user.id,
+          activity_type: "receipt_failed",
+          description: `Auto-receipt failed: ${msg}`,
+        });
+      }
+    }
+  }
 
   return NextResponse.json(data);
 }
