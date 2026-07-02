@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlacementPartner, forbidden } from "@/lib/marketplaceAuth";
-import { marketplaceContractsEnabled } from "@/lib/marketplaceFlags";
 import { isPartnerEligibleForContract } from "@/lib/marketplaceEligibility";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!marketplaceContractsEnabled()) return NextResponse.json({ error: "Contracts not enabled" }, { status: 403 });
   const user = await getPlacementPartner(req);
   if (!user) return forbidden();
   const { id } = await params;

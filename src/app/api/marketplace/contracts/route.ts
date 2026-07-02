@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlacementPartner, forbidden } from "@/lib/marketplaceAuth";
-import { marketplaceContractsEnabled } from "@/lib/marketplaceFlags";
 import { contractHiddenFromPartnerTier, type Tier } from "@/lib/marketplaceScoring";
 
 /**
@@ -11,8 +10,6 @@ import { contractHiddenFromPartnerTier, type Tier } from "@/lib/marketplaceScori
  * actually accept. Attaches an `is_eligible` boolean per row.
  */
 export async function GET(req: NextRequest) {
-  if (!marketplaceContractsEnabled()) return NextResponse.json([]);
-
   const user = await getPlacementPartner(req);
   if (!user) return forbidden();
 

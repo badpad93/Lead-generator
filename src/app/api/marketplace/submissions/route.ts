@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlacementPartner, forbidden } from "@/lib/marketplaceAuth";
-import { marketplaceContractsEnabled } from "@/lib/marketplaceFlags";
 
 export async function GET(req: NextRequest) {
-  if (!marketplaceContractsEnabled()) return NextResponse.json([]);
   const user = await getPlacementPartner(req);
   if (!user) return forbidden();
 
@@ -19,7 +17,6 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!marketplaceContractsEnabled()) return NextResponse.json({ error: "Contracts not enabled" }, { status: 403 });
   const user = await getPlacementPartner(req);
   if (!user) return forbidden();
 
