@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowRight, CheckCircle2, Clock, Building2, Briefcase, Package, Users, Star } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle2, Clock, Building2, Briefcase, Package, Users, Star, Bell } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface Partner {
@@ -116,16 +116,24 @@ export default function PlacementDashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900">Placement Partner Dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">Welcome back{partner.business_name ? `, ${partner.business_name}` : ""}. Pick up a contract or track a submission below.</p>
         </div>
-        {partner.rating != null && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2">
-            <div className="flex items-center gap-1">
-              <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-              <span className="text-lg font-bold text-amber-900">{Number(partner.rating).toFixed(1)}</span>
-              <span className="text-xs text-amber-700 ml-1">/ 5</span>
+        <div className="flex items-center gap-2">
+          {partner.rating != null && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2">
+              <div className="flex items-center gap-1">
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <span className="text-lg font-bold text-amber-900">{Number(partner.rating).toFixed(1)}</span>
+                <span className="text-xs text-amber-700 ml-1">/ 5</span>
+              </div>
+              <p className="text-[10px] text-amber-700">from {partner.rating_count || 0} rating{(partner.rating_count || 0) === 1 ? "" : "s"}</p>
             </div>
-            <p className="text-[10px] text-amber-700">from {partner.rating_count || 0} rating{(partner.rating_count || 0) === 1 ? "" : "s"}</p>
-          </div>
-        )}
+          )}
+          <Link
+            href="/placement/settings"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 cursor-pointer"
+          >
+            <Bell className="h-4 w-4" /> Settings
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

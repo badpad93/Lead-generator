@@ -83,5 +83,11 @@ export async function POST(req: NextRequest) {
     description: `Contract created — Tier ${tier} · ${insertRow.locations_needed} location(s) in ${insertRow.market_city || insertRow.market_state || "any"}`,
   });
 
+  // Fan out to eligible partners when the contract opens immediately.
+  if (insertRow.status === "open") {
+    const { notifyPartnerContractOpened } = await import("@/lib/marketplaceNotifications");
+    notifyPartnerContractOpened(contract.id).catch(() => undefined);
+  }
+
   return NextResponse.json(contract);
 }

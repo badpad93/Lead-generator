@@ -56,6 +56,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     description: `Operator ${action}ed submission${note ? `: ${note}` : ""}`,
   });
 
+  // Notify partner of the decision (Phase 2.6).
+  const { notifyPartnerOperatorDecided } = await import("@/lib/marketplaceNotifications");
+  notifyPartnerOperatorDecided(id, newStatus as "accepted" | "rejected").catch(() => undefined);
+
   if (action === "accept") {
     // Lock a slot on the contract — fulfilled if this fills the last one.
     const { data: contract } = await supabaseAdmin

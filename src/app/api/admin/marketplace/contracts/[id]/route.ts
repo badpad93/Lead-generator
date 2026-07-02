@@ -80,5 +80,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     description: activityDesc,
   });
 
+  if (body.action === "open") {
+    const { notifyPartnerContractOpened } = await import("@/lib/marketplaceNotifications");
+    notifyPartnerContractOpened(id).catch(() => undefined);
+  }
+
   return NextResponse.json({ ok: true });
 }
