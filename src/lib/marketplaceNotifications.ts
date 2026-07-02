@@ -13,6 +13,7 @@
 import { Resend } from "resend";
 import { supabaseAdmin } from "./supabaseAdmin";
 import { isPartnerEligibleForContract } from "./marketplaceEligibility";
+import { sendSms } from "./marketplaceSms";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
@@ -83,7 +84,8 @@ async function recordNotification(row: {
   event_type: EventType;
   dedup_key: string;
   subject: string;
-  status: "sent" | "skipped_preference" | "skipped_rate_limit" | "failed";
+  status: "sent" | "skipped_preference" | "skipped_rate_limit" | "skipped_no_channel" | "failed";
+  channel?: "email" | "sms";
   error?: string;
   contract_id?: string | null;
   submission_id?: string | null;
@@ -93,6 +95,7 @@ async function recordNotification(row: {
 }) {
   await supabaseAdmin.from("marketplace_notifications").insert({
     ...row,
+    channel: row.channel || "email",
     error: row.error?.slice(0, 500),
     metadata: row.metadata || null,
   });
@@ -240,6 +243,72 @@ function renderShell({
   ${cta}
   ${footer ? `<p style="font-size:12px;color:#9ca3af;margin-top:24px;">${footer}</p>` : ""}
 </div>`;
+}
+
+// ─── SMS pipeline ────────────────────────────────────────────────────────
+// SMS is opt-in per event (defaults OFF, unlike email). Only events where
+// urgency is genuinely material (operator decision, payout sent) trigger SMS.
+// Prefs key convention: `<event>_sms`.
+
+interface SendSmsArgs {
+  event: EventType;
+  body: string;
+  recipientProfileId: string;
+  dedupKey: string;
+  contractId?: string | null;
+  submissionId?: string | null;
+  payoutId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+async function sendSmsNotification(args: SendSmsArgs): Promise<void> {
+  const prefs = await loadPreferences(args.recipientProfileId);
+  const smsKey = `${args.event}_sms`;
+  // SMS defaults OFF — user must explicitly opt in via /placement/settings.
+  const smsEnabled = prefs ? prefs[smsKey] === true : false;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("phone")
+    .eq("id", args.recipientProfileId)
+    .maybeSingle();
+
+  const baseRow = {
+    recipient_profile_id: args.recipientProfileId,
+    recipient_email: profile?.phone || "",
+    event_type: args.event,
+    dedup_key: args.dedupKey,
+    subject: args.body.slice(0, 100),
+    channel: "sms" as const,
+    contract_id: args.contractId,
+    submission_id: args.submissionId,
+    payout_id: args.payoutId,
+    metadata: args.metadata,
+  };
+
+  if (!smsEnabled) {
+    await recordNotification({ ...baseRow, status: "skipped_preference" });
+    return;
+  }
+  if (!profile?.phone) {
+    await recordNotification({ ...baseRow, status: "skipped_no_channel" });
+    return;
+  }
+  if (await alreadySentRecently(args.dedupKey + ":sms")) {
+    await recordNotification({ ...baseRow, status: "skipped_rate_limit" });
+    return;
+  }
+
+  const result = await sendSms(profile.phone, args.body);
+  if (!result.ok) {
+    await recordNotification({ ...baseRow, status: "failed", error: result.error });
+    return;
+  }
+  await recordNotification({
+    ...baseRow,
+    dedup_key: args.dedupKey + ":sms",
+    status: "sent",
+  });
 }
 
 // ─── Per-event helpers ───────────────────────────────────────────────────
@@ -526,6 +595,19 @@ export async function notifyPartnerOperatorDecided(
     submissionId: submission.id,
     contractId: submission.contract_id,
   });
+
+  const smsBody =
+    decision === "accepted"
+      ? `Vending Connector: Operator accepted "${submission.business_name}"! $${Number(contract?.partner_payout || 0).toLocaleString()} payout is queuing to QuickBooks.`
+      : `Vending Connector: Operator passed on "${submission.business_name}". You can submit another location for this contract.`;
+  await sendSmsNotification({
+    event: "partner_operator_decided",
+    body: smsBody,
+    recipientProfileId: profile.id,
+    dedupKey: `partner_operator_decided:${submission.id}:${decision}`,
+    submissionId: submission.id,
+    contractId: submission.contract_id,
+  });
 }
 
 /** Partner confirmation once the payout Bill lands in QB. */
@@ -558,6 +640,16 @@ export async function notifyPartnerPayoutSent(payoutId: string): Promise<void> {
     recipientProfileId: profile.id,
     subject: `Payout queued — $${Number(payout.amount).toLocaleString()}`,
     html,
+    dedupKey: `partner_payout_sent:${payout.id}`,
+    payoutId: payout.id,
+    submissionId: payout.submission_id,
+    contractId: payout.contract_id,
+  });
+
+  await sendSmsNotification({
+    event: "partner_payout_sent",
+    body: `Vending Connector: Your $${Number(payout.amount).toLocaleString()} payout is queued to QuickBooks. It'll be paid on our next payment cycle.`,
+    recipientProfileId: profile.id,
     dedupKey: `partner_payout_sent:${payout.id}`,
     payoutId: payout.id,
     submissionId: payout.submission_id,

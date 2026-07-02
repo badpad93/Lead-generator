@@ -33,6 +33,9 @@ export async function PATCH(req: NextRequest) {
     "partner_submission_reviewed",
     "partner_operator_decided",
     "partner_payout_sent",
+    // SMS opt-ins (defaults off — user must explicitly enable)
+    "partner_operator_decided_sms",
+    "partner_payout_sent_sms",
   ];
   const clean: Record<string, boolean> = {};
   for (const k of allowedKeys) {

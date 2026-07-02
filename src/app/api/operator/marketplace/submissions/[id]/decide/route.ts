@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // to contracts this operator sourced.
   const { data: submission } = await supabaseAdmin
     .from("placement_submissions")
-    .select("id, contract_id, admin_status, operator_status")
+    .select("id, contract_id, partner_id, admin_status, operator_status")
     .eq("id", id)
     .in("contract_id", contractIds)
     .maybeSingle();
@@ -59,6 +59,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Notify partner of the decision (Phase 2.6).
   const { notifyPartnerOperatorDecided } = await import("@/lib/marketplaceNotifications");
   notifyPartnerOperatorDecided(id, newStatus as "accepted" | "rejected").catch(() => undefined);
+
+  // Partner score/tier changes on decision (Phase 2.9).
+  try {
+    const { recomputePartnerScore } = await import("@/lib/marketplaceScoring");
+    recomputePartnerScore(submission.partner_id).catch(() => undefined);
+  } catch { /* non-critical */ }
 
   if (action === "accept") {
     // Lock a slot on the contract — fulfilled if this fills the last one.

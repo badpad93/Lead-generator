@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Package, TrendingUp, Users, DollarSign, Star, Bell } from "lucide-react";
+import { Briefcase, Package, TrendingUp, Users, DollarSign, Star, Bell, BarChart3 } from "lucide-react";
 
 const NAV = [
+  { href: "/admin/marketplace/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/marketplace/contracts", label: "Contracts", icon: Briefcase },
   { href: "/admin/marketplace/submissions", label: "Submissions", icon: Package },
   { href: "/admin/marketplace/tier-proposals", label: "Tier Bumps", icon: TrendingUp },

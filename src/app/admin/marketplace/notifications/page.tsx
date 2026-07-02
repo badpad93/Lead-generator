@@ -11,6 +11,7 @@ interface Notification {
   recipient_profile_id: string | null;
   recipient_email: string;
   event_type: string;
+  channel: string;
   dedup_key: string | null;
   subject: string | null;
   status: string;
@@ -44,6 +45,7 @@ const STATUS_MAP: Record<string, { color: string; icon: typeof Clock }> = {
   failed: { color: "bg-red-50 text-red-700", icon: XCircle },
   skipped_preference: { color: "bg-gray-100 text-gray-600", icon: Ban },
   skipped_rate_limit: { color: "bg-amber-50 text-amber-700", icon: Clock },
+  skipped_no_channel: { color: "bg-gray-100 text-gray-600", icon: Ban },
 };
 
 export default function AdminNotificationsPage() {
@@ -136,7 +138,12 @@ export default function AdminNotificationsPage() {
                 const Icon = s.icon;
                 return (
                   <tr key={n.id} className="border-t border-gray-50">
-                    <td className="px-4 py-3 text-xs text-gray-500 font-mono">{n.event_type}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 font-mono">
+                      {n.event_type}
+                      <span className={`ml-1.5 inline-flex items-center rounded px-1 py-0.5 text-[9px] font-semibold uppercase ${n.channel === "sms" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}>
+                        {n.channel}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-gray-700 text-xs">{n.recipient_email}</td>
                     <td className="px-4 py-3 text-gray-700 max-w-sm truncate" title={n.subject || ""}>{n.subject || "—"}</td>
                     <td className="px-4 py-3">

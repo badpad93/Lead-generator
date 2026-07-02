@@ -25,6 +25,14 @@ interface PartnerDetail {
     contracts_completed: number;
     lifetime_earnings: number;
     pending_earnings: number;
+    partner_score: number | null;
+    partner_tier: "bronze" | "silver" | "gold" | null;
+    partner_tier_override: "bronze" | "silver" | "gold" | null;
+    partner_tier_computed_at: string | null;
+    submissions_accepted_count: number | null;
+    submissions_total_count: number | null;
+    rating: number | null;
+    rating_count: number | null;
     created_at: string;
   };
   profile: { full_name: string; email: string; phone: string | null; address: string | null; city: string | null; state: string | null; zip: string | null } | null;
@@ -301,6 +309,71 @@ export default function AdminPartnerDetailPage() {
               className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 cursor-pointer"
             >
               Set Capacity
+            </button>
+          </div>
+
+          {/* Tier & Score */}
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Tier & Score</h3>
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Auto Tier</dt>
+                <dd className={`font-medium capitalize ${
+                  partner.partner_tier === "gold" ? "text-yellow-700"
+                    : partner.partner_tier === "silver" ? "text-slate-700"
+                    : "text-amber-700"
+                }`}>{partner.partner_tier || "bronze"}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Score</dt>
+                <dd className="font-medium">{partner.partner_score != null ? `${Number(partner.partner_score).toFixed(1)} / 100` : "—"}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Submissions</dt>
+                <dd className="font-medium">{partner.submissions_accepted_count ?? 0} / {partner.submissions_total_count ?? 0} accepted</dd>
+              </div>
+              {partner.partner_tier_override && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Pinned Override</dt>
+                  <dd className="font-medium capitalize text-blue-700">{partner.partner_tier_override}</dd>
+                </div>
+              )}
+              {partner.partner_tier_computed_at && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Last recomputed</dt>
+                  <dd className="text-xs text-gray-400">{new Date(partner.partner_tier_computed_at).toLocaleString()}</dd>
+                </div>
+              )}
+            </dl>
+            <div className="mt-4 grid grid-cols-2 gap-1.5">
+              {(["bronze", "silver", "gold"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => doAction("set_tier_override", { tier: t })}
+                  disabled={saving === "set_tier_override"}
+                  className={`rounded-lg border px-2 py-1.5 text-xs font-medium capitalize cursor-pointer transition-colors ${
+                    partner.partner_tier_override === t
+                      ? "border-green-primary bg-green-50 text-green-700"
+                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  Pin {t}
+                </button>
+              ))}
+              <button
+                onClick={() => doAction("set_tier_override", { tier: null })}
+                disabled={saving === "set_tier_override"}
+                className="rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 cursor-pointer"
+              >
+                Clear
+              </button>
+            </div>
+            <button
+              onClick={() => doAction("recompute_score")}
+              disabled={saving === "recompute_score"}
+              className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 cursor-pointer"
+            >
+              Recompute Score
             </button>
           </div>
 

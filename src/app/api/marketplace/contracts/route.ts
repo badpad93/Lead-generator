@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlacementPartner, forbidden } from "@/lib/marketplaceAuth";
 import { marketplaceContractsEnabled } from "@/lib/marketplaceFlags";
-import { isPartnerEligibleForContract } from "@/lib/marketplaceEligibility";
+import { contractHiddenFromPartnerTier, type Tier } from "@/lib/marketplaceScoring";
 
 /**
  * GET — return open + in_progress contracts visible to this partner.
@@ -64,5 +64,14 @@ export async function GET(req: NextRequest) {
 
   const openToMe = filtered.filter((c) => !acceptedIds.has(c.id));
 
-  return NextResponse.json(openToMe);
+  // Phase 2.9 — Tier-3 contracts are gold-only for the first 24 hours.
+  const { data: partnerRow } = await supabaseAdmin
+    .from("placement_partners")
+    .select("partner_tier")
+    .eq("id", user.id)
+    .maybeSingle();
+  const partnerTier: Tier = (partnerRow?.partner_tier as Tier) || "bronze";
+  const gatedByTier = openToMe.filter((c) => !contractHiddenFromPartnerTier(c, partnerTier));
+
+  return NextResponse.json(gatedByTier);
 }

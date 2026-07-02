@@ -75,6 +75,9 @@ export async function recomputeAggregate(rateeType: RateeType, rateeId: string):
       .from("placement_partners")
       .update({ rating: avg, rating_count: count, updated_at: new Date().toISOString() })
       .eq("id", rateeId);
+    // Rating change → score changes → tier may flip.
+    const { recomputePartnerScore } = await import("./marketplaceScoring");
+    await recomputePartnerScore(rateeId);
   } else {
     await supabaseAdmin
       .from("profiles")
