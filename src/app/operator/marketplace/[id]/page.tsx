@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { Loader2, ArrowLeft, MapPin, Zap, Car, CheckCircle2, XCircle, AlertCircle, Clock } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
+import RatingCard, { ExistingRating } from "@/app/components/RatingCard";
 
 interface Submission {
   id: string;
@@ -54,6 +55,9 @@ export default function OperatorSubmissionDetailPage() {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rating, setRating] = useState<ExistingRating | null>(null);
+  const [ratingSaving, setRatingSaving] = useState(false);
+  const [ratingError, setRatingError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -66,8 +70,29 @@ export default function OperatorSubmissionDetailPage() {
       setSubmission(data.submission);
       setPhotos(data.photos);
     }
+    const ratingRes = await fetch(`/api/operator/marketplace/submissions/${id}/rate`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (ratingRes.ok) {
+      const rd = await ratingRes.json();
+      setRating(rd.rating || null);
+    }
     setLoading(false);
   }, [token, id]);
+
+  async function submitRating(payload: { score: number; feedback: string; tags: string[] }) {
+    setRatingError(null);
+    setRatingSaving(true);
+    const res = await fetch(`/api/operator/marketplace/submissions/${id}/rate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) setRatingError(body.error || "Failed");
+    else await load();
+    setRatingSaving(false);
+  }
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -201,6 +226,21 @@ export default function OperatorSubmissionDetailPage() {
           {submission.operator_reviewed_at && (
             <p className="text-xs text-gray-400 mt-1">{new Date(submission.operator_reviewed_at).toLocaleString()}</p>
           )}
+        </div>
+      )}
+
+      {/* Rate the placement partner after accept */}
+      {submission.operator_status === "accepted" && (
+        <div className="mb-4">
+          <RatingCard
+            title="Rate the placement partner"
+            description="How was the placement partner to work with? Your rating helps us prioritize the best partners for you."
+            existing={rating}
+            saving={ratingSaving}
+            error={ratingError}
+            onSubmit={submitRating}
+            tagOptions={["Great location", "Well-researched", "Responsive", "Slow follow-up", "Address wrong"]}
+          />
         </div>
       )}
 

@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { Loader2, ArrowLeft, Upload, CheckCircle2, XCircle, Clock, AlertCircle, MapPin, User, Phone, Mail, Zap, Car, MessageSquare } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
+import RatingCard, { ExistingRating } from "@/app/components/RatingCard";
 
 interface Submission {
   id: string;
@@ -26,6 +27,7 @@ interface Submission {
   notes: string | null;
   admin_status: string;
   operator_status: string;
+  operator_reviewed_at?: string | null;
   admin_review_note: string | null;
   created_at: string;
   placement_contracts: {
@@ -66,6 +68,9 @@ export default function SubmissionDetailPage() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [rating, setRating] = useState<ExistingRating | null>(null);
+  const [ratingSaving, setRatingSaving] = useState(false);
+  const [ratingError, setRatingError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -79,8 +84,29 @@ export default function SubmissionDetailPage() {
       setPhotos(data.photos);
       setActivity(data.activity);
     }
+    const ratingRes = await fetch(`/api/marketplace/submissions/${id}/rate`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (ratingRes.ok) {
+      const rd = await ratingRes.json();
+      setRating(rd.rating || null);
+    }
     setLoading(false);
   }, [token, id]);
+
+  async function submitRating(payload: { score: number; feedback: string; tags: string[] }) {
+    setRatingError(null);
+    setRatingSaving(true);
+    const res = await fetch(`/api/marketplace/submissions/${id}/rate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) setRatingError(body.error || "Failed");
+    else await load();
+    setRatingSaving(false);
+  }
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -243,6 +269,21 @@ export default function SubmissionDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Rating (post-operator-accept) */}
+      {submission.operator_status === "accepted" && (
+        <div className="mb-4">
+          <RatingCard
+            title="Rate this operator"
+            description="How was this operator to work with? Only admin can see this rating — helps us route contracts to partners fairly."
+            existing={rating}
+            saving={ratingSaving}
+            error={ratingError}
+            onSubmit={submitRating}
+            tagOptions={["Responsive", "Clear specs", "Quick to accept", "Slow to respond", "Changed scope"]}
+          />
+        </div>
+      )}
 
       {/* Activity */}
       {activity.length > 0 && (
