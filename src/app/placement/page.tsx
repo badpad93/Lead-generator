@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowRight, CheckCircle2, Clock, Building2 } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle2, Clock, Building2, Briefcase, Package } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface Partner {
@@ -106,19 +106,42 @@ export default function PlacementDashboardPage() {
     );
   }
 
-  // Fully verified — dashboard scaffolding (contracts arrive in phase 2.2)
+  // Fully verified — dashboard with contracts + submissions cards
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Placement Partner Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Welcome back{partner.business_name ? `, ${partner.business_name}` : ""}. New contracts will show up here.</p>
+        <p className="text-sm text-gray-500 mt-1">Welcome back{partner.business_name ? `, ${partner.business_name}` : ""}. Pick up a contract or track a submission below.</p>
       </div>
-      <div className="rounded-2xl border border-gray-100 bg-white p-12 text-center">
-        <div className="mx-auto w-14 h-14 rounded-xl bg-green-50 flex items-center justify-center mb-4">
-          <Clock className="h-7 w-7 text-green-primary" />
-        </div>
-        <p className="text-lg font-semibold text-gray-900 mb-1">You&apos;re verified and ready</p>
-        <p className="text-sm text-gray-500">The Contracts feed is coming online shortly.</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Link
+          href="/placement/contracts"
+          className="group rounded-2xl border border-gray-100 bg-white p-6 hover:border-green-200 hover:shadow-sm transition-all"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center">
+              <Briefcase className="h-6 w-6 text-green-primary" />
+            </div>
+            <ArrowRight className="h-5 w-5 text-gray-300 group-hover:text-green-primary transition-colors" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Available Contracts</h2>
+          <p className="text-sm text-gray-500">Browse open contracts eligible for your territory and industries.</p>
+        </Link>
+
+        <Link
+          href="/placement/submissions"
+          className="group rounded-2xl border border-gray-100 bg-white p-6 hover:border-green-200 hover:shadow-sm transition-all"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
+              <Package className="h-6 w-6 text-blue-600" />
+            </div>
+            <ArrowRight className="h-5 w-5 text-gray-300 group-hover:text-green-primary transition-colors" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">My Submissions</h2>
+          <p className="text-sm text-gray-500">Track candidate locations you&apos;ve submitted and see approval status.</p>
+        </Link>
       </div>
     </div>
   );

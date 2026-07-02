@@ -84,6 +84,7 @@ interface Agreement {
   include_location_services: boolean;
   include_shipping_storage: boolean;
   auto_send_invoice_on_signing: boolean;
+  send_to_marketplace: boolean;
   location_services_deposit_only: boolean;
   location_services_deposit_amount: number;
   // Location Placement Agreement fields
@@ -186,6 +187,7 @@ type FormData = {
   include_location_services: boolean;
   include_shipping_storage: boolean;
   auto_send_invoice_on_signing: boolean;
+  send_to_marketplace: boolean;
   location_services_deposit_only: boolean;
   location_services_deposit_amount: string;
   // Location Placement Agreement fields
@@ -279,6 +281,9 @@ function agreementToForm(ag: Agreement): FormData {
     include_location_services: ag.include_location_services !== false,
     include_shipping_storage: ag.include_shipping_storage !== false,
     auto_send_invoice_on_signing: ag.auto_send_invoice_on_signing === true,
+    send_to_marketplace: ag.send_to_marketplace != null
+      ? ag.send_to_marketplace === true
+      : ag.auto_send_invoice_on_signing === true,
     location_services_deposit_only: ag.location_services_deposit_only === true,
     location_services_deposit_amount: String(ag.location_services_deposit_amount ?? 100),
     // Location Placement Agreement
@@ -445,6 +450,7 @@ function StandaloneAgreementEditor() {
       include_location_services: form.include_location_services,
       include_shipping_storage: form.include_shipping_storage,
       auto_send_invoice_on_signing: form.auto_send_invoice_on_signing,
+      send_to_marketplace: form.send_to_marketplace,
       location_services_deposit_only: form.location_services_deposit_only,
       location_services_deposit_amount: Number(form.location_services_deposit_amount) || 0,
       // Location Placement Agreement
@@ -1052,6 +1058,23 @@ function StandaloneAgreementEditor() {
                 <span className="block text-xs text-gray-500 mt-0.5">
                   When both parties have signed, automatically create an order and send the invoice to the operator in a separate email.
                   Leave off if you prefer to manually create the order and send the invoice later.
+                </span>
+              </label>
+            </div>
+            <div className="mt-3 flex items-start gap-3 rounded-lg border border-green-100 bg-green-50/50 p-3">
+              <input
+                id="send-to-marketplace"
+                type="checkbox"
+                checked={form.send_to_marketplace}
+                onChange={(e) => updateBool("send_to_marketplace", e.target.checked)}
+                disabled={isReadOnly}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer disabled:cursor-not-allowed"
+              />
+              <label htmlFor="send-to-marketplace" className="flex-1 cursor-pointer">
+                <span className="block text-sm font-medium text-gray-900">Send to Placement Marketplace on signing</span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  When both parties have signed, auto-create a Tier-1 contract on the Placement Partner marketplace so
+                  partners can hunt locations for this operator. Defaults on when auto-invoice is on.
                 </span>
               </label>
             </div>

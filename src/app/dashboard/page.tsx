@@ -24,6 +24,7 @@ import {
   Route,
   ShoppingBag,
   Crown,
+  Briefcase,
 } from "lucide-react";
 import type {
   Profile,
@@ -648,6 +649,25 @@ export default function DashboardPage() {
                 </p>
               </div>
               <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-emerald-600" />
+            </Link>
+          )}
+          {profile.role === "operator" && (
+            <Link
+              href="/operator/marketplace"
+              className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-primary group-hover:text-white">
+                <Briefcase className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-semibold text-black-primary">
+                  Placement Marketplace
+                </p>
+                <p className="text-sm text-black-primary/50">
+                  Review locations our placement partners have found for you
+                </p>
+              </div>
+              <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-green-primary" />
             </Link>
           )}
         </div>
