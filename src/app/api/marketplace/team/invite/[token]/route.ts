@@ -63,8 +63,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     );
   }
 
-  // Upgrade role
-  if (profile.role !== "placement_partner") {
+  // Upgrade role — but preserve elevated CRM roles. An admin, sales manager,
+  // etc. accepting an invite still gets the team_members row (so they can
+  // work under the company) without losing their existing tools.
+  const upgradableRoles = ["requestor", "operator", "locator", "location_manager"];
+  if (!profile.role || upgradableRoles.includes(profile.role)) {
     await supabaseAdmin.from("profiles").update({ role: "placement_partner" }).eq("id", userId);
   }
 
