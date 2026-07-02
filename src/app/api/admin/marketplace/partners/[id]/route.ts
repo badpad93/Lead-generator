@@ -73,6 +73,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const cap = Math.max(0, Math.floor(Number(body.capacity) || 0));
     updates.capacity = cap;
     activityEntries.push({ activity_type: "capacity_set", description: `Capacity set to ${cap}` });
+  } else if (body.action === "set_tier_override") {
+    const t = body.tier;
+    if (t !== null && t !== "bronze" && t !== "silver" && t !== "gold") {
+      return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
+    }
+    updates.partner_tier_override = t;
+    activityEntries.push({
+      activity_type: "tier_override_set",
+      description: t ? `Tier pinned to ${t}` : "Tier override cleared (auto-tier resumes)",
+    });
+  } else if (body.action === "recompute_score") {
+    // Manual score recompute — no DB update here; the helper below writes.
+    activityEntries.push({ activity_type: "score_recomputed", description: "Admin triggered score recompute" });
   } else {
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   }
@@ -90,6 +103,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       actor_id: adminId,
       ...entry,
     });
+  }
+
+  // Any tier-override change or explicit recompute → recompute score/tier.
+  if (body.action === "set_tier_override" || body.action === "recompute_score") {
+    const { recomputePartnerScore } = await import("@/lib/marketplaceScoring");
+    await recomputePartnerScore(id);
   }
 
   return NextResponse.json({ ok: true });

@@ -18,7 +18,15 @@ interface Partner {
   bank_verified_at: string | null;
   rating: number | null;
   rating_count: number | null;
+  partner_tier: "bronze" | "silver" | "gold" | null;
+  partner_score: number | null;
 }
+
+const TIER_STYLE: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  bronze: { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-300", label: "Bronze" },
+  silver: { bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-300", label: "Silver" },
+  gold: { bg: "bg-yellow-100", text: "text-yellow-800", border: "border-yellow-400", label: "Gold" },
+};
 
 export default function PlacementDashboardPage() {
   const router = useRouter();
@@ -116,7 +124,19 @@ export default function PlacementDashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900">Placement Partner Dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">Welcome back{partner.business_name ? `, ${partner.business_name}` : ""}. Pick up a contract or track a submission below.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {partner.partner_tier && (() => {
+            const style = TIER_STYLE[partner.partner_tier];
+            return (
+              <div className={`rounded-2xl border px-4 py-2 ${style.bg} ${style.border}`}>
+                <p className={`text-[10px] font-semibold uppercase tracking-wide ${style.text}`}>Tier</p>
+                <p className={`text-lg font-bold ${style.text}`}>{style.label}</p>
+                {partner.partner_score != null && (
+                  <p className={`text-[10px] ${style.text}`}>Score {Number(partner.partner_score).toFixed(0)}/100</p>
+                )}
+              </div>
+            );
+          })()}
           {partner.rating != null && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2">
               <div className="flex items-center gap-1">

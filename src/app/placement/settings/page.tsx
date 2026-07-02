@@ -11,9 +11,11 @@ interface Prefs {
   partner_submission_reviewed: boolean;
   partner_operator_decided: boolean;
   partner_payout_sent: boolean;
+  partner_operator_decided_sms: boolean;
+  partner_payout_sent_sms: boolean;
 }
 
-const EVENTS: Array<{ key: keyof Prefs; label: string; description: string }> = [
+const EMAIL_EVENTS: Array<{ key: keyof Prefs; label: string; description: string }> = [
   {
     key: "partner_contract_opened",
     label: "New contracts",
@@ -36,12 +38,28 @@ const EVENTS: Array<{ key: keyof Prefs; label: string; description: string }> = 
   },
 ];
 
+const SMS_EVENTS: Array<{ key: keyof Prefs; label: string; description: string }> = [
+  {
+    key: "partner_operator_decided_sms",
+    label: "SMS: Operator decisions",
+    description: "Text me when the operator accepts or rejects. Requires a phone number on your profile.",
+  },
+  {
+    key: "partner_payout_sent_sms",
+    label: "SMS: Payout confirmations",
+    description: "Text me when a payout is queued for QuickBooks.",
+  },
+];
+
 function defaultPrefs(saved: Partial<Prefs>): Prefs {
   return {
     partner_contract_opened: saved.partner_contract_opened !== false,
     partner_submission_reviewed: saved.partner_submission_reviewed !== false,
     partner_operator_decided: saved.partner_operator_decided !== false,
     partner_payout_sent: saved.partner_payout_sent !== false,
+    // SMS defaults OFF — user must explicitly opt in.
+    partner_operator_decided_sms: saved.partner_operator_decided_sms === true,
+    partner_payout_sent_sms: saved.partner_payout_sent_sms === true,
   };
 }
 
@@ -122,8 +140,9 @@ export default function PlacementSettingsPage() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-gray-100 bg-white p-5 space-y-4">
-        {EVENTS.map((e) => (
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 space-y-4 mb-4">
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</h2>
+        {EMAIL_EVENTS.map((e) => (
           <label key={e.key} className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
@@ -137,6 +156,27 @@ export default function PlacementSettingsPage() {
             </div>
           </label>
         ))}
+      </div>
+
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 space-y-4">
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">SMS (opt-in)</h2>
+        {SMS_EVENTS.map((e) => (
+          <label key={e.key} className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={prefs[e.key]}
+              onChange={(ev) => setPrefs((p) => ({ ...p, [e.key]: ev.target.checked }))}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+            />
+            <div>
+              <p className="text-sm font-medium text-gray-900">{e.label}</p>
+              <p className="text-xs text-gray-500">{e.description}</p>
+            </div>
+          </label>
+        ))}
+        <p className="text-[11px] text-gray-400 border-t border-gray-100 pt-3">
+          Msg &amp; data rates may apply. Reply STOP to unsubscribe from any Vending Connector SMS.
+        </p>
       </div>
 
       <div className="mt-4 flex justify-end">
