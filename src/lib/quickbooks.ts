@@ -424,10 +424,13 @@ export async function createVendor(params: {
   displayName: string;
   email?: string;
   phone?: string;
+  notes?: string;
 }): Promise<QBVendor> {
   const body: Record<string, unknown> = { DisplayName: params.displayName };
   if (params.email) body.PrimaryEmailAddr = { Address: params.email };
   if (params.phone) body.PrimaryPhone = { FreeFormNumber: params.phone };
+  if (params.notes) body.PrintOnCheckName = params.displayName; // used on printed checks
+  if (params.notes) body.Notes = params.notes;
 
   const res = await qbFetch("/vendor", {
     method: "POST",
@@ -451,6 +454,7 @@ export async function findOrCreateVendor(params: {
   displayName: string;
   email?: string;
   phone?: string;
+  notes?: string;
 }): Promise<QBVendor> {
   if (params.email) {
     const byEmail = await findVendorByEmail(params.email);
@@ -459,6 +463,32 @@ export async function findOrCreateVendor(params: {
   const byName = await findVendorByName(params.displayName);
   if (byName) return byName;
   return createVendor(params);
+}
+
+/**
+ * Update an existing vendor's Notes field (used to attach ACH info later
+ * once the partner adds it, when the vendor was created without it).
+ * Requires the current SyncToken — we fetch a fresh copy first.
+ */
+export async function updateVendorNotes(vendorId: string, notes: string): Promise<void> {
+  const getRes = await qbFetch(`/vendor/${vendorId}`);
+  if (!getRes.ok) {
+    throw new Error(`QB get vendor failed: ${await getRes.text()}`);
+  }
+  const current = (await getRes.json()).Vendor;
+  const res = await qbFetch("/vendor", {
+    method: "POST",
+    body: JSON.stringify({
+      Id: current.Id,
+      SyncToken: current.SyncToken,
+      DisplayName: current.DisplayName,
+      Notes: notes,
+      sparse: true,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`QB update vendor failed: ${await res.text()}`);
+  }
 }
 
 // ─── Bill Management (partner payouts owed) ───

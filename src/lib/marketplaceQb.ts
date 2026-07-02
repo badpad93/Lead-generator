@@ -17,12 +17,34 @@ import {
   findOrCreateCustomer,
   createBill,
   createInvoice,
+  updateVendorNotes,
 } from "./quickbooks";
 
 const now = () => new Date().toISOString();
 
 interface EnsureVendorArgs {
   partnerId: string;
+}
+
+function buildBankNotes(bank: {
+  method: string;
+  bank_name: string | null;
+  account_holder: string | null;
+  account_type: string | null;
+  routing_number: string | null;
+  account_number: string | null;
+  notes: string | null;
+} | null): string | undefined {
+  if (!bank) return undefined;
+  const lines: string[] = [];
+  lines.push(`Payout method: ${bank.method}`);
+  if (bank.account_holder) lines.push(`Payee: ${bank.account_holder}`);
+  if (bank.bank_name) lines.push(`Bank: ${bank.bank_name}`);
+  if (bank.account_type) lines.push(`Account type: ${bank.account_type}`);
+  if (bank.routing_number) lines.push(`Routing: ${bank.routing_number}`);
+  if (bank.account_number) lines.push(`Account: ${bank.account_number}`);
+  if (bank.notes) lines.push(`Notes: ${bank.notes}`);
+  return lines.join("\n");
 }
 
 async function ensurePartnerVendor({ partnerId }: EnsureVendorArgs): Promise<string | null> {
@@ -32,7 +54,6 @@ async function ensurePartnerVendor({ partnerId }: EnsureVendorArgs): Promise<str
     .eq("id", partnerId)
     .maybeSingle();
   if (!partner) return null;
-  if (partner.qb_vendor_id) return partner.qb_vendor_id;
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -40,11 +61,36 @@ async function ensurePartnerVendor({ partnerId }: EnsureVendorArgs): Promise<str
     .eq("id", partnerId)
     .maybeSingle();
 
+  const { data: bank } = await supabaseAdmin
+    .from("placement_bank_accounts")
+    .select("id, method, bank_name, account_holder, account_type, routing_number, account_number, notes, qb_vendor_synced_at")
+    .eq("partner_id", partnerId)
+    .eq("active", true)
+    .maybeSingle();
+
+  const notes = buildBankNotes(bank);
   const displayName = partner.business_name || profile?.full_name || `Partner ${partnerId.slice(0, 8)}`;
+
+  // Existing vendor: sync bank notes if we haven't already, then return the id.
+  if (partner.qb_vendor_id) {
+    if (bank && !bank.qb_vendor_synced_at && notes) {
+      try {
+        await updateVendorNotes(partner.qb_vendor_id, notes);
+        await supabaseAdmin
+          .from("placement_bank_accounts")
+          .update({ qb_vendor_synced_at: now() })
+          .eq("id", bank.id);
+      } catch { /* non-critical — Bill still gets created */ }
+    }
+    return partner.qb_vendor_id;
+  }
+
+  // New vendor path — attach bank notes at creation.
   const vendor = await findOrCreateVendor({
     displayName,
     email: profile?.email || undefined,
     phone: profile?.phone || undefined,
+    notes,
   });
 
   await supabaseAdmin
@@ -55,6 +101,13 @@ async function ensurePartnerVendor({ partnerId }: EnsureVendorArgs): Promise<str
       updated_at: now(),
     })
     .eq("id", partnerId);
+
+  if (bank && notes) {
+    await supabaseAdmin
+      .from("placement_bank_accounts")
+      .update({ qb_vendor_synced_at: now() })
+      .eq("id", bank.id);
+  }
 
   return vendor.Id;
 }

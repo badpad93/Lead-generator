@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, DollarSign, Filter, ArrowLeft, RefreshCw, Send, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, DollarSign, Filter, ArrowLeft, RefreshCw, Send, AlertCircle, CheckCircle2, Eye, EyeOff, ClipboardCheck } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface Payout {
@@ -73,6 +73,7 @@ export default function AdminPayoutsPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<Record<string, { method: string; bank_name: string | null; account_holder: string | null; account_type: string | null; routing_number: string | null; account_number: string | null; notes: string | null; verified_at: string | null } | null>>({});
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -114,6 +115,39 @@ export default function AdminPayoutsPage() {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) setError(body.error || "Drain failed");
     else setMessage(`Drained: ${body.succeeded} succeeded, ${body.failed} failed of ${body.attempted} attempted`);
+    await load();
+    setSaving(null);
+  }
+
+  async function toggleReveal(id: string) {
+    if (revealed[id] !== undefined) {
+      setRevealed((r) => { const c = { ...r }; delete c[id]; return c; });
+      return;
+    }
+    setSaving(`reveal-${id}`);
+    const res = await fetch(`/api/admin/marketplace/payouts/${id}/bank-info`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const body = await res.json();
+      setRevealed((r) => ({ ...r, [id]: body.bank_account || null }));
+    }
+    setSaving(null);
+  }
+
+  async function markPaid(id: string) {
+    const methodInput = prompt("Payment method used (ACH, Zelle, Check, etc.)?", "ACH");
+    if (methodInput === null) return;
+    const ref = prompt("Reference / confirmation # (optional)?", "");
+    setSaving(`mark-paid-${id}`);
+    const res = await fetch(`/api/admin/marketplace/payouts/${id}/mark-paid`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ method: methodInput, reference: ref }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) setError(body.error || "Failed to mark paid");
+    else setMessage("Payout marked paid");
     await load();
     setSaving(null);
   }
@@ -223,34 +257,105 @@ export default function AdminPayoutsPage() {
               </tr>
             </thead>
             <tbody>
-              {tab === "payouts" && payouts.map((p) => (
-                <tr key={p.id} className="border-t border-gray-50">
-                  <td className="px-4 py-3 text-gray-700">{p.partner?.business_name || `Partner #${p.partner_id.slice(0, 8)}`}</td>
-                  <td className="px-4 py-3 text-gray-700 text-xs">{p.contract?.title || "—"}</td>
-                  <td className="px-4 py-3 text-gray-700 text-xs">{p.submission ? `${p.submission.business_name} · ${[p.submission.city, p.submission.state].filter(Boolean).join(", ")}` : "—"}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-emerald-700">${Number(p.amount).toLocaleString()}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[p.status] || "bg-gray-100 text-gray-600"}`}>
-                      {p.status.replace(/_/g, " ")}
-                    </span>
-                    {p.qb_error && <p className="text-[10px] text-red-500 mt-1 max-w-xs truncate" title={p.qb_error}>{p.qb_error}</p>}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-500 font-mono">{p.qb_bill_id || "—"}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{new Date(p.triggered_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-3">
-                    {(p.status === "queued" || p.status === "failed") && (
-                      <button
-                        onClick={() => retry(p.id)}
-                        disabled={saving === `retry-${p.id}`}
-                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 hover:bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 cursor-pointer disabled:opacity-50"
-                      >
-                        {saving === `retry-${p.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                        Send
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {tab === "payouts" && payouts.flatMap((p) => {
+                const info = revealed[p.id];
+                const showPanel = info !== undefined;
+                const rows = [
+                  <tr key={p.id} className="border-t border-gray-50">
+                    <td className="px-4 py-3 text-gray-700">{p.partner?.business_name || `Partner #${p.partner_id.slice(0, 8)}`}</td>
+                    <td className="px-4 py-3 text-gray-700 text-xs">{p.contract?.title || "—"}</td>
+                    <td className="px-4 py-3 text-gray-700 text-xs">{p.submission ? `${p.submission.business_name} · ${[p.submission.city, p.submission.state].filter(Boolean).join(", ")}` : "—"}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-emerald-700">${Number(p.amount).toLocaleString()}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[p.status] || "bg-gray-100 text-gray-600"}`}>
+                        {p.status.replace(/_/g, " ")}
+                      </span>
+                      {p.qb_error && <p className="text-[10px] text-red-500 mt-1 max-w-xs truncate" title={p.qb_error}>{p.qb_error}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 font-mono">{p.qb_bill_id || "—"}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{new Date(p.triggered_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 flex-wrap justify-end">
+                        {(p.status === "queued" || p.status === "failed") && (
+                          <button
+                            onClick={() => retry(p.id)}
+                            disabled={saving === `retry-${p.id}`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 hover:bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 cursor-pointer disabled:opacity-50"
+                          >
+                            {saving === `retry-${p.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                            Send
+                          </button>
+                        )}
+                        {p.status !== "paid" && p.status !== "cancelled" && (
+                          <button
+                            onClick={() => toggleReveal(p.id)}
+                            disabled={saving === `reveal-${p.id}`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 hover:bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 cursor-pointer disabled:opacity-50"
+                          >
+                            {saving === `reveal-${p.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : (showPanel ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />)}
+                            Bank
+                          </button>
+                        )}
+                        {p.status !== "paid" && (
+                          <button
+                            onClick={() => markPaid(p.id)}
+                            disabled={saving === `mark-paid-${p.id}`}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-2 py-1 text-xs font-medium text-white cursor-pointer disabled:opacity-50"
+                          >
+                            {saving === `mark-paid-${p.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <ClipboardCheck className="h-3 w-3" />}
+                            Mark Paid
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>,
+                ];
+                if (showPanel) {
+                  rows.push(
+                    <tr key={`${p.id}-bank`} className="bg-amber-50/40">
+                      <td colSpan={8} className="px-4 py-3">
+                        {info ? (
+                          <div className="text-xs text-gray-700 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <p className="text-gray-500">Method</p>
+                              <p className="font-medium capitalize">{info.method.replace("_", " ")}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Payee / Holder</p>
+                              <p className="font-medium">{info.account_holder || "—"}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Bank</p>
+                              <p className="font-medium">{info.bank_name || "—"} <span className="text-gray-400">({info.account_type || "—"})</span></p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Routing #</p>
+                              <p className="font-mono select-all">{info.routing_number || "—"}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Account #</p>
+                              <p className="font-mono select-all">{info.account_number || "—"}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Verified</p>
+                              <p className="font-medium">{info.verified_at ? new Date(info.verified_at).toLocaleDateString() : "Unverified"}</p>
+                            </div>
+                            {info.notes && (
+                              <div className="sm:col-span-3">
+                                <p className="text-gray-500">Partner notes</p>
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{info.notes}</p>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-red-600">No payout details on file — reach out to the partner to submit them via /placement/payouts.</p>
+                        )}
+                      </td>
+                    </tr>,
+                  );
+                }
+                return rows;
+              })}
               {tab === "invoices" && invoices.map((i) => (
                 <tr key={i.id} className="border-t border-gray-50">
                   <td className="px-4 py-3 text-gray-700">{i.operator_business_name || "—"}<div className="text-xs text-gray-400">{i.operator_email}</div></td>
