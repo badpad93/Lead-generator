@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlacementPartner, forbidden } from "@/lib/marketplaceAuth";
-import { marketplaceOnboardingEnabled } from "@/lib/marketplaceFlags";
 
 /**
  * Uploads a partner document (W9, ID, insurance) to the private
  * 'placement-partner-docs' bucket and inserts a documents row.
  */
 export async function POST(req: NextRequest) {
-  if (!marketplaceOnboardingEnabled()) return forbidden("Onboarding disabled");
   const user = await getPlacementPartner(req);
   if (!user) return forbidden();
 

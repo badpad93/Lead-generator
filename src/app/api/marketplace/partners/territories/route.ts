@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlacementPartner, forbidden } from "@/lib/marketplaceAuth";
-import { marketplaceOnboardingEnabled } from "@/lib/marketplaceFlags";
 
 export async function POST(req: NextRequest) {
-  if (!marketplaceOnboardingEnabled()) return forbidden("Onboarding disabled");
   const user = await getPlacementPartner(req);
   if (!user) return forbidden();
 

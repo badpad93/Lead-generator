@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
-import { marketplaceOnboardingEnabled } from "@/lib/marketplaceFlags";
 
 /**
  * GET — return the current placement partner record for the signed-in user.
@@ -44,10 +43,6 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!marketplaceOnboardingEnabled()) {
-    return NextResponse.json({ error: "Marketplace onboarding is not available yet." }, { status: 403 });
-  }
-
   const userId = await getUserIdFromRequest(req);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
