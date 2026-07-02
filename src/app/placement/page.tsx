@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowRight, CheckCircle2, Clock, Building2, Briefcase, Package } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle2, Clock, Building2, Briefcase, Package, Users, Star } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface Partner {
@@ -16,6 +16,8 @@ interface Partner {
   w9_uploaded_at: string | null;
   agreement_signed_at: string | null;
   bank_verified_at: string | null;
+  rating: number | null;
+  rating_count: number | null;
 }
 
 export default function PlacementDashboardPage() {
@@ -109,12 +111,24 @@ export default function PlacementDashboardPage() {
   // Fully verified — dashboard with contracts + submissions cards
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Placement Partner Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Welcome back{partner.business_name ? `, ${partner.business_name}` : ""}. Pick up a contract or track a submission below.</p>
+      <div className="mb-6 flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Placement Partner Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-1">Welcome back{partner.business_name ? `, ${partner.business_name}` : ""}. Pick up a contract or track a submission below.</p>
+        </div>
+        {partner.rating != null && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2">
+            <div className="flex items-center gap-1">
+              <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+              <span className="text-lg font-bold text-amber-900">{Number(partner.rating).toFixed(1)}</span>
+              <span className="text-xs text-amber-700 ml-1">/ 5</span>
+            </div>
+            <p className="text-[10px] text-amber-700">from {partner.rating_count || 0} rating{(partner.rating_count || 0) === 1 ? "" : "s"}</p>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Link
           href="/placement/contracts"
           className="group rounded-2xl border border-gray-100 bg-white p-6 hover:border-green-200 hover:shadow-sm transition-all"
@@ -141,6 +155,20 @@ export default function PlacementDashboardPage() {
           </div>
           <h2 className="text-lg font-semibold text-gray-900 mb-1">My Submissions</h2>
           <p className="text-sm text-gray-500">Track candidate locations you&apos;ve submitted and see approval status.</p>
+        </Link>
+
+        <Link
+          href="/placement/team"
+          className="group rounded-2xl border border-gray-100 bg-white p-6 hover:border-green-200 hover:shadow-sm transition-all"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center">
+              <Users className="h-6 w-6 text-purple-600" />
+            </div>
+            <ArrowRight className="h-5 w-5 text-gray-300 group-hover:text-green-primary transition-colors" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Team</h2>
+          <p className="text-sm text-gray-500">Invite locators to your company. They log in with their own account and work under yours.</p>
         </Link>
       </div>
     </div>
