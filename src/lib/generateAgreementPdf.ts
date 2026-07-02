@@ -894,6 +894,30 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
       });
     }
   }
+
+  // Auto-create marketplace contract when send_to_marketplace is toggled on.
+  // Only fires for machine-purchase agreements (location placements have their
+  // own commission flow and aren't a fit for the location marketplace).
+  if (!isLocationPlacement && ag.send_to_marketplace && !ag.marketplace_contract_id) {
+    try {
+      const { createContractFromAgreement } = await import("./marketplaceHandoff");
+      const contractId = await createContractFromAgreement(agreementId);
+      if (contractId) {
+        await supabaseAdmin.from("agreement_activity_log").insert({
+          agreement_id: agreementId,
+          activity_type: "marketplace_contract_created",
+          description: `Marketplace contract ${contractId.slice(0, 8)} auto-created for placement partners`,
+        });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await supabaseAdmin.from("agreement_activity_log").insert({
+        agreement_id: agreementId,
+        activity_type: "marketplace_contract_failed",
+        description: `Marketplace contract auto-creation failed: ${msg}`,
+      });
+    }
+  }
 }
 
 /* ================================================================== */

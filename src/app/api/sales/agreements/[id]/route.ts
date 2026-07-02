@@ -122,6 +122,7 @@ export async function PATCH(
     "include_location_services",
     "include_shipping_storage",
     "auto_send_invoice_on_signing",
+    "send_to_marketplace",
     // Location Placement Agreement — location contact
     "location_business_name",
     "location_contact_name",
