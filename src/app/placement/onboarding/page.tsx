@@ -43,6 +43,8 @@ export default function MarketplaceOnboardingPage() {
   // Step 4
   const [w9File, setW9File] = useState<File | null>(null);
   const [uploadedW9, setUploadedW9] = useState<{ id: string; file_name: string } | null>(null);
+  const [idFile, setIdFile] = useState<File | null>(null);
+  const [uploadedId, setUploadedId] = useState<{ id: string; file_name: string } | null>(null);
 
   // Load existing state
   const load = useCallback(async () => {
@@ -78,6 +80,8 @@ export default function MarketplaceOnboardingPage() {
       }
       const w9 = data.documents?.find((d: { document_type: string }) => d.document_type === "w9");
       if (w9) setUploadedW9({ id: w9.id, file_name: w9.file_name });
+      const idDoc = data.documents?.find((d: { document_type: string }) => d.document_type === "id");
+      if (idDoc) setUploadedId({ id: idDoc.id, file_name: idDoc.file_name });
     } finally {
       setLoading(false);
     }
@@ -166,6 +170,30 @@ export default function MarketplaceOnboardingPage() {
     return true;
   }
 
+  async function uploadIdDoc() {
+    if (!idFile) return true; // Already uploaded previously
+    setSaving(true);
+    setError(null);
+    const fd = new FormData();
+    fd.append("file", idFile);
+    fd.append("type", "id");
+    const res = await fetch("/api/marketplace/partners/documents", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Failed to upload driver's license");
+      return false;
+    }
+    const doc = await res.json();
+    setUploadedId({ id: doc.id, file_name: doc.file_name });
+    setIdFile(null);
+    return true;
+  }
+
   async function completeOnboarding() {
     setSaving(true);
     setError(null);
@@ -197,8 +225,12 @@ export default function MarketplaceOnboardingPage() {
       if (ok) setStep(4);
     } else if (step === 4) {
       if (!uploadedW9 && !w9File) { setError("Please upload your W9 to continue"); return; }
-      const uploaded = await uploadW9();
-      if (uploaded) await completeOnboarding();
+      if (!uploadedId && !idFile) { setError("Please upload your driver's license to continue"); return; }
+      const w9Ok = await uploadW9();
+      if (!w9Ok) return;
+      const idOk = await uploadIdDoc();
+      if (!idOk) return;
+      await completeOnboarding();
     }
   }
 
@@ -365,54 +397,93 @@ export default function MarketplaceOnboardingPage() {
           </>
         )}
 
-        {/* STEP 4 — W9 */}
+        {/* STEP 4 — Documents (W-9 + Driver's License) */}
         {step === 4 && (
           <>
             <div className="mb-6 flex items-center gap-3">
               <div className="rounded-lg bg-green-50 p-2"><FileText className="h-5 w-5 text-green-primary" /></div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">W-9 tax form</h2>
-                <p className="text-xs text-gray-500">Required so we can pay you. Uploaded securely; only admins can view.</p>
+                <h2 className="text-lg font-semibold text-gray-900">Documents</h2>
+                <p className="text-xs text-gray-500">Required so we can pay you and verify your identity. Uploaded securely; only admins can view.</p>
               </div>
             </div>
 
-            {uploadedW9 ? (
-              <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-center gap-3">
-                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-green-900">W-9 uploaded</p>
-                  <p className="text-xs text-green-700">{uploadedW9.file_name}</p>
+            {/* W-9 */}
+            <div className="mb-5">
+              <p className="text-sm font-medium text-gray-900 mb-2">W-9 tax form</p>
+              {uploadedW9 ? (
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-green-900">W-9 uploaded</p>
+                    <p className="text-xs text-green-700">{uploadedW9.file_name}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUploadedW9(null)}
+                    className="rounded-lg px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 cursor-pointer"
+                  >
+                    Replace
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setUploadedW9(null)}
-                  className="rounded-lg px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 cursor-pointer"
-                >
-                  Replace
-                </button>
-              </div>
-            ) : (
-              <label className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 p-8 cursor-pointer hover:bg-gray-50 transition-colors">
-                <Upload className="h-8 w-8 text-gray-400" />
-                <p className="text-sm font-medium text-gray-700">
-                  {w9File ? w9File.name : "Click to upload your W-9"}
-                </p>
-                <p className="text-xs text-gray-400">PDF, PNG, or JPG</p>
-                <input
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg"
-                  onChange={(e) => setW9File(e.target.files?.[0] || null)}
-                  className="hidden"
-                />
-              </label>
-            )}
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 p-6 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <Upload className="h-6 w-6 text-gray-400" />
+                  <p className="text-sm font-medium text-gray-700">
+                    {w9File ? w9File.name : "Click to upload your W-9"}
+                  </p>
+                  <p className="text-xs text-gray-400">PDF, PNG, or JPG</p>
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    onChange={(e) => setW9File(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                </label>
+              )}
+              <p className="mt-2 text-xs text-gray-500">
+                Don&apos;t have a W-9 handy?{" "}
+                <a href="https://www.irs.gov/pub/irs-pdf/fw9.pdf" target="_blank" rel="noopener noreferrer" className="text-green-primary hover:underline">
+                  Download the IRS blank form here.
+                </a>
+              </p>
+            </div>
 
-            <p className="mt-4 text-xs text-gray-500">
-              Don&apos;t have a W-9 handy?{" "}
-              <a href="https://www.irs.gov/pub/irs-pdf/fw9.pdf" target="_blank" rel="noopener noreferrer" className="text-green-primary hover:underline">
-                Download the IRS blank form here.
-              </a>
-            </p>
+            {/* Driver's License */}
+            <div>
+              <p className="text-sm font-medium text-gray-900 mb-2">Driver&apos;s license</p>
+              {uploadedId ? (
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-green-900">Driver&apos;s license uploaded</p>
+                    <p className="text-xs text-green-700">{uploadedId.file_name}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUploadedId(null)}
+                    className="rounded-lg px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 cursor-pointer"
+                  >
+                    Replace
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 p-6 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <Upload className="h-6 w-6 text-gray-400" />
+                  <p className="text-sm font-medium text-gray-700">
+                    {idFile ? idFile.name : "Click to upload your driver's license"}
+                  </p>
+                  <p className="text-xs text-gray-400">PDF, PNG, or JPG</p>
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    onChange={(e) => setIdFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                </label>
+              )}
+              <p className="mt-2 text-xs text-gray-500">A photo of the front is fine. Used for identity verification only.</p>
+            </div>
           </>
         )}
 

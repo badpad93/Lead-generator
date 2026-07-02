@@ -97,6 +97,21 @@ export default function AdminPartnerDetailPage() {
     setSaving(null);
   }
 
+  async function viewDocument(docId: string) {
+    // Fetch a fresh 5-minute signed URL, then open it. Direct href would 403
+    // because we can't attach the Authorization header from an <a> click.
+    const res = await fetch(`/api/admin/marketplace/documents/${docId}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body?.error || "Failed to load document");
+      return;
+    }
+    const { url } = await res.json();
+    if (url) window.open(url, "_blank", "noopener");
+  }
+
   if (loading || !data) {
     return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-green-primary" /></div>;
   }
@@ -220,11 +235,12 @@ export default function AdminPartnerDetailPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {d.file_url && (
-                        <a href={d.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-primary hover:underline">
-                          View
-                        </a>
-                      )}
+                      <button
+                        onClick={() => viewDocument(d.id)}
+                        className="text-xs text-green-primary hover:underline cursor-pointer"
+                      >
+                        View
+                      </button>
                       <button
                         onClick={() => verifyDocument(d.id, !d.verified_at)}
                         disabled={saving === `doc-${d.id}`}
