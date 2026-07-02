@@ -51,11 +51,23 @@ export async function POST(req: NextRequest) {
   const businessName = String(body.business_name || "").trim();
   const bio = String(body.bio || "").trim();
 
-  // Upgrade profile role (safe: existing roles are unaffected)
-  await supabaseAdmin
+  // Only upgrade the profile role if the caller has a "no role assigned yet"
+  // role. Admins, sales, and other CRM roles keep their existing role — they
+  // may be poking at the marketplace onboarding for testing purposes and
+  // should never lose access to their real tools. If they truly need to
+  // become a placement partner, admin can flip the role manually.
+  const { data: currentProfile } = await supabaseAdmin
     .from("profiles")
-    .update({ role: "placement_partner" })
-    .eq("id", userId);
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  const upgradableRoles = ["requestor", "operator", "locator", "location_manager"];
+  if (!currentProfile?.role || upgradableRoles.includes(currentProfile.role)) {
+    await supabaseAdmin
+      .from("profiles")
+      .update({ role: "placement_partner" })
+      .eq("id", userId);
+  }
 
   // Upsert partner
   const { data: partner, error } = await supabaseAdmin
