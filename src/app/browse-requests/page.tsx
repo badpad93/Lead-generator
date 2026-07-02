@@ -636,11 +636,22 @@ export default function BrowseRequestsPage() {
         <div className="mx-auto max-w-7xl px-4 pb-8 pt-12 sm:px-6 lg:px-8">
           <div className="text-center">
             <h1 className="text-3xl font-bold tracking-tight text-black-primary sm:text-4xl">
-              Browse Vending Requests
+              Locations and Routes For Sale
             </h1>
             <p className="mx-auto mt-3 max-w-2xl text-base text-gray-600 sm:text-lg">
-              Find locations looking for vending machines and grow your route
+              Find open location requests and browse vending routes for sale.
             </p>
+            <div className="mx-auto mt-5 inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+              <span className="rounded-lg bg-green-primary px-4 py-1.5 text-sm font-semibold text-white">
+                Locations
+              </span>
+              <Link
+                href="/routes-for-sale"
+                className="rounded-lg px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Routes
+              </Link>
+            </div>
           </div>
 
           {/* Search bar */}

@@ -3,27 +3,27 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, Route, ShoppingBag, ScrollText, Heart, Briefcase, Zap, Coffee } from "lucide-react";
+import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, ShoppingBag, ScrollText, Heart, Briefcase, Zap, Coffee } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import Tooltip from "@/app/components/Tooltip";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
 const navLinks = [
-  { label: "Locations for Sale", href: "/signup?redirect=/browse-requests" },
+  { label: "Locations and Routes For Sale", href: "/signup?redirect=/browse-requests" },
   { label: "Sell a Location", href: "/signup?role=locator&redirect=/marketplace" },
   { label: "Machines for Sale", href: "/signup?redirect=/machines-for-sale" },
-  { label: "Routes for Sale", href: "/signup?redirect=/routes-for-sale" },
+  { label: "Placement Providers", href: "/signup?redirect=/placement" },
   { label: "Browse Operators", href: "/signup?redirect=/browse-operators" },
   { label: "Financing", href: "/signup?redirect=/financing" },
 ];
 
 const authNavLinks = [
-  { label: "Locations for Sale", href: "/browse-requests" },
+  { label: "Locations and Routes For Sale", href: "/browse-requests" },
   { label: "Sell a Location", href: "/marketplace" },
   { label: "Your Leads", href: "/your-leads" },
   { label: "Machines for Sale", href: "/machines-for-sale" },
-  { label: "Routes for Sale", href: "/routes-for-sale" },
+  { label: "Placement Providers", href: "/placement" },
   { label: "Browse Operators", href: "/browse-operators" },
   { label: "Coffee", href: "/coffee" },
   { label: "Financing", href: "/financing" },
@@ -324,14 +324,14 @@ export default function Navbar() {
                       Profile
                     </Link>
                     <Link
-                      href="/routes-for-sale"
+                      href="/placement"
                       onClick={() => setUserMenuOpen(false)}
                       className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
-                      title={TOOLTIP_COPY["Routes for Sale"]}
-                      aria-label={TOOLTIP_COPY["Routes for Sale"]}
+                      title={TOOLTIP_COPY["Placement Providers"]}
+                      aria-label={TOOLTIP_COPY["Placement Providers"]}
                     >
-                      <Route className="h-4 w-4 text-black-primary/50" />
-                      Routes for Sale
+                      <Briefcase className="h-4 w-4 text-black-primary/50" />
+                      Placement Providers
                     </Link>
                     {profile?.coffee_access_enabled && (
                       <Link
@@ -538,14 +538,14 @@ export default function Navbar() {
                 </li>
                 <li>
                   <Link
-                    href="/routes-for-sale"
+                    href="/placement"
                     onClick={() => setMobileOpen(false)}
                     className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
-                    aria-label={TOOLTIP_COPY["Routes for Sale"]}
+                    aria-label={TOOLTIP_COPY["Placement Providers"]}
                   >
                     <span className="flex items-center gap-2.5">
-                      <Route className="h-4 w-4" />
-                      Routes for Sale
+                      <Briefcase className="h-4 w-4" />
+                      Placement Providers
                     </span>
                     <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>

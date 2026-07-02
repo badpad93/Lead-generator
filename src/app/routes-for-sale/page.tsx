@@ -205,12 +205,23 @@ export default function RoutesForSalePage() {
         <div className="mx-auto max-w-7xl px-4 pb-8 pt-12 sm:px-6 lg:px-8">
           <div className="text-center">
             <h1 className="text-2xl font-bold tracking-tight text-black-primary sm:text-3xl md:text-4xl">
-              Routes for Sale
+              Locations and Routes For Sale
             </h1>
             <p className="mx-auto mt-3 max-w-2xl text-base text-gray-600 sm:text-lg">
-              Browse vending routes and businesses available for purchase
+              Browse vending routes and businesses available for purchase.
             </p>
-            <div className="mt-5">
+            <div className="mx-auto mt-5 inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+              <Link
+                href="/browse-requests"
+                className="rounded-lg px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Locations
+              </Link>
+              <span className="rounded-lg bg-green-primary px-4 py-1.5 text-sm font-semibold text-white">
+                Routes
+              </span>
+            </div>
+            <div className="mt-4">
               <Link
                 href="/post-route"
                 className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-green-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"

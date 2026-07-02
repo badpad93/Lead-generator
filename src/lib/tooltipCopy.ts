@@ -9,8 +9,12 @@
 export const TOOLTIP_COPY: Record<string, string> = {
   "Locations for Sale":
     "Browse available locations requesting services for vending, coffee, ATM, AI vending, and more.",
+  "Locations and Routes For Sale":
+    "Browse open location requests and vending routes for sale in one place.",
   "Routes for Sale":
     "Explore vending routes and machine portfolios currently available for purchase.",
+  "Placement Providers":
+    "Hire vetted placement partners to secure vending locations in your territory — or apply to become one.",
   "Browse Operators":
     "Find operators by service type, market, and capability for your location.",
   "How It Works":
