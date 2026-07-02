@@ -49,7 +49,10 @@ export async function isPartnerEligibleForContract(
 
   const targetState = (contract.market_state || "").toUpperCase();
   const targetCity = (contract.market_city || "").toLowerCase();
-  const hasTerritory = (territories || []).some((t) => {
+  // "US" is a nationwide wildcard — partners with this territory match any
+  // contract regardless of the contract's market_state / market_city.
+  const hasNationwide = (territories || []).some((t) => (t.state || "").toUpperCase() === "US");
+  const hasTerritory = hasNationwide || (territories || []).some((t) => {
     const s = (t.state || "").toUpperCase();
     if (s && s !== targetState) return false;
     // If contract has a specific city and the partner declared a city, they must match.

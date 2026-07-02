@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2, CheckCircle2, ArrowRight, ArrowLeft, Building2, MapPin, Briefcase,
-  FileText, User, AlertCircle, Trash2, Upload,
+  FileText, User, AlertCircle, Upload,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import { INDUSTRIES } from "../industries";
@@ -16,8 +16,6 @@ interface Territory {
 }
 
 type Step = 1 | 2 | 3 | 4 | 5;
-
-const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"];
 
 export default function MarketplaceOnboardingPage() {
   const router = useRouter();
@@ -34,7 +32,10 @@ export default function MarketplaceOnboardingPage() {
   const [bio, setBio] = useState("");
 
   // Step 2
-  const [territories, setTerritories] = useState<Territory[]>([{ state: "", city: "", travel_radius_miles: 25 }]);
+  // Placement partners cover the entire United States by default. The onboarding
+  // wizard doesn't ask for per-state coverage; the "US" sentinel is treated as
+  // a nationwide wildcard by the contracts feed + eligibility helper.
+  const [territories, setTerritories] = useState<Territory[]>([{ state: "US", city: "", travel_radius_miles: undefined }]);
 
   // Step 3
   const [industries, setIndustries] = useState<string[]>([]);
@@ -102,17 +103,14 @@ export default function MarketplaceOnboardingPage() {
   }
 
   async function saveTerritories() {
-    const clean = territories.filter((t) => t.state || t.city);
-    if (clean.length === 0) {
-      setError("Add at least one service territory");
-      return false;
-    }
+    // Nationwide coverage — always saves a single "US" wildcard row and
+    // replaces whatever was there before. No per-state selection needed.
     setSaving(true);
     setError(null);
     const res = await fetch("/api/marketplace/partners/territories", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ territories: clean }),
+      body: JSON.stringify({ territories: [{ state: "US", city: "", travel_radius_miles: null }] }),
     });
     setSaving(false);
     if (!res.ok) {
@@ -314,81 +312,25 @@ export default function MarketplaceOnboardingPage() {
           </>
         )}
 
-        {/* STEP 2 — Territories */}
+        {/* STEP 2 — Coverage area (nationwide) */}
         {step === 2 && (
           <>
             <div className="mb-6 flex items-center gap-3">
               <div className="rounded-lg bg-green-50 p-2"><MapPin className="h-5 w-5 text-green-primary" /></div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Service territories</h2>
-                <p className="text-xs text-gray-500">Where can you visit locations? Add every state or city you serve.</p>
+                <h2 className="text-lg font-semibold text-gray-900">Area of operation</h2>
+                <p className="text-xs text-gray-500">All placement partners cover the entire United States. Contracts are matched to you based on industry fit and capacity.</p>
               </div>
             </div>
 
-            <div className="space-y-3">
-              {territories.map((t, idx) => (
-                <div key={idx} className="grid grid-cols-1 sm:grid-cols-[100px_1fr_140px_40px] gap-2 items-end">
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-1">State</label>
-                    <select
-                      value={t.state}
-                      onChange={(e) => {
-                        const copy = [...territories];
-                        copy[idx] = { ...copy[idx], state: e.target.value };
-                        setTerritories(copy);
-                      }}
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-green-primary focus:outline-none"
-                    >
-                      <option value="">—</option>
-                      {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-1">City (optional — leave blank for statewide)</label>
-                    <input
-                      type="text"
-                      value={t.city || ""}
-                      onChange={(e) => {
-                        const copy = [...territories];
-                        copy[idx] = { ...copy[idx], city: e.target.value };
-                        setTerritories(copy);
-                      }}
-                      placeholder="Chicago"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-green-primary focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-1">Radius (mi)</label>
-                    <input
-                      type="number"
-                      value={t.travel_radius_miles || ""}
-                      onChange={(e) => {
-                        const copy = [...territories];
-                        copy[idx] = { ...copy[idx], travel_radius_miles: parseInt(e.target.value) || 0 };
-                        setTerritories(copy);
-                      }}
-                      placeholder="25"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-green-primary focus:outline-none"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setTerritories(territories.filter((_, i) => i !== idx))}
-                    disabled={territories.length === 1}
-                    className="rounded-lg border border-gray-200 p-2.5 text-gray-500 hover:bg-red-50 hover:text-red-500 disabled:opacity-30 cursor-pointer"
-                    title="Remove"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => setTerritories([...territories, { state: "", city: "", travel_radius_miles: 25 }])}
-                className="w-full rounded-xl border border-dashed border-gray-300 py-2.5 text-sm text-gray-500 hover:bg-gray-50 cursor-pointer"
-              >
-                + Add another territory
-              </button>
+            <div className="rounded-2xl border border-green-100 bg-green-50 p-5 flex items-center gap-4">
+              <div className="rounded-xl bg-white p-3 shadow-sm">
+                <MapPin className="h-6 w-6 text-green-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">United States</p>
+                <p className="text-xs text-gray-600 mt-0.5">You&apos;ll see every contract that matches your industries — anywhere in the country.</p>
+              </div>
             </div>
           </>
         )}

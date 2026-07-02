@@ -19,13 +19,25 @@ export async function GET(req: NextRequest) {
     .select("state, city")
     .eq("owner_type", "partner")
     .eq("owner_id", user.id);
-  const states = Array.from(
-    new Set((territories || []).map((t) => (t.state || "").toUpperCase()).filter(Boolean)),
+
+  // "US" is a nationwide wildcard — partners with this territory see every
+  // contract regardless of market_state / market_city.
+  const hasNationwide = (territories || []).some(
+    (t) => (t.state || "").toUpperCase() === "US",
   );
+  const states = hasNationwide
+    ? []
+    : Array.from(
+        new Set(
+          (territories || [])
+            .map((t) => (t.state || "").toUpperCase())
+            .filter((s) => s && s !== "US"),
+        ),
+      );
 
   // Pull open contracts through the anonymized view
   let query = supabaseAdmin.from("partner_visible_contracts").select("*").order("created_at", { ascending: false });
-  if (states.length > 0) {
+  if (!hasNationwide && states.length > 0) {
     query = query.in("market_state", states);
   }
   const { data: rows, error } = await query;
@@ -41,14 +53,16 @@ export async function GET(req: NextRequest) {
     (territories || []).filter((t) => !t.city && t.state).map((t) => (t.state || "").toUpperCase()),
   );
 
-  const filtered = (rows || []).filter((c) => {
-    const st = (c.market_state || "").toUpperCase();
-    const city = (c.market_city || "").toLowerCase();
-    if (!st) return true;
-    if (territoryStatewide.has(st)) return true;
-    if (city && territoryCities.has(`${st}|${city}`)) return true;
-    return false;
-  });
+  const filtered = hasNationwide
+    ? (rows || [])
+    : (rows || []).filter((c) => {
+        const st = (c.market_state || "").toUpperCase();
+        const city = (c.market_city || "").toLowerCase();
+        if (!st) return true;
+        if (territoryStatewide.has(st)) return true;
+        if (city && territoryCities.has(`${st}|${city}`)) return true;
+        return false;
+      });
 
   // Skip contracts the partner has already accepted (they appear under "My Contracts")
   const { data: myAcceptances } = await supabaseAdmin
