@@ -80,10 +80,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       });
     }
 
-    // Queue payout + invoice (Phase 2.4 wires the actual QuickBooks calls).
+    // Queue payout + invoice, then best-effort push both to QuickBooks in the
+    // background. Any failures are surfaced on /admin/marketplace/payouts and
+    // can be retried there. Non-critical — decision is already recorded.
     try {
       await queuePartnerPayoutForSubmission({ submissionId: id, triggeredBy: user.id });
       await queueOperatorInvoiceForSubmission({ submissionId: id, triggeredBy: user.id });
+
+      const { data: newPayout } = await supabaseAdmin
+        .from("marketplace_payouts")
+        .select("id")
+        .eq("submission_id", id)
+        .maybeSingle();
+      const { data: newInvoice } = await supabaseAdmin
+        .from("marketplace_operator_invoices")
+        .select("id")
+        .eq("submission_id", id)
+        .maybeSingle();
+
+      const { pushPayoutToQb, pushOperatorInvoiceToQb } = await import("@/lib/marketplaceQb");
+      if (newPayout) pushPayoutToQb(newPayout.id).catch(() => undefined);
+      if (newInvoice) pushOperatorInvoiceToQb(newInvoice.id).catch(() => undefined);
     } catch {
       // Non-critical — decision already recorded
     }

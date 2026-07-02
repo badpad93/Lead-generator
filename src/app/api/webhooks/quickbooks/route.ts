@@ -44,10 +44,50 @@ export async function POST(req: NextRequest) {
       if (entity.name === "Payment" && (entity.operation === "Create" || entity.operation === "Update")) {
         await handleQBPayment(entity.id, notification.realmId);
       }
+      if (entity.name === "BillPayment" && (entity.operation === "Create" || entity.operation === "Update")) {
+        await handleQBBillPayment(entity.id, notification.realmId);
+      }
     }
   }
 
   return NextResponse.json({ ok: true });
+}
+
+async function handleQBBillPayment(billPaymentId: string, realmId: string) {
+  const { getConnection } = await import("@/lib/quickbooks");
+  const conn = await getConnection();
+  if (conn.realm_id !== realmId) return;
+
+  const base = process.env.QB_ENVIRONMENT === "production"
+    ? "https://quickbooks.api.intuit.com"
+    : "https://sandbox-quickbooks.api.intuit.com";
+
+  const res = await fetch(`${base}/v3/company/${realmId}/billpayment/${billPaymentId}`, {
+    headers: { Authorization: `Bearer ${conn.access_token}`, Accept: "application/json" },
+  });
+  if (!res.ok) return;
+
+  const data = await res.json();
+  const billIds: string[] = [];
+  for (const line of data.BillPayment?.Line || []) {
+    for (const txn of line.LinkedTxn || []) {
+      if (txn.TxnType === "Bill") billIds.push(txn.TxnId);
+    }
+  }
+
+  for (const billId of billIds) {
+    const { data: payout } = await supabaseAdmin
+      .from("marketplace_payouts")
+      .select("id, status")
+      .eq("qb_bill_id", billId)
+      .maybeSingle();
+    if (payout && payout.status !== "paid") {
+      await supabaseAdmin
+        .from("marketplace_payouts")
+        .update({ status: "paid", paid_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("id", payout.id);
+    }
+  }
 }
 
 async function handleQBPayment(paymentId: string, realmId: string) {
@@ -241,6 +281,28 @@ async function handleQBPayment(paymentId: string, realmId: string) {
           updated_at: new Date().toISOString(),
         })
         .eq("id", pipelinePayment.id);
+      continue;
+    }
+
+    // Check marketplace_operator_invoices (Phase 2.4 — placement fee billing)
+    const { data: marketplaceOpInvoice } = await supabaseAdmin
+      .from("marketplace_operator_invoices")
+      .select("id, status")
+      .eq("qb_invoice_id", invoiceId)
+      .maybeSingle();
+
+    if (marketplaceOpInvoice) {
+      console.log(`[qb-webhook] Processing marketplace operator invoice payment for QB invoice ${invoiceId}`);
+      if (marketplaceOpInvoice.status !== "paid") {
+        await supabaseAdmin
+          .from("marketplace_operator_invoices")
+          .update({
+            status: "paid",
+            paid_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", marketplaceOpInvoice.id);
+      }
       continue;
     }
 

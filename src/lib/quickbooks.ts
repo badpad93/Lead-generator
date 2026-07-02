@@ -395,6 +395,132 @@ export async function createCharge(params: {
   return res.json();
 }
 
+// ─── Vendor Management (partner payouts) ───
+
+export interface QBVendor {
+  Id: string;
+  DisplayName: string;
+  PrimaryEmailAddr?: { Address: string };
+  SyncToken: string;
+}
+
+export async function findVendorByEmail(email: string): Promise<QBVendor | null> {
+  const query = `SELECT * FROM Vendor WHERE PrimaryEmailAddr = '${email.replace(/'/g, "\\'")}'`;
+  const res = await qbFetch(`/query?query=${encodeURIComponent(query)}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.QueryResponse?.Vendor?.[0] || null;
+}
+
+export async function findVendorByName(displayName: string): Promise<QBVendor | null> {
+  const query = `SELECT * FROM Vendor WHERE DisplayName = '${displayName.replace(/'/g, "\\'")}'`;
+  const res = await qbFetch(`/query?query=${encodeURIComponent(query)}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.QueryResponse?.Vendor?.[0] || null;
+}
+
+export async function createVendor(params: {
+  displayName: string;
+  email?: string;
+  phone?: string;
+}): Promise<QBVendor> {
+  const body: Record<string, unknown> = { DisplayName: params.displayName };
+  if (params.email) body.PrimaryEmailAddr = { Address: params.email };
+  if (params.phone) body.PrimaryPhone = { FreeFormNumber: params.phone };
+
+  const res = await qbFetch("/vendor", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    if (text.includes("6240") || text.includes("Duplicate Name")) {
+      const existing = await findVendorByName(params.displayName);
+      if (existing) return existing;
+    }
+    throw new Error(`QB create vendor failed: ${text}`);
+  }
+
+  const data = await res.json();
+  return data.Vendor;
+}
+
+export async function findOrCreateVendor(params: {
+  displayName: string;
+  email?: string;
+  phone?: string;
+}): Promise<QBVendor> {
+  if (params.email) {
+    const byEmail = await findVendorByEmail(params.email);
+    if (byEmail) return byEmail;
+  }
+  const byName = await findVendorByName(params.displayName);
+  if (byName) return byName;
+  return createVendor(params);
+}
+
+// ─── Bill Management (partner payouts owed) ───
+
+export interface QBBill {
+  Id: string;
+  DocNumber?: string;
+  TotalAmt: number;
+  Balance: number;
+  SyncToken: string;
+}
+
+export interface CreateBillParams {
+  vendorId: string;
+  lineItems: { description: string; amount: number }[];
+  memo?: string;
+  dueDate?: string;
+  privateNote?: string;
+}
+
+export async function createBill(params: CreateBillParams): Promise<QBBill> {
+  const lines = params.lineItems.map((item, idx) => ({
+    LineNum: idx + 1,
+    Amount: item.amount,
+    DetailType: "AccountBasedExpenseLineDetail",
+    Description: item.description,
+    AccountBasedExpenseLineDetail: {
+      AccountRef: { value: process.env.QB_PAYOUT_EXPENSE_ACCOUNT_ID || "1" },
+    },
+  }));
+
+  const billBody: Record<string, unknown> = {
+    VendorRef: { value: params.vendorId },
+    Line: lines,
+    DueDate: params.dueDate || new Date().toISOString().split("T")[0],
+    PrivateNote: params.privateNote,
+  };
+
+  const res = await qbFetch("/bill", {
+    method: "POST",
+    body: JSON.stringify(billBody),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`QB create bill failed: ${text}`);
+  }
+
+  const data = await res.json();
+  return data.Bill;
+}
+
+export async function getBill(billId: string): Promise<QBBill> {
+  const res = await qbFetch(`/bill/${billId}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`QB get bill failed: ${text}`);
+  }
+  const data = await res.json();
+  return data.Bill;
+}
+
 // ─── Webhook Verification ───
 
 export function verifyWebhookSignature(payload: string, signature: string): boolean {
