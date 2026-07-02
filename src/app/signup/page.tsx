@@ -55,6 +55,7 @@ function SignupContent() {
   const [lastName, setLastName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState<"google" | "microsoft" | "yahoo" | "email" | null>(null);
@@ -99,7 +100,7 @@ function SignupContent() {
       business_name: companyName,
       contact_name: `${firstName} ${lastName}`.trim(),
       email,
-      phone: "",
+      phone,
       address: "",
       city: "",
       state: "",
@@ -117,6 +118,8 @@ function SignupContent() {
     if (!lastName.trim()) return setError("Last name is required");
     if (!email.trim()) return setError("Email is required");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError("Please enter a valid email address");
+    if (!phone.trim()) return setError("Phone number is required");
+    if (phone.replace(/\D/g, "").length < 10) return setError("Please enter a valid phone number");
     if (!password || password.length < 8) return setError("Password must be at least 8 characters");
     if (password !== confirmPassword) return setError("Passwords do not match");
 
@@ -138,6 +141,7 @@ function SignupContent() {
           last_name: lastName.trim(),
           company_name: companyName.trim(),
           email: email.trim().toLowerCase(),
+          phone: phone.trim(),
           password,
           role,
         }),
@@ -323,6 +327,11 @@ function SignupContent() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email <span className="text-red-500">*</span></label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!loading} placeholder="you@example.com" className={inputClass} autoComplete="email" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Phone <span className="text-red-500">*</span></label>
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!!loading} placeholder="(555) 123-4567" className={inputClass} autoComplete="tel" />
             </div>
 
             <div>

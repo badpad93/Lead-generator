@@ -127,6 +127,17 @@ export async function PATCH(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    // Mirror phone into auth user_metadata so the middleware phone-gate
+    // sees it without a DB call on every request. Only fires when phone
+    // is part of this update — cheap when unchanged.
+    if ("phone" in updates && typeof updates.phone === "string" && updates.phone.trim()) {
+      try {
+        await supabaseAdmin.auth.admin.updateUserById(user.id, {
+          user_metadata: { ...(user.user_metadata || {}), phone: updates.phone.trim() },
+        });
+      } catch { /* non-critical — DB is source of truth */ }
+    }
+
     if (
       data.role === "operator" &&
       data.address &&

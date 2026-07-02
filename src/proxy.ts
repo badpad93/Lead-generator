@@ -111,6 +111,32 @@ export async function proxy(req: NextRequest) {
     }
   }
 
+  // Phone-on-file gate for protected routes. Every account must have a phone
+  // number — signup enforces it going forward, but legacy accounts might be
+  // missing one. Fast path: check user_metadata / app_metadata (populated at
+  // signup + on PATCH /api/auth/me). Slow path: fall back to a profiles.phone
+  // read for accounts created before this gate — prevents an infinite redirect
+  // loop with /complete-profile for users whose DB row is fine but whose
+  // auth metadata hasn't been backfilled yet.
+  if (user && isProtected) {
+    const meta = { ...(user.user_metadata || {}), ...(user.app_metadata || {}) } as Record<string, unknown>;
+    let phone = typeof meta.phone === "string" ? meta.phone.trim() : "";
+    if (!phone) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("phone")
+        .eq("id", user.id)
+        .maybeSingle();
+      phone = typeof profile?.phone === "string" ? profile.phone.trim() : "";
+    }
+    if (!phone) {
+      const completeUrl = req.nextUrl.clone();
+      completeUrl.pathname = "/complete-profile";
+      completeUrl.search = "";
+      return NextResponse.redirect(completeUrl);
+    }
+  }
+
   // Email verification gate for protected routes.
   // We trust OAuth users (Google/Microsoft/Yahoo) automatically — the provider
   // already verified the address, even if email_confirmed_at isn't set on the
