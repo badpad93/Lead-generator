@@ -101,6 +101,14 @@ export async function createContractFromAgreement(agreementId: string): Promise<
     description: `Contract auto-created from signed agreement ${ag.id.slice(0, 8)} — ${locationsNeeded} location(s) at Tier 1`,
   });
 
+  // Contract is opened immediately — notify eligible partners.
+  try {
+    const { notifyPartnerContractOpened } = await import("./marketplaceNotifications");
+    notifyPartnerContractOpened(contract.id).catch(() => undefined);
+  } catch {
+    /* non-critical */
+  }
+
   return contract.id;
 }
 

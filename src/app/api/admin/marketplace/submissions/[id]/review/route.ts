@@ -52,5 +52,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // no-op for now; operator acceptance in 2.4 owns the counter
   }
 
+  // Notify the right side (Phase 2.6).
+  const { notifyOperatorSubmissionReady, notifyPartnerSubmissionReviewed } = await import("@/lib/marketplaceNotifications");
+  if (action === "approve") {
+    notifyOperatorSubmissionReady(id).catch(() => undefined);
+  } else {
+    notifyPartnerSubmissionReviewed(id, action as "approve" | "request_changes" | "reject", note || null).catch(() => undefined);
+  }
+
   return NextResponse.json({ ok: true });
 }

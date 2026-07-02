@@ -153,6 +153,14 @@ export async function pushPayoutToQb(payoutId: string): Promise<QbPushResult> {
       })
       .eq("id", payoutId);
 
+    // Fire-and-forget partner payout email (Phase 2.6).
+    try {
+      const { notifyPartnerPayoutSent } = await import("./marketplaceNotifications");
+      notifyPartnerPayoutSent(payoutId).catch(() => undefined);
+    } catch {
+      /* non-critical */
+    }
+
     return { ok: true, externalId: bill.Id };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
