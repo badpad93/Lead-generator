@@ -31,6 +31,13 @@ export async function POST(
     );
   }
 
+  // Optional body: { target: "location" | "operator" }. Location-placement
+  // agreements let the rep choose between the two — some locations don't
+  // sign (letter of authorization, verbal approval, etc.) and the operator
+  // is the party who signs on the deal.
+  const body = await req.json().catch(() => ({}));
+  const targetChoice = body.target === "operator" ? "operator" : "location";
+
   // Fetch agreement
   const { data: agreement, error: agErr } = await supabaseAdmin
     .from("purchase_agreements")
@@ -43,9 +50,18 @@ export async function POST(
 
   const isLocationPlacement = agreement.agreement_type === "location_placement";
   const includeEquipment = agreement.include_equipment !== false;
+  const sendToOperator = isLocationPlacement && targetChoice === "operator";
 
   let requiredFields: Array<{ key: string; label: string }>;
-  if (isLocationPlacement) {
+  if (isLocationPlacement && sendToOperator) {
+    // Sending directly to the operator — no location contact info required.
+    requiredFields = [
+      { key: "location_business_name", label: "Location business name" },
+      { key: "placement_operator_company", label: "Operator company name" },
+      { key: "placement_operator_email", label: "Operator email" },
+      { key: "effective_date", label: "Effective date" },
+    ];
+  } else if (isLocationPlacement) {
     requiredFields = [
       { key: "location_business_name", label: "Location business name" },
       { key: "location_contact_name", label: "Location contact name" },
@@ -92,17 +108,31 @@ export async function POST(
     process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
   const signingUrl = `${siteUrl}/sign/${agreement.sign_token}`;
 
-  // Determine recipient and CCs based on agreement type
-  const recipientEmail = isLocationPlacement
-    ? agreement.location_contact_email
-    : agreement.operator_email;
+  // Determine recipient and CCs based on agreement type + target choice.
+  let recipientEmail: string | null;
+  if (sendToOperator) {
+    recipientEmail = agreement.placement_operator_email;
+  } else if (isLocationPlacement) {
+    recipientEmail = agreement.location_contact_email;
+  } else {
+    recipientEmail = agreement.operator_email;
+  }
 
   const ccEmails: string[] = [];
   if (isLocationPlacement) {
-    // For location placement: rep gets CC during initial send (NOT operator —
-    // they get the fully signed copy later)
+    // Rep always gets CC during initial send (they're the sales owner).
     if (agreement.rep_email && agreement.rep_email !== recipientEmail) {
       ccEmails.push(agreement.rep_email);
+    }
+    // When sending to operator, also CC the location contact if we have one —
+    // keeps everyone in the loop even though the location isn't the signer.
+    if (
+      sendToOperator &&
+      agreement.location_contact_email &&
+      agreement.location_contact_email !== recipientEmail &&
+      !ccEmails.includes(agreement.location_contact_email)
+    ) {
+      ccEmails.push(agreement.location_contact_email);
     }
   } else {
     if (
@@ -119,6 +149,13 @@ export async function POST(
   }
 
   // Build email HTML
+  const placementGreetingName = sendToOperator
+    ? (agreement.placement_operator_contact_name || agreement.placement_operator_company || "there")
+    : (agreement.location_contact_name || agreement.location_business_name);
+  const placementIntro = sendToOperator
+    ? `Please review and sign the location placement agreement below. This agreement covers placement of ${agreement.placement_machine_count || 1} ${agreement.placement_machine_type || "VendEra AI Machine"}${(agreement.placement_machine_count || 1) === 1 ? "" : "s"} at <strong>${agreement.location_business_name}</strong>.`
+    : `Please review and sign the location placement agreement below. This agreement covers placement of ${agreement.placement_machine_count || 1} ${agreement.placement_machine_type || "VendEra AI Machine"}${(agreement.placement_machine_count || 1) === 1 ? "" : "s"} at <strong>${agreement.location_business_name}</strong>.`;
+
   const html = isLocationPlacement ? `
 <!DOCTYPE html>
 <html>
@@ -129,9 +166,9 @@ export async function POST(
     <p style="color:#6b7280;font-size:14px;margin:8px 0 0;">Location Placement Agreement</p>
   </div>
 
-  <p>Hi ${agreement.location_contact_name || agreement.location_business_name},</p>
+  <p>Hi ${placementGreetingName},</p>
 
-  <p>Please review and sign the location placement agreement below. This agreement covers placement of ${agreement.placement_machine_count || 1} ${agreement.placement_machine_type || "VendEra AI Machine"}${(agreement.placement_machine_count || 1) === 1 ? "" : "s"} at <strong>${agreement.location_business_name}</strong>.</p>
+  <p>${placementIntro}</p>
 
   <p>This agreement covers:</p>
   <ul style="color:#374151;line-height:1.8;">
@@ -193,10 +230,12 @@ export async function POST(
 </html>`.trim();
 
   if (!recipientEmail) {
-    return NextResponse.json(
-      { error: isLocationPlacement ? "Location contact email is required" : "Operator email is required" },
-      { status: 400 },
-    );
+    const missingLabel = sendToOperator
+      ? "Operator email is required"
+      : isLocationPlacement
+        ? "Location contact email is required"
+        : "Operator email is required";
+    return NextResponse.json({ error: missingLabel }, { status: 400 });
   }
 
   const subject = isLocationPlacement
@@ -235,11 +274,12 @@ export async function POST(
     .eq("id", id);
 
   // Log activity
+  const audience = sendToOperator ? "operator" : isLocationPlacement ? "location" : "operator";
   await supabaseAdmin.from("agreement_activity_log").insert({
     agreement_id: id,
     user_id: user.id,
     activity_type: "sent",
-    description: `Agreement emailed to ${recipientEmail}${ccEmails.length > 0 ? ` (CC: ${ccEmails.join(", ")})` : ""}`,
+    description: `Agreement emailed to ${audience} at ${recipientEmail}${ccEmails.length > 0 ? ` (CC: ${ccEmails.join(", ")})` : ""}`,
   });
 
   return NextResponse.json({ ok: true, emailSent: true });

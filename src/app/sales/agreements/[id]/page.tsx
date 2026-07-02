@@ -506,12 +506,28 @@ function StandaloneAgreementEditor() {
     setSaving(false);
   }
 
-  async function handleSend() {
+  async function handleSend(target: "location" | "operator" = "location") {
     if (!agreement) return;
 
     const isLocationPlacement = agreement.agreement_type === "location_placement";
+    const sendToOperator = isLocationPlacement && target === "operator";
 
-    if (isLocationPlacement) {
+    if (sendToOperator) {
+      // Location contact fields skipped — some deals don't require the
+      // location to sign; operator is the sole signer.
+      if (!form?.placement_operator_email?.trim()) {
+        showToast("Operator email is required to send", "error");
+        return;
+      }
+      if (!form?.placement_operator_company?.trim()) {
+        showToast("Operator company name is required to send", "error");
+        return;
+      }
+      if (!form?.location_business_name?.trim()) {
+        showToast("Location business name is required to send", "error");
+        return;
+      }
+    } else if (isLocationPlacement) {
       if (!form?.location_contact_email?.trim()) {
         showToast("Location contact email is required to send", "error");
         return;
@@ -548,19 +564,32 @@ function StandaloneAgreementEditor() {
       return;
     }
 
-    const confirmMsg = isLocationPlacement
-      ? `Send this agreement to ${form?.location_contact_email}? They will receive an email with a signing link.`
-      : "Send this agreement to the operator? They will receive an email with a signing link.";
+    const targetEmail = sendToOperator
+      ? form?.placement_operator_email
+      : isLocationPlacement
+        ? form?.location_contact_email
+        : form?.operator_email;
+    const confirmMsg = sendToOperator
+      ? `Send this agreement to the operator at ${targetEmail}? They will receive an email with a signing link.`
+      : isLocationPlacement
+        ? `Send this agreement to ${targetEmail}? They will receive an email with a signing link.`
+        : "Send this agreement to the operator? They will receive an email with a signing link.";
     if (!confirm(confirmMsg)) return;
 
     setSending(true);
     const res = await fetch(`/api/sales/agreements/${agreement.id}/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ target }),
     });
 
     if (res.ok) {
-      showToast(isLocationPlacement ? "Agreement sent to location" : "Agreement sent to operator");
+      const msg = sendToOperator
+        ? "Agreement sent to operator"
+        : isLocationPlacement
+          ? "Agreement sent to location"
+          : "Agreement sent to operator";
+      showToast(msg);
       await fetchAgreement();
     } else {
       const err = await res.json().catch(() => ({ error: "Send failed" }));
@@ -844,7 +873,7 @@ function StandaloneAgreementEditor() {
           )}
           {!isReadOnly && (
             <button
-              onClick={handleSend}
+              onClick={() => handleSend("location")}
               disabled={sending || dirty}
               className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 cursor-pointer inline-flex items-center gap-2"
               title={dirty ? "Save changes first" : ""}
@@ -1216,13 +1245,24 @@ function StandaloneAgreementEditor() {
               )}
               {!isReadOnly && (
                 <button
-                  onClick={handleSend}
+                  onClick={() => handleSend("location")}
                   disabled={sending || dirty}
                   className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-2"
                   title={dirty ? "Save changes first" : ""}
                 >
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {agreement.agreement_type === "location_placement" ? "Send to Location" : "Send to Operator"}
+                </button>
+              )}
+              {!isReadOnly && agreement.agreement_type === "location_placement" && (
+                <button
+                  onClick={() => handleSend("operator")}
+                  disabled={sending || dirty}
+                  className="w-full rounded-lg border border-indigo-200 bg-white px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-2"
+                  title={dirty ? "Save changes first" : "Skip location signature — operator signs directly"}
+                >
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Send to Operator
                 </button>
               )}
               <button
