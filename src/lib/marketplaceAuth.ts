@@ -30,7 +30,16 @@ export async function getPlacementPartner(req: NextRequest): Promise<PlacementPa
     .select("id, full_name, email, role")
     .eq("id", userId)
     .single();
-  if (!profile || profile.role !== "placement_partner") return null;
+  if (!profile) return null;
+
+  // Accept:
+  //  - placement_partner: normal PPs going through their own dashboard
+  //  - admin: so a Vending Connector admin can walk through the wizard
+  //    (for QA / debugging / supporting a partner over the phone) without
+  //    the "don't clobber elevated roles" guard in POST /partners blocking
+  //    them out of Step 2 onwards.
+  const allowed = profile.role === "placement_partner" || profile.role === "admin";
+  if (!allowed) return null;
 
   const { data: partner } = await supabaseAdmin
     .from("placement_partners")
