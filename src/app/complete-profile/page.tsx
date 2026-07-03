@@ -22,6 +22,7 @@ export default function CompleteProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [accountType, setAccountType] = useState<AccountType | "">("");
+  const [elevatedRole, setElevatedRole] = useState(false);
   const [form, setForm] = useState({
     full_name: "",
     company_name: "",
@@ -56,6 +57,13 @@ export default function CompleteProfilePage() {
           if (profile.role && ["operator", "locator", "location_manager", "employee", "sales"].includes(profile.role)) {
             setAccountType(profile.role === "sales" ? "employee" : profile.role);
           }
+          // Elevated roles (admin, sales_manager, director_of_sales,
+          // market_leader) don't fit the four account-type buttons; skip the
+          // picker for them so they can save phone/address without being
+          // trapped on "Please select an account type".
+          if (profile.role && ["admin", "sales_manager", "director_of_sales", "market_leader"].includes(profile.role)) {
+            setElevatedRole(true);
+          }
           setForm({
             full_name: profile.full_name || "",
             company_name: profile.company_name || "",
@@ -74,18 +82,23 @@ export default function CompleteProfilePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!accountType) { setError("Please select an account type"); return; }
-    if (!form.full_name.trim()) { setError("Full name is required"); return; }
-    if (!form.phone.trim()) { setError("Phone number is required"); return; }
-    if (!form.address.trim()) { setError("Address is required"); return; }
-    if (!form.city.trim()) { setError("City is required"); return; }
-    if (!form.state.trim()) { setError("State is required"); return; }
-    if (!form.zip.trim()) { setError("Zip code is required"); return; }
+    if (!elevatedRole && !accountType) { setError("Please select an account type"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (!form.full_name.trim()) { setError("Full name is required"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (!form.phone.trim()) { setError("Phone number is required"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (!form.address.trim()) { setError("Address is required"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (!form.city.trim()) { setError("City is required"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (!form.state.trim()) { setError("State is required"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (!form.zip.trim()) { setError("Zip code is required"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
 
     setSaving(true);
     setError("");
 
-    const role = accountType === "employee" ? "sales" : accountType;
+    // Elevated roles keep their existing role (PATCH endpoint also enforces
+    // this server-side). Non-elevated users pick from the four options.
+    const payload: Record<string, unknown> = { ...form };
+    if (!elevatedRole && accountType) {
+      payload.role = accountType === "employee" ? "sales" : accountType;
+    }
 
     try {
       const res = await fetch("/api/auth/me", {
@@ -94,17 +107,19 @@ export default function CompleteProfilePage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ...form, role }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         router.push("/dashboard");
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({ error: "Failed to save" }));
         setError(data.error || "Failed to save");
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } catch {
       setError("Failed to save. Please try again.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setSaving(false);
     }
@@ -136,31 +151,33 @@ export default function CompleteProfilePage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2">Account Type <span className="text-red-500">*</span></label>
-              <div className="grid grid-cols-2 gap-2">
-                {ACCOUNT_TYPES.map((t) => {
-                  const Icon = t.icon;
-                  const selected = accountType === t.value;
-                  return (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => setAccountType(t.value)}
-                      className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center cursor-pointer ${
-                        selected
-                          ? "border-green-600 bg-green-50 text-green-700"
-                          : "border-gray-200 hover:border-gray-300 text-gray-600"
-                      }`}
-                    >
-                      <Icon className="h-5 w-5" />
-                      <span className="text-xs font-semibold">{t.label}</span>
-                      <span className="text-[10px] leading-tight opacity-70">{t.description}</span>
-                    </button>
-                  );
-                })}
+            {!elevatedRole && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-2">Account Type <span className="text-red-500">*</span></label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ACCOUNT_TYPES.map((t) => {
+                    const Icon = t.icon;
+                    const selected = accountType === t.value;
+                    return (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => setAccountType(t.value)}
+                        className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center cursor-pointer ${
+                          selected
+                            ? "border-green-600 bg-green-50 text-green-700"
+                            : "border-gray-200 hover:border-gray-300 text-gray-600"
+                        }`}
+                      >
+                        <Icon className="h-5 w-5" />
+                        <span className="text-xs font-semibold">{t.label}</span>
+                        <span className="text-[10px] leading-tight opacity-70">{t.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Full Name <span className="text-red-500">*</span></label>
               <input

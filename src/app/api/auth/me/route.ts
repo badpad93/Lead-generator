@@ -105,11 +105,29 @@ export async function PATCH(req: NextRequest) {
     ];
     // Privileged roles can ONLY be set by an admin via /api/admin/users.
     // Self-service signup must never grant admin/sales access.
-    const PRIVILEGED_ROLES = new Set(["admin", "sales", "director_of_sales", "market_leader"]);
+    const PRIVILEGED_ROLES = new Set(["admin", "sales", "director_of_sales", "market_leader", "sales_manager"]);
+
+    // Fetch the current role so we can also protect elevated users from
+    // accidentally demoting themselves (e.g. an admin filling out
+    // /complete-profile picking accountType=operator would otherwise land
+    // as role=operator and lose CRM access).
+    const { data: currentProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    const currentRole = currentProfile?.role || "";
+    const currentIsPrivileged = PRIVILEGED_ROLES.has(currentRole);
+
     const updates: Partial<Record<string, string | null>> = {};
     for (const field of allowedFields) {
       if (field in body) {
-        if (field === "role" && PRIVILEGED_ROLES.has(body.role)) continue;
+        if (field === "role") {
+          // Reject setting privileged roles from this endpoint.
+          if (PRIVILEGED_ROLES.has(body.role)) continue;
+          // Reject downgrading a privileged user via self-service.
+          if (currentIsPrivileged) continue;
+        }
         updates[field] = body[field];
       }
     }

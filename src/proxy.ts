@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 
 /**
  * Routes that require an authenticated session.
@@ -122,7 +123,17 @@ export async function proxy(req: NextRequest) {
     const meta = { ...(user.user_metadata || {}), ...(user.app_metadata || {}) } as Record<string, unknown>;
     let phone = typeof meta.phone === "string" ? meta.phone.trim() : "";
     if (!phone) {
-      const { data: profile } = await supabase
+      // Fallback uses service role — the user's own session may or may not
+      // have a SELECT policy on profiles depending on project setup, and a
+      // missing policy would silently return no rows and trap the user in a
+      // /complete-profile ↔ /dashboard redirect loop even after they saved a
+      // phone. Service role bypasses RLS so this is reliable.
+      const admin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      );
+      const { data: profile } = await admin
         .from("profiles")
         .select("phone")
         .eq("id", user.id)
