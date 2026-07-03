@@ -549,6 +549,20 @@ export async function handleCoffeeOrderCompleted(params: {
   } catch (e) {
     console.error("[payment-handler] Failed to send coffee order emails:", e);
   }
+
+  // Mirror into the CRM sales_orders spine so admins can view the coffee
+  // order alongside every other CRM order and use the existing "Send
+  // Receipt" flow at /sales/orders/[id]. Idempotent — a re-fired webhook
+  // won't duplicate the sales_orders row.
+  try {
+    const { mirrorCoffeeOrderToCrm } = await import("./coffeeCrmMirror");
+    const result = await mirrorCoffeeOrderToCrm(orderId);
+    if (result.status !== "created" && result.status !== "already_mirrored") {
+      console.warn("[payment-handler] Coffee → CRM mirror skipped:", result);
+    }
+  } catch (e) {
+    console.error("[payment-handler] Coffee → CRM mirror failed (non-fatal):", e);
+  }
 }
 
 // ─── Marketplace Purchase ───
