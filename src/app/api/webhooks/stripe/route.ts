@@ -9,6 +9,8 @@ import {
   handleMarketplacePurchaseCompleted,
   handlePaymentExpired,
 } from "@/lib/paymentHandlers";
+import { recordPaymentEvent, markEventProcessed } from "@/lib/paymentLedger";
+import { ingestStripeEvent } from "@/lib/paymentIngest";
 
 function getStripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -62,6 +64,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
+  // Financial spine — log the event and short-circuit on duplicate deliveries.
+  // Downstream handlers (below) only fire on the first successful delivery,
+  // so re-tries never double-write commissions/emails/downstream side-effects.
+  let ledgerEventId: string | null = null;
+  try {
+    const { event: eventRow, alreadyProcessed } = await recordPaymentEvent({
+      provider: "stripe",
+      eventId: event.id,
+      eventType: event.type,
+      signatureVerified: true,
+      payload: event as unknown as Record<string, unknown>,
+    });
+    if (alreadyProcessed) {
+      return NextResponse.json({ received: true, idempotent: true });
+    }
+    ledgerEventId = eventRow.id;
+    // Best-effort — write an invoice/payment row in the canonical ledger.
+    // Failure here doesn't block the existing downstream handlers.
+    try {
+      await ingestStripeEvent(event, eventRow.id);
+    } catch (ingestErr) {
+      console.error("[stripe-webhook] ledger ingest failed (non-fatal):", ingestErr);
+    }
+  } catch (logErr) {
+    console.error("[stripe-webhook] event log write failed (proceeding):", logErr);
+  }
+
+  try {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const paymentIntentId =
@@ -180,6 +210,15 @@ export async function POST(req: NextRequest) {
         .update({ stripe_onboarding_complete: true })
         .eq("stripe_account_id", account.id);
       console.log(`[stripe-webhook] Connect account ${account.id} onboarding complete`);
+    }
+  }
+  } finally {
+    // Mark the event row processed regardless of whether the specific
+    // event type had a handler here — a "handled" event means "we saw it
+    // and won't reprocess". Retries after an uncaught throw skip this,
+    // so recovery via Stripe's built-in retries still works.
+    if (ledgerEventId) {
+      await markEventProcessed(ledgerEventId).catch(() => undefined);
     }
   }
 

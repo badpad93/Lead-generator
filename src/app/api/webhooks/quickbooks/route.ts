@@ -8,6 +8,8 @@ import {
   handleCoffeeOrderCompleted,
   handleMarketplacePurchaseCompleted,
 } from "@/lib/paymentHandlers";
+import { recordPaymentEvent, markEventProcessed } from "@/lib/paymentLedger";
+import { ingestQbPaymentEvent } from "@/lib/paymentIngest";
 
 interface QBWebhookEvent {
   eventNotifications: {
@@ -41,11 +43,41 @@ export async function POST(req: NextRequest) {
 
   for (const notification of event.eventNotifications || []) {
     for (const entity of notification.dataChangeEvent?.entities || []) {
-      if (entity.name === "Payment" && (entity.operation === "Create" || entity.operation === "Update")) {
-        await handleQBPayment(entity.id, notification.realmId);
+      // Financial spine — one event_id per entity update. Re-delivery of the
+      // same batch produces the same event_id + skips already-processed rows.
+      const eventId = `qb:${notification.realmId}:${entity.name}:${entity.id}:${entity.lastUpdated}`;
+      let ledgerEventRowId: string | null = null;
+      try {
+        const { event: eventRow, alreadyProcessed } = await recordPaymentEvent({
+          provider: "quickbooks",
+          eventId,
+          eventType: `${entity.name}.${entity.operation}`,
+          signatureVerified: true,
+          payload: { entity, realmId: notification.realmId },
+        });
+        if (alreadyProcessed) continue;
+        ledgerEventRowId = eventRow.id;
+      } catch (logErr) {
+        console.error("[qb-webhook] event log write failed (proceeding):", logErr);
       }
-      if (entity.name === "BillPayment" && (entity.operation === "Create" || entity.operation === "Update")) {
-        await handleQBBillPayment(entity.id, notification.realmId);
+
+      try {
+        if (entity.name === "Payment" && (entity.operation === "Create" || entity.operation === "Update")) {
+          // Ledger ingest first (non-fatal), then existing downstream handler.
+          try {
+            await ingestQbPaymentEvent(entity.id, notification.realmId, ledgerEventRowId);
+          } catch (ingestErr) {
+            console.error("[qb-webhook] ledger ingest failed (non-fatal):", ingestErr);
+          }
+          await handleQBPayment(entity.id, notification.realmId);
+        }
+        if (entity.name === "BillPayment" && (entity.operation === "Create" || entity.operation === "Update")) {
+          await handleQBBillPayment(entity.id, notification.realmId);
+        }
+      } finally {
+        if (ledgerEventRowId) {
+          await markEventProcessed(ledgerEventRowId).catch(() => undefined);
+        }
       }
     }
   }
