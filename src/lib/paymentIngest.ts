@@ -11,7 +11,7 @@
 import type Stripe from "stripe";
 import { supabaseAdmin } from "./supabaseAdmin";
 import { getConnection } from "./quickbooks";
-import { upsertInvoice, upsertPayment } from "./paymentLedger";
+import { upsertInvoice, upsertPayment, recordRefund } from "./paymentLedger";
 
 function toCents(amount: number | string | null | undefined): number {
   if (amount == null) return 0;
@@ -114,20 +114,122 @@ export async function ingestStripeEvent(event: Stripe.Event, eventRowId: string)
   }
 
   if (t === "charge.refunded") {
-    // Chargeback + refund handling lives in the Phase 2 refund flow — for
-    // now, just capture that the event happened by writing a payment row
-    // with the refund status. The existing handlers don't touch this.
     const charge = event.data.object as Stripe.Charge;
     const parentIntentId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
     if (!parentIntentId) return;
     const { data: parent } = await supabaseAdmin
       .from("payments")
-      .select("id")
+      .select("id, amount_cents, refund_of_payment_id")
       .eq("provider", "stripe")
       .eq("provider_payment_id", parentIntentId)
       .maybeSingle();
     if (!parent) return;
-    // Delegated to Phase 2 UI/refund route — noop for now.
+
+    // Iterate the actual refund objects on the charge — Stripe fires this
+    // event once per new/updated refund. We upsert each by providerRefundId
+    // via recordRefund's parent update logic (idempotent per event).
+    for (const refund of charge.refunds?.data || []) {
+      const alreadyRecorded = await supabaseAdmin
+        .from("payments")
+        .select("id")
+        .eq("provider", "stripe")
+        .eq("provider_payment_id", refund.id)
+        .maybeSingle();
+      if (alreadyRecorded.data) continue;
+
+      await recordRefund({
+        parentPaymentId: parent.id,
+        provider: "stripe",
+        providerRefundId: refund.id,
+        eventId: eventRowId,
+        amountCents: refund.amount,
+        reason: refund.reason || "webhook_refund",
+      });
+    }
+    return;
+  }
+
+  if (t === "charge.dispute.created") {
+    const dispute = event.data.object as Stripe.Dispute;
+    const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+    if (!chargeId) return;
+    const { data: parent } = await supabaseAdmin
+      .from("payments")
+      .select("id, status")
+      .eq("provider", "stripe")
+      .eq("provider_charge_id", chargeId)
+      .maybeSingle();
+    if (!parent) return;
+    // Flip to disputed without recording a negative-amount row yet — that
+    // happens if the dispute is lost (closed status = 'lost').
+    await supabaseAdmin
+      .from("payments")
+      .update({ status: "disputed", disputed_at: new Date().toISOString() })
+      .eq("id", parent.id);
+    await supabaseAdmin.from("payment_status_history").insert({
+      payment_id: parent.id,
+      from_status: parent.status,
+      to_status: "disputed",
+      event_id: eventRowId,
+      reason: `Stripe dispute opened: ${dispute.reason || "unknown"}`,
+    });
+    return;
+  }
+
+  if (t === "charge.dispute.closed") {
+    const dispute = event.data.object as Stripe.Dispute;
+    const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+    if (!chargeId) return;
+    const { data: parent } = await supabaseAdmin
+      .from("payments")
+      .select("id, status, amount_cents")
+      .eq("provider", "stripe")
+      .eq("provider_charge_id", chargeId)
+      .maybeSingle();
+    if (!parent) return;
+
+    if (dispute.status === "lost") {
+      // Merchant lost — treat as chargeback: negative-amount row + parent
+      // status flips to chargeback (paid → chargeback via recordRefund).
+      await recordRefund({
+        parentPaymentId: parent.id,
+        provider: "stripe",
+        providerRefundId: `dispute-${dispute.id}`,
+        eventId: eventRowId,
+        amountCents: dispute.amount,
+        reason: `chargeback_lost: ${dispute.reason || ""}`,
+        isChargeback: true,
+      });
+    } else if (dispute.status === "won" || dispute.status === "warning_closed") {
+      // Merchant won — return the parent to paid so metrics recover.
+      await supabaseAdmin
+        .from("payments")
+        .update({ status: "paid", disputed_at: null })
+        .eq("id", parent.id);
+      await supabaseAdmin.from("payment_status_history").insert({
+        payment_id: parent.id,
+        from_status: parent.status,
+        to_status: "paid",
+        event_id: eventRowId,
+        reason: `Stripe dispute closed as ${dispute.status}`,
+      });
+    }
+    return;
+  }
+
+  if (t === "payment_intent.payment_failed") {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    await upsertPayment({
+      provider: "stripe",
+      providerPaymentId: pi.id,
+      eventId: eventRowId,
+      buyerEmail: pi.receipt_email || null,
+      amountCents: pi.amount || 0,
+      method: pi.payment_method_types?.[0] || null,
+      status: "failed",
+      failedAt: new Date().toISOString(),
+      failedReason: pi.last_payment_error?.message || pi.last_payment_error?.code || "unknown",
+    });
     return;
   }
 }
