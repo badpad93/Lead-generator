@@ -15,7 +15,10 @@ interface Territory {
   travel_radius_miles?: number;
 }
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
+
+type PayoutMethod = "ach" | "manual_check" | "zelle" | "venmo" | "wire";
+type AccountType = "checking" | "savings";
 
 export default function MarketplaceOnboardingPage() {
   const router = useRouter();
@@ -45,6 +48,16 @@ export default function MarketplaceOnboardingPage() {
   const [uploadedW9, setUploadedW9] = useState<{ id: string; file_name: string } | null>(null);
   const [idFile, setIdFile] = useState<File | null>(null);
   const [uploadedId, setUploadedId] = useState<{ id: string; file_name: string } | null>(null);
+
+  // Step 5 — payout details
+  const [payoutMethod, setPayoutMethod] = useState<PayoutMethod>("ach");
+  const [bankName, setBankName] = useState("");
+  const [accountHolder, setAccountHolder] = useState("");
+  const [accountType, setAccountType] = useState<AccountType>("checking");
+  const [routingNumber, setRoutingNumber] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [payoutNotes, setPayoutNotes] = useState("");
+  const [savedBank, setSavedBank] = useState<{ method: string; account_last4: string | null } | null>(null);
 
   // Load existing state
   const load = useCallback(async () => {
@@ -82,6 +95,23 @@ export default function MarketplaceOnboardingPage() {
       if (w9) setUploadedW9({ id: w9.id, file_name: w9.file_name });
       const idDoc = data.documents?.find((d: { document_type: string }) => d.document_type === "id");
       if (idDoc) setUploadedId({ id: idDoc.id, file_name: idDoc.file_name });
+
+      // Load existing bank account (last4 only — full numbers never come back)
+      const bankRes = await fetch("/api/marketplace/partners/bank-accounts", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (bankRes.ok) {
+        const bankData = await bankRes.json();
+        const b = bankData.bank_account;
+        if (b) {
+          setSavedBank({ method: b.method, account_last4: b.account_last4 || null });
+          setPayoutMethod(b.method || "ach");
+          setBankName(b.bank_name || "");
+          setAccountHolder(b.account_holder || "");
+          if (b.account_type) setAccountType(b.account_type);
+          setPayoutNotes(b.notes || "");
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -194,6 +224,52 @@ export default function MarketplaceOnboardingPage() {
     return true;
   }
 
+  async function saveBankAccount() {
+    // Skip write if user hasn't changed anything and already has one on file
+    // (full number fields blank means they're keeping the existing one).
+    const routingDigits = routingNumber.replace(/\D/g, "");
+    const accountDigits = accountNumber.replace(/\D/g, "");
+    if (savedBank && !routingDigits && !accountDigits) return true;
+
+    if (payoutMethod === "ach" || payoutMethod === "wire") {
+      if (!bankName.trim()) { setError("Bank name is required"); return false; }
+      if (!accountHolder.trim()) { setError("Account holder name is required"); return false; }
+      if (routingDigits.length !== 9) { setError("Routing number must be 9 digits"); return false; }
+      if (accountDigits.length < 4 || accountDigits.length > 17) { setError("Account number must be 4-17 digits"); return false; }
+    } else {
+      if (!accountHolder.trim()) { setError("Payee name is required"); return false; }
+    }
+
+    setSaving(true);
+    setError(null);
+    const res = await fetch("/api/marketplace/partners/bank-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        method: payoutMethod,
+        bank_name: bankName.trim() || null,
+        account_holder: accountHolder.trim(),
+        account_type: accountType,
+        routing_number: routingDigits || null,
+        account_number: accountDigits || null,
+        notes: payoutNotes.trim() || null,
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Failed to save payout details");
+      return false;
+    }
+    const body = await res.json();
+    if (body.bank_account) {
+      setSavedBank({ method: body.bank_account.method, account_last4: body.bank_account.account_last4 || null });
+      setRoutingNumber("");
+      setAccountNumber("");
+    }
+    return true;
+  }
+
   async function completeOnboarding() {
     setSaving(true);
     setError(null);
@@ -208,7 +284,7 @@ export default function MarketplaceOnboardingPage() {
       return;
     }
     setSuccess("You're all set — your profile is now under review.");
-    setStep(5);
+    setStep(6);
   }
 
   async function nextStep() {
@@ -230,6 +306,10 @@ export default function MarketplaceOnboardingPage() {
       if (!w9Ok) return;
       const idOk = await uploadIdDoc();
       if (!idOk) return;
+      setStep(5);
+    } else if (step === 5) {
+      const ok = await saveBankAccount();
+      if (!ok) return;
       await completeOnboarding();
     }
   }
@@ -258,7 +338,7 @@ export default function MarketplaceOnboardingPage() {
 
       {/* Step indicator */}
       <div className="mb-6 flex items-center gap-2">
-        {[1, 2, 3, 4].map((n) => (
+        {[1, 2, 3, 4, 5].map((n) => (
           <div key={n} className="flex-1">
             <div className={`h-1.5 rounded-full ${step >= n ? "bg-green-600" : "bg-gray-200"}`} />
             <div className={`mt-1 text-xs font-medium ${step === n ? "text-green-700" : step > n ? "text-green-600" : "text-gray-400"}`}>
@@ -487,8 +567,126 @@ export default function MarketplaceOnboardingPage() {
           </>
         )}
 
-        {/* STEP 5 — Success */}
+        {/* STEP 5 — Payout details */}
         {step === 5 && (
+          <>
+            <div className="mb-6 flex items-center gap-3">
+              <div className="rounded-lg bg-green-50 p-2"><Briefcase className="h-5 w-5 text-green-primary" /></div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Payout details</h2>
+                <p className="text-xs text-gray-500">How should we pay you out? You can change this later from your dashboard.</p>
+              </div>
+            </div>
+
+            {savedBank && (
+              <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm">
+                <p className="font-medium text-green-900">Current: {savedBank.method.replace("_", " ")}{savedBank.account_last4 ? ` — ****${savedBank.account_last4}` : ""}</p>
+                <p className="text-xs text-green-700 mt-0.5">Leave routing / account fields blank below to keep this on file, or enter new values to replace it.</p>
+              </div>
+            )}
+
+            <label className="block text-xs font-medium text-gray-600 mb-1">Payout method</label>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+              {(["ach", "wire", "manual_check", "zelle", "venmo"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setPayoutMethod(m)}
+                  className={`rounded-xl border px-2 py-2 text-xs font-medium transition-colors cursor-pointer capitalize ${payoutMethod === m ? "border-green-primary bg-green-50 text-green-700" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                >
+                  {m.replace("_", " ")}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {payoutMethod === "ach" || payoutMethod === "wire" ? "Account holder (name on the account)" : "Payee name"} *
+                </label>
+                <input
+                  type="text"
+                  value={accountHolder}
+                  onChange={(e) => setAccountHolder(e.target.value)}
+                  placeholder={payoutMethod === "ach" || payoutMethod === "wire" ? "Jane Doe" : "Payee name for the check / Zelle / Venmo"}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-green-primary focus:outline-none"
+                />
+              </div>
+
+              {(payoutMethod === "ach" || payoutMethod === "wire") && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Bank name *</label>
+                    <input
+                      type="text"
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      placeholder="Chase, Wells Fargo, etc."
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-green-primary focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Account type</label>
+                    <div className="flex gap-2">
+                      {(["checking", "savings"] as const).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setAccountType(t)}
+                          className={`flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors cursor-pointer capitalize ${accountType === t ? "border-green-primary bg-green-50 text-green-700" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Routing number *</label>
+                      <input
+                        type="text"
+                        value={routingNumber}
+                        onChange={(e) => setRoutingNumber(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                        placeholder="9 digits"
+                        inputMode="numeric"
+                        className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-green-primary focus:outline-none font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Account number *</label>
+                      <input
+                        type="text"
+                        value={accountNumber}
+                        onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 17))}
+                        placeholder="4-17 digits"
+                        inputMode="numeric"
+                        className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-green-primary focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Notes (optional)</label>
+                <textarea
+                  value={payoutNotes}
+                  onChange={(e) => setPayoutNotes(e.target.value)}
+                  rows={2}
+                  placeholder={payoutMethod === "zelle" ? "Zelle email or phone" : payoutMethod === "venmo" ? "Venmo handle (@username)" : payoutMethod === "manual_check" ? "Mailing address for check" : "Anything we should know about your account"}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-green-primary focus:outline-none resize-none"
+                />
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs text-gray-500">
+              🔒 Routing and account numbers are stored securely and only viewable by our finance team when processing your payout. We&apos;ll show you only the last 4 digits on your dashboard.
+            </p>
+          </>
+        )}
+
+        {/* STEP 6 — Success */}
+        {step === 6 && (
           <div className="text-center py-6">
             <div className="mx-auto w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mb-4">
               <CheckCircle2 className="w-8 h-8 text-green-primary" />
@@ -513,7 +711,7 @@ export default function MarketplaceOnboardingPage() {
         )}
 
         {/* Navigation */}
-        {step < 5 && (
+        {step < 6 && (
           <div className="mt-8 flex items-center justify-between">
             <button
               type="button"
@@ -535,7 +733,7 @@ export default function MarketplaceOnboardingPage() {
                 </>
               ) : (
                 <>
-                  {step === 4 ? "Finish" : "Continue"} <ArrowRight className="h-4 w-4" />
+                  {step === 5 ? "Finish" : "Continue"} <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </button>
