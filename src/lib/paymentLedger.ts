@@ -286,6 +286,11 @@ export async function upsertPayment(args: UpsertPaymentArgs): Promise<PaymentRow
       if (existing.invoice_id) {
         await recomputeInvoiceTotals(existing.invoice_id);
       }
+
+      // Newly-paid transition — fire commission earn hook.
+      if (args.status === "paid" && existing.status !== "paid") {
+        await maybeEarnCommissionsForPayment(existing.id, args.orderId ?? null, existing.invoice_id, args.amountCents, args.createdBy || null);
+      }
     }
     return { ...existing, status: args.status };
   }
@@ -334,7 +339,56 @@ export async function upsertPayment(args: UpsertPaymentArgs): Promise<PaymentRow
     await recomputeInvoiceTotals(args.invoiceId);
   }
 
+  if (args.status === "paid") {
+    await maybeEarnCommissionsForPayment(
+      inserted.id,
+      args.orderId ?? null,
+      args.invoiceId ?? null,
+      args.amountCents,
+      args.createdBy || null,
+    );
+  }
+
   return inserted as PaymentRow;
+}
+
+/**
+ * Bridge to the commissions module — kept out of the hot path via dynamic
+ * import so a commissions failure never fails the payment write. Resolves the
+ * effective order_id (using invoice.order_id if the payment row didn't carry
+ * one) and then walks the attribution rows.
+ */
+async function maybeEarnCommissionsForPayment(
+  paymentId: string,
+  paymentOrderId: string | null,
+  invoiceId: string | null,
+  amountCents: number,
+  actorId: string | null,
+): Promise<void> {
+  if (!(amountCents > 0)) return;
+  try {
+    let orderId = paymentOrderId;
+    if (!orderId && invoiceId) {
+      const { data: inv } = await supabaseAdmin
+        .from("invoices")
+        .select("order_id")
+        .eq("id", invoiceId)
+        .maybeSingle();
+      orderId = inv?.order_id || null;
+    }
+    if (!orderId) return;
+
+    const { earnCommissionsForPayment } = await import("./commissions");
+    await earnCommissionsForPayment({
+      orderId,
+      paymentId,
+      paymentAmountCents: amountCents,
+      actorId,
+    });
+  } catch (e) {
+    // Never fail the payment write on a commissions hiccup.
+    console.error("[commissions] earn hook failed:", e);
+  }
 }
 
 /**
@@ -460,6 +514,21 @@ export async function recordRefund(args: RecordRefundArgs): Promise<PaymentRow |
   });
 
   if (parent.invoice_id) await recomputeInvoiceTotals(parent.invoice_id);
+
+  // Commission auto-reverse — pro-rata against original earn rows.
+  try {
+    const { reverseCommissionsForRefund } = await import("./commissions");
+    await reverseCommissionsForRefund({
+      parentPaymentId: parent.id,
+      refundPaymentId: (refund as PaymentRow).id,
+      refundAmountCents: Math.abs(args.amountCents),
+      reason: args.reason || null,
+      isChargeback: !!args.isChargeback,
+      actorId: args.createdBy || null,
+    });
+  } catch (e) {
+    console.error("[commissions] reverse hook failed:", e);
+  }
 
   return refund as PaymentRow;
 }
