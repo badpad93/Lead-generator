@@ -20,6 +20,9 @@ import {
   ChevronDown,
   Eye,
   ArrowLeft,
+  Database,
+  Play,
+  RefreshCw,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
@@ -135,6 +138,20 @@ export default function AdminCoffeePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
+
+  // CRM mirror backfill controls (Orders tab)
+  const [mirrorBackfillNeeded, setMirrorBackfillNeeded] = useState<number | null>(null);
+  const [mirrorCheckLoading, setMirrorCheckLoading] = useState(false);
+  const [mirrorBackfillRunning, setMirrorBackfillRunning] = useState(false);
+  const [mirrorBackfillLimit, setMirrorBackfillLimit] = useState(500);
+  const [mirrorBackfillSinceDays, setMirrorBackfillSinceDays] = useState(365);
+  const [mirrorBackfillResult, setMirrorBackfillResult] = useState<{
+    scanned: number;
+    created: number;
+    already: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
 
   const [guides, setGuides] = useState<Guide[]>([]);
 
@@ -258,6 +275,54 @@ export default function AdminCoffeePage() {
     } catch {}
   }, [token]);
 
+  const checkMirrorBackfill = useCallback(async () => {
+    if (!token) return;
+    setMirrorCheckLoading(true);
+    try {
+      const res = await fetch("/api/admin/coffee/mirror-backfill", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMirrorBackfillNeeded(Number(data.needs_backfill) || 0);
+      }
+    } catch {} finally {
+      setMirrorCheckLoading(false);
+    }
+  }, [token]);
+
+  async function runMirrorBackfill() {
+    if (!token) return;
+    setMirrorBackfillRunning(true);
+    setMirrorBackfillResult(null);
+    try {
+      const res = await fetch("/api/admin/coffee/mirror-backfill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ limit: mirrorBackfillLimit, since_days: mirrorBackfillSinceDays }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setToast({ message: body.error || "Backfill failed", type: "error" });
+      } else {
+        setMirrorBackfillResult(body);
+        setToast({
+          message: `Mirrored ${body.created} coffee order${body.created === 1 ? "" : "s"} into CRM (${body.already} already, ${body.skipped} skipped)`,
+          type: "success",
+        });
+        // Refresh count after run
+        await checkMirrorBackfill();
+        // Also refresh the orders table in case it draws linkage data
+        await fetchOrders();
+      }
+    } catch (e) {
+      setToast({ message: e instanceof Error ? e.message : "Backfill failed", type: "error" });
+    } finally {
+      setMirrorBackfillRunning(false);
+      setTimeout(() => setToast(null), 4000);
+    }
+  }
+
   const fetchApplications = useCallback(async () => {
     if (!token) return;
     try {
@@ -292,6 +357,11 @@ export default function AdminCoffeePage() {
     fetchApplications();
     fetchGuides();
   }, [token, fetchProducts, fetchCategories, fetchOrders, fetchApplications, fetchGuides]);
+
+  useEffect(() => {
+    if (!token || activeTab !== "orders") return;
+    checkMirrorBackfill();
+  }, [token, activeTab, checkMirrorBackfill]);
 
   function resetProductForm() {
     setProductForm({
@@ -1070,7 +1140,114 @@ export default function AdminCoffeePage() {
       )}
 
       {activeTab === "orders" && (
-        <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-green-50 p-2">
+                  <Database className="h-5 w-5 text-green-primary" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Backfill CRM Mirror</h3>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Copies paid coffee orders into the CRM Sales Orders table so admins can generate receipts. Idempotent — safe to re-run.
+                  </p>
+                  <div className="mt-2 flex items-center gap-2 text-xs">
+                    {mirrorCheckLoading ? (
+                      <span className="inline-flex items-center gap-1 text-gray-500">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Checking…
+                      </span>
+                    ) : mirrorBackfillNeeded === null ? (
+                      <span className="text-gray-400">Count not loaded</span>
+                    ) : mirrorBackfillNeeded === 0 ? (
+                      <span className="inline-flex items-center gap-1 font-medium text-emerald-700">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> All coffee orders mirrored
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 font-medium text-amber-700">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        {mirrorBackfillNeeded} coffee order{mirrorBackfillNeeded === 1 ? "" : "s"} need mirroring
+                      </span>
+                    )}
+                    <button
+                      onClick={checkMirrorBackfill}
+                      disabled={mirrorCheckLoading}
+                      className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${mirrorCheckLoading ? "animate-spin" : ""}`} /> Recheck
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Limit</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={5000}
+                    value={mirrorBackfillLimit}
+                    onChange={(e) => setMirrorBackfillLimit(Math.max(1, Number(e.target.value) || 500))}
+                    className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Since (days)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    value={mirrorBackfillSinceDays}
+                    onChange={(e) => setMirrorBackfillSinceDays(Math.max(1, Number(e.target.value) || 365))}
+                    className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+                <button
+                  onClick={runMirrorBackfill}
+                  disabled={mirrorBackfillRunning}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-green-primary hover:bg-green-hover px-3 py-2 text-xs font-semibold text-white cursor-pointer disabled:opacity-50"
+                >
+                  {mirrorBackfillRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                  Run Backfill
+                </button>
+              </div>
+            </div>
+            {mirrorBackfillResult && (
+              <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3 sm:grid-cols-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500">Scanned</p>
+                  <p className="text-sm font-semibold text-gray-900">{mirrorBackfillResult.scanned}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500">Created</p>
+                  <p className="text-sm font-semibold text-emerald-700">{mirrorBackfillResult.created}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500">Already mirrored</p>
+                  <p className="text-sm font-semibold text-gray-700">{mirrorBackfillResult.already}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500">Skipped</p>
+                  <p className="text-sm font-semibold text-gray-700">{mirrorBackfillResult.skipped}</p>
+                </div>
+                {mirrorBackfillResult.errors && mirrorBackfillResult.errors.length > 0 && (
+                  <div className="col-span-2 sm:col-span-4">
+                    <p className="text-[10px] uppercase tracking-wide text-red-600">Errors ({mirrorBackfillResult.errors.length})</p>
+                    <ul className="mt-1 max-h-24 overflow-auto text-[11px] text-red-700">
+                      {mirrorBackfillResult.errors.slice(0, 10).map((err, i) => (
+                        <li key={i} className="font-mono">• {err}</li>
+                      ))}
+                      {mirrorBackfillResult.errors.length > 10 && (
+                        <li className="italic">…and {mirrorBackfillResult.errors.length - 10} more</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -1156,6 +1333,7 @@ export default function AdminCoffeePage() {
                 )}
               </tbody>
             </table>
+          </div>
           </div>
         </div>
       )}
