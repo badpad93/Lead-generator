@@ -224,6 +224,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       activity_type: isQuote ? "quote_sent" : "order_sent",
       description: `${isQuote ? "Quote" : "Order"} emailed to ${recipientEmail}` + (ccEmails.length > 0 ? ` (CC: ${ccEmails.join(", ")})` : ""),
     });
+
+    // Phase 3 — lock sales attribution once the quote/order goes out.
+    // Seeds an implicit 100% Lead Owner row if nothing was set explicitly.
+    try {
+      const { lockAttribution } = await import("@/lib/salesAttribution");
+      await lockAttribution(orderId, isQuote ? "quote_sent" : "order_sent", user.id);
+    } catch (e) {
+      console.error("[orders/send] attribution lock failed (non-fatal):", e);
+    }
   }
 
   return NextResponse.json({

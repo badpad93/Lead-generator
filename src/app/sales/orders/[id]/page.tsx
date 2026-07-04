@@ -8,6 +8,7 @@ import {
   Package, MapPin, Coffee, Monitor, Wrench, DollarSign,
   FileText, Clock, User, Building2, Trash2, ScrollText,
 } from "lucide-react";
+import AttributionPanel from "./AttributionPanel";
 
 interface OrderItem {
   id: string;
@@ -563,6 +564,9 @@ export default function OrderDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Sales Attribution (Phase 3) */}
+          {token && <AttributionPanel orderId={id} token={token} />}
 
           {/* Documents */}
           <div className="rounded-xl border border-gray-200 bg-white p-5">
