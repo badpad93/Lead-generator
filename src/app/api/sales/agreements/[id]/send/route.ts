@@ -273,6 +273,17 @@ export async function POST(
     })
     .eq("id", id);
 
+  // Phase 3 — lock attribution on the linked order (if any). Agreements
+  // are the tightest lock event because the customer is about to sign.
+  if (agreement.order_id) {
+    try {
+      const { lockAttribution } = await import("@/lib/salesAttribution");
+      await lockAttribution(agreement.order_id, "agreement_sent", user.id);
+    } catch (e) {
+      console.error("[agreements/send] attribution lock failed (non-fatal):", e);
+    }
+  }
+
   // Log activity
   const audience = sendToOperator ? "operator" : isLocationPlacement ? "location" : "operator";
   await supabaseAdmin.from("agreement_activity_log").insert({
