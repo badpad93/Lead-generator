@@ -148,83 +148,194 @@ export interface EarnResult {
 
 /**
  * For each attribution row on the order, compute + write a ledger entry
- * against the given payment. Idempotent per (order_id, payment_id, user_id,
- * role_code) — a re-fire skips rows that already exist.
+ * against the given payment.
+ *
+ * Rate resolution (most-specific first):
+ *   1. order_items.commission_rate_bps_override  — per-line
+ *   2. sales_orders.commission_rate_bps_override — per-order
+ *   3. commission_rules chain (user+category > user > role+category > role)
+ *   4. commission_rules where is_default=true
+ *
+ * When ANY line on the order has a per-line override, we split the earn per
+ * line: `basis = payment × (line.total / order.total) × attribution %` and
+ * emit one ledger row per (attribution × line). Otherwise (or when the order
+ * has an order-level override or falls back to rule chain) we emit one row
+ * per attribution against the whole payment.
+ *
+ * Idempotency keys:
+ *   - Whole-order path: (order_id, payment_id, user_id, role_code)
+ *   - Per-line path:    (order_id, payment_id, user_id, role_code, order_item_id)
  */
 export async function earnCommissionsForPayment(args: EarnArgs): Promise<EarnResult> {
   if (!(args.paymentAmountCents > 0)) return { wrote: 0, skipped: 0, reason: "non_positive_amount", rows: [] };
 
-  // Load order for category context
+  // Load order for category + override context
   const { data: order } = await supabaseAdmin
     .from("sales_orders")
-    .select("id, order_type")
+    .select("id, order_type, commission_rate_bps_override, total_value")
     .eq("id", args.orderId)
     .maybeSingle();
   if (!order) return { wrote: 0, skipped: 0, reason: "order_not_found", rows: [] };
 
   const category = (order.order_type || null) as string | null;
+  const orderOverrideBps: number | null = typeof order.commission_rate_bps_override === "number"
+    ? order.commission_rate_bps_override
+    : null;
 
   const attributions = await getEffectiveAttribution(args.orderId);
   if (attributions.length === 0) return { wrote: 0, skipped: 0, reason: "no_attribution", rows: [] };
 
-  const { data: existing } = await supabaseAdmin
-    .from("commission_ledger")
-    .select("id, user_id, role_code")
-    .eq("order_id", args.orderId)
-    .eq("payment_id", args.paymentId);
-  const existingKey = new Set((existing || []).map((r) => `${r.user_id}|${r.role_code}`));
+  // Pull all lines. If any has a per-line override, we switch to line-split
+  // mode. We ALWAYS load them because we need line totals for per-line math.
+  const { data: items } = await supabaseAdmin
+    .from("order_items")
+    .select("id, total_price, commission_rate_bps_override")
+    .eq("order_id", args.orderId);
+  const lines = items || [];
+  const hasLineOverride = lines.some((l) => typeof l.commission_rate_bps_override === "number");
+  const linesTotal = lines.reduce((s, l) => s + Number(l.total_price || 0), 0);
+  const orderTotalDollars = Number(order.total_value || 0) || linesTotal;
 
   const wrote: CommissionLedgerRow[] = [];
   let skipped = 0;
 
-  for (const attr of attributions) {
-    const key = `${attr.user_id}|${attr.role_code}`;
-    if (existingKey.has(key)) { skipped++; continue; }
-
-    const rule = await resolveCommissionRule({
-      userId: attr.user_id,
-      roleCode: attr.role_code,
-      category,
-    });
-    if (!rule) { skipped++; continue; }
-
-    const basisCents = Math.round(args.paymentAmountCents * (Number(attr.percentage) / 100));
-    const amountCents = Math.round((basisCents * rule.rate_bps) / 10000);
-    if (amountCents === 0) { skipped++; continue; }
-
-    const holdMs = rule.hold_days * 24 * 60 * 60 * 1000;
-    const earnedAtIso = new Date().toISOString();
-    const clearableAtIso = new Date(Date.now() + holdMs).toISOString();
-    const status: CommissionStatus = rule.hold_days > 0 ? "held" : "earned";
-
-    // Implicit lead-owner rows have synthetic ids ("implicit-…"); persist
-    // attribution_id only for real rows.
-    const attributionRowId = attr.id.startsWith("implicit-") ? null : attr.id;
-
-    const { data: inserted, error } = await supabaseAdmin
+  if (hasLineOverride && linesTotal > 0) {
+    // Per-line path — emit (attribution × line) ledger rows.
+    const { data: existing } = await supabaseAdmin
       .from("commission_ledger")
-      .insert({
-        user_id: attr.user_id,
-        order_id: args.orderId,
-        attribution_id: attributionRowId,
-        role_code: attr.role_code,
-        payment_id: args.paymentId,
-        rule_id: rule.id,
-        attribution_percentage: attr.percentage,
-        basis_cents: basisCents,
-        rate_bps: rule.rate_bps,
-        amount_cents: amountCents,
-        hold_days: rule.hold_days,
-        status,
-        earned_at: earnedAtIso,
-        clearable_at: clearableAtIso,
-        notes: attr.is_legacy_backfill ? "Legacy backfill attribution" : null,
-        created_by: args.actorId || null,
-      })
-      .select("*")
-      .single();
-    if (error) throw error;
-    wrote.push(inserted as CommissionLedgerRow);
+      .select("id, user_id, role_code, order_item_id")
+      .eq("order_id", args.orderId)
+      .eq("payment_id", args.paymentId);
+    const existingKey = new Set(
+      (existing || []).map((r) => `${r.user_id}|${r.role_code}|${r.order_item_id || ""}`),
+    );
+
+    for (const attr of attributions) {
+      // Fall back to the rule chain if a specific line has no override.
+      const fallbackRule = await resolveCommissionRule({
+        userId: attr.user_id,
+        roleCode: attr.role_code,
+        category,
+      });
+
+      for (const line of lines) {
+        const linePriceDollars = Number(line.total_price || 0);
+        if (linePriceDollars <= 0) continue;
+
+        const key = `${attr.user_id}|${attr.role_code}|${line.id}`;
+        if (existingKey.has(key)) { skipped++; continue; }
+
+        // Line share of payment, then attribution share.
+        const lineShare = linePriceDollars / linesTotal;
+        const basisCents = Math.round(args.paymentAmountCents * lineShare * (Number(attr.percentage) / 100));
+
+        // Rate resolution: per-line override > order override > rule > skip
+        const rateBps =
+          typeof line.commission_rate_bps_override === "number"
+            ? line.commission_rate_bps_override
+            : (orderOverrideBps ?? fallbackRule?.rate_bps ?? null);
+        if (rateBps == null) { skipped++; continue; }
+
+        const holdDays = fallbackRule?.hold_days ?? 0;
+        const amountCents = Math.round((basisCents * rateBps) / 10000);
+        if (amountCents === 0) { skipped++; continue; }
+
+        const holdMs = holdDays * 24 * 60 * 60 * 1000;
+        const earnedAtIso = new Date().toISOString();
+        const clearableAtIso = new Date(Date.now() + holdMs).toISOString();
+        const status: CommissionStatus = holdDays > 0 ? "held" : "earned";
+        const attributionRowId = attr.id.startsWith("implicit-") ? null : attr.id;
+
+        const { data: inserted, error } = await supabaseAdmin
+          .from("commission_ledger")
+          .insert({
+            user_id: attr.user_id,
+            order_id: args.orderId,
+            order_item_id: line.id,
+            attribution_id: attributionRowId,
+            role_code: attr.role_code,
+            payment_id: args.paymentId,
+            rule_id: fallbackRule?.id || null,
+            attribution_percentage: attr.percentage,
+            basis_cents: basisCents,
+            rate_bps: rateBps,
+            amount_cents: amountCents,
+            hold_days: holdDays,
+            status,
+            earned_at: earnedAtIso,
+            clearable_at: clearableAtIso,
+            notes: typeof line.commission_rate_bps_override === "number"
+              ? "Line-level override"
+              : (orderOverrideBps != null ? "Order-level override" : (attr.is_legacy_backfill ? "Legacy backfill attribution" : null)),
+            created_by: args.actorId || null,
+          })
+          .select("*")
+          .single();
+        if (error) throw error;
+        wrote.push(inserted as CommissionLedgerRow);
+      }
+    }
+  } else {
+    // Whole-order path — one row per attribution.
+    const { data: existing } = await supabaseAdmin
+      .from("commission_ledger")
+      .select("id, user_id, role_code, order_item_id")
+      .eq("order_id", args.orderId)
+      .eq("payment_id", args.paymentId)
+      .is("order_item_id", null);
+    const existingKey = new Set((existing || []).map((r) => `${r.user_id}|${r.role_code}`));
+
+    for (const attr of attributions) {
+      const key = `${attr.user_id}|${attr.role_code}`;
+      if (existingKey.has(key)) { skipped++; continue; }
+
+      const rule = await resolveCommissionRule({
+        userId: attr.user_id,
+        roleCode: attr.role_code,
+        category,
+      });
+      // Order-level override wins over rule chain if set.
+      const rateBps = orderOverrideBps ?? rule?.rate_bps ?? null;
+      if (rateBps == null) { skipped++; continue; }
+
+      const holdDays = rule?.hold_days ?? 0;
+      const basisCents = Math.round(args.paymentAmountCents * (Number(attr.percentage) / 100));
+      const amountCents = Math.round((basisCents * rateBps) / 10000);
+      if (amountCents === 0) { skipped++; continue; }
+
+      const holdMs = holdDays * 24 * 60 * 60 * 1000;
+      const earnedAtIso = new Date().toISOString();
+      const clearableAtIso = new Date(Date.now() + holdMs).toISOString();
+      const status: CommissionStatus = holdDays > 0 ? "held" : "earned";
+      const attributionRowId = attr.id.startsWith("implicit-") ? null : attr.id;
+
+      const { data: inserted, error } = await supabaseAdmin
+        .from("commission_ledger")
+        .insert({
+          user_id: attr.user_id,
+          order_id: args.orderId,
+          attribution_id: attributionRowId,
+          role_code: attr.role_code,
+          payment_id: args.paymentId,
+          rule_id: rule?.id || null,
+          attribution_percentage: attr.percentage,
+          basis_cents: basisCents,
+          rate_bps: rateBps,
+          amount_cents: amountCents,
+          hold_days: holdDays,
+          status,
+          earned_at: earnedAtIso,
+          clearable_at: clearableAtIso,
+          notes: orderOverrideBps != null
+            ? "Order-level override"
+            : (attr.is_legacy_backfill ? "Legacy backfill attribution" : null),
+          created_by: args.actorId || null,
+        })
+        .select("*")
+        .single();
+      if (error) throw error;
+      wrote.push(inserted as CommissionLedgerRow);
+    }
   }
 
   if (wrote.length > 0) {
@@ -237,10 +348,13 @@ export async function earnCommissionsForPayment(args: EarnArgs): Promise<EarnRes
         payment_id: args.paymentId,
         payment_amount_cents: args.paymentAmountCents,
         rows: wrote.length,
+        line_split: hasLineOverride,
+        order_override_bps: orderOverrideBps,
       },
     });
   }
-
+  // Reference so lint doesn't flag orderTotalDollars if unused (kept for future audit)
+  void orderTotalDollars;
   return { wrote: wrote.length, skipped, rows: wrote };
 }
 
