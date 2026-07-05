@@ -371,7 +371,7 @@ async function handleQBPayment(paymentId: string, realmId: string) {
     // Check marketplace_operator_invoices (Phase 2.4 — placement fee billing)
     const { data: marketplaceOpInvoice } = await supabaseAdmin
       .from("marketplace_operator_invoices")
-      .select("id, status")
+      .select("id, status, submission_id")
       .eq("qb_invoice_id", invoiceId)
       .maybeSingle();
 
@@ -386,6 +386,27 @@ async function handleQBPayment(paymentId: string, realmId: string) {
             updated_at: new Date().toISOString(),
           })
           .eq("id", marketplaceOpInvoice.id);
+
+        // Release the paired PP payout — drop it from awaiting_collection to
+        // queued so the QB Bill drain picks it up. Then push immediately in
+        // the background so the partner sees their money moving quickly.
+        const nowIso = new Date().toISOString();
+        await supabaseAdmin
+          .from("marketplace_payouts")
+          .update({ status: "queued", updated_at: nowIso })
+          .eq("submission_id", marketplaceOpInvoice.submission_id)
+          .eq("status", "awaiting_collection");
+        try {
+          const { data: payout } = await supabaseAdmin
+            .from("marketplace_payouts")
+            .select("id, status")
+            .eq("submission_id", marketplaceOpInvoice.submission_id)
+            .maybeSingle();
+          if (payout && payout.status === "queued") {
+            const { pushPayoutToQb } = await import("@/lib/marketplaceQb");
+            pushPayoutToQb(payout.id).catch(() => undefined);
+          }
+        } catch { /* non-critical */ }
       }
       continue;
     }

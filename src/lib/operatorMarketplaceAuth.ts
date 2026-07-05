@@ -10,12 +10,24 @@ export interface OperatorUser {
 }
 
 /**
- * Any signed-in profile can see marketplace submissions for contracts they
- * sourced (via a signed agreement). We match by contract.operator_profile_id
- * OR by the operator_email on the source purchase agreement — this way the
- * signing party sees their inbox even if their profile was created after the
- * agreement was drafted.
+ * Operators (and admins acting on their behalf) can see marketplace
+ * submissions for contracts they sourced. Match by
+ * contract.operator_profile_id OR by the operator_email on the source
+ * purchase agreement.
+ *
+ * Role gate: bare email matching is not enough — a locator or sales user
+ * whose email happens to collide with an operator_email must not read the
+ * submissions inbox. Only role in ('operator','admin','sales_manager',
+ * 'director_of_sales','market_leader') passes.
  */
+const OPERATOR_ROLES = new Set([
+  "operator",
+  "admin",
+  "sales_manager",
+  "director_of_sales",
+  "market_leader",
+]);
+
 export async function getOperatorUser(req: NextRequest): Promise<OperatorUser | null> {
   const userId = await getUserIdFromRequest(req);
   if (!userId) return null;
@@ -26,6 +38,7 @@ export async function getOperatorUser(req: NextRequest): Promise<OperatorUser | 
     .eq("id", userId)
     .maybeSingle();
   if (!profile) return null;
+  if (!OPERATOR_ROLES.has(profile.role)) return null;
   return {
     id: profile.id,
     email: profile.email,

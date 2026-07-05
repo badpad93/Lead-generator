@@ -163,6 +163,9 @@ export async function pushPayoutToQb(payoutId: string): Promise<QbPushResult> {
     .eq("id", payoutId)
     .maybeSingle();
   if (!payout) return { ok: false, error: "Payout not found" };
+  if (payout.status === "awaiting_collection") {
+    return { ok: false, error: "Payout is held until the operator invoice is paid" };
+  }
   if (payout.status !== "queued" && payout.status !== "failed") {
     return { ok: false, error: `Payout already ${payout.status}` };
   }

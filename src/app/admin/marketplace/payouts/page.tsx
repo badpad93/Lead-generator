@@ -54,6 +54,7 @@ const FILTERS = [
 
 const STATUS_COLORS: Record<string, string> = {
   queued: "bg-amber-50 text-amber-700",
+  awaiting_collection: "bg-orange-50 text-orange-700",
   sent_to_qb: "bg-blue-50 text-blue-700",
   paid: "bg-emerald-50 text-emerald-700",
   failed: "bg-red-50 text-red-700",
@@ -148,6 +149,23 @@ export default function AdminPayoutsPage() {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) setError(body.error || "Failed to mark paid");
     else setMessage("Payout marked paid");
+    await load();
+    setSaving(null);
+  }
+
+  async function markInvoicePaid(id: string) {
+    const methodInput = prompt("Payment method used (ACH, Check, Zelle, Wire, etc.)?", "ACH");
+    if (methodInput === null) return;
+    const ref = prompt("Reference / confirmation # (optional)?", "");
+    setSaving(`mark-paid-${id}`);
+    const res = await fetch(`/api/admin/marketplace/operator-invoices/${id}/mark-paid`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ method: methodInput, reference: ref }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) setError(body.error || "Failed to mark paid");
+    else setMessage("Operator invoice marked paid — payout unlocked and queued to QB");
     await load();
     setSaving(null);
   }
@@ -371,16 +389,29 @@ export default function AdminPayoutsPage() {
                   <td className="px-4 py-3 text-xs text-gray-500 font-mono">{i.qb_invoice_id || "—"}</td>
                   <td className="px-4 py-3 text-xs text-gray-500">{new Date(i.triggered_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    {(i.status === "queued" || i.status === "failed") && (
-                      <button
-                        onClick={() => retry(i.id)}
-                        disabled={saving === `retry-${i.id}`}
-                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 hover:bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 cursor-pointer disabled:opacity-50"
-                      >
-                        {saving === `retry-${i.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                        Send
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {(i.status === "queued" || i.status === "failed") && (
+                        <button
+                          onClick={() => retry(i.id)}
+                          disabled={saving === `retry-${i.id}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 hover:bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 cursor-pointer disabled:opacity-50"
+                        >
+                          {saving === `retry-${i.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                          Send
+                        </button>
+                      )}
+                      {i.status !== "paid" && i.status !== "cancelled" && (
+                        <button
+                          onClick={() => markInvoicePaid(i.id)}
+                          disabled={saving === `mark-paid-${i.id}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 cursor-pointer disabled:opacity-50"
+                          title="Manually record operator payment — unlocks the paired PP payout"
+                        >
+                          {saving === `mark-paid-${i.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <ClipboardCheck className="h-3 w-3" />}
+                          Mark paid
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
