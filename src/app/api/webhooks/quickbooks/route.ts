@@ -74,6 +74,12 @@ export async function POST(req: NextRequest) {
         if (entity.name === "BillPayment" && (entity.operation === "Create" || entity.operation === "Update")) {
           await handleQBBillPayment(entity.id, notification.realmId);
         }
+        if (entity.name === "RefundReceipt" && (entity.operation === "Create" || entity.operation === "Update")) {
+          await handleQBRefundReceipt(entity.id, notification.realmId);
+        }
+        if (entity.name === "CreditMemo" && (entity.operation === "Create" || entity.operation === "Update")) {
+          await handleQBCreditMemo(entity.id, notification.realmId);
+        }
       } finally {
         if (ledgerEventRowId) {
           await markEventProcessed(ledgerEventRowId).catch(() => undefined);
@@ -169,6 +175,52 @@ async function handleQBPayment(paymentId: string, realmId: string) {
   for (const invoiceId of invoiceIds) {
     // Look up the invoice in our metadata to determine what type of payment this is
     // We store the QB invoice ID in the relevant table when creating the invoice
+
+    // Check sales_orders (CRM main invoice, remaining-balance invoice, and
+    // apex placement fee invoice all live on this table).
+    const { data: salesOrder } = await supabaseAdmin
+      .from("sales_orders")
+      .select("id, qb_invoice_id, location_remaining_qb_invoice_id, order_status, payment_status")
+      .or(`qb_invoice_id.eq.${invoiceId},location_remaining_qb_invoice_id.eq.${invoiceId}`)
+      .maybeSingle();
+
+    if (salesOrder) {
+      console.log(`[qb-webhook] Processing sales_orders payment for invoice ${invoiceId}`);
+      const isRemaining = salesOrder.location_remaining_qb_invoice_id === invoiceId;
+      const patch: Record<string, unknown> = {
+        payment_status: "paid",
+        updated_at: new Date().toISOString(),
+      };
+      if (!isRemaining) patch.order_status = "paid";
+      await supabaseAdmin.from("sales_orders").update(patch).eq("id", salesOrder.id);
+      await supabaseAdmin.from("order_activity_log").insert({
+        order_id: salesOrder.id,
+        activity_type: "payment_received",
+        description: `QuickBooks payment received on invoice ${invoiceId}${isRemaining ? " (remaining balance)" : ""}`,
+      });
+      await stampOrderAndEarnCommissions(paymentId, salesOrder.id, null);
+      continue;
+    }
+
+    // Check purchase_agreements (apex_placement_qb_invoice_id — sales-side
+    // placement fee invoice attached to a signed agreement).
+    const { data: apexAgreement } = await supabaseAdmin
+      .from("purchase_agreements")
+      .select("id, order_id")
+      .eq("apex_placement_qb_invoice_id", invoiceId)
+      .maybeSingle();
+
+    if (apexAgreement) {
+      console.log(`[qb-webhook] Processing apex placement invoice payment for QB invoice ${invoiceId}`);
+      await supabaseAdmin
+        .from("purchase_agreements")
+        .update({ apex_placement_paid_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("id", apexAgreement.id);
+      if (apexAgreement.order_id) {
+        await stampOrderAndEarnCommissions(paymentId, apexAgreement.order_id, apexAgreement.id);
+      }
+      continue;
+    }
 
     // Check agreement_tokens
     const { data: agreement } = await supabaseAdmin
@@ -358,5 +410,202 @@ async function handleQBPayment(paymentId: string, realmId: string) {
     }
 
     console.log(`[qb-webhook] No matching record found for invoice ${invoiceId}`);
+  }
+}
+
+/**
+ * Stamp order_id on the ledger's payments/invoices rows AFTER we've resolved
+ * the CRM linkage, and fire the commission earn hook. `ingestQbPaymentEvent`
+ * ran before this with a null order_id and returned early — we call the earn
+ * function directly here now that we know the order. Idempotent per
+ * (order, payment, user, role) so a double-fire is harmless.
+ */
+async function stampOrderAndEarnCommissions(
+  paymentId: string,
+  orderId: string,
+  agreementId: string | null,
+): Promise<void> {
+  // Update payments row + invoice row so any downstream summary math sees
+  // the linkage.
+  const { data: paymentRow } = await supabaseAdmin
+    .from("payments")
+    .update({
+      order_id: orderId,
+      agreement_id: agreementId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("provider", "quickbooks")
+    .eq("provider_payment_id", paymentId)
+    .select("id, amount_cents, invoice_id, status")
+    .maybeSingle();
+
+  if (paymentRow?.invoice_id) {
+    await supabaseAdmin
+      .from("invoices")
+      .update({ order_id: orderId, agreement_id: agreementId, updated_at: new Date().toISOString() })
+      .eq("id", paymentRow.invoice_id);
+  }
+
+  if (!paymentRow || paymentRow.status !== "paid") return;
+
+  try {
+    const { earnCommissionsForPayment } = await import("@/lib/commissions");
+    await earnCommissionsForPayment({
+      orderId,
+      paymentId: paymentRow.id,
+      paymentAmountCents: Number(paymentRow.amount_cents || 0),
+      actorId: null,
+    });
+  } catch (e) {
+    console.error("[qb-webhook] commissions earn failed (non-fatal):", e);
+  }
+}
+
+// ─── Refund / credit memo handlers ──────────────────────────────────────
+// QuickBooks refund flows: RefundReceipt (cash refund to customer) and
+// CreditMemo (issued credit — may or may not have been applied to an
+// invoice). Both need to fire recordRefund on the parent payment so the
+// commission auto-reverse hook runs.
+
+async function handleQBRefundReceipt(refundReceiptId: string, realmId: string) {
+  const { getConnection } = await import("@/lib/quickbooks");
+  const conn = await getConnection();
+  if (conn.realm_id !== realmId) return;
+
+  const base = process.env.QB_ENVIRONMENT === "production"
+    ? "https://quickbooks.api.intuit.com"
+    : "https://sandbox-quickbooks.api.intuit.com";
+
+  const res = await fetch(`${base}/v3/company/${realmId}/refundreceipt/${refundReceiptId}`, {
+    headers: { Authorization: `Bearer ${conn.access_token}`, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    console.error(`[qb-webhook] Failed to fetch RefundReceipt ${refundReceiptId}`);
+    return;
+  }
+  const data = await res.json();
+  const rr = data.RefundReceipt;
+  if (!rr) return;
+
+  // A RefundReceipt's LinkedTxn usually points at the original SalesReceipt
+  // or Invoice. Walk that link to find the parent payment.
+  const linkedInvoiceIds: string[] = [];
+  for (const line of rr.Line || []) {
+    for (const txn of line.LinkedTxn || []) {
+      if (txn.TxnType === "Invoice") linkedInvoiceIds.push(String(txn.TxnId));
+      if (txn.TxnType === "Payment") {
+        // Direct payment link — resolve to our payments row and refund it.
+        const { data: parent } = await supabaseAdmin
+          .from("payments")
+          .select("id")
+          .eq("provider", "quickbooks")
+          .eq("provider_payment_id", String(txn.TxnId))
+          .maybeSingle();
+        if (parent) {
+          const { recordRefund } = await import("@/lib/paymentLedger");
+          await recordRefund({
+            parentPaymentId: parent.id,
+            provider: "quickbooks",
+            providerRefundId: refundReceiptId,
+            amountCents: Math.round(Number(rr.TotalAmt || 0) * 100),
+            reason: rr.PrivateNote || "QuickBooks RefundReceipt",
+          });
+          return;
+        }
+      }
+    }
+  }
+
+  // Fall back to invoice → payment lookup
+  for (const qbInvoiceId of linkedInvoiceIds) {
+    const { data: invoiceRow } = await supabaseAdmin
+      .from("invoices")
+      .select("id")
+      .eq("provider", "quickbooks")
+      .eq("provider_invoice_id", qbInvoiceId)
+      .maybeSingle();
+    if (!invoiceRow) continue;
+    const { data: parent } = await supabaseAdmin
+      .from("payments")
+      .select("id, amount_cents")
+      .eq("invoice_id", invoiceRow.id)
+      .eq("status", "paid")
+      .order("created_at", { ascending: false })
+      .maybeSingle();
+    if (!parent) continue;
+    const { recordRefund } = await import("@/lib/paymentLedger");
+    await recordRefund({
+      parentPaymentId: parent.id,
+      provider: "quickbooks",
+      providerRefundId: refundReceiptId,
+      amountCents: Math.round(Number(rr.TotalAmt || 0) * 100),
+      reason: rr.PrivateNote || "QuickBooks RefundReceipt",
+    });
+    return;
+  }
+
+  console.log(`[qb-webhook] RefundReceipt ${refundReceiptId} — no matching payment/invoice`);
+}
+
+async function handleQBCreditMemo(creditMemoId: string, realmId: string) {
+  const { getConnection } = await import("@/lib/quickbooks");
+  const conn = await getConnection();
+  if (conn.realm_id !== realmId) return;
+
+  const base = process.env.QB_ENVIRONMENT === "production"
+    ? "https://quickbooks.api.intuit.com"
+    : "https://sandbox-quickbooks.api.intuit.com";
+
+  const res = await fetch(`${base}/v3/company/${realmId}/creditmemo/${creditMemoId}`, {
+    headers: { Authorization: `Bearer ${conn.access_token}`, Accept: "application/json" },
+  });
+  if (!res.ok) return;
+  const data = await res.json();
+  const cm = data.CreditMemo;
+  if (!cm) return;
+
+  // A CreditMemo applied to an invoice reduces that invoice's balance. If
+  // the invoice was already paid in full, treat this as a refund of that
+  // payment. Otherwise write it as an audit-only event; the reduced balance
+  // will show up when recomputeInvoiceTotals next runs.
+  const linkedInvoiceIds: string[] = [];
+  for (const line of cm.Line || []) {
+    for (const txn of line.LinkedTxn || []) {
+      if (txn.TxnType === "Invoice") linkedInvoiceIds.push(String(txn.TxnId));
+    }
+  }
+
+  for (const qbInvoiceId of linkedInvoiceIds) {
+    const { data: invoiceRow } = await supabaseAdmin
+      .from("invoices")
+      .select("id, status, total_cents, amount_paid_cents")
+      .eq("provider", "quickbooks")
+      .eq("provider_invoice_id", qbInvoiceId)
+      .maybeSingle();
+    if (!invoiceRow) continue;
+
+    // Only reverse the parent payment if this credit memo actually cancels
+    // collected money (invoice was paid). Credit issued against an open
+    // invoice just lowers the balance and doesn't touch commissions.
+    if (invoiceRow.status !== "paid" || Number(invoiceRow.amount_paid_cents) === 0) continue;
+
+    const { data: parent } = await supabaseAdmin
+      .from("payments")
+      .select("id")
+      .eq("invoice_id", invoiceRow.id)
+      .eq("status", "paid")
+      .order("created_at", { ascending: false })
+      .maybeSingle();
+    if (!parent) continue;
+
+    const { recordRefund } = await import("@/lib/paymentLedger");
+    await recordRefund({
+      parentPaymentId: parent.id,
+      provider: "quickbooks",
+      providerRefundId: `credit_memo_${creditMemoId}`,
+      amountCents: Math.round(Number(cm.TotalAmt || 0) * 100),
+      reason: cm.PrivateNote || "QuickBooks CreditMemo",
+    });
+    return;
   }
 }

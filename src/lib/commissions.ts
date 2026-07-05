@@ -26,7 +26,16 @@ import { supabaseAdmin } from "./supabaseAdmin";
 import { writeAuditLog } from "./paymentLedger";
 import { getEffectiveAttribution } from "./salesAttribution";
 
-export type CommissionStatus = "pending" | "held" | "earned" | "reversed" | "paid" | "cancelled";
+export type CommissionStatus =
+  | "pending"
+  | "held"
+  | "earned"
+  | "reversed"
+  | "paid"
+  | "cancelled"
+  | "clawback_pending"
+  | "clawback_collected"
+  | "clawback_waived";
 
 export interface CommissionRule {
   id: string;
@@ -301,6 +310,16 @@ export async function reverseCommissionsForRefund(args: ReverseArgs): Promise<Re
     const reverseBasis = -Math.round(Number(earn.basis_cents) * refundRatio);
     if (reverseAmount === 0) { skipped++; continue; }
 
+    // Branch on the earn's current status:
+    //   paid  → money already went out → clawback_pending (admin must
+    //           collect or waive)
+    //   held/earned → money hasn't gone out → 'reversed' (clean write-off)
+    const wasPaid = earn.status === "paid";
+    const reversalStatus: CommissionStatus = wasPaid ? "clawback_pending" : "reversed";
+    const reversalNote = args.isChargeback
+      ? (wasPaid ? "Clawback (chargeback) — commission already paid out" : "Auto-reversal (chargeback)")
+      : (wasPaid ? "Clawback (refund) — commission already paid out" : "Auto-reversal (refund)");
+
     const { data: inserted, error } = await supabaseAdmin
       .from("commission_ledger")
       .insert({
@@ -315,12 +334,12 @@ export async function reverseCommissionsForRefund(args: ReverseArgs): Promise<Re
         rate_bps: earn.rate_bps,
         amount_cents: reverseAmount,
         hold_days: 0,
-        status: "reversed",
+        status: reversalStatus,
         earned_at: new Date().toISOString(),
         clearable_at: new Date().toISOString(),
         reversed_of_id: earn.id,
         reversal_reason: args.reason || (args.isChargeback ? "chargeback" : "refund"),
-        notes: args.isChargeback ? "Auto-reversal (chargeback)" : "Auto-reversal (refund)",
+        notes: reversalNote,
         created_by: args.actorId || null,
       })
       .select("*")
@@ -328,9 +347,11 @@ export async function reverseCommissionsForRefund(args: ReverseArgs): Promise<Re
     if (error) throw error;
     wrote.push(inserted as CommissionLedgerRow);
 
-    // If the reversal is at least as large as the original earn, flip the
-    // original to 'reversed' status so summary math doesn't double-count.
-    if (Math.abs(reverseAmount) >= Number(earn.amount_cents)) {
+    // If the earn was still earned/held (money hadn't gone out) and the
+    // reversal fully covers it, flip the original to 'reversed' so summary
+    // math treats it as a clean write-off. NEVER rewrite a paid row — the
+    // payment history stays intact; the clawback row is the paper trail.
+    if (!wasPaid && Math.abs(reverseAmount) >= Number(earn.amount_cents)) {
       await supabaseAdmin
         .from("commission_ledger")
         .update({ status: "reversed" })
@@ -354,6 +375,66 @@ export async function reverseCommissionsForRefund(args: ReverseArgs): Promise<Re
   }
 
   return { wrote: wrote.length, skipped, rows: wrote };
+}
+
+// ─── Clawback settlement ────────────────────────────────────────────────
+
+export interface SettleClawbackArgs {
+  ids: string[];
+  outcome: "collected" | "waived";
+  actorId: string;
+  note?: string | null;
+}
+
+export interface SettleClawbackResult {
+  settled: number;
+  skipped: number;
+  total_cents: number;
+}
+
+/**
+ * Admin action — resolve outstanding clawbacks.
+ *   collected → money recovered from the rep (payroll deduction, invoice, etc.)
+ *   waived    → company writes off the loss
+ * Only rows currently in `clawback_pending` are affected. Idempotent.
+ */
+export async function settleClawbacks(args: SettleClawbackArgs): Promise<SettleClawbackResult> {
+  if (args.ids.length === 0) return { settled: 0, skipped: 0, total_cents: 0 };
+
+  const { data: rows } = await supabaseAdmin
+    .from("commission_ledger")
+    .select("id, status, amount_cents, user_id")
+    .in("id", args.ids);
+
+  const eligible = (rows || []).filter((r) => r.status === "clawback_pending");
+  const skipped = (rows || []).length - eligible.length;
+  if (eligible.length === 0) return { settled: 0, skipped, total_cents: 0 };
+
+  const newStatus = args.outcome === "collected" ? "clawback_collected" : "clawback_waived";
+  const nowIso = new Date().toISOString();
+
+  const { error } = await supabaseAdmin
+    .from("commission_ledger")
+    .update({
+      status: newStatus,
+      clawback_settled_at: nowIso,
+      clawback_settled_by: args.actorId,
+      clawback_settlement_note: args.note || null,
+    })
+    .in("id", eligible.map((r) => r.id));
+  if (error) throw error;
+
+  const totalCents = eligible.reduce((s, r) => s + Math.abs(Number(r.amount_cents || 0)), 0);
+
+  await writeAuditLog({
+    actorId: args.actorId,
+    action: args.outcome === "collected" ? "clawback_collected" : "clawback_waived",
+    entityType: "commission_ledger",
+    reason: args.note || null,
+    metadata: { ids: eligible.map((r) => r.id), total_cents: totalCents },
+  });
+
+  return { settled: eligible.length, skipped, total_cents: totalCents };
 }
 
 // ─── Backfill ───────────────────────────────────────────────────────────
@@ -432,6 +513,9 @@ export interface CommissionSummary {
   paid_cents: number;
   pending_clearable_cents: number;
   net_available_cents: number;
+  clawback_pending_cents: number;
+  clawback_collected_cents: number;
+  clawback_waived_cents: number;
   by_role: Record<string, number>;
   row_count: number;
 }
@@ -451,6 +535,9 @@ export async function summarizeCommissionsForUser(userId: string, sinceDays = 36
     paid_cents: 0,
     pending_clearable_cents: 0,
     net_available_cents: 0,
+    clawback_pending_cents: 0,
+    clawback_collected_cents: 0,
+    clawback_waived_cents: 0,
     by_role: {},
     row_count: (rows || []).length,
   };
@@ -458,10 +545,12 @@ export async function summarizeCommissionsForUser(userId: string, sinceDays = 36
 
   for (const r of rows || []) {
     const amt = Number(r.amount_cents) || 0;
-    if (r.status === "reversed" || amt < 0) {
-      summary.reversed_cents += Math.abs(amt);
-      continue;
-    }
+    const mag = Math.abs(amt);
+    if (r.status === "reversed") { summary.reversed_cents += mag; continue; }
+    if (r.status === "clawback_pending") { summary.clawback_pending_cents += mag; continue; }
+    if (r.status === "clawback_collected") { summary.clawback_collected_cents += mag; continue; }
+    if (r.status === "clawback_waived") { summary.clawback_waived_cents += mag; continue; }
+    if (amt < 0) { summary.reversed_cents += mag; continue; }
     summary.by_role[r.role_code] = (summary.by_role[r.role_code] || 0) + amt;
     if (r.status === "paid") summary.paid_cents += amt;
     else if (r.status === "held") {
@@ -474,7 +563,12 @@ export async function summarizeCommissionsForUser(userId: string, sinceDays = 36
     }
   }
 
-  summary.net_available_cents = summary.earned_cents + summary.pending_clearable_cents - summary.reversed_cents;
+  // Net available = earned + clearable held − reversed − outstanding clawbacks
+  // (owed back but not yet settled).
+  summary.net_available_cents = summary.earned_cents
+    + summary.pending_clearable_cents
+    - summary.reversed_cents
+    - summary.clawback_pending_cents;
   if (summary.net_available_cents < 0) summary.net_available_cents = 0;
   return summary;
 }

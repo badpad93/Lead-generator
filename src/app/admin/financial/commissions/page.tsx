@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, Percent, ArrowLeft, Filter, Play, DollarSign, CheckSquare, Square, AlertCircle, CheckCircle2, Database } from "lucide-react";
+import { Loader2, Percent, ArrowLeft, Filter, Play, DollarSign, CheckSquare, Square, AlertCircle, CheckCircle2, Database, AlertTriangle, Undo2, XCircle } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface LedgerRow {
@@ -31,6 +31,9 @@ interface Summary {
   held_cents: number;
   reversed_cents: number;
   paid_cents: number;
+  clawback_pending_cents: number;
+  clawback_collected_cents: number;
+  clawback_waived_cents: number;
   row_count: number;
 }
 
@@ -45,6 +48,7 @@ const STATUS_FILTERS = [
   { key: "held", label: "Held" },
   { key: "paid", label: "Paid" },
   { key: "reversed", label: "Reversed" },
+  { key: "clawback_pending", label: "Clawbacks" },
 ];
 
 const STATUS_STYLES: Record<string, string> = {
@@ -53,6 +57,9 @@ const STATUS_STYLES: Record<string, string> = {
   paid: "bg-blue-50 text-blue-700 border-blue-100",
   reversed: "bg-red-50 text-red-700 border-red-100",
   cancelled: "bg-gray-100 text-gray-500 border-gray-200",
+  clawback_pending: "bg-orange-50 text-orange-700 border-orange-200",
+  clawback_collected: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  clawback_waived: "bg-gray-100 text-gray-500 border-gray-200",
 };
 
 function fmt(cents: number): string {
@@ -137,9 +144,14 @@ export default function AdminCommissionsPage() {
   }
 
   function toggleAllVisible() {
-    const eligible = rows
-      .filter((r) => r.status === "earned" || (r.status === "held" && r.clearable_at && new Date(r.clearable_at).getTime() <= Date.now()))
-      .map((r) => r.id);
+    // When the "Clawbacks" filter is active, select-all grabs pending
+    // clawbacks. Otherwise it grabs payable rows (earned + clearable held).
+    const isClawbackView = statusFilter === "clawback_pending";
+    const eligible = isClawbackView
+      ? rows.filter((r) => r.status === "clawback_pending").map((r) => r.id)
+      : rows
+          .filter((r) => r.status === "earned" || (r.status === "held" && r.clearable_at && new Date(r.clearable_at).getTime() <= Date.now()))
+          .map((r) => r.id);
     if (eligible.every((id) => selected.has(id)) && eligible.length > 0) {
       setSelected(new Set());
     } else {
@@ -165,9 +177,58 @@ export default function AdminCommissionsPage() {
     setMarking(false);
   }
 
+  async function settleClawback(id: string, outcome: "collected" | "waived") {
+    const label = outcome === "collected" ? "collected (recovered from rep)" : "waived (company absorbs)";
+    if (!confirm(`Mark this clawback ${label}?`)) return;
+    setMarking(true);
+    setError(null); setMessage(null);
+    const res = await fetch("/api/admin/financial/commissions/clawbacks/settle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ids: [id], outcome, note: outcome === "collected" ? "Recovered from rep" : "Waived by admin" }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) setError(body.error || "Clawback update failed");
+    else setMessage(`${body.settled} clawback${body.settled === 1 ? "" : "s"} ${outcome} (${fmt(body.total_cents)}).`);
+    await load();
+    setMarking(false);
+  }
+
+  async function bulkSettleClawbacks(outcome: "collected" | "waived") {
+    const selectedClawbacks = Array.from(selected).filter((id) => {
+      const r = rows.find((row) => row.id === id);
+      return r && r.status === "clawback_pending";
+    });
+    if (selectedClawbacks.length === 0) return;
+    const label = outcome === "collected" ? "collected (recovered from rep)" : "waived (company absorbs)";
+    if (!confirm(`Mark ${selectedClawbacks.length} clawback${selectedClawbacks.length === 1 ? "" : "s"} as ${label}?`)) return;
+    setMarking(true);
+    setError(null); setMessage(null);
+    const res = await fetch("/api/admin/financial/commissions/clawbacks/settle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ids: selectedClawbacks, outcome }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) setError(body.error || "Clawback update failed");
+    else setMessage(`${body.settled} clawback${body.settled === 1 ? "" : "s"} ${outcome} (${fmt(body.total_cents)}).`);
+    setSelected(new Set());
+    await load();
+    setMarking(false);
+  }
+
   const eligibleCount = rows.filter((r) =>
     r.status === "earned" || (r.status === "held" && r.clearable_at && new Date(r.clearable_at).getTime() <= Date.now())
   ).length;
+
+  const selectedClawbackCount = Array.from(selected).filter((id) => {
+    const r = rows.find((row) => row.id === id);
+    return r && r.status === "clawback_pending";
+  }).length;
+  const selectedPayableCount = Array.from(selected).filter((id) => {
+    const r = rows.find((row) => row.id === id);
+    return r && (r.status === "earned" || (r.status === "held" && r.clearable_at && new Date(r.clearable_at).getTime() <= Date.now()));
+  }).length;
 
   return (
     <div className="p-6">
@@ -212,7 +273,7 @@ export default function AdminCommissionsPage() {
       )}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
         <div className="rounded-2xl border border-gray-100 bg-white p-4">
           <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Earned (open)</p>
           <p className="text-lg font-bold text-emerald-700 mt-1">{summary ? fmt(summary.earned_cents) : "…"}</p>
@@ -228,6 +289,26 @@ export default function AdminCommissionsPage() {
         <div className="rounded-2xl border border-gray-100 bg-white p-4">
           <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Reversed</p>
           <p className="text-lg font-bold text-red-700 mt-1">{summary ? fmt(summary.reversed_cents) : "…"}</p>
+        </div>
+        <div
+          className={`rounded-2xl border p-4 ${summary && summary.clawback_pending_cents > 0 ? "border-orange-200 bg-orange-50" : "border-gray-100 bg-white"}`}
+          title="Reversals against commissions already paid to the rep — money owed back that hasn't been settled yet."
+        >
+          <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500 flex items-center gap-1">
+            {summary && summary.clawback_pending_cents > 0 && <AlertTriangle className="h-3 w-3 text-orange-600" />}
+            Clawback owed
+          </p>
+          <p className={`text-lg font-bold mt-1 ${summary && summary.clawback_pending_cents > 0 ? "text-orange-700" : "text-gray-400"}`}>
+            {summary ? fmt(summary.clawback_pending_cents) : "…"}
+          </p>
+          {summary && summary.clawback_pending_cents > 0 && statusFilter !== "clawback_pending" && (
+            <button
+              onClick={() => setStatusFilter("clawback_pending")}
+              className="mt-1 text-[10px] text-orange-700 hover:underline cursor-pointer"
+            >
+              Review →
+            </button>
+          )}
         </div>
       </div>
 
@@ -248,14 +329,38 @@ export default function AdminCommissionsPage() {
           </button>
         ))}
         {selected.size > 0 && (
-          <button
-            onClick={markPaid}
-            disabled={marking}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-green-primary hover:bg-green-hover px-3 py-1.5 text-xs font-semibold text-white cursor-pointer disabled:opacity-50"
-          >
-            {marking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}
-            Mark {selected.size} paid
-          </button>
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
+            {selectedPayableCount > 0 && (
+              <button
+                onClick={markPaid}
+                disabled={marking}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-primary hover:bg-green-hover px-3 py-1.5 text-xs font-semibold text-white cursor-pointer disabled:opacity-50"
+              >
+                {marking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}
+                Mark {selectedPayableCount} paid
+              </button>
+            )}
+            {selectedClawbackCount > 0 && (
+              <>
+                <button
+                  onClick={() => bulkSettleClawbacks("collected")}
+                  disabled={marking}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 px-3 py-1.5 text-xs font-semibold text-white cursor-pointer disabled:opacity-50"
+                >
+                  {marking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+                  Collect {selectedClawbackCount}
+                </button>
+                <button
+                  onClick={() => bulkSettleClawbacks("waived")}
+                  disabled={marking}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 cursor-pointer disabled:opacity-50"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  Waive {selectedClawbackCount}
+                </button>
+              </>
+            )}
+          </div>
         )}
       </div>
 
@@ -287,16 +392,22 @@ export default function AdminCommissionsPage() {
                   <th className="text-left py-2 px-2 font-medium">Order</th>
                   <th className="text-left py-2 px-2 font-medium">Status</th>
                   <th className="text-left py-2 px-2 font-medium">Earned</th>
+                  <th className="text-right py-2 px-2 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => {
-                  const eligible = r.status === "earned" || (r.status === "held" && r.clearable_at && new Date(r.clearable_at).getTime() <= Date.now());
+                  const isPayable = r.status === "earned" || (r.status === "held" && r.clearable_at && new Date(r.clearable_at).getTime() <= Date.now());
+                  const isClawback = r.status === "clawback_pending";
+                  const selectable = isPayable || isClawback;
                   const stStyle = STATUS_STYLES[r.status] || "bg-gray-100 text-gray-500 border-gray-200";
+                  const rowTint = selected.has(r.id)
+                    ? (isClawback ? "bg-orange-50/60" : "bg-green-50/40")
+                    : (isClawback ? "bg-orange-50/20" : "");
                   return (
-                    <tr key={r.id} className={`border-b border-gray-50 last:border-b-0 ${selected.has(r.id) ? "bg-green-50/40" : ""}`}>
+                    <tr key={r.id} className={`border-b border-gray-50 last:border-b-0 ${rowTint}`}>
                       <td className="py-2 px-2">
-                        {eligible ? (
+                        {selectable ? (
                           <button onClick={() => toggleSelected(r.id)} className="cursor-pointer text-gray-400 hover:text-gray-700">
                             {selected.has(r.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
                           </button>
@@ -324,7 +435,8 @@ export default function AdminCommissionsPage() {
                       </td>
                       <td className="py-2 px-2">
                         <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${stStyle}`}>
-                          {r.status}
+                          {r.status === "clawback_pending" && <AlertTriangle className="h-2.5 w-2.5" />}
+                          {r.status.replace(/_/g, " ")}
                           {r.status === "held" && r.clearable_at && (
                             <span className="ml-1 text-gray-500">→ {new Date(r.clearable_at).toLocaleDateString()}</span>
                           )}
@@ -333,6 +445,28 @@ export default function AdminCommissionsPage() {
                       </td>
                       <td className="py-2 px-2 text-xs text-gray-500">
                         {new Date(r.earned_at).toLocaleDateString()}
+                      </td>
+                      <td className="py-2 px-2 text-right whitespace-nowrap">
+                        {isClawback ? (
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              onClick={() => settleClawback(r.id, "collected")}
+                              disabled={marking}
+                              className="rounded-md bg-orange-100 hover:bg-orange-200 px-2 py-0.5 text-[10px] font-semibold text-orange-800 cursor-pointer disabled:opacity-50"
+                              title="Rep repaid — mark this clawback recovered"
+                            >
+                              Collect
+                            </button>
+                            <button
+                              onClick={() => settleClawback(r.id, "waived")}
+                              disabled={marking}
+                              className="rounded-md border border-gray-200 hover:bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-600 cursor-pointer disabled:opacity-50"
+                              title="Company absorbs the loss"
+                            >
+                              Waive
+                            </button>
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
                   );

@@ -52,11 +52,19 @@ export async function GET(req: NextRequest) {
     held_cents: 0,
     reversed_cents: 0,
     paid_cents: 0,
+    clawback_pending_cents: 0,
+    clawback_collected_cents: 0,
+    clawback_waived_cents: 0,
     row_count: rows.length,
   };
   for (const r of rows) {
     const amt = Number(r.amount_cents) || 0;
-    if (r.status === "reversed" || amt < 0) summary.reversed_cents += Math.abs(amt);
+    const mag = Math.abs(amt);
+    if (r.status === "reversed") summary.reversed_cents += mag;
+    else if (r.status === "clawback_pending") summary.clawback_pending_cents += mag;
+    else if (r.status === "clawback_collected") summary.clawback_collected_cents += mag;
+    else if (r.status === "clawback_waived") summary.clawback_waived_cents += mag;
+    else if (amt < 0) summary.reversed_cents += mag;
     else if (r.status === "paid") summary.paid_cents += amt;
     else if (r.status === "held") summary.held_cents += amt;
     else if (r.status === "earned") summary.earned_cents += amt;

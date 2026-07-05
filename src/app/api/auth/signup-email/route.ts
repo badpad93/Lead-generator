@@ -10,6 +10,10 @@ export async function POST(req: NextRequest) {
     const companyName = String(body.company_name || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
     const phone = String(body.phone || "").trim();
+    const address = String(body.address || "").trim();
+    const city = String(body.city || "").trim();
+    const state = String(body.state || "").trim();
+    const zip = String(body.zip || "").trim();
     const password = String(body.password || "");
     const role = String(body.role || "operator").trim();
 
@@ -22,6 +26,13 @@ export async function POST(req: NextRequest) {
     if (!phone) return NextResponse.json({ error: "Phone number is required" }, { status: 400 });
     if (phone.replace(/\D/g, "").length < 10) {
       return NextResponse.json({ error: "Please enter a valid phone number" }, { status: 400 });
+    }
+    if (!address) return NextResponse.json({ error: "Street address is required" }, { status: 400 });
+    if (!city) return NextResponse.json({ error: "City is required" }, { status: 400 });
+    if (!state) return NextResponse.json({ error: "State is required" }, { status: 400 });
+    if (!zip) return NextResponse.json({ error: "Zip code is required" }, { status: 400 });
+    if (zip.replace(/\D/g, "").length < 5) {
+      return NextResponse.json({ error: "Please enter a valid zip code" }, { status: 400 });
     }
     if (!password || password.length < 8) {
       return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
@@ -54,6 +65,10 @@ export async function POST(req: NextRequest) {
         first_name: firstName,
         last_name: lastName,
         phone,
+        address,
+        city,
+        state,
+        zip,
         role,
         provider: "email",
       },
@@ -78,6 +93,10 @@ export async function POST(req: NextRequest) {
           full_name: fullName,
           email,
           phone,
+          address,
+          city,
+          state,
+          zip,
           role,
           company_name: companyName || null,
           email_verified: false,

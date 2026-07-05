@@ -145,13 +145,19 @@ export async function PATCH(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Mirror phone into auth user_metadata so the middleware phone-gate
-    // sees it without a DB call on every request. Only fires when phone
-    // is part of this update — cheap when unchanged.
-    if ("phone" in updates && typeof updates.phone === "string" && updates.phone.trim()) {
+    // Mirror phone + address fields into auth user_metadata so the
+    // middleware gates see them without a DB call on every request. Only
+    // fires when the relevant fields are part of this update.
+    const metaSync: Record<string, string> = {};
+    if ("phone" in updates && typeof updates.phone === "string" && updates.phone.trim()) metaSync.phone = updates.phone.trim();
+    if ("address" in updates && typeof updates.address === "string" && updates.address.trim()) metaSync.address = updates.address.trim();
+    if ("city" in updates && typeof updates.city === "string" && updates.city.trim()) metaSync.city = updates.city.trim();
+    if ("state" in updates && typeof updates.state === "string" && updates.state.trim()) metaSync.state = updates.state.trim();
+    if ("zip" in updates && typeof updates.zip === "string" && updates.zip.trim()) metaSync.zip = updates.zip.trim();
+    if (Object.keys(metaSync).length > 0) {
       try {
         await supabaseAdmin.auth.admin.updateUserById(user.id, {
-          user_metadata: { ...(user.user_metadata || {}), phone: updates.phone.trim() },
+          user_metadata: { ...(user.user_metadata || {}), ...metaSync },
         });
       } catch { /* non-critical — DB is source of truth */ }
     }
