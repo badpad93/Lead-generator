@@ -26,6 +26,8 @@ interface PurchaseAgreement {
   account_id: string | null;
   operator_id: string | null;
   created_by: string | null;
+  apex_placement_paid_at: string | null;
+  apex_placement_qb_invoice_id: string | null;
 }
 
 function parseCityState(address: string | null): { city: string | null; state: string | null } {
@@ -61,13 +63,24 @@ export async function createContractFromAgreement(agreementId: string): Promise<
   const locationsNeeded = Math.max(1, Number(ag.locations_purchased) || 1);
   const operatorProfileId = ag.operator_id || (await findOperatorProfileId(ag.operator_email));
 
+  // Identity-safe display: partner_visible_contracts exposes title + notes to
+  // every browsing PP. NEVER include operator name, email, phone, or the
+  // full delivery address — only city + state (market area). Full address is
+  // shared with the winning PP after the operator accepts their submission.
+  const marketLabel = city && state ? `${city}, ${state}` : (state || "Market TBD");
+  const machineLabel = ag.machine_model || "VendEra AI Machine";
+  // Prepaid flag: if the source agreement already collected the placement
+  // fee (apex_placement_paid_at is set), we skip the marketplace operator
+  // invoice on submission accept and drop the payout straight to queued.
+  const billingPrepaid = !!ag.apex_placement_paid_at;
+
   const insertRow = {
-    title: `${ag.operator_company_name || "Operator"} — ${locationsNeeded} location${locationsNeeded > 1 ? "s" : ""}`,
+    title: `Tier 1 — ${marketLabel} — ${locationsNeeded} location${locationsNeeded > 1 ? "s" : ""}`,
     tier: 1,
     operator_price: pricing.operator_price,
     partner_payout: pricing.partner_payout,
     platform_fee: pricing.platform_fee,
-    machine_type: ag.machine_model || "VendEra AI Machine",
+    machine_type: machineLabel,
     market_state: state,
     market_city: city,
     contract_type: locationsNeeded > 1 ? "multi" : "single",
@@ -77,8 +90,12 @@ export async function createContractFromAgreement(agreementId: string): Promise<
     source_agreement_id: ag.id,
     operator_profile_id: operatorProfileId,
     operator_business_name: ag.operator_company_name,
+    billing_prepaid: billingPrepaid,
     status: "open",
-    notes: `Auto-created from signed agreement. Delivery address: ${ag.operator_delivery_address || "—"}`,
+    // Generic notes — no operator name or street address. If the operator
+    // wants to add contract-specific direction, they can do it from the
+    // admin editor after auto-creation.
+    notes: `Auto-created from signed agreement. Location target: ${marketLabel}. Machine type: ${machineLabel}.${billingPrepaid ? " Placement fee prepaid on source agreement." : ""}`,
     created_by: ag.created_by,
   };
 
@@ -127,10 +144,16 @@ export async function queuePartnerPayoutForSubmission({ submissionId, triggeredB
 
   const { data: contract } = await supabaseAdmin
     .from("placement_contracts")
-    .select("partner_payout")
+    .select("partner_payout, billing_prepaid")
     .eq("id", sub.contract_id)
     .maybeSingle();
   if (!contract) return;
+
+  // Sequencing: normal flow holds the payout in 'awaiting_collection' until
+  // the operator invoice flips to paid. Prepaid contracts (fee already
+  // collected on the source machine sale) skip that gate — payout goes
+  // straight to 'queued' so the QB Bill drain picks it up.
+  const startingStatus = contract.billing_prepaid ? "queued" : "awaiting_collection";
 
   // Idempotent: unique on submission_id — swallow duplicate-key errors.
   try {
@@ -142,7 +165,7 @@ export async function queuePartnerPayoutForSubmission({ submissionId, triggeredB
         partner_id: sub.partner_id,
         company_id: sub.company_id,
         amount: contract.partner_payout,
-        status: "queued",
+        status: startingStatus,
         triggered_by: triggeredBy,
       });
   } catch {
@@ -160,10 +183,15 @@ export async function queueOperatorInvoiceForSubmission({ submissionId, triggere
 
   const { data: contract } = await supabaseAdmin
     .from("placement_contracts")
-    .select("operator_price, operator_profile_id, operator_business_name, source_agreement_id")
+    .select("operator_price, operator_profile_id, operator_business_name, source_agreement_id, billing_prepaid")
     .eq("id", sub.contract_id)
     .maybeSingle();
   if (!contract) return;
+
+  // Prepaid contracts skip the invoice entirely — placement fee was already
+  // collected on the source machine sale. The payout was queued directly by
+  // queuePartnerPayoutForSubmission (not held).
+  if (contract.billing_prepaid) return;
 
   let operatorEmail: string | null = null;
   if (contract.source_agreement_id) {

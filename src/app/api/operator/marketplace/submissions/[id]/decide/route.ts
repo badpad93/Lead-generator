@@ -90,16 +90,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       });
     }
 
-    // Queue payout + invoice, then best-effort push both to QuickBooks in the
-    // background. Any failures are surfaced on /admin/marketplace/payouts and
-    // can be retried there. Non-critical — decision is already recorded.
+    // Queue payout + invoice. Payout starts in 'awaiting_collection' unless
+    // the contract is billing_prepaid (VC already collected on the machine
+    // sale), in which case it goes straight to 'queued'. The operator
+    // invoice is skipped entirely for prepaid contracts.
+    //
+    // Only push what's actually ready to send:
+    //   - Non-prepaid: send the operator invoice to QB right away; payout
+    //     stays awaiting_collection until the operator pays.
+    //   - Prepaid: no invoice; push the payout to QB immediately.
     try {
       await queuePartnerPayoutForSubmission({ submissionId: id, triggeredBy: user.id });
       await queueOperatorInvoiceForSubmission({ submissionId: id, triggeredBy: user.id });
 
       const { data: newPayout } = await supabaseAdmin
         .from("marketplace_payouts")
-        .select("id")
+        .select("id, status")
         .eq("submission_id", id)
         .maybeSingle();
       const { data: newInvoice } = await supabaseAdmin
@@ -109,8 +115,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         .maybeSingle();
 
       const { pushPayoutToQb, pushOperatorInvoiceToQb } = await import("@/lib/marketplaceQb");
-      if (newPayout) pushPayoutToQb(newPayout.id).catch(() => undefined);
       if (newInvoice) pushOperatorInvoiceToQb(newInvoice.id).catch(() => undefined);
+      if (newPayout && newPayout.status === "queued") {
+        pushPayoutToQb(newPayout.id).catch(() => undefined);
+      }
     } catch {
       // Non-critical — decision already recorded
     }
