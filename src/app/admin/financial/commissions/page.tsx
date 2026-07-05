@@ -130,7 +130,15 @@ export default function AdminCommissionsPage() {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) setError(body.error || "Backfill failed");
-    else setMessage(`Backfill complete — scanned ${body.scanned}, earned rows on ${body.earned} payments.`);
+    else {
+      const parts: string[] = [];
+      parts.push(`scanned ${body.scanned}`);
+      parts.push(`earned on ${body.earned} orders`);
+      if (body.orphan_payments_repaired) parts.push(`repaired ${body.orphan_payments_repaired} orphan payment${body.orphan_payments_repaired === 1 ? "" : "s"}`);
+      if (body.synthesized_payments) parts.push(`synthesized ${body.synthesized_payments} manual payment${body.synthesized_payments === 1 ? "" : "s"}`);
+      if (body.errors && body.errors.length) parts.push(`${body.errors.length} error${body.errors.length === 1 ? "" : "s"}`);
+      setMessage(`Backfill complete — ${parts.join(", ")}.`);
+    }
     await load();
     setRunning(false);
   }

@@ -565,15 +565,26 @@ export interface BackfillSummary {
   skipped_existing: number;
   skipped_no_payment: number;
   skipped_other: number;
+  // Phase-scoped counters — useful for the admin UI to explain what
+  // actually happened.
+  orphan_payments_repaired: number;    // payments that had no order_id but we matched them to a sales_orders.qb_invoice_id
+  synthesized_payments: number;        // sales_orders where payment_status='paid' had NO payments row so we created a manual one
   errors: string[];
 }
 
 /**
- * Walk paid payments in the window whose linked orders lack commission ledger
- * rows, and run earn logic. Reversal backfill is intentionally NOT here —
- * refund/chargeback events since Phase 2 have already run through the ledger,
- * so any earn we produce now for an already-refunded payment is what we want
- * (attribution existed at time of refund only implicitly).
+ * Three-phase backfill:
+ *   Phase 0 — Repair orphan payments. Walks payments with order_id=null and
+ *             a QB provider_invoice_id, then looks up that qb_invoice_id on
+ *             sales_orders / .location_remaining_qb_invoice_id /
+ *             purchase_agreements.apex_placement_qb_invoice_id and stamps
+ *             order_id on the payment row so Phase 1 can pick it up.
+ *   Phase 1 — Walks paid `payments` rows with order_id set and runs earn.
+ *   Phase 2 — Walks sales_orders with payment_status IN ('paid','deposit_paid')
+ *             that have NO commission_ledger rows and NO paired payment row,
+ *             synthesizes a manual payment (idempotent) then runs earn.
+ *
+ * Idempotent throughout — safe to re-run.
  */
 export async function backfillCommissions(args: BackfillArgs): Promise<BackfillSummary> {
   const summary: BackfillSummary = {
@@ -582,11 +593,74 @@ export async function backfillCommissions(args: BackfillArgs): Promise<BackfillS
     skipped_existing: 0,
     skipped_no_payment: 0,
     skipped_other: 0,
+    orphan_payments_repaired: 0,
+    synthesized_payments: 0,
     errors: [],
   };
   const limit = Math.min(2000, Math.max(1, args.limit ?? 500));
   const cutoff = new Date(Date.now() - (args.sinceDays ?? 365) * 24 * 60 * 60 * 1000).toISOString();
 
+  // ── Phase 0: repair orphan payments (order_id = null but QB invoice matches
+  // a sales_orders / purchase_agreements row). Common cause: QB webhook
+  // ingested the payment before the 4.5b fix landed.
+  try {
+    const { data: orphans } = await supabaseAdmin
+      .from("payments")
+      .select("id, provider, provider_payment_id, invoice_id, status, amount_cents, paid_at")
+      .is("order_id", null)
+      .eq("status", "paid")
+      .gte("paid_at", cutoff)
+      .limit(limit);
+
+    for (const p of orphans || []) {
+      let orderId: string | null = null;
+      let agreementId: string | null = null;
+
+      // Look up the invoice row this payment is tied to.
+      if (p.invoice_id) {
+        const { data: inv } = await supabaseAdmin
+          .from("invoices")
+          .select("id, provider_invoice_id")
+          .eq("id", p.invoice_id)
+          .maybeSingle();
+        const qbInvoiceId = inv?.provider_invoice_id || null;
+        if (qbInvoiceId) {
+          const { data: so } = await supabaseAdmin
+            .from("sales_orders")
+            .select("id")
+            .or(`qb_invoice_id.eq.${qbInvoiceId},location_remaining_qb_invoice_id.eq.${qbInvoiceId}`)
+            .maybeSingle();
+          if (so) orderId = so.id;
+          if (!orderId) {
+            const { data: ag } = await supabaseAdmin
+              .from("purchase_agreements")
+              .select("id, order_id")
+              .eq("apex_placement_qb_invoice_id", qbInvoiceId)
+              .maybeSingle();
+            if (ag) { agreementId = ag.id; orderId = ag.order_id || null; }
+          }
+        }
+      }
+
+      if (orderId) {
+        await supabaseAdmin
+          .from("payments")
+          .update({ order_id: orderId, agreement_id: agreementId, updated_at: new Date().toISOString() })
+          .eq("id", p.id);
+        if (p.invoice_id) {
+          await supabaseAdmin
+            .from("invoices")
+            .update({ order_id: orderId, agreement_id: agreementId, updated_at: new Date().toISOString() })
+            .eq("id", p.invoice_id);
+        }
+        summary.orphan_payments_repaired++;
+      }
+    }
+  } catch (e) {
+    summary.errors.push(`phase0_orphan_repair: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // ── Phase 1: paid payments with order_id set → earn
   const { data: payments } = await supabaseAdmin
     .from("payments")
     .select("id, order_id, amount_cents, status, paid_at, created_at")
@@ -613,6 +687,79 @@ export async function backfillCommissions(args: BackfillArgs): Promise<BackfillS
     } catch (e) {
       summary.errors.push(`${p.id.slice(0, 8)}: ${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  // ── Phase 2: sales_orders marked paid but with no ledger rows and no
+  // paired payment row. Synthesize a manual payment (idempotent by
+  // providerPaymentId), which fires the earn hook.
+  try {
+    const { data: orders } = await supabaseAdmin
+      .from("sales_orders")
+      .select("id, total_value, deposit_amount, payment_status, order_status, created_at")
+      .in("payment_status", ["paid", "deposit_paid"])
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    for (const order of orders || []) {
+      summary.scanned++;
+
+      // Already has ledger rows?
+      const { count: ledgerCount } = await supabaseAdmin
+        .from("commission_ledger")
+        .select("*", { count: "exact", head: true })
+        .eq("order_id", order.id);
+      if ((ledgerCount || 0) > 0) { summary.skipped_existing++; continue; }
+
+      const totalValue = Number(order.total_value || 0);
+      const depositAmount = Number(order.deposit_amount || 0);
+      const isDepositOnly = order.payment_status === "deposit_paid";
+      const dollars = isDepositOnly ? depositAmount : totalValue;
+      const amountCents = Math.round(dollars * 100);
+      if (amountCents <= 0) { summary.skipped_other++; continue; }
+
+      // Attribution must exist (real or implicit lead owner).
+      const attributions = await getEffectiveAttribution(order.id);
+      if (attributions.length === 0) { summary.skipped_no_payment++; continue; }
+
+      try {
+        const { upsertPayment } = await import("./paymentLedger");
+        // Idempotent: this providerPaymentId is unique per order/action.
+        const payment = await upsertPayment({
+          provider: "manual",
+          providerPaymentId: `manual:sales_order_backfill:${order.id}:${isDepositOnly ? "deposit" : "paid"}`,
+          orderId: order.id,
+          amountCents,
+          method: "manual_backfill",
+          status: "paid",
+          paidAt: new Date().toISOString(),
+          metadata: {
+            source: "commissions_backfill_from_sales_orders",
+            payment_status: order.payment_status,
+            order_status: order.order_status,
+          },
+          createdBy: args.actorId || null,
+        });
+        summary.synthesized_payments++;
+
+        // upsertPayment already fires the earn hook internally on paid
+        // transition, but only when it's a NEW insert. For safety we call
+        // earn explicitly here too — it's idempotent per (order, payment,
+        // user, role) so double-calling is harmless.
+        const result = await earnCommissionsForPayment({
+          orderId: order.id,
+          paymentId: payment.id,
+          paymentAmountCents: amountCents,
+          actorId: args.actorId || null,
+        });
+        if (result.wrote > 0) summary.earned++;
+        else summary.skipped_existing++;
+      } catch (e) {
+        summary.errors.push(`order ${order.id.slice(0, 8)}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  } catch (e) {
+    summary.errors.push(`phase2_synthesize: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   return summary;
