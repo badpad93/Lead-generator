@@ -112,22 +112,28 @@ export async function proxy(req: NextRequest) {
     }
   }
 
-  // Phone-on-file gate for protected routes. Every account must have a phone
-  // number — signup enforces it going forward, but legacy accounts might be
-  // missing one. Fast path: check user_metadata / app_metadata (populated at
-  // signup + on PATCH /api/auth/me). Slow path: fall back to a profiles.phone
-  // read for accounts created before this gate — prevents an infinite redirect
-  // loop with /complete-profile for users whose DB row is fine but whose
-  // auth metadata hasn't been backfilled yet.
+  // Contact-on-file gate for protected routes. Every account must have a
+  // phone number AND a full mailing address (street/city/state/zip) — signup
+  // enforces this going forward, but legacy accounts might be missing one.
+  // Fast path: check user_metadata / app_metadata (populated at signup + on
+  // PATCH /api/auth/me). Slow path: fall back to a service-role profiles
+  // read for accounts created before this gate — prevents an infinite
+  // redirect loop when the DB row is fine but auth metadata hasn't caught up.
   if (user && isProtected) {
     const meta = { ...(user.user_metadata || {}), ...(user.app_metadata || {}) } as Record<string, unknown>;
-    let phone = typeof meta.phone === "string" ? meta.phone.trim() : "";
-    if (!phone) {
+    const readField = (k: string): string => typeof meta[k] === "string" ? (meta[k] as string).trim() : "";
+    let phone = readField("phone");
+    let address = readField("address");
+    let city = readField("city");
+    let state = readField("state");
+    let zip = readField("zip");
+
+    if (!phone || !address || !city || !state || !zip) {
       // Fallback uses service role — the user's own session may or may not
       // have a SELECT policy on profiles depending on project setup, and a
       // missing policy would silently return no rows and trap the user in a
-      // /complete-profile ↔ /dashboard redirect loop even after they saved a
-      // phone. Service role bypasses RLS so this is reliable.
+      // /complete-profile ↔ /dashboard redirect loop even after they saved
+      // their info. Service role bypasses RLS so this is reliable.
       const admin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -135,12 +141,18 @@ export async function proxy(req: NextRequest) {
       );
       const { data: profile } = await admin
         .from("profiles")
-        .select("phone")
+        .select("phone, address, city, state, zip")
         .eq("id", user.id)
         .maybeSingle();
-      phone = typeof profile?.phone === "string" ? profile.phone.trim() : "";
+      const pick = (v: unknown): string => typeof v === "string" ? v.trim() : "";
+      phone = phone || pick(profile?.phone);
+      address = address || pick(profile?.address);
+      city = city || pick(profile?.city);
+      state = state || pick(profile?.state);
+      zip = zip || pick(profile?.zip);
     }
-    if (!phone) {
+
+    if (!phone || !address || !city || !state || !zip) {
       const completeUrl = req.nextUrl.clone();
       completeUrl.pathname = "/complete-profile";
       completeUrl.search = "";

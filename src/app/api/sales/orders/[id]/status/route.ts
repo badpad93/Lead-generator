@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
 import { sendOrderReceipt } from "@/lib/sendOrderReceipt";
+import { upsertPayment } from "@/lib/paymentLedger";
 
 const STATUS_ACTIONS: Record<string, { order_status?: string; payment_status?: string; invoice_status?: string; agreement_status?: string; fulfillment_status?: string; next_action?: string | null }> = {
   send_invoice: { invoice_status: "sent", order_status: "invoice_sent", next_action: "Follow up on payment" },
@@ -58,6 +59,57 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     activity_type: "status_change",
     description: description.charAt(0).toUpperCase() + description.slice(1),
   });
+
+  // Financial spine — write a manual payment row so this collection flows
+  // through the ledger and fires the commission auto-earn hook. Non-fatal:
+  // if the ledger write fails we still let the receipt + status update
+  // proceed (same policy as the paymentLedger auto-hooks themselves).
+  if (action === "mark_paid" || action === "mark_deposit_paid") {
+    try {
+      const orderRow = data as {
+        id: string;
+        total_value?: number | string | null;
+        deposit_amount?: number | string | null;
+        qb_invoice_id?: string | null;
+        assigned_rep_id?: string | null;
+        created_by?: string | null;
+        account_id?: string | null;
+        contact_email?: string | null;
+      };
+      const totalValue = Number(orderRow.total_value || 0);
+      const depositValue = Number(orderRow.deposit_amount || 0);
+      const amountCents = action === "mark_deposit_paid"
+        ? Math.round(depositValue * 100)
+        : Math.max(0, Math.round((totalValue - depositValue) * 100));
+
+      if (amountCents > 0) {
+        // Idempotency guard: don't double-book if the same button is
+        // clicked twice. Manual-provider ids embed the action so deposit
+        // and remaining are distinct writes.
+        const manualPaymentId = `manual:sales_order:${orderRow.id}:${action}`;
+        await upsertPayment({
+          provider: "manual",
+          providerPaymentId: manualPaymentId,
+          orderId: orderRow.id,
+          buyerEmail: orderRow.contact_email || null,
+          accountId: orderRow.account_id || null,
+          amountCents,
+          method: body.payment_method || "manual",
+          status: "paid",
+          paidAt: new Date().toISOString(),
+          manualReference: body.payment_reference || null,
+          metadata: {
+            source: "sales_orders.status",
+            action,
+            qb_invoice_id: orderRow.qb_invoice_id || null,
+          },
+          createdBy: user.id,
+        });
+      }
+    } catch (ledgerErr) {
+      console.error("[status] ledger write failed (non-fatal):", ledgerErr);
+    }
+  }
 
   // Auto-send customer receipt when a payment is marked
   if (action === "mark_paid" || action === "mark_deposit_paid") {

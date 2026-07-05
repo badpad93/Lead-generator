@@ -13,6 +13,7 @@ import {
   ensureSignedOut,
 } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
+import { US_STATES } from "@/lib/types";
 
 type Role = "operator" | "locator" | "location_manager" | "employee";
 
@@ -56,6 +57,10 @@ function SignupContent() {
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [zip, setZip] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState<"google" | "microsoft" | "yahoo" | "email" | null>(null);
@@ -94,17 +99,18 @@ function SignupContent() {
   }
 
   // Stash whatever we have so the OAuth callback can patch the new profile.
-  // Missing fields are left blank and collected on /complete-profile.
+  // Address is required for email/password but may be blank for OAuth users
+  // — /complete-profile catches them via the middleware address gate.
   function storeLead() {
     storeSignupLead({
       business_name: companyName,
       contact_name: `${firstName} ${lastName}`.trim(),
       email,
       phone,
-      address: "",
-      city: "",
-      state: "",
-      zip: "",
+      address,
+      city,
+      state,
+      zip,
       entity_type: role === "operator" ? "operator" : role === "locator" ? "locator" : "location",
       immediate_need: "",
     });
@@ -120,6 +126,11 @@ function SignupContent() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError("Please enter a valid email address");
     if (!phone.trim()) return setError("Phone number is required");
     if (phone.replace(/\D/g, "").length < 10) return setError("Please enter a valid phone number");
+    if (!address.trim()) return setError("Street address is required");
+    if (!city.trim()) return setError("City is required");
+    if (!state.trim()) return setError("State is required");
+    if (!zip.trim()) return setError("Zip code is required");
+    if (zip.replace(/\D/g, "").length < 5) return setError("Please enter a valid zip code");
     if (!password || password.length < 8) return setError("Password must be at least 8 characters");
     if (password !== confirmPassword) return setError("Passwords do not match");
 
@@ -142,6 +153,10 @@ function SignupContent() {
           company_name: companyName.trim(),
           email: email.trim().toLowerCase(),
           phone: phone.trim(),
+          address: address.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          zip: zip.trim(),
           password,
           role,
         }),
@@ -332,6 +347,29 @@ function SignupContent() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Phone <span className="text-red-500">*</span></label>
               <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!!loading} placeholder="(555) 123-4567" className={inputClass} autoComplete="tel" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Street Address <span className="text-red-500">*</span></label>
+              <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} disabled={!!loading} placeholder="123 Main St" className={inputClass} autoComplete="street-address" />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">City <span className="text-red-500">*</span></label>
+                <input type="text" value={city} onChange={(e) => setCity(e.target.value)} disabled={!!loading} placeholder="City" className={inputClass} autoComplete="address-level2" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">State <span className="text-red-500">*</span></label>
+                <select value={state} onChange={(e) => setState(e.target.value)} disabled={!!loading} className={inputClass} autoComplete="address-level1">
+                  <option value="">--</option>
+                  {US_STATES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Zip <span className="text-red-500">*</span></label>
+                <input type="text" value={zip} onChange={(e) => setZip(e.target.value)} disabled={!!loading} placeholder="75001" maxLength={10} className={inputClass} autoComplete="postal-code" />
+              </div>
             </div>
 
             <div>
