@@ -9,6 +9,7 @@ import {
   FileText, Clock, User, Building2, Trash2, ScrollText,
 } from "lucide-react";
 import AttributionPanel from "./AttributionPanel";
+import CommissionOverridePanel from "./CommissionOverridePanel";
 
 interface OrderItem {
   id: string;
@@ -567,6 +568,9 @@ export default function OrderDetailPage() {
 
           {/* Sales Attribution (Phase 3) */}
           {token && <AttributionPanel orderId={id} token={token} />}
+
+          {/* Commission override (Phase 4 — admin only, non-admins see read-only summary if set) */}
+          {token && <CommissionOverridePanel orderId={id} token={token} />}
 
           {/* Documents */}
           <div className="rounded-xl border border-gray-200 bg-white p-5">
