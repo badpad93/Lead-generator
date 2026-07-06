@@ -32,6 +32,11 @@ export default function AdminNewContractPage() {
     industries: [] as string[],
     notes: "",
     status: "open" as "draft" | "open",
+    // Pricing — starts from tier defaults but the admin can override each.
+    operator_price: String(TIERS[1].operator_price),
+    partner_payout: String(TIERS[1].partner_payout),
+    platform_fee: String(TIERS[1].platform_fee),
+    custom_pricing: false,
   });
 
   useEffect(() => {
@@ -53,6 +58,13 @@ export default function AdminNewContractPage() {
     setError(null);
     if (!form.title.trim()) { setError("Title required"); return; }
     setSaving(true);
+    const opN = Number(form.operator_price);
+    const ppN = Number(form.partner_payout);
+    const pfN = Number(form.platform_fee);
+    if (!Number.isFinite(opN) || opN <= 0) { setError("Operator price must be greater than 0"); setSaving(false); return; }
+    if (!Number.isFinite(ppN) || ppN < 0) { setError("Partner payout must be 0 or greater"); setSaving(false); return; }
+    if (!Number.isFinite(pfN) || pfN < 0) { setError("Company payout must be 0 or greater"); setSaving(false); return; }
+
     const payload = {
       title: form.title.trim(),
       tier: form.tier,
@@ -70,6 +82,9 @@ export default function AdminNewContractPage() {
       industries: form.industries,
       notes: form.notes.trim() || null,
       status: form.status,
+      operator_price: opN,
+      partner_payout: ppN,
+      platform_fee: pfN,
     };
     const res = await fetch("/api/admin/marketplace/contracts", {
       method: "POST",
@@ -87,7 +102,6 @@ export default function AdminNewContractPage() {
 
   const inputClass = "w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-green-primary focus:outline-none";
   const labelClass = "block text-xs font-medium text-gray-600 mb-1";
-  const pricing = TIERS[form.tier];
 
   return (
     <div className="p-6 max-w-3xl">
@@ -145,13 +159,23 @@ export default function AdminNewContractPage() {
 
         {/* Tier + pricing */}
         <div className="rounded-2xl border border-gray-100 bg-white p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Tier & Pricing</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-900">Tier &amp; Pricing</h3>
+            <p className="text-[11px] text-gray-500">Pick a tier to load defaults, then edit any field.</p>
+          </div>
           <div className="grid grid-cols-3 gap-2 mb-3">
             {([1, 2, 3] as const).map((t) => (
               <button
                 key={t}
                 type="button"
-                onClick={() => setForm((f) => ({ ...f, tier: t }))}
+                onClick={() => setForm((f) => ({
+                  ...f,
+                  tier: t,
+                  operator_price: String(TIERS[t].operator_price),
+                  partner_payout: String(TIERS[t].partner_payout),
+                  platform_fee: String(TIERS[t].platform_fee),
+                  custom_pricing: false,
+                }))}
                 className={`rounded-xl border p-3 text-left transition-colors ${form.tier === t ? "border-green-primary bg-green-50" : "border-gray-200 hover:bg-gray-50"}`}
               >
                 <p className="text-sm font-semibold text-gray-900">{tierLabel(t)}</p>
@@ -160,9 +184,57 @@ export default function AdminNewContractPage() {
               </button>
             ))}
           </div>
-          <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
-            Partner receives <span className="font-semibold text-emerald-700">${pricing.partner_payout}</span> · Operator pays <span className="font-semibold text-gray-900">${pricing.operator_price}</span> · Vending Connector keeps <span className="font-semibold text-gray-900">${pricing.platform_fee}</span>
+
+          {/* Editable pricing */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className={labelClass}>Operator pays (invoice) $</label>
+              <input
+                type="number" min="0" step="0.01"
+                value={form.operator_price}
+                onChange={(e) => setForm((f) => ({ ...f, operator_price: e.target.value, custom_pricing: true }))}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Payout to Placement Provider $</label>
+              <input
+                type="number" min="0" step="0.01"
+                value={form.partner_payout}
+                onChange={(e) => setForm((f) => ({ ...f, partner_payout: e.target.value, custom_pricing: true }))}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Payout to Vending Connector $</label>
+              <input
+                type="number" min="0" step="0.01"
+                value={form.platform_fee}
+                onChange={(e) => setForm((f) => ({ ...f, platform_fee: e.target.value, custom_pricing: true }))}
+                className={inputClass}
+              />
+            </div>
           </div>
+
+          {/* Live sum check */}
+          {(() => {
+            const op = Number(form.operator_price) || 0;
+            const pp = Number(form.partner_payout) || 0;
+            const pf = Number(form.platform_fee) || 0;
+            const sum = pp + pf;
+            const delta = op - sum;
+            const balanced = Math.abs(delta) < 0.01;
+            return (
+              <div className={`mt-3 rounded-lg p-3 text-xs ${balanced ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>
+                Operator ${op.toFixed(2)} = Partner ${pp.toFixed(2)} + Company ${pf.toFixed(2)} ({sum.toFixed(2)})
+                {!balanced && (
+                  <span className="ml-2 font-medium">
+                    · off by ${Math.abs(delta).toFixed(2)} — {delta > 0 ? "operator overpays" : "payouts exceed collected"}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Market */}

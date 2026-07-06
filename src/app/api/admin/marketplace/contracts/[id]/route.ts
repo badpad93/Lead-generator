@@ -62,7 +62,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     updates.tier = tier;
     updates.operator_price = p.operator_price;
     updates.partner_payout = p.partner_payout;
+    updates.platform_fee = p.platform_fee;
     activityDesc = `Tier set to ${tier} (PP $${p.partner_payout} / Op $${p.operator_price})`;
+  } else if (body.action === "set_pricing") {
+    // Admin-customizable pricing override — no tier tie-in.
+    const parseCents = (v: unknown): number | null => {
+      const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+      if (!Number.isFinite(n) || n < 0) return null;
+      return Math.round(n);
+    };
+    const op = parseCents(body.operator_price);
+    const pp = parseCents(body.partner_payout);
+    const pf = parseCents(body.platform_fee);
+    if (op == null || pp == null || pf == null || op <= 0) {
+      return NextResponse.json({ error: "Prices must be non-negative and operator price positive." }, { status: 400 });
+    }
+    updates.operator_price = op;
+    updates.partner_payout = pp;
+    updates.platform_fee = pf;
+    activityDesc = `Pricing updated (Op $${op} · PP $${pp} · VC $${pf})`;
   } else {
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   }

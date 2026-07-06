@@ -33,12 +33,30 @@ export async function POST(req: NextRequest) {
     ? body.contract_type
     : "multi";
 
+  // Admin-customizable pricing — falls back to tier defaults if not provided.
+  // Validation:
+  //   - each field must be non-negative
+  //   - partner_payout + platform_fee should equal operator_price (allow $1
+  //     rounding slack). We warn but accept as-is if it doesn't; admin owns
+  //     the numbers.
+  const parseCents = (v: unknown, fallback: number): number => {
+    const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+    if (!Number.isFinite(n) || n < 0) return fallback;
+    return Math.round(n);
+  };
+  const operatorPrice = parseCents(body.operator_price, pricing.operator_price);
+  const partnerPayout = parseCents(body.partner_payout, pricing.partner_payout);
+  const platformFee = parseCents(body.platform_fee, pricing.platform_fee);
+  if (operatorPrice <= 0 || partnerPayout < 0 || platformFee < 0) {
+    return NextResponse.json({ error: "Prices must be non-negative and operator price positive." }, { status: 400 });
+  }
+
   const insertRow = {
     title,
     tier,
-    operator_price: pricing.operator_price,
-    partner_payout: pricing.partner_payout,
-    platform_fee: pricing.platform_fee,
+    operator_price: operatorPrice,
+    partner_payout: partnerPayout,
+    platform_fee: platformFee,
     machine_type: body.machine_type || "VendEra AI Machine",
     market_state: body.market_state ? String(body.market_state).toUpperCase() : null,
     market_city: body.market_city || null,
