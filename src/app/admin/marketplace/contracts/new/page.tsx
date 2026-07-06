@@ -31,7 +31,7 @@ export default function AdminNewContractPage() {
     min_traffic_score: "",
     industries: [] as string[],
     notes: "",
-    status: "draft" as "draft" | "open",
+    status: "open" as "draft" | "open",
   });
 
   useEffect(() => {
