@@ -15,7 +15,7 @@ interface Territory {
   travel_radius_miles?: number;
 }
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6;
+type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 type PayoutMethod = "ach" | "manual_check" | "zelle" | "venmo" | "wire";
 type AccountType = "checking" | "savings";
@@ -58,6 +58,13 @@ export default function MarketplaceOnboardingPage() {
   const [accountNumber, setAccountNumber] = useState("");
   const [payoutNotes, setPayoutNotes] = useState("");
   const [savedBank, setSavedBank] = useState<{ method: string; account_last4: string | null } | null>(null);
+
+  // Step 6 — Placement Provider Agreement
+  const [agreementTemplate, setAgreementTemplate] = useState<{ id: string; version: number; title: string; effective_date: string; content_html: string } | null>(null);
+  const [agreementRow, setAgreementRow] = useState<{ id: string; status: string } | null>(null);
+  const [ppaTypedName, setPpaTypedName] = useState("");
+  const [ppaAcknowledge, setPpaAcknowledge] = useState(false);
+  const [ppaConsentEsign, setPpaConsentEsign] = useState(false);
 
   // Load existing state
   const load = useCallback(async () => {
@@ -310,8 +317,58 @@ export default function MarketplaceOnboardingPage() {
     } else if (step === 5) {
       const ok = await saveBankAccount();
       if (!ok) return;
+      // Load the PPA before showing the sign screen.
+      await loadAgreement();
+      setStep(6);
+    } else if (step === 6) {
+      const ok = await signAgreement();
+      if (!ok) return;
       await completeOnboarding();
+      setStep(7);
     }
+  }
+
+  async function loadAgreement() {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/placement/agreement", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAgreementTemplate(data.template);
+        setAgreementRow(data.agreement);
+        // If they've already signed (e.g., returning to onboarding), prefill.
+        if (data.agreement?.provider_typed_name) setPpaTypedName(data.agreement.provider_typed_name);
+      }
+    } catch {}
+  }
+
+  async function signAgreement(): Promise<boolean> {
+    if (!token) { setError("Session expired"); return false; }
+    if (!ppaTypedName.trim()) { setError("Type your legal name to sign"); return false; }
+    if (!ppaAcknowledge) { setError("Please acknowledge you have reviewed the agreement"); return false; }
+    if (!ppaConsentEsign) { setError("Please consent to conduct business electronically"); return false; }
+
+    // If already signed (returning user), skip re-signing.
+    if (agreementRow && (agreementRow.status === "provider_signed_pending_company_countersign" || agreementRow.status === "fully_executed" || agreementRow.status === "legacy_approved")) {
+      return true;
+    }
+
+    setSaving(true);
+    setError(null);
+    const res = await fetch("/api/placement/agreement/sign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ typed_name: ppaTypedName.trim(), consent_esign: ppaConsentEsign }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error || "Failed to submit signature");
+      return false;
+    }
+    return true;
   }
 
   function prevStep() {
@@ -338,7 +395,7 @@ export default function MarketplaceOnboardingPage() {
 
       {/* Step indicator */}
       <div className="mb-6 flex items-center gap-2">
-        {[1, 2, 3, 4, 5].map((n) => (
+        {[1, 2, 3, 4, 5, 6].map((n) => (
           <div key={n} className="flex-1">
             <div className={`h-1.5 rounded-full ${step >= n ? "bg-green-600" : "bg-gray-200"}`} />
             <div className={`mt-1 text-xs font-medium ${step === n ? "text-green-700" : step > n ? "text-green-600" : "text-gray-400"}`}>
@@ -685,8 +742,55 @@ export default function MarketplaceOnboardingPage() {
           </>
         )}
 
-        {/* STEP 6 — Success */}
+        {/* STEP 6 — Placement Provider Agreement */}
         {step === 6 && (
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Placement Provider Agreement</h2>
+            <p className="text-sm text-gray-500 mb-4">Please read the entire agreement below. Your typed name below is a legally binding electronic signature.</p>
+
+            {agreementTemplate ? (
+              <>
+                <div className="text-xs text-gray-500 mb-2">
+                  <strong className="text-gray-700">{agreementTemplate.title}</strong> · v{agreementTemplate.version} · effective {agreementTemplate.effective_date}
+                </div>
+                <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: agreementTemplate.content_html }} />
+
+                <div className="mt-4 space-y-2">
+                  <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={ppaAcknowledge} onChange={(e) => setPpaAcknowledge(e.target.checked)} className="mt-0.5 rounded border-gray-300 text-green-primary" />
+                    <span>I have reviewed and agree to the Placement Provider Agreement.</span>
+                  </label>
+                  <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={ppaConsentEsign} onChange={(e) => setPpaConsentEsign(e.target.checked)} className="mt-0.5 rounded border-gray-300 text-green-primary" />
+                    <span>I consent to conduct this transaction electronically and agree that my typed name below is my electronic signature.</span>
+                  </label>
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Type your full legal name to sign <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={ppaTypedName}
+                    onChange={(e) => setPpaTypedName(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none"
+                    placeholder="Your legal name"
+                  />
+                </div>
+
+                {agreementRow?.status === "provider_signed_pending_company_countersign" && (
+                  <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                    You&apos;ve already signed this agreement. It&apos;s waiting for Vending Connector to countersign.
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-green-primary" /></div>
+            )}
+          </div>
+        )}
+
+        {/* STEP 7 — Success */}
+        {step === 7 && (
           <div className="text-center py-6">
             <div className="mx-auto w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mb-4">
               <CheckCircle2 className="w-8 h-8 text-green-primary" />
@@ -696,8 +800,8 @@ export default function MarketplaceOnboardingPage() {
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-left mb-6">
               <p className="text-sm font-medium text-blue-900 mb-1">What happens next?</p>
               <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
-                <li>The Vending Connector team reviews your profile and verifies your W-9.</li>
-                <li>You&apos;ll receive an email once approved (usually within 1 business day).</li>
+                <li>Vending Connector reviews your profile and countersigns your agreement.</li>
+                <li>You&apos;ll receive a copy of the fully executed agreement (usually within 1 business day).</li>
                 <li>Then you&apos;ll start seeing contract offers in your dashboard.</li>
               </ol>
             </div>
@@ -711,7 +815,7 @@ export default function MarketplaceOnboardingPage() {
         )}
 
         {/* Navigation */}
-        {step < 6 && (
+        {step < 7 && (
           <div className="mt-8 flex items-center justify-between">
             <button
               type="button"
@@ -733,7 +837,7 @@ export default function MarketplaceOnboardingPage() {
                 </>
               ) : (
                 <>
-                  {step === 5 ? "Finish" : "Continue"} <ArrowRight className="h-4 w-4" />
+                  {step === 6 ? "Sign & Finish" : step === 5 ? "Continue to Agreement" : "Continue"} <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </button>

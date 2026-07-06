@@ -97,6 +97,9 @@ interface Agreement {
   location_city: string | null;
   location_state: string | null;
   location_zip: string | null;
+  location_display_name: string | null;
+  location_display_description: string | null;
+  location_display_city_state_only: boolean | null;
   placement_machine_count: number | null;
   placement_machine_type: string | null;
   placement_installation_date: string | null;
@@ -200,6 +203,11 @@ type FormData = {
   location_city: string;
   location_state: string;
   location_zip: string;
+  // Public-safe display (used when this agreement's location shows up on
+  // marketplace-derived surfaces so PPs can't skim identity + poach)
+  location_display_name: string;
+  location_display_description: string;
+  location_display_city_state_only: boolean;
   placement_machine_count: string;
   placement_machine_type: string;
   placement_installation_date: string;
@@ -296,6 +304,9 @@ function agreementToForm(ag: Agreement): FormData {
     location_city: ag.location_city || "",
     location_state: ag.location_state || "",
     location_zip: ag.location_zip || "",
+    location_display_name: ag.location_display_name || "",
+    location_display_description: ag.location_display_description || "",
+    location_display_city_state_only: ag.location_display_city_state_only !== false,
     placement_machine_count: String(ag.placement_machine_count ?? 1),
     placement_machine_type: ag.placement_machine_type || "VendEra AI Machine",
     placement_installation_date: ag.placement_installation_date || "",
@@ -463,6 +474,9 @@ function StandaloneAgreementEditor() {
       location_city: form.location_city || null,
       location_state: form.location_state || null,
       location_zip: form.location_zip || null,
+      location_display_name: form.location_display_name || null,
+      location_display_description: form.location_display_description || null,
+      location_display_city_state_only: !!form.location_display_city_state_only,
       placement_machine_count: Number(form.placement_machine_count) || 0,
       placement_machine_type: form.placement_machine_type || null,
       placement_installation_date: form.placement_installation_date || null,
@@ -1405,6 +1419,50 @@ function LocationPlacementSections({
             <InputField label="ZIP" value={form.location_zip} onChange={(v) => updateField("location_zip", v)} disabled={isReadOnly} />
           </div>
         </div>
+
+        {/* Display As — public-safe rendering for downstream PP/marketplace surfaces */}
+        <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+          <div className="flex items-start gap-2 mb-3">
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-amber-900 uppercase tracking-wide">Display As (public-safe)</p>
+              <p className="text-[11px] text-amber-800 mt-0.5">
+                What placement partners and the marketplace see. Real business name, contact, and street address stay hidden. Fill this in so PPs can&apos;t skim identity + poach the location.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <InputField
+              label="Display Name"
+              value={form.location_display_name}
+              onChange={(v) => updateField("location_display_name", v)}
+              disabled={isReadOnly}
+              placeholder="e.g. Downtown Fitness Studio"
+            />
+            <div className="flex items-center pt-6">
+              <label className="inline-flex items-start gap-2 text-xs text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.location_display_city_state_only}
+                  onChange={(e) => updateBool("location_display_city_state_only", e.target.checked)}
+                  disabled={isReadOnly}
+                  className="mt-0.5 rounded border-gray-300 text-green-primary"
+                />
+                <span>City + state only (hide street address)</span>
+              </label>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Display Description</label>
+              <textarea
+                value={form.location_display_description}
+                onChange={(e) => updateField("location_display_description", e.target.value)}
+                disabled={isReadOnly}
+                rows={3}
+                placeholder="Type of business, foot traffic, ideal machine placement — no owner name, no phone, no street address."
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-green-primary focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Operator (the vending company placing the machine) */}
@@ -1600,15 +1658,15 @@ function LocationPlacementSections({
   );
 }
 
-function InputField({ label, value, onChange, type = "text", disabled = false, required = false, min }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; disabled?: boolean; required?: boolean; min?: string;
+function InputField({ label, value, onChange, type = "text", disabled = false, required = false, min, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; disabled?: boolean; required?: boolean; min?: string; placeholder?: string;
 }) {
   return (
     <div>
       <label className="block text-xs font-medium text-gray-500 mb-1">
         {label}{required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} min={min}
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} min={min} placeholder={placeholder}
         className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-600 focus:outline-none focus:ring-1 focus:ring-green-600/30 disabled:bg-gray-50 disabled:text-gray-500" />
     </div>
   );

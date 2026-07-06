@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlacementPartner, forbidden } from "@/lib/marketplaceAuth";
+import { requireExecutedPlacementProviderAgreement } from "@/lib/placementAgreements";
 
 export async function GET(req: NextRequest) {
   const user = await getPlacementPartner(req);
@@ -19,6 +20,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getPlacementPartner(req);
   if (!user) return forbidden();
+
+  // Placement Provider Agreement gate — providers cannot submit until their
+  // agreement is fully executed (or legacy-approved by an admin).
+  // Admins are allowed to walk the flow for QA and are not blocked here.
+  if (user.role !== "admin") {
+    const block = await requireExecutedPlacementProviderAgreement(user.id);
+    if (block) return NextResponse.json({ error: block, code: "PPA_NOT_EXECUTED" }, { status: 403 });
+  }
 
   const body = await req.json().catch(() => ({}));
   const contractId = body.contract_id;
