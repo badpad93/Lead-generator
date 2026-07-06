@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, Plus, Briefcase, Filter, ArrowLeft } from "lucide-react";
+import { Loader2, Plus, Briefcase, Filter, ArrowLeft, Play, EyeOff, AlertTriangle } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface Contract {
@@ -46,6 +46,7 @@ export default function AdminContractsPage() {
   const [loading, setLoading] = useState(true);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [filter, setFilter] = useState("all");
+  const [opening, setOpening] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -68,6 +69,24 @@ export default function AdminContractsPage() {
   }, [router]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function openContract(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setOpening(id);
+    const res = await fetch(`/api/admin/marketplace/contracts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "open" }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "Failed to open contract");
+    }
+    await load();
+    setOpening(null);
+  }
+
+  const draftCount = contracts.filter((c) => c.status === "draft").length;
 
   return (
     <div className="p-6 max-w-6xl">
@@ -103,6 +122,19 @@ export default function AdminContractsPage() {
         ))}
       </div>
 
+      {draftCount > 0 && filter !== "draft" && (
+        <button
+          onClick={() => setFilter("draft")}
+          className="mb-3 w-full flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-left text-sm text-amber-800 hover:bg-amber-100 cursor-pointer"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium">{draftCount} draft contract{draftCount === 1 ? "" : "s"} not visible to partners</p>
+            <p className="text-xs">Click to filter — draft contracts are hidden from the placement provider marketplace until you publish them.</p>
+          </div>
+        </button>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-green-primary" /></div>
       ) : contracts.length === 0 ? (
@@ -126,6 +158,7 @@ export default function AdminContractsPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Slots</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Created</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-500">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -133,7 +166,7 @@ export default function AdminContractsPage() {
                 <tr
                   key={c.id}
                   onClick={() => router.push(`/admin/marketplace/contracts/${c.id}`)}
-                  className="border-t border-gray-50 hover:bg-gray-50 cursor-pointer"
+                  className={`border-t border-gray-50 hover:bg-gray-50 cursor-pointer ${c.status === "draft" ? "bg-amber-50/40" : ""}`}
                 >
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-900">{c.title}</p>
@@ -151,11 +184,28 @@ export default function AdminContractsPage() {
                   <td className="px-4 py-3 text-gray-700">{[c.market_city, c.market_state].filter(Boolean).join(", ") || "Any"}</td>
                   <td className="px-4 py-3 text-gray-700">{c.locations_filled} / {c.locations_needed}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[c.status] || "bg-gray-100 text-gray-600"}`}>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[c.status] || "bg-gray-100 text-gray-600"}`}>
+                      {c.status === "draft" && <EyeOff className="h-3 w-3" />}
                       {c.status.replace(/_/g, " ")}
                     </span>
+                    {c.status === "draft" && (
+                      <p className="text-[10px] text-amber-700 mt-0.5">Hidden from partners</p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">{new Date(c.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    {c.status === "draft" && (
+                      <button
+                        onClick={(e) => openContract(c.id, e)}
+                        disabled={opening === c.id}
+                        className="inline-flex items-center gap-1 rounded-md bg-green-primary hover:bg-green-hover px-2 py-0.5 text-[11px] font-semibold text-white cursor-pointer disabled:opacity-50"
+                        title="Publish to partners"
+                      >
+                        {opening === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                        Open
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
