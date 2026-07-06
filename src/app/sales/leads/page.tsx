@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2, Mail, Send, Clock, ShieldCheck, Paperclip } from "lucide-react";
+import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2, Mail, Send, Clock, ShieldCheck, Paperclip, FileSignature, Globe } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
 
 const LEAD_FIELDS: { key: LeadFieldKey; label: string; required?: boolean }[] = [
@@ -157,6 +157,24 @@ export default function LeadsPage() {
   const [convertError, setConvertError] = useState<string | null>(null);
   const [convertSaving, setConvertSaving] = useState(false);
   const [salesPipelines, setSalesPipelines] = useState<{ id: string; name: string }[]>([]);
+
+  // Lead → Placement Agreement + Publish state
+  const [placementCreating, setPlacementCreating] = useState<string | null>(null);
+  const [publishLead, setPublishLead] = useState<SalesLead | null>(null);
+  const [publishForm, setPublishForm] = useState({
+    title: "",
+    description: "",
+    price: "250",
+    city: "",
+    state: "",
+    zip: "",
+    entity_type: "",
+    foot_traffic: "",
+    square_footage: "",
+    business_type: "",
+  });
+  const [publishSaving, setPublishSaving] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   // CSV Import state
   const [showImport, setShowImport] = useState(false);
@@ -316,6 +334,98 @@ export default function LeadsPage() {
       alert(err.error || "Failed to remove duplicates");
     }
     setDeduping(false);
+  }
+
+  async function handleCreatePlacementAgreement(lead: SalesLead) {
+    if (lead.location_placement_agreement_id) {
+      router.push(`/sales/agreements/${lead.location_placement_agreement_id}`);
+      return;
+    }
+    setPlacementCreating(lead.id);
+    try {
+      const res = await fetch("/api/sales/agreements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ agreement_type: "location_placement", from_lead_id: lead.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok && body.agreement_id) {
+        router.push(`/sales/agreements/${body.agreement_id}`);
+        return;
+      }
+      if (!res.ok) {
+        alert(body.error || "Failed to create agreement");
+        return;
+      }
+      router.push(`/sales/agreements/${body.id}`);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to create agreement");
+    } finally {
+      setPlacementCreating(null);
+    }
+  }
+
+  function openPublishModal(lead: SalesLead) {
+    setPublishLead(lead);
+    setPublishError(null);
+    // Best-effort parse of the lead's existing address for prefill.
+    const raw = lead.address || "";
+    const m = raw.match(/^(.*?),\s*([^,]+),\s*([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/);
+    const m2 = raw.match(/^(.*?),\s*([^,]+),\s*([A-Za-z]{2})\s*$/);
+    let parsedCity = lead.city || "";
+    let parsedState = lead.state || "";
+    let parsedZip = "";
+    if (m) { parsedCity = parsedCity || m[2]; parsedState = parsedState || m[3].toUpperCase(); parsedZip = m[4]; }
+    else if (m2) { parsedCity = parsedCity || m2[2]; parsedState = parsedState || m2[3].toUpperCase(); }
+    setPublishForm({
+      title: lead.business_name || "",
+      description: "",
+      price: "250",
+      city: parsedCity,
+      state: parsedState,
+      zip: parsedZip,
+      entity_type: (lead.entity_type as string) || "",
+      foot_traffic: "",
+      square_footage: "",
+      business_type: "",
+    });
+  }
+
+  async function handlePublish() {
+    if (!publishLead) return;
+    setPublishSaving(true);
+    setPublishError(null);
+    try {
+      const res = await fetch(`/api/sales/leads/${publishLead.id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          title: publishForm.title.trim() || undefined,
+          description: publishForm.description.trim(),
+          price: Number(publishForm.price),
+          city: publishForm.city.trim() || undefined,
+          state: publishForm.state.trim() || undefined,
+          zip: publishForm.zip.trim() || undefined,
+          entity_type: publishForm.entity_type || undefined,
+          foot_traffic: publishForm.foot_traffic || undefined,
+          square_footage: publishForm.square_footage || undefined,
+          business_type: publishForm.business_type || undefined,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPublishError(body.error || "Failed to publish listing");
+        setPublishSaving(false);
+        return;
+      }
+      setPublishLead(null);
+      await fetchLeads();
+      alert("Listing created. A verification email was sent to the location owner — the listing goes live once they confirm.");
+    } catch (e) {
+      setPublishError(e instanceof Error ? e.message : "Failed to publish listing");
+    } finally {
+      setPublishSaving(false);
+    }
   }
 
   async function handleDelete(id: string) {
@@ -1369,6 +1479,22 @@ export default function LeadsPage() {
                         </button>
                       )}
                       <button
+                        onClick={() => handleCreatePlacementAgreement(lead)}
+                        disabled={placementCreating === lead.id}
+                        title={lead.location_placement_agreement_id ? "Open Placement Agreement" : "Send to Placement Agreement"}
+                        className={`rounded-lg p-1.5 cursor-pointer disabled:opacity-50 ${lead.location_placement_agreement_id ? "text-emerald-600 hover:bg-emerald-50" : "text-gray-400 hover:bg-purple-50 hover:text-purple-600"}`}
+                      >
+                        {placementCreating === lead.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSignature className="h-4 w-4" />}
+                      </button>
+                      <button
+                        onClick={() => openPublishModal(lead)}
+                        title={lead.public_listing_id ? "Already listed publicly" : "List Publicly"}
+                        disabled={!!lead.public_listing_id}
+                        className={`rounded-lg p-1.5 cursor-pointer disabled:opacity-50 ${lead.public_listing_id ? "text-emerald-600" : "text-gray-400 hover:bg-blue-50 hover:text-blue-600"}`}
+                      >
+                        <Globe className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => handleDelete(lead.id)}
                         title="Delete"
                         className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
@@ -1484,6 +1610,110 @@ export default function LeadsPage() {
               >
                 {convertSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Convert
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Publish Lead to Public Marketplace Modal */}
+      {publishLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Globe className="h-5 w-5 text-blue-600" />
+                List Location Publicly
+              </h2>
+              <button onClick={() => setPublishLead(null)} className="rounded-lg p-1 text-gray-400 hover:text-gray-600 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-800">
+              <strong>Private info stays private.</strong> The location owner&apos;s name, phone, and email are NOT shown on the public listing. They only receive a verification email — the listing goes live once they confirm.
+            </div>
+
+            {publishError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{publishError}</div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Listing Title</label>
+                <input
+                  type="text"
+                  value={publishForm.title}
+                  onChange={(e) => setPublishForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder={publishLead.business_name || "Business name"}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Description <span className="text-red-500">*</span> <span className="text-gray-400">(min 40 chars)</span></label>
+                <textarea
+                  value={publishForm.description}
+                  onChange={(e) => setPublishForm((f) => ({ ...f, description: e.target.value }))}
+                  rows={4}
+                  placeholder="Describe the location: type of business, foot traffic, employees, ideal machine placement, etc. This is what buyers see."
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none resize-none"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">{publishForm.description.length}/40</p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+                  <input type="text" value={publishForm.city} onChange={(e) => setPublishForm((f) => ({ ...f, city: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">State <span className="text-red-500">*</span></label>
+                  <input type="text" value={publishForm.state} onChange={(e) => setPublishForm((f) => ({ ...f, state: e.target.value.toUpperCase().slice(0, 2) }))} maxLength={2} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none font-mono uppercase" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">ZIP</label>
+                  <input type="text" value={publishForm.zip} onChange={(e) => setPublishForm((f) => ({ ...f, zip: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Price ($) <span className="text-red-500">*</span></label>
+                  <input type="number" min={100} max={10000} step={25} value={publishForm.price} onChange={(e) => setPublishForm((f) => ({ ...f, price: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Entity Type</label>
+                  <input type="text" value={publishForm.entity_type} onChange={(e) => setPublishForm((f) => ({ ...f, entity_type: e.target.value }))} placeholder="Office, gym, warehouse…" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Foot Traffic</label>
+                  <input type="text" value={publishForm.foot_traffic} onChange={(e) => setPublishForm((f) => ({ ...f, foot_traffic: e.target.value }))} placeholder="e.g. 200/day" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Square Footage</label>
+                  <input type="text" value={publishForm.square_footage} onChange={(e) => setPublishForm((f) => ({ ...f, square_footage: e.target.value }))} placeholder="e.g. 5000" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Business Type</label>
+                <input type="text" value={publishForm.business_type} onChange={(e) => setPublishForm((f) => ({ ...f, business_type: e.target.value }))} placeholder="e.g. Manufacturing, Healthcare, Retail" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end mt-5">
+              <button onClick={() => setPublishLead(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+              <button
+                onClick={handlePublish}
+                disabled={publishSaving || publishForm.description.trim().length < 40 || !publishForm.state.trim() || !publishForm.price}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+              >
+                {publishSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Publish
               </button>
             </div>
           </div>
