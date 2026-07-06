@@ -48,6 +48,8 @@ export interface SalesLead {
   immediate_need?: ImmediateNeed | null;
   last_contacted_at?: string | null;
   next_followup_at?: string | null;
+  location_placement_agreement_id?: string | null;
+  public_listing_id?: string | null;
   created_at: string;
   updated_at?: string;
   // Joined

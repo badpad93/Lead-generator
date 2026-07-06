@@ -53,6 +53,49 @@ export async function POST(req: NextRequest) {
     ? "location_placement"
     : "machine_purchase";
 
+  // When from_lead_id is provided, pull the lead and derive default values
+  // for the location_* fields on a location_placement agreement. Rep can
+  // still override anything before signing.
+  interface LeadRow {
+    id: string;
+    business_name: string | null;
+    contact_name: string | null;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    location_placement_agreement_id: string | null;
+  }
+  let leadRow: LeadRow | null = null;
+  if (typeof body.from_lead_id === "string" && body.from_lead_id) {
+    const { data } = await supabaseAdmin
+      .from("sales_leads")
+      .select("id, business_name, contact_name, email, phone, address, location_placement_agreement_id")
+      .eq("id", body.from_lead_id)
+      .maybeSingle();
+    leadRow = (data as unknown) as LeadRow | null;
+    if (!leadRow) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    if (leadRow.location_placement_agreement_id) {
+      return NextResponse.json({
+        error: "This lead already has a placement agreement",
+        agreement_id: leadRow.location_placement_agreement_id,
+      }, { status: 409 });
+    }
+  }
+
+  // Best-effort city/state/zip parse off a single-line address.
+  function splitAddress(raw: string | null | undefined): { street: string; city: string; state: string; zip: string } {
+    if (!raw) return { street: "", city: "", state: "", zip: "" };
+    const s = raw.trim();
+    // Pattern: "..., City, ST 12345"
+    const m = s.match(/^(.*?),\s*([^,]+),\s*([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/);
+    if (m) return { street: m[1].trim(), city: m[2].trim(), state: m[3].toUpperCase(), zip: m[4] };
+    // Pattern: "..., City, ST"
+    const m2 = s.match(/^(.*?),\s*([^,]+),\s*([A-Za-z]{2})\s*$/);
+    if (m2) return { street: m2[1].trim(), city: m2[2].trim(), state: m2[3].toUpperCase(), zip: "" };
+    return { street: s, city: "", state: "", zip: "" };
+  }
+  const leadAddress = splitAddress(leadRow?.address);
+
   const basePayload: Record<string, unknown> = {
     order_id: null,
     account_id: null,
@@ -77,16 +120,18 @@ export async function POST(req: NextRequest) {
   if (agreementType === "location_placement") {
     agreementPayload = {
       ...basePayload,
-      // Location contact (recipient of the agreement)
-      location_business_name: body.location_business_name || "",
-      location_contact_name: body.location_contact_name || "",
-      location_contact_email: body.location_contact_email || "",
-      location_contact_phone: body.location_contact_phone || "",
+      // Location contact (recipient of the agreement). Body values win over
+      // lead prefill so the rep can override on the edit screen.
+      lead_id: leadRow?.id || null,
+      location_business_name: body.location_business_name || leadRow?.business_name || "",
+      location_contact_name: body.location_contact_name || leadRow?.contact_name || "",
+      location_contact_email: body.location_contact_email || leadRow?.email || "",
+      location_contact_phone: body.location_contact_phone || leadRow?.phone || "",
       location_contact_title: body.location_contact_title || "",
-      location_address: body.location_address || "",
-      location_city: body.location_city || "",
-      location_state: body.location_state || "",
-      location_zip: body.location_zip || "",
+      location_address: body.location_address || leadAddress.street || "",
+      location_city: body.location_city || leadAddress.city || "",
+      location_state: body.location_state || leadAddress.state || "",
+      location_zip: body.location_zip || leadAddress.zip || "",
 
       // Placement terms
       placement_machine_count: body.placement_machine_count || 1,
@@ -164,8 +209,19 @@ export async function POST(req: NextRequest) {
     agreement_id: agreement.id,
     user_id: user.id,
     activity_type: "created",
-    description: "Standalone agreement created",
+    description: leadRow
+      ? `Location placement agreement drafted from lead ${leadRow.id.slice(0, 8)}`
+      : "Standalone agreement created",
   });
+
+  // Stamp reverse link on the lead so the leads page shows "already converted"
+  // and future clicks return the existing agreement instead of duplicating.
+  if (leadRow) {
+    await supabaseAdmin
+      .from("sales_leads")
+      .update({ location_placement_agreement_id: agreement.id })
+      .eq("id", leadRow.id);
+  }
 
   return NextResponse.json(agreement, { status: 201 });
 }
