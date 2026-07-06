@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Loader2, ArrowLeft, CheckCircle2, XCircle, Building2, Mail, Phone,
-  MapPin, Briefcase, FileText, Shield, Ban, Activity, User,
+  MapPin, Briefcase, FileText, Shield, Ban, Activity, User, Send,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
@@ -82,6 +82,20 @@ export default function AdminPartnerDetailPage() {
       const err = await res.json().catch(() => ({}));
       alert(err.error || "Action failed");
     }
+    await load();
+    setSaving(null);
+  }
+
+  async function sendAgreement() {
+    if (!confirm("Email this Placement Provider a request to sign the current Placement Provider Agreement?")) return;
+    setSaving("send_agreement");
+    const res = await fetch(`/api/admin/marketplace/partners/${id}/send-agreement`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) alert(body.error || "Send failed");
+    else alert("Agreement request sent — the partner will receive an email with a signing link.");
     await load();
     setSaving(null);
   }
@@ -305,6 +319,23 @@ export default function AdminPartnerDetailPage() {
                 disabled={saving === "verify_bank"}
                 onClick={() => doAction("verify_bank")}
               />
+            </div>
+
+            {/* Send Placement Provider Agreement — for existing PPs who signed
+                up before the workflow existed, or when a new version is
+                published and they need to re-sign. */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mb-2">
+                Email this partner a request to review and sign the current Placement Provider Agreement.
+              </p>
+              <button
+                onClick={sendAgreement}
+                disabled={saving === "send_agreement"}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white cursor-pointer disabled:opacity-50"
+              >
+                {saving === "send_agreement" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                Send Agreement Request
+              </button>
             </div>
           </div>
 

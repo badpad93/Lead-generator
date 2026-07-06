@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowRight, CheckCircle2, Clock, Building2, Briefcase, Package, Users, Star, Bell, DollarSign } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle2, Clock, Building2, Briefcase, Package, Users, Star, Bell, DollarSign, FileSignature } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface Partner {
@@ -89,6 +89,7 @@ export default function PlacementDashboardPage() {
       { label: "Platform Agreement Countersigned", done: !!partner.agreement_signed_at },
       { label: "Bank / Payout Info", done: !!partner.bank_verified_at },
     ];
+    const needsAgreement = !partner.agreement_signed_at;
     return (
       <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome{partner.business_name ? `, ${partner.business_name}` : ""}</h1>
@@ -112,6 +113,28 @@ export default function PlacementDashboardPage() {
             Typical turnaround is 1 business day. We&apos;ll email you the moment you&apos;re approved.
           </p>
         </div>
+
+        {needsAgreement && (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                <FileSignature className="h-5 w-5 text-amber-700" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-amber-900 mb-1">Sign your Placement Provider Agreement</p>
+                <p className="text-xs text-amber-800 mb-3">
+                  Vending Connector needs your signed Placement Provider Agreement on file before you can accept contracts.
+                </p>
+                <Link
+                  href="/placement/agreement"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 px-4 py-2 text-xs font-semibold text-white cursor-pointer"
+                >
+                  Review &amp; sign <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
