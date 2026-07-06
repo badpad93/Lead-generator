@@ -1,7 +1,10 @@
 import { Resend } from "resend";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
-const ADMIN_EMAIL = "james@apexaivending.com";
+const ADMIN_EMAIL = process.env.COFFEE_ADMIN_EMAIL || "james@apexaivending.com";
+// Coffee ORDERS route to the fulfillment mailbox so admin's inbox isn't the
+// operational bottleneck. Applications still route to ADMIN_EMAIL.
+const FULFILLMENT_EMAIL = process.env.COFFEE_FULFILLMENT_EMAIL || "fulfillment@vendingconnector.com";
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
@@ -103,7 +106,7 @@ export async function sendCoffeeOrderNotification(params: OrderNotificationParam
 
   return getResend().emails.send({
     from: FROM_EMAIL,
-    to: ADMIN_EMAIL,
+    to: FULFILLMENT_EMAIL,
     subject: `New Coffee Order: ${orderNumber} from ${operatorName}`,
     html,
   });
