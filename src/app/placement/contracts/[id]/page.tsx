@@ -130,7 +130,6 @@ export default function ContractDetailPage() {
               <div key={i} className="flex flex-wrap gap-1.5">
                 {r.industry && <span className="rounded-full bg-purple-50 text-purple-700 text-xs px-2.5 py-0.5">{r.industry}</span>}
                 {r.min_employees && <span className="rounded-full bg-gray-100 text-gray-700 text-xs px-2.5 py-0.5">{r.min_employees}+ employees</span>}
-                {r.min_traffic_score && <span className="rounded-full bg-gray-100 text-gray-700 text-xs px-2.5 py-0.5">Traffic {r.min_traffic_score}+</span>}
                 {r.power_required && <span className="rounded-full bg-gray-100 text-gray-700 text-xs px-2.5 py-0.5">Power required</span>}
                 {r.parking_required && <span className="rounded-full bg-gray-100 text-gray-700 text-xs px-2.5 py-0.5">Parking required</span>}
               </div>
