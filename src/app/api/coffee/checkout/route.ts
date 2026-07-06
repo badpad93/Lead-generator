@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getCoffeeUser, forbiddenResponse } from "@/lib/coffeeAuth";
 import { isQuickBooks } from "@/lib/paymentProvider";
 import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
+import { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } from "@/lib/coffeeEmail";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,6 +17,35 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+
+    // Business billing address AND shipping address are mandatory for every
+    // new order. Fail fast before touching the cart/QB so callers see a
+    // clear error and no ghost order/invoice gets created.
+    const trim = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+    const requiredFields: Array<[string, string]> = [
+      ["billing_business_name", "Billing business name is required"],
+      ["billing_contact_name", "Billing contact name is required"],
+      ["billing_email", "Billing email is required"],
+      ["billing_phone", "Billing phone is required"],
+      ["billing_address", "Billing street address is required"],
+      ["billing_city", "Billing city is required"],
+      ["billing_state", "Billing state is required"],
+      ["billing_zip", "Billing zip is required"],
+      ["shipping_business_name", "Shipping business name is required"],
+      ["shipping_name", "Shipping contact name is required"],
+      ["shipping_address", "Shipping street address is required"],
+      ["shipping_city", "Shipping city is required"],
+      ["shipping_state", "Shipping state is required"],
+      ["shipping_zip", "Shipping zip is required"],
+      ["shipping_phone", "Shipping phone is required"],
+    ];
+    for (const [field, message] of requiredFields) {
+      if (!trim(body[field])) return NextResponse.json({ error: message }, { status: 400 });
+    }
+    const billingEmail = trim(body.billing_email);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billingEmail)) {
+      return NextResponse.json({ error: "Billing email is not a valid address" }, { status: 400 });
+    }
 
     const { data: cartItems, error: cartError } = await supabaseAdmin
       .from("coffee_cart_items")
@@ -67,12 +97,23 @@ export async function POST(req: NextRequest) {
         operator_id: user.id,
         order_number: orderNumber,
         status: "awaiting_payment",
-        shipping_name: body.shipping_name ?? null,
-        shipping_address: body.shipping_address ?? null,
-        shipping_city: body.shipping_city ?? null,
-        shipping_state: body.shipping_state ?? null,
-        shipping_zip: body.shipping_zip ?? null,
-        shipping_phone: body.shipping_phone ?? null,
+        // Ship-to
+        shipping_business_name: trim(body.shipping_business_name),
+        shipping_name: trim(body.shipping_name),
+        shipping_address: trim(body.shipping_address),
+        shipping_city: trim(body.shipping_city),
+        shipping_state: trim(body.shipping_state),
+        shipping_zip: trim(body.shipping_zip),
+        shipping_phone: trim(body.shipping_phone),
+        // Bill-to
+        billing_business_name: trim(body.billing_business_name),
+        billing_contact_name: trim(body.billing_contact_name),
+        billing_email: trim(body.billing_email),
+        billing_phone: trim(body.billing_phone),
+        billing_address: trim(body.billing_address),
+        billing_city: trim(body.billing_city),
+        billing_state: trim(body.billing_state),
+        billing_zip: trim(body.billing_zip),
         subtotal,
         shipping_estimate: shippingTotal,
         total,
@@ -96,6 +137,43 @@ export async function POST(req: NextRequest) {
 
     if (itemsError) {
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
+    }
+
+    // Fire "order placed" emails immediately at checkout submission so the
+    // buyer and fulfillment mailbox both see it right away — invoice link
+    // follows on the same page. handleCoffeeOrderCompleted fires a second
+    // confirmation once payment lands (via QB webhook).
+    try {
+      const emailParams = {
+        orderNumber,
+        operatorName: user.full_name || "Operator",
+        operatorEmail: user.email || "",
+        items: orderItems.map(({ shipping_cost: _, ...i }) => i),
+        subtotal,
+        shippingEstimate: shippingTotal,
+        total,
+        shippingBusinessName: trim(body.shipping_business_name),
+        shippingName: trim(body.shipping_name),
+        shippingAddress: trim(body.shipping_address),
+        shippingCity: trim(body.shipping_city),
+        shippingState: trim(body.shipping_state),
+        shippingZip: trim(body.shipping_zip),
+        shippingPhone: trim(body.shipping_phone),
+        billingBusinessName: trim(body.billing_business_name),
+        billingContactName: trim(body.billing_contact_name),
+        billingEmail: trim(body.billing_email),
+        billingPhone: trim(body.billing_phone),
+        billingAddress: trim(body.billing_address),
+        billingCity: trim(body.billing_city),
+        billingState: trim(body.billing_state),
+        billingZip: trim(body.billing_zip),
+      };
+      await Promise.all([
+        sendCoffeeOrderNotification(emailParams),
+        sendCoffeeOrderConfirmation(emailParams),
+      ]);
+    } catch {
+      // Email failures should not block the order
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";

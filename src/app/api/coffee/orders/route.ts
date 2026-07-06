@@ -42,6 +42,34 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
+    // Business billing address AND shipping address are mandatory for every
+    // new order.
+    const trim = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+    const requiredFields: Array<[string, string]> = [
+      ["billing_business_name", "Billing business name is required"],
+      ["billing_contact_name", "Billing contact name is required"],
+      ["billing_email", "Billing email is required"],
+      ["billing_phone", "Billing phone is required"],
+      ["billing_address", "Billing street address is required"],
+      ["billing_city", "Billing city is required"],
+      ["billing_state", "Billing state is required"],
+      ["billing_zip", "Billing zip is required"],
+      ["shipping_business_name", "Shipping business name is required"],
+      ["shipping_name", "Shipping contact name is required"],
+      ["shipping_address", "Shipping street address is required"],
+      ["shipping_city", "Shipping city is required"],
+      ["shipping_state", "Shipping state is required"],
+      ["shipping_zip", "Shipping zip is required"],
+      ["shipping_phone", "Shipping phone is required"],
+    ];
+    for (const [field, message] of requiredFields) {
+      if (!trim(body[field])) return NextResponse.json({ error: message }, { status: 400 });
+    }
+    const billingEmail = trim(body.billing_email);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billingEmail)) {
+      return NextResponse.json({ error: "Billing email is not a valid address" }, { status: 400 });
+    }
+
     const { data: cartItems, error: cartError } = await supabaseAdmin
       .from("coffee_cart_items")
       .select("*, coffee_products(id, name, sku, price, active, stock_status)")
@@ -89,12 +117,23 @@ export async function POST(req: NextRequest) {
       .insert({
         operator_id: user.id,
         order_number: orderNumber,
-        shipping_name: body.shipping_name ?? null,
-        shipping_address: body.shipping_address ?? null,
-        shipping_city: body.shipping_city ?? null,
-        shipping_state: body.shipping_state ?? null,
-        shipping_zip: body.shipping_zip ?? null,
-        shipping_phone: body.shipping_phone ?? null,
+        // Ship-to
+        shipping_business_name: trim(body.shipping_business_name),
+        shipping_name: trim(body.shipping_name),
+        shipping_address: trim(body.shipping_address),
+        shipping_city: trim(body.shipping_city),
+        shipping_state: trim(body.shipping_state),
+        shipping_zip: trim(body.shipping_zip),
+        shipping_phone: trim(body.shipping_phone),
+        // Bill-to
+        billing_business_name: trim(body.billing_business_name),
+        billing_contact_name: trim(body.billing_contact_name),
+        billing_email: trim(body.billing_email),
+        billing_phone: trim(body.billing_phone),
+        billing_address: trim(body.billing_address),
+        billing_city: trim(body.billing_city),
+        billing_state: trim(body.billing_state),
+        billing_zip: trim(body.billing_zip),
         subtotal,
         shipping_estimate: shippingEstimate,
         total,
@@ -133,11 +172,21 @@ export async function POST(req: NextRequest) {
       subtotal,
       shippingEstimate,
       total,
-      shippingName: body.shipping_name,
-      shippingAddress: body.shipping_address,
-      shippingCity: body.shipping_city,
-      shippingState: body.shipping_state,
-      shippingZip: body.shipping_zip,
+      shippingBusinessName: trim(body.shipping_business_name),
+      shippingName: trim(body.shipping_name),
+      shippingAddress: trim(body.shipping_address),
+      shippingCity: trim(body.shipping_city),
+      shippingState: trim(body.shipping_state),
+      shippingZip: trim(body.shipping_zip),
+      shippingPhone: trim(body.shipping_phone),
+      billingBusinessName: trim(body.billing_business_name),
+      billingContactName: trim(body.billing_contact_name),
+      billingEmail: trim(body.billing_email),
+      billingPhone: trim(body.billing_phone),
+      billingAddress: trim(body.billing_address),
+      billingCity: trim(body.billing_city),
+      billingState: trim(body.billing_state),
+      billingZip: trim(body.billing_zip),
     };
 
     try {
