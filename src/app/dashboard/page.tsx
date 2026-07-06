@@ -653,7 +653,7 @@ export default function DashboardPage() {
           )}
           {profile.role === "operator" && (
             <Link
-              href="/operator/marketplace"
+              href="/operator/contracts"
               className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
             >
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-primary group-hover:text-white">
@@ -661,10 +661,10 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="font-semibold text-black-primary">
-                  Placement Marketplace
+                  Your Placement Contracts
                 </p>
                 <p className="text-sm text-black-primary/50">
-                  Review locations our placement partners have found for you
+                  Contract-by-contract view of the locations our placement partners are finding for you — approve, invoice, and track payment
                 </p>
               </div>
               <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-green-primary" />

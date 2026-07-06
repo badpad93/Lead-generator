@@ -467,9 +467,9 @@ export async function notifyOperatorSubmissionReady(submissionId: string): Promi
 
   const html = renderShell({
     heading: "A new location is ready for your review",
-    intro: "Our placement network sourced a candidate location for you. Accept to lock the slot and start install, or reject to pass.",
-    ctaLabel: "Review Location",
-    ctaHref: `${SITE_URL}/operator/marketplace/${submission.id}`,
+    intro: "Our placement network sourced a candidate location for you. Accept to lock the slot and generate the invoice, or reject to pass. See it alongside every other submission on this contract in your Placement Contracts dashboard.",
+    ctaLabel: "Review on your contract",
+    ctaHref: `${SITE_URL}/operator/contracts/${submission.contract_id}`,
     facts: [
       ["Business", submission.business_name],
       ["Location", [submission.city, submission.state].filter(Boolean).join(", ") || "—"],

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, MapPin, Package, Clock, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, TrendingUp } from "lucide-react";
+import { Loader2, MapPin, Package, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface Contract {
@@ -26,7 +26,6 @@ interface ContractDetail {
   contract: Contract;
   requirements: Array<{ industry: string | null; min_employees: number | null; min_traffic_score: number | null; power_required: boolean; parking_required: boolean }>;
   accepted: boolean;
-  my_pending_tier_proposal: { to_tier: number; status: string } | null;
   eligibility: { eligible: boolean; reasons: string[] };
 }
 
@@ -38,9 +37,6 @@ export default function ContractDetailPage() {
   const [data, setData] = useState<ContractDetail | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showTierModal, setShowTierModal] = useState(false);
-  const [tierChoice, setTierChoice] = useState<2 | 3>(2);
-  const [tierReason, setTierReason] = useState("");
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -78,30 +74,11 @@ export default function ContractDetailPage() {
     setSaving(null);
   }
 
-  async function proposeTier() {
-    setError(null);
-    setSaving("tier");
-    const res = await fetch(`/api/marketplace/contracts/${id}/tier-proposal`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ to_tier: tierChoice, reason: tierReason }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(body.error || "Failed to propose tier");
-    } else {
-      setShowTierModal(false);
-      setTierReason("");
-      await load();
-    }
-    setSaving(null);
-  }
-
   if (loading || !data) {
     return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-green-primary" /></div>;
   }
 
-  const { contract, requirements, accepted, my_pending_tier_proposal, eligibility } = data;
+  const { contract, requirements, accepted, eligibility } = data;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
@@ -182,11 +159,11 @@ export default function ContractDetailPage() {
 
       {accepted ? (
         <div className="space-y-3">
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 flex items-center gap-3">
-            <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-            <div>
-              <p className="font-semibold text-emerald-900">You&apos;ve accepted this contract</p>
-              <p className="text-xs text-emerald-700">Submit candidate locations below to earn your payout.</p>
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 flex items-start gap-3">
+            <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-emerald-900">You&apos;re working on this contract</p>
+              <p className="text-xs text-emerald-700 mt-0.5">Submit as many candidate locations as you can — every accepted location pays out ${Number(contract.partner_payout).toLocaleString()}. This contract stays open to other Placement Providers until every slot is filled.</p>
             </div>
           </div>
           <Link
@@ -206,80 +183,9 @@ export default function ContractDetailPage() {
             {saving === "accept" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
             Accept Contract at Tier {contract.tier} (${Number(contract.partner_payout).toLocaleString()}/location)
           </button>
-
-          {contract.tier < 3 && (
-            <>
-              {my_pending_tier_proposal ? (
-                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <p className="text-sm font-semibold text-blue-900">
-                      Tier {my_pending_tier_proposal.to_tier} bump requested
-                    </p>
-                    <p className="text-xs text-blue-700">Waiting for admin review. You can still accept at Tier {contract.tier} above.</p>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowTierModal(true)}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 px-6 py-3 text-sm font-medium text-gray-700 cursor-pointer"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  Request Tier Bump
-                </button>
-              )}
-            </>
-          )}
         </div>
       )}
 
-      {showTierModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-1">Request Tier Bump</h2>
-            <p className="text-xs text-gray-500 mb-4">Ask admin to move this contract to a higher tier before you accept. Only approved bumps unlock the higher payout.</p>
-
-            <label className="block text-xs font-medium text-gray-600 mb-1">Requested Tier</label>
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              {([2, 3] as const).filter((t) => t > contract.tier).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTierChoice(t)}
-                  className={`rounded-xl border p-3 text-left transition-colors ${tierChoice === t ? "border-green-primary bg-green-50" : "border-gray-200 hover:bg-gray-50"}`}
-                >
-                  <p className="text-sm font-semibold text-gray-900">Tier {t}</p>
-                  <p className="text-xs text-gray-500">${t === 2 ? "750" : "1,200"}/location</p>
-                </button>
-              ))}
-            </div>
-
-            <label className="block text-xs font-medium text-gray-600 mb-1">Reason (visible to admin)</label>
-            <textarea
-              value={tierReason}
-              onChange={(e) => setTierReason(e.target.value)}
-              rows={3}
-              placeholder="e.g., These are high-difficulty enterprise sites that require executive-level access."
-              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-green-primary focus:outline-none resize-none mb-4"
-            />
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowTierModal(false)}
-                className="rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={proposeTier}
-                disabled={saving === "tier"}
-                className="rounded-lg bg-green-primary hover:bg-green-hover px-4 py-2 text-sm font-semibold text-white cursor-pointer disabled:opacity-50"
-              >
-                {saving === "tier" ? "Submitting..." : "Submit Request"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
