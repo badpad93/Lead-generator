@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, Save, AlertCircle } from "lucide-react";
+import { Loader2, ArrowLeft, Save, AlertCircle, Search, X, User as UserIcon } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import { INDUSTRIES } from "@/app/placement/industries";
 import { US_STATES } from "@/lib/types";
@@ -25,6 +25,7 @@ export default function AdminNewContractPage() {
     locations_needed: 1,
     deadline_at: "",
     operator_business_name: "",
+    operator_profile_id: "" as string | "",
     power_required: true,
     parking_required: false,
     min_employees: "",
@@ -39,6 +40,14 @@ export default function AdminNewContractPage() {
     custom_pricing: false,
   });
 
+  // Operator picker
+  interface OperatorHit { id: string; full_name: string | null; email: string | null; company_name: string | null; city: string | null; state: string | null }
+  const [opQuery, setOpQuery] = useState("");
+  const [opResults, setOpResults] = useState<OperatorHit[]>([]);
+  const [opSearching, setOpSearching] = useState(false);
+  const [opSelected, setOpSelected] = useState<OperatorHit | null>(null);
+  const [opOpen, setOpOpen] = useState(false);
+
   useEffect(() => {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -46,6 +55,36 @@ export default function AdminNewContractPage() {
       setToken(session.access_token);
     });
   }, [router]);
+
+  // Debounced operator search
+  useEffect(() => {
+    if (!token || !opOpen) return;
+    const timer = setTimeout(async () => {
+      setOpSearching(true);
+      const res = await fetch(`/api/admin/marketplace/operators?q=${encodeURIComponent(opQuery)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setOpResults(await res.json());
+      setOpSearching(false);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [opQuery, token, opOpen]);
+
+  function selectOperator(op: OperatorHit) {
+    setOpSelected(op);
+    setForm((f) => ({
+      ...f,
+      operator_profile_id: op.id,
+      operator_business_name: op.company_name || op.full_name || "",
+    }));
+    setOpOpen(false);
+    setOpQuery("");
+  }
+
+  function clearOperator() {
+    setOpSelected(null);
+    setForm((f) => ({ ...f, operator_profile_id: "", operator_business_name: "" }));
+  }
 
   function toggleIndustry(name: string) {
     setForm((f) => ({
@@ -75,6 +114,7 @@ export default function AdminNewContractPage() {
       locations_needed: Number(form.locations_needed) || 1,
       deadline_at: form.deadline_at || null,
       operator_business_name: form.operator_business_name.trim() || null,
+      operator_profile_id: form.operator_profile_id || null,
       power_required: form.power_required,
       parking_required: form.parking_required,
       min_employees: form.min_employees ? Number(form.min_employees) : null,
@@ -145,14 +185,75 @@ export default function AdminNewContractPage() {
               />
             </div>
             <div>
-              <label className={labelClass}>Operator (internal reference, not shown to partners)</label>
-              <input
-                type="text"
-                value={form.operator_business_name}
-                onChange={(e) => setForm((f) => ({ ...f, operator_business_name: e.target.value }))}
-                placeholder="Acme Vending LLC"
-                className={inputClass}
-              />
+              <label className={labelClass}>Attach to Operator Account</label>
+              <p className="text-[11px] text-gray-500 mb-2">The operator sees this contract on <code>/operator/contracts</code>, can review submitted locations, get billed for accepted ones, and receive notifications. Not shown to partners.</p>
+              {opSelected ? (
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <UserIcon className="h-4 w-4 text-emerald-700 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-emerald-900 truncate">{opSelected.company_name || opSelected.full_name}</p>
+                      <p className="text-xs text-emerald-700 truncate">{opSelected.email}{opSelected.city ? ` · ${opSelected.city}${opSelected.state ? `, ${opSelected.state}` : ""}` : ""}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearOperator}
+                    className="text-emerald-700 hover:text-emerald-900 shrink-0"
+                    title="Detach"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 focus-within:border-green-primary">
+                    <Search className="h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={opQuery}
+                      onFocus={() => setOpOpen(true)}
+                      onChange={(e) => { setOpQuery(e.target.value); setOpOpen(true); }}
+                      placeholder="Search by name, email, or company…"
+                      className="flex-1 text-sm outline-none"
+                    />
+                    {opSearching && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+                  </div>
+                  {opOpen && (opResults.length > 0 || opQuery.length > 0) && (
+                    <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-xl border border-gray-200 bg-white shadow-lg max-h-64 overflow-y-auto">
+                      {opResults.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-gray-500">No operators match. Users must have <code>role=&apos;operator&apos;</code> to show here.</p>
+                      ) : (
+                        opResults.map((op) => (
+                          <button
+                            key={op.id}
+                            type="button"
+                            onClick={() => selectOperator(op)}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-b-0"
+                          >
+                            <p className="font-medium text-gray-900">{op.company_name || op.full_name}</p>
+                            <p className="text-gray-500">{op.email}{op.city ? ` · ${op.city}${op.state ? `, ${op.state}` : ""}` : ""}</p>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Free-text fallback in case the operator has no profile yet — kept but de-emphasized */}
+              {!opSelected && (
+                <details className="mt-2">
+                  <summary className="text-[11px] text-gray-400 cursor-pointer">Operator has no account yet? Enter a business name manually</summary>
+                  <input
+                    type="text"
+                    value={form.operator_business_name}
+                    onChange={(e) => setForm((f) => ({ ...f, operator_business_name: e.target.value }))}
+                    placeholder="Acme Vending LLC"
+                    className={inputClass + " mt-1"}
+                  />
+                  <p className="text-[10px] text-amber-700 mt-1">Without an attached operator account, no one can see this contract on the operator side. Prefer attaching to a real account.</p>
+                </details>
+              )}
             </div>
           </div>
         </div>
