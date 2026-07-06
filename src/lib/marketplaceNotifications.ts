@@ -29,6 +29,7 @@ function getResend(): Resend | null {
 export type EventType =
   | "partner_contract_opened"
   | "admin_submission_created"
+  | "operator_submission_created"
   | "operator_submission_ready"
   | "partner_submission_reviewed"
   | "partner_operator_decided"
@@ -485,6 +486,74 @@ export async function notifyOperatorSubmissionReady(submissionId: string): Promi
     subject: `Location ready to review — ${submission.business_name}`,
     html,
     dedupKey: `operator_submission_ready:${submission.id}`,
+    submissionId: submission.id,
+    contractId: submission.contract_id,
+  });
+}
+
+/**
+ * Operator heads-up sent at PP-submit time — the location is still under
+ * admin review so it won't yet show on the operator's contract detail
+ * page (view filters admin_status='approved'). Kept short: this is a
+ * "keep an eye on your inbox" ping, not the "ready to buy" ping.
+ * notifyOperatorSubmissionReady still fires separately on admin approve.
+ */
+export async function notifyOperatorSubmissionCreated(submissionId: string): Promise<void> {
+  const { data: submission } = await supabaseAdmin
+    .from("placement_submissions")
+    .select("id, business_name, city, state, contract_id")
+    .eq("id", submissionId)
+    .maybeSingle();
+  if (!submission) return;
+
+  const { data: contract } = await supabaseAdmin
+    .from("placement_contracts")
+    .select("title, tier, operator_profile_id, source_agreement_id")
+    .eq("id", submission.contract_id)
+    .maybeSingle();
+  if (!contract) return;
+
+  // Resolve operator email — profile first, then agreement fallback.
+  let operatorEmail: string | null = null;
+  let operatorProfileId: string | null = contract.operator_profile_id || null;
+  if (operatorProfileId) {
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("email")
+      .eq("id", operatorProfileId)
+      .maybeSingle();
+    operatorEmail = profile?.email || null;
+  }
+  if (!operatorEmail && contract.source_agreement_id) {
+    const { data: ag } = await supabaseAdmin
+      .from("purchase_agreements")
+      .select("operator_email")
+      .eq("id", contract.source_agreement_id)
+      .maybeSingle();
+    operatorEmail = ag?.operator_email || null;
+  }
+  if (!operatorEmail) return;
+
+  const html = renderShell({
+    heading: "A placement provider submitted a new candidate",
+    intro: "Our placement network just added a candidate location to your contract. It's under Vending Connector review — you'll get a follow-up email the moment it's ready to accept.",
+    ctaLabel: "Open your contract",
+    ctaHref: `${SITE_URL}/operator/contracts/${submission.contract_id}`,
+    facts: [
+      ["Business", submission.business_name],
+      ["Location", [submission.city, submission.state].filter(Boolean).join(", ") || "—"],
+      ["Contract", contract.title],
+    ],
+    footer: "You'll only see location content — never the partner's identity.",
+  });
+
+  await sendNotification({
+    event: "operator_submission_created",
+    recipientEmail: operatorEmail,
+    recipientProfileId: operatorProfileId,
+    subject: `New candidate location under review — ${submission.business_name}`,
+    html,
+    dedupKey: `operator_submission_created:${submission.id}`,
     submissionId: submission.id,
     contractId: submission.contract_id,
   });

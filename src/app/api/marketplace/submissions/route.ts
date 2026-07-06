@@ -83,8 +83,9 @@ export async function POST(req: NextRequest) {
     description: `Submitted "${businessName}"`,
   });
 
-  const { notifyAdminSubmissionCreated } = await import("@/lib/marketplaceNotifications");
+  const { notifyAdminSubmissionCreated, notifyOperatorSubmissionCreated } = await import("@/lib/marketplaceNotifications");
   notifyAdminSubmissionCreated(submission.id).catch(() => undefined);
+  notifyOperatorSubmissionCreated(submission.id).catch(() => undefined);
 
   return NextResponse.json(submission);
 }
