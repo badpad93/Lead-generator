@@ -122,7 +122,9 @@ export async function POST(req: NextRequest) {
       ...basePayload,
       // Location contact (recipient of the agreement). Body values win over
       // lead prefill so the rep can override on the edit screen.
-      lead_id: leadRow?.id || null,
+      // Note: forward link to the lead lives on sales_leads.location_placement_agreement_id
+      // (stamped below) — purchase_agreements has no lead_id column, so we
+      // don't reference it here.
       location_business_name: body.location_business_name || leadRow?.business_name || "",
       location_contact_name: body.location_contact_name || leadRow?.contact_name || "",
       location_contact_email: body.location_contact_email || leadRow?.email || "",
