@@ -30,18 +30,47 @@ interface OrderNotificationParams {
   subtotal: number;
   shippingEstimate: number;
   total: number;
+  // Ship-to
+  shippingBusinessName?: string | null;
   shippingName?: string | null;
   shippingAddress?: string | null;
   shippingCity?: string | null;
   shippingState?: string | null;
   shippingZip?: string | null;
+  shippingPhone?: string | null;
+  // Bill-to
+  billingBusinessName?: string | null;
+  billingContactName?: string | null;
+  billingEmail?: string | null;
+  billingPhone?: string | null;
+  billingAddress?: string | null;
+  billingCity?: string | null;
+  billingState?: string | null;
+  billingZip?: string | null;
+}
+
+function addressBlockHtml(label: string, business: string | null | undefined, contact: string | null | undefined, address: string | null | undefined, city: string | null | undefined, state: string | null | undefined, zip: string | null | undefined, phone: string | null | undefined, email: string | null | undefined): string {
+  const lines: string[] = [];
+  if (business) lines.push(`<strong>${business}</strong>`);
+  if (contact) lines.push(contact);
+  if (address) lines.push(address);
+  const cityState = [city, state].filter(Boolean).join(", ");
+  const cityZip = zip ? `${cityState} ${zip}` : cityState;
+  if (cityZip) lines.push(cityZip);
+  if (phone) lines.push(`Phone: ${phone}`);
+  if (email) lines.push(`Email: ${email}`);
+  if (lines.length === 0) return "";
+  return `
+    <div style="flex: 1; min-width: 220px; padding: 12px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <p style="margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; font-weight: 600;">${label}</p>
+      <p style="margin: 0; font-size: 13px; color: #111827; line-height: 1.5;">${lines.join("<br/>")}</p>
+    </div>`;
 }
 
 export async function sendCoffeeOrderNotification(params: OrderNotificationParams) {
   const {
     orderNumber, operatorName, operatorEmail, items,
     subtotal, shippingEstimate, total,
-    shippingName, shippingAddress, shippingCity, shippingState, shippingZip,
   } = params;
 
   const itemRows = items
@@ -56,9 +85,31 @@ export async function sendCoffeeOrderNotification(params: OrderNotificationParam
     )
     .join("");
 
-  const shippingLine = [shippingName, shippingAddress, [shippingCity, shippingState].filter(Boolean).join(", "), shippingZip]
-    .filter(Boolean)
-    .join("<br/>");
+  const billingBlock = addressBlockHtml(
+    "Bill To",
+    params.billingBusinessName,
+    params.billingContactName,
+    params.billingAddress,
+    params.billingCity,
+    params.billingState,
+    params.billingZip,
+    params.billingPhone,
+    params.billingEmail,
+  );
+  const shippingBlock = addressBlockHtml(
+    "Ship To",
+    params.shippingBusinessName,
+    params.shippingName,
+    params.shippingAddress,
+    params.shippingCity,
+    params.shippingState,
+    params.shippingZip,
+    params.shippingPhone,
+    null,
+  );
+  const addressRow = (billingBlock || shippingBlock)
+    ? `<div style="display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0;">${billingBlock}${shippingBlock}</div>`
+    : "";
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 640px; margin: 0 auto; padding: 32px 24px;">
@@ -69,8 +120,8 @@ export async function sendCoffeeOrderNotification(params: OrderNotificationParam
 
       <div style="background: #f9fafb; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
         <h2 style="margin: 0 0 16px; font-size: 18px; color: #111827;">Order ${orderNumber}</h2>
-        <p style="margin: 0 0 8px; font-size: 14px; color: #374151;"><strong>Operator:</strong> ${operatorName} (${operatorEmail})</p>
-        ${shippingLine ? `<p style="margin: 0 0 16px; font-size: 14px; color: #374151;"><strong>Ship To:</strong><br/>${shippingLine}</p>` : ""}
+        <p style="margin: 0 0 8px; font-size: 14px; color: #374151;"><strong>Placed by:</strong> ${operatorName} (${operatorEmail})</p>
+        ${addressRow}
 
         <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px;">
           <thead>
@@ -130,6 +181,32 @@ export async function sendCoffeeOrderConfirmation(params: OrderNotificationParam
     )
     .join("");
 
+  const billingBlock = addressBlockHtml(
+    "Bill To",
+    params.billingBusinessName,
+    params.billingContactName,
+    params.billingAddress,
+    params.billingCity,
+    params.billingState,
+    params.billingZip,
+    params.billingPhone,
+    params.billingEmail,
+  );
+  const shippingBlock = addressBlockHtml(
+    "Ship To",
+    params.shippingBusinessName,
+    params.shippingName,
+    params.shippingAddress,
+    params.shippingCity,
+    params.shippingState,
+    params.shippingZip,
+    params.shippingPhone,
+    null,
+  );
+  const addressRow = (billingBlock || shippingBlock)
+    ? `<div style="display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0;">${billingBlock}${shippingBlock}</div>`
+    : "";
+
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 640px; margin: 0 auto; padding: 32px 24px;">
       <div style="text-align: center; margin-bottom: 32px;">
@@ -140,6 +217,7 @@ export async function sendCoffeeOrderConfirmation(params: OrderNotificationParam
       <div style="background: #f9fafb; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
         <h2 style="margin: 0 0 16px; font-size: 18px; color: #111827;">Thank you for your order!</h2>
         <p style="margin: 0 0 16px; font-size: 14px; color: #374151;">Your order <strong>${orderNumber}</strong> has been received and is being processed.</p>
+        ${addressRow}
 
         <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px;">
           <thead>

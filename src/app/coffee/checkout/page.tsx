@@ -44,14 +44,24 @@ function CheckoutContent() {
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
+    shipping_business_name: "",
     shipping_name: "",
     shipping_address: "",
     shipping_city: "",
     shipping_state: "",
     shipping_zip: "",
     shipping_phone: "",
+    billing_business_name: "",
+    billing_contact_name: "",
+    billing_email: "",
+    billing_phone: "",
+    billing_address: "",
+    billing_city: "",
+    billing_state: "",
+    billing_zip: "",
     notes: "",
   });
+  const [billingSameAsShipping, setBillingSameAsShipping] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -82,12 +92,21 @@ function CheckoutContent() {
           }
           setForm((prev) => ({
             ...prev,
+            shipping_business_name: data.company_name || "",
             shipping_name: data.full_name || "",
             shipping_address: data.address || "",
             shipping_city: data.city || "",
             shipping_state: data.state || "",
             shipping_zip: data.zip || "",
             shipping_phone: data.phone || "",
+            billing_business_name: data.company_name || "",
+            billing_contact_name: data.full_name || "",
+            billing_email: data.email || "",
+            billing_phone: data.phone || "",
+            billing_address: data.address || "",
+            billing_city: data.city || "",
+            billing_state: data.state || "",
+            billing_zip: data.zip || "",
           }));
         }
 
@@ -114,6 +133,29 @@ function CheckoutContent() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
+  // Effective billing values honor the "same as shipping" toggle.
+  const effectiveBilling = billingSameAsShipping
+    ? {
+        billing_business_name: form.shipping_business_name,
+        billing_contact_name: form.shipping_name,
+        billing_email: form.billing_email, // email doesn't have a shipping counterpart
+        billing_phone: form.shipping_phone,
+        billing_address: form.shipping_address,
+        billing_city: form.shipping_city,
+        billing_state: form.shipping_state,
+        billing_zip: form.shipping_zip,
+      }
+    : {
+        billing_business_name: form.billing_business_name,
+        billing_contact_name: form.billing_contact_name,
+        billing_email: form.billing_email,
+        billing_phone: form.billing_phone,
+        billing_address: form.billing_address,
+        billing_city: form.billing_city,
+        billing_state: form.billing_state,
+        billing_zip: form.billing_zip,
+      };
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token) return;
@@ -129,6 +171,7 @@ function CheckoutContent() {
         },
         body: JSON.stringify({
           ...form,
+          ...effectiveBilling,
           shipping_estimate: shipping,
         }),
       });
@@ -209,63 +252,81 @@ function CheckoutContent() {
             <h2 className="text-lg font-bold text-gray-900 mb-4">Shipping Information</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={form.shipping_name}
-                  onChange={(e) => updateForm("shipping_name", e.target.value)}
-                  className={inputClass}
-                />
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Business Name <span className="text-red-500">*</span></label>
+                <input type="text" required value={form.shipping_business_name} onChange={(e) => updateForm("shipping_business_name", e.target.value)} className={inputClass} />
               </div>
               <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Address</label>
-                <input
-                  type="text"
-                  required
-                  value={form.shipping_address}
-                  onChange={(e) => updateForm("shipping_address", e.target.value)}
-                  className={inputClass}
-                />
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Contact Name <span className="text-red-500">*</span></label>
+                <input type="text" required value={form.shipping_name} onChange={(e) => updateForm("shipping_name", e.target.value)} className={inputClass} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Street Address <span className="text-red-500">*</span></label>
+                <input type="text" required value={form.shipping_address} onChange={(e) => updateForm("shipping_address", e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">City</label>
-                <input
-                  type="text"
-                  required
-                  value={form.shipping_city}
-                  onChange={(e) => updateForm("shipping_city", e.target.value)}
-                  className={inputClass}
-                />
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">City <span className="text-red-500">*</span></label>
+                <input type="text" required value={form.shipping_city} onChange={(e) => updateForm("shipping_city", e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">State</label>
-                <input
-                  type="text"
-                  required
-                  value={form.shipping_state}
-                  onChange={(e) => updateForm("shipping_state", e.target.value)}
-                  className={inputClass}
-                />
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">State <span className="text-red-500">*</span></label>
+                <input type="text" required value={form.shipping_state} onChange={(e) => updateForm("shipping_state", e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">ZIP Code</label>
-                <input
-                  type="text"
-                  required
-                  value={form.shipping_zip}
-                  onChange={(e) => updateForm("shipping_zip", e.target.value)}
-                  className={inputClass}
-                />
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">ZIP Code <span className="text-red-500">*</span></label>
+                <input type="text" required value={form.shipping_zip} onChange={(e) => updateForm("shipping_zip", e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Phone</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Phone <span className="text-red-500">*</span></label>
+                <input type="tel" required value={form.shipping_phone} onChange={(e) => updateForm("shipping_phone", e.target.value)} className={inputClass} />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Billing Information</h2>
+              <label className="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                 <input
-                  type="tel"
-                  value={form.shipping_phone}
-                  onChange={(e) => updateForm("shipping_phone", e.target.value)}
-                  className={inputClass}
+                  type="checkbox"
+                  checked={billingSameAsShipping}
+                  onChange={(e) => setBillingSameAsShipping(e.target.checked)}
+                  className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                 />
+                Same as shipping
+              </label>
+            </div>
+            <div className={`grid gap-4 sm:grid-cols-2 ${billingSameAsShipping ? "opacity-50 pointer-events-none" : ""}`}>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Business / Legal Entity Name <span className="text-red-500">*</span></label>
+                <input type="text" required={!billingSameAsShipping} value={billingSameAsShipping ? form.shipping_business_name : form.billing_business_name} onChange={(e) => updateForm("billing_business_name", e.target.value)} className={inputClass} disabled={billingSameAsShipping} />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Contact Name <span className="text-red-500">*</span></label>
+                <input type="text" required={!billingSameAsShipping} value={billingSameAsShipping ? form.shipping_name : form.billing_contact_name} onChange={(e) => updateForm("billing_contact_name", e.target.value)} className={inputClass} disabled={billingSameAsShipping} />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Billing Email <span className="text-red-500">*</span></label>
+                <input type="email" required value={form.billing_email} onChange={(e) => updateForm("billing_email", e.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Billing Phone <span className="text-red-500">*</span></label>
+                <input type="tel" required={!billingSameAsShipping} value={billingSameAsShipping ? form.shipping_phone : form.billing_phone} onChange={(e) => updateForm("billing_phone", e.target.value)} className={inputClass} disabled={billingSameAsShipping} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Street Address <span className="text-red-500">*</span></label>
+                <input type="text" required={!billingSameAsShipping} value={billingSameAsShipping ? form.shipping_address : form.billing_address} onChange={(e) => updateForm("billing_address", e.target.value)} className={inputClass} disabled={billingSameAsShipping} />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">City <span className="text-red-500">*</span></label>
+                <input type="text" required={!billingSameAsShipping} value={billingSameAsShipping ? form.shipping_city : form.billing_city} onChange={(e) => updateForm("billing_city", e.target.value)} className={inputClass} disabled={billingSameAsShipping} />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">State <span className="text-red-500">*</span></label>
+                <input type="text" required={!billingSameAsShipping} value={billingSameAsShipping ? form.shipping_state : form.billing_state} onChange={(e) => updateForm("billing_state", e.target.value)} className={inputClass} disabled={billingSameAsShipping} />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">ZIP Code <span className="text-red-500">*</span></label>
+                <input type="text" required={!billingSameAsShipping} value={billingSameAsShipping ? form.shipping_zip : form.billing_zip} onChange={(e) => updateForm("billing_zip", e.target.value)} className={inputClass} disabled={billingSameAsShipping} />
               </div>
             </div>
           </div>

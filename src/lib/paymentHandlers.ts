@@ -535,11 +535,21 @@ export async function handleCoffeeOrderCompleted(params: {
       subtotal: Number(order.subtotal),
       shippingEstimate: Number(order.shipping_estimate),
       total: Number(order.total),
+      shippingBusinessName: order.shipping_business_name,
       shippingName: order.shipping_name,
       shippingAddress: order.shipping_address,
       shippingCity: order.shipping_city,
       shippingState: order.shipping_state,
       shippingZip: order.shipping_zip,
+      shippingPhone: order.shipping_phone,
+      billingBusinessName: order.billing_business_name,
+      billingContactName: order.billing_contact_name,
+      billingEmail: order.billing_email,
+      billingPhone: order.billing_phone,
+      billingAddress: order.billing_address,
+      billingCity: order.billing_city,
+      billingState: order.billing_state,
+      billingZip: order.billing_zip,
     };
 
     await Promise.all([
