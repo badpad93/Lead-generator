@@ -64,6 +64,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     updates.partner_payout = p.partner_payout;
     updates.platform_fee = p.platform_fee;
     activityDesc = `Tier set to ${tier} (PP $${p.partner_payout} / Op $${p.operator_price})`;
+  } else if (body.action === "attach_operator") {
+    const operatorId = typeof body.operator_profile_id === "string" ? body.operator_profile_id.trim() : "";
+    if (!operatorId) {
+      // Detach path — clear the link so the operator no longer sees it.
+      updates.operator_profile_id = null;
+      updates.operator_business_name = null;
+      activityDesc = "Operator detached from contract";
+    } else {
+      const { data: op } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, email, company_name, role")
+        .eq("id", operatorId)
+        .maybeSingle();
+      if (!op) return NextResponse.json({ error: "Operator profile not found" }, { status: 400 });
+      if (op.role !== "operator") return NextResponse.json({ error: "Selected profile is not an operator" }, { status: 400 });
+      updates.operator_profile_id = op.id;
+      updates.operator_business_name = op.company_name || op.full_name || op.email;
+      activityDesc = `Contract attached to operator ${op.company_name || op.full_name || op.email}`;
+    }
   } else if (body.action === "set_pricing") {
     // Admin-customizable pricing override — no tier tie-in.
     const parseCents = (v: unknown): number | null => {

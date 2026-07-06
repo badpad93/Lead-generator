@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, CheckCircle2, XCircle, Play, TrendingUp, Package, Clock, AlertCircle, ChevronRight } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle2, XCircle, Play, TrendingUp, Package, Clock, AlertCircle, ChevronRight, Search, User as UserIcon, X, Link2 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import { TIERS } from "@/lib/marketplacePricing";
 
@@ -24,7 +24,17 @@ interface Contract {
   status: string;
   notes: string | null;
   operator_business_name: string | null;
+  operator_profile_id: string | null;
   created_at: string;
+}
+
+interface OperatorHit {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  company_name: string | null;
+  city: string | null;
+  state: string | null;
 }
 
 interface Requirement {
@@ -103,6 +113,12 @@ export default function AdminContractDetailPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Operator attach picker
+  const [showAttach, setShowAttach] = useState(false);
+  const [opQuery, setOpQuery] = useState("");
+  const [opResults, setOpResults] = useState<OperatorHit[]>([]);
+  const [opSearching, setOpSearching] = useState(false);
+
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
@@ -122,6 +138,25 @@ export default function AdminContractDetailPage() {
   }, [router, id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!token || !showAttach) return;
+    const timer = setTimeout(async () => {
+      setOpSearching(true);
+      const res = await fetch(`/api/admin/marketplace/operators?q=${encodeURIComponent(opQuery)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setOpResults(await res.json());
+      setOpSearching(false);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [opQuery, token, showAttach]);
+
+  async function attachOperator(operatorId: string | null) {
+    await contractAction("attach_operator", { operator_profile_id: operatorId });
+    setShowAttach(false);
+    setOpQuery("");
+  }
 
   async function contractAction(action: string, extra: Record<string, unknown> = {}) {
     setError(null);
@@ -178,8 +213,75 @@ export default function AdminContractDetailPage() {
               </span>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">{contract.title}</h1>
-            {contract.operator_business_name && (
-              <p className="text-xs text-gray-500 mt-1">Operator: {contract.operator_business_name}</p>
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              {contract.operator_profile_id ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs">
+                  <UserIcon className="h-3 w-3 text-emerald-700" />
+                  <span className="text-emerald-900 font-medium">{contract.operator_business_name || "Operator attached"}</span>
+                  <button
+                    onClick={() => setShowAttach(true)}
+                    className="text-emerald-700 hover:text-emerald-900 ml-1 underline"
+                  >
+                    change
+                  </button>
+                  <button
+                    onClick={() => attachOperator(null)}
+                    disabled={saving === "attach_operator"}
+                    className="text-emerald-700 hover:text-red-700 ml-1"
+                    title="Detach"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ) : (
+                <button
+                  onClick={() => setShowAttach(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs text-amber-900 hover:bg-amber-100 cursor-pointer"
+                >
+                  <Link2 className="h-3 w-3" /> No operator attached — click to attach
+                </button>
+              )}
+              {contract.operator_business_name && !contract.operator_profile_id && (
+                <span className="text-[10px] text-amber-700">(legacy free-text; not visible on operator side)</span>
+              )}
+            </div>
+
+            {showAttach && (
+              <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3 max-w-md relative">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-700">Attach to operator account</p>
+                  <button onClick={() => setShowAttach(false)} className="text-gray-400 hover:text-gray-600"><X className="h-3.5 w-3.5" /></button>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-2 py-1.5 focus-within:border-green-primary">
+                  <Search className="h-3.5 w-3.5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={opQuery}
+                    onChange={(e) => setOpQuery(e.target.value)}
+                    placeholder="Search operators by name, email, or company…"
+                    className="flex-1 text-xs outline-none"
+                    autoFocus
+                  />
+                  {opSearching && <Loader2 className="h-3 w-3 animate-spin text-gray-400" />}
+                </div>
+                <div className="mt-2 max-h-56 overflow-y-auto">
+                  {opResults.length === 0 ? (
+                    <p className="text-xs text-gray-500 px-2 py-1.5">No operators match.</p>
+                  ) : (
+                    opResults.map((op) => (
+                      <button
+                        key={op.id}
+                        onClick={() => attachOperator(op.id)}
+                        disabled={saving === "attach_operator"}
+                        className="w-full text-left px-2 py-1.5 hover:bg-gray-50 rounded-md text-xs border-b border-gray-50 last:border-b-0 disabled:opacity-50"
+                      >
+                        <p className="font-medium text-gray-900">{op.company_name || op.full_name}</p>
+                        <p className="text-gray-500">{op.email}{op.city ? ` · ${op.city}${op.state ? `, ${op.state}` : ""}` : ""}</p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
