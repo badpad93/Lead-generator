@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, Upload, CheckCircle2, XCircle, Clock, AlertCircle, MapPin, User, Phone, Mail, Zap, Car, MessageSquare } from "lucide-react";
+import { Loader2, ArrowLeft, Upload, CheckCircle2, XCircle, Clock, AlertCircle, MapPin, User, Phone, Mail, Zap, Car, MessageSquare, Store, ExternalLink } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import RatingCard, { ExistingRating } from "@/app/components/RatingCard";
 
@@ -29,6 +29,8 @@ interface Submission {
   operator_status: string;
   operator_reviewed_at?: string | null;
   admin_review_note: string | null;
+  operator_review_note: string | null;
+  public_listing_id: string | null;
   created_at: string;
   placement_contracts: {
     title: string;
@@ -71,6 +73,15 @@ export default function SubmissionDetailPage() {
   const [rating, setRating] = useState<ExistingRating | null>(null);
   const [ratingSaving, setRatingSaving] = useState(false);
   const [ratingError, setRatingError] = useState<string | null>(null);
+
+  // Publish-to-marketplace panel (visible only when operator rejected)
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishDescription, setPublishDescription] = useState("");
+  const [publishPrice, setPublishPrice] = useState<string>("");
+  const [publishTitle, setPublishTitle] = useState("");
+  const [publishSaving, setPublishSaving] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -117,6 +128,40 @@ export default function SubmissionDetailPage() {
   }, [router, id]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function publishToMarketplace() {
+    if (!submission) return;
+    setPublishError(null);
+    setPublishSuccess(null);
+    const price = Number(publishPrice);
+    if (!publishDescription.trim() || publishDescription.trim().length < 40) {
+      setPublishError("Description must be at least 40 characters.");
+      return;
+    }
+    if (!Number.isFinite(price) || price < 100 || price > 10000) {
+      setPublishError("Price must be between $100 and $10,000.");
+      return;
+    }
+    setPublishSaving(true);
+    const res = await fetch(`/api/marketplace/submissions/${id}/publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        title: publishTitle.trim() || undefined,
+        description: publishDescription.trim(),
+        price,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setPublishSaving(false);
+    if (!res.ok) {
+      setPublishError(body.error || "Failed to publish.");
+      return;
+    }
+    setPublishSuccess("Listed — verification email sent to the location owner.");
+    setPublishOpen(false);
+    await load();
+  }
 
   async function uploadPhoto(file: File) {
     setUploading(true);
@@ -177,6 +222,135 @@ export default function SubmissionDetailPage() {
             Rejected
           </p>
           <p className="text-sm text-red-800 whitespace-pre-wrap">{submission.admin_review_note}</p>
+        </div>
+      )}
+
+      {submission.operator_status === "rejected" && (
+        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-5 mb-4">
+          {submission.public_listing_id ? (
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-emerald-100 p-2 shrink-0">
+                <Store className="h-5 w-5 text-emerald-700" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-900">
+                  Listed on the public marketplace
+                </p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Operator declined this location, but it&apos;s now live for other buyers to discover.
+                  Waiting on the location owner to verify before it goes fully public.
+                </p>
+                <Link
+                  href={`/marketplace/${submission.public_listing_id}`}
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+                >
+                  View listing <ExternalLink className="h-3 w-3" />
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-emerald-100 p-2 shrink-0">
+                  <Store className="h-5 w-5 text-emerald-700" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-gray-900">
+                    The operator declined — publish this location publicly
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Don&apos;t let the work go to waste. List this location on the public marketplace
+                    so any buyer can pick it up. We&apos;ll send the decision maker a verification
+                    email; it goes fully public once they sign the acknowledgment.
+                  </p>
+                  {submission.operator_review_note && (
+                    <p className="text-xs text-gray-500 mt-2 italic">
+                      Operator note: {submission.operator_review_note}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {!publishOpen ? (
+                <button
+                  onClick={() => {
+                    setPublishOpen(true);
+                    setPublishTitle(submission.business_name);
+                  }}
+                  className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white cursor-pointer"
+                >
+                  Publish to Public Marketplace <Store className="h-4 w-4" />
+                </button>
+              ) : (
+                <div className="mt-4 space-y-3 border-t border-emerald-100 pt-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Listing title
+                    </label>
+                    <input
+                      type="text"
+                      value={publishTitle}
+                      onChange={(e) => setPublishTitle(e.target.value)}
+                      placeholder={submission.business_name}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Description <span className="text-gray-400">(≥ 40 chars)</span>
+                    </label>
+                    <textarea
+                      value={publishDescription}
+                      onChange={(e) => setPublishDescription(e.target.value)}
+                      rows={4}
+                      placeholder="What makes this location a good vending placement? Foot traffic, industry, notable details…"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Asking price <span className="text-gray-400">($100 – $10,000)</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={publishPrice}
+                      onChange={(e) => setPublishPrice(e.target.value)}
+                      min={100}
+                      max={10000}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  {publishError && (
+                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+                      <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      <span>{publishError}</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={publishToMarketplace}
+                      disabled={publishSaving}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white cursor-pointer disabled:opacity-50"
+                    >
+                      {publishSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Store className="h-4 w-4" />}
+                      Publish Listing
+                    </button>
+                    <button
+                      onClick={() => { setPublishOpen(false); setPublishError(null); }}
+                      className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {publishSuccess && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-emerald-200 bg-white p-2 text-xs text-emerald-800">
+              <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>{publishSuccess}</span>
+            </div>
+          )}
         </div>
       )}
 
