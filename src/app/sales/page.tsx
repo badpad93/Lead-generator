@@ -339,22 +339,25 @@ export default function SalesDashboard() {
                     <p className="text-xl font-bold text-gray-900">{results.metrics.orders_completed}</p>
                   </div>
                   <div className="rounded-lg bg-green-50 p-4">
-                    <p className="text-xs text-gray-500">Commission Earned</p>
+                    <p className="text-xs text-gray-500">Manual Adjustments (Total)</p>
                     <p className="text-xl font-bold text-green-600">{fmt(results.metrics.commission_total)}</p>
                   </div>
                   <div className="rounded-lg bg-amber-50 p-4">
-                    <p className="text-xs text-gray-500">Commission Pending</p>
+                    <p className="text-xs text-gray-500">Manual Adj. — Pending</p>
                     <p className="text-xl font-bold text-amber-600">{fmt(results.metrics.commission_pending)}</p>
                   </div>
                   <div className="rounded-lg bg-blue-50 p-4">
-                    <p className="text-xs text-gray-500">Commission Approved</p>
+                    <p className="text-xs text-gray-500">Manual Adj. — Approved</p>
                     <p className="text-xl font-bold text-blue-600">{fmt(results.metrics.commission_approved)}</p>
                   </div>
                   <div className="rounded-lg bg-green-50 p-4">
-                    <p className="text-xs text-gray-500">Commission Paid</p>
+                    <p className="text-xs text-gray-500">Manual Adj. — Paid</p>
                     <p className="text-xl font-bold text-green-700">{fmt(results.metrics.commission_paid)}</p>
                   </div>
                 </div>
+                <p className="mt-2 text-[11px] text-gray-500">
+                  &ldquo;Manual Adjustments&rdquo; = bonuses / overrides recorded on <a className="text-green-primary hover:underline" href="/sales/commissions">Commissions</a>. Auto-earn from paid orders + attribution rules lives on <a className="text-green-primary hover:underline" href="/admin/financial/commissions">Financial Center → Commissions</a>. Reps see the combined view on <a className="text-green-primary hover:underline" href="/my/commissions">My Commissions</a>.
+                </p>
 
                 {/* Lead status breakdown */}
                 <div className="mt-4 flex flex-wrap gap-2 text-xs">

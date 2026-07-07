@@ -1,12 +1,19 @@
 /**
  * Commissions — resolve rate, earn on payment, reverse on refund.
  *
- * Rate resolution (most specific first):
- *   1. user_id + category   (priority 1110)
- *   2. user_id              (priority 1100)
- *   3. role_code + category (priority 110)
- *   4. role_code            (priority 100)
- *   5. is_default = true    (priority 0)
+ * Rate resolution (most specific first). Priority = user*1000 + role*100 +
+ * category*10 (each factor toggles 1 or 0 based on whether that matcher is
+ * set on the rule):
+ *   1. user_id + role_code + category  (priority 1110)
+ *   2. user_id + category              (priority 1010)
+ *   3. user_id + role_code             (priority 1100)
+ *   4. user_id                         (priority 1000)
+ *   5. role_code + category            (priority 110)
+ *   6. role_code                       (priority 100)
+ *   7. category                        (priority 10)
+ *   8. is_default = true               (priority 0)
+ *
+ * Higher priority always wins when multiple rules match.
  *
  * Earn: for each active attribution row on an order, we compute
  *     basis  = payment.amount × attribution_percentage / 100
@@ -93,14 +100,23 @@ export interface ResolveRateArgs {
 export async function resolveCommissionRule(args: ResolveRateArgs): Promise<CommissionRule | null> {
   const category = args.category ? args.category.toLowerCase() : null;
 
-  // Pull the small superset of possibly-matching rules, rank in JS.
-  const { data: rules } = await supabaseAdmin
-    .from("commission_rules")
-    .select("*")
-    .eq("is_active", true)
-    .or(`user_id.eq.${args.userId},user_id.is.null`);
-
-  const candidates = (rules || []) as CommissionRule[];
+  // Pull the small superset of possibly-matching rules, rank in JS. Two
+  // separate queries instead of a string-interpolated .or() so the UUID
+  // never enters a query string (defense in depth — args.userId is an auth
+  // id, but interpolating user-derived strings into .or() is a footgun).
+  const [{ data: userRules }, { data: sharedRules }] = await Promise.all([
+    supabaseAdmin
+      .from("commission_rules")
+      .select("*")
+      .eq("is_active", true)
+      .eq("user_id", args.userId),
+    supabaseAdmin
+      .from("commission_rules")
+      .select("*")
+      .eq("is_active", true)
+      .is("user_id", null),
+  ]);
+  const candidates = [...(userRules || []), ...(sharedRules || [])] as CommissionRule[];
 
   // Score each candidate by specificity; skip any that don't match.
   let best: CommissionRule | null = null;

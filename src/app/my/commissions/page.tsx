@@ -30,10 +30,19 @@ interface Summary {
   paid_cents: number;
   pending_clearable_cents: number;
   net_available_cents: number;
+  combined_net_available_cents: number;
   clawback_pending_cents: number;
   clawback_collected_cents: number;
   clawback_waived_cents: number;
   by_role: Record<string, number>;
+  row_count: number;
+}
+
+interface Adjustments {
+  pending_cents: number;
+  approved_unpaid_cents: number;
+  paid_cents: number;
+  total_cents: number;
   row_count: number;
 }
 
@@ -66,6 +75,7 @@ export default function MyCommissionsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [rows, setRows] = useState<LedgerRow[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [adjustments, setAdjustments] = useState<Adjustments | null>(null);
   const [statusFilter, setStatusFilter] = useState("any");
   const [sinceDays, setSinceDays] = useState(365);
 
@@ -82,6 +92,7 @@ export default function MyCommissionsPage() {
         const data = await res.json();
         setRows(data.rows || []);
         setSummary(data.summary || null);
+        setAdjustments(data.adjustments || null);
       }
     } finally {
       setRefreshing(false);
@@ -137,18 +148,69 @@ export default function MyCommissionsPage() {
         </div>
       </div>
 
-      {/* Hero: net available */}
+      {/* Hero: net available (auto-earn spine + approved manual adjustments) */}
       <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-6 mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Net available</p>
-          <p className="text-4xl font-bold text-emerald-800 mt-1">{summary ? fmt(summary.net_available_cents) : "…"}</p>
-          <p className="text-xs text-gray-500 mt-1">Earned + clearable held − reversed − outstanding clawbacks. Payouts happen manually today; admins will hand this off in your next payroll cycle.</p>
+          <p className="text-4xl font-bold text-emerald-800 mt-1">
+            {summary ? fmt(summary.combined_net_available_cents ?? summary.net_available_cents) : "…"}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            Auto-earn spine (earned + clearable held − reversed − outstanding clawbacks)
+            {adjustments && adjustments.approved_unpaid_cents > 0 && (
+              <> + approved manual adjustments ({fmt(adjustments.approved_unpaid_cents)})</>
+            )}
+            . Payouts happen manually today; admins will hand this off in your next payroll cycle.
+          </p>
         </div>
         <div className="text-right">
           <p className="text-xs text-gray-500">Lifetime paid to you</p>
-          <p className="text-2xl font-bold text-blue-700 mt-1">{summary ? fmt(summary.paid_cents) : "…"}</p>
+          <p className="text-2xl font-bold text-blue-700 mt-1">
+            {summary ? fmt(summary.paid_cents + (adjustments?.paid_cents || 0)) : "…"}
+          </p>
         </div>
       </div>
+
+      {/* Manual adjustments — only if the rep has any */}
+      {adjustments && adjustments.row_count > 0 && (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-blue-700">Manual adjustments</p>
+            <p className="text-[10px] text-blue-800/70">Bonuses + overrides entered by your director / market leader — separate from the auto-earn spine.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <p className="text-[10px] text-gray-500">Pending</p>
+              <p className="text-base font-semibold text-amber-700">{fmt(adjustments.pending_cents)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-500">Approved (unpaid)</p>
+              <p className="text-base font-semibold text-emerald-700">{fmt(adjustments.approved_unpaid_cents)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-500">Paid</p>
+              <p className="text-base font-semibold text-blue-700">{fmt(adjustments.paid_cents)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* By-role breakdown — only when the rep has earnings across multiple roles */}
+      {summary && Object.keys(summary.by_role || {}).length > 1 && (
+        <div className="rounded-2xl border border-gray-100 bg-white p-4 mb-4">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500 mb-2">Earned by role</p>
+          <div className="flex flex-wrap gap-3">
+            {Object.entries(summary.by_role)
+              .sort((a, b) => b[1] - a[1])
+              .map(([role, cents]) => (
+                <div key={role} className="min-w-[110px]">
+                  <p className="text-xs text-gray-500 capitalize">{role.replace(/_/g, " ")}</p>
+                  <p className="text-base font-semibold text-gray-900">{fmt(cents)}</p>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Summary tiles */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
