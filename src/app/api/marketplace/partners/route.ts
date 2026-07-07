@@ -51,18 +51,17 @@ export async function POST(req: NextRequest) {
   const businessName = String(body.business_name || "").trim();
   const bio = String(body.bio || "").trim();
 
-  // Only upgrade the profile role if the caller has a "no role assigned yet"
-  // role. Admins, sales, and other CRM roles keep their existing role — they
-  // may be poking at the marketplace onboarding for testing purposes and
-  // should never lose access to their real tools. If they truly need to
-  // become a placement partner, admin can flip the role manually.
+  // Dual-role model: existence of the placement_partners row IS the "has
+  // locator capability" signal. We no longer overwrite the caller's primary
+  // profile.role — an operator remains an operator + gains PP capability.
+  // Only flip role to placement_partner if the account has no role yet at
+  // all (fresh signup that came in via the /placement flow directly).
   const { data: currentProfile } = await supabaseAdmin
     .from("profiles")
     .select("role")
     .eq("id", userId)
     .maybeSingle();
-  const upgradableRoles = ["requestor", "operator", "locator", "location_manager"];
-  if (!currentProfile?.role || upgradableRoles.includes(currentProfile.role)) {
+  if (!currentProfile?.role) {
     await supabaseAdmin
       .from("profiles")
       .update({ role: "placement_partner" })

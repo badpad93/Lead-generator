@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, MapPin, Package, Clock, ArrowRight, Filter } from "lucide-react";
+import { Loader2, MapPin, Package, Clock, ArrowRight, Filter, Sparkles } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface Contract {
@@ -37,6 +37,8 @@ export default function PartnerContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [myContracts, setMyContracts] = useState<MyContract[]>([]);
   const [filter, setFilter] = useState<"all" | "tier1" | "tier2" | "tier3">("all");
+  const [isPartner, setIsPartner] = useState(true);
+  const [viewerRole, setViewerRole] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -45,8 +47,17 @@ export default function PartnerContractsPage() {
       fetch("/api/marketplace/contracts", { headers: { Authorization: `Bearer ${token}` } }),
       fetch("/api/marketplace/my-contracts", { headers: { Authorization: `Bearer ${token}` } }),
     ]);
-    if (availRes.ok) setContracts(await availRes.json());
+    if (availRes.ok) {
+      const body = await availRes.json();
+      setContracts(Array.isArray(body) ? body : body.contracts || []);
+      if (!Array.isArray(body)) {
+        setIsPartner(body.is_partner !== false);
+        setViewerRole(body.viewer_role || null);
+      }
+    }
+    // /my-contracts returns 403 for non-partners — treat that as "empty"
     if (mineRes.ok) setMyContracts(await mineRes.json());
+    else setMyContracts([]);
     setLoading(false);
   }, [token]);
 
@@ -73,6 +84,31 @@ export default function PartnerContractsPage() {
         <p className="text-sm text-gray-500 mt-1">Browse open contracts or track the ones you&apos;re working on.</p>
       </div>
 
+      {!isPartner && !loading && (
+        <div className="mb-4 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-5">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-emerald-100 p-2 shrink-0">
+              <Sparkles className="h-5 w-5 text-emerald-700" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-900">
+                Browsing as {viewerRole ? viewerRole.replace(/_/g, " ") : "guest"} — you can view all contracts.
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Add locator capability to your existing account so you can sell against these contracts too.
+                You&apos;ll keep your current {viewerRole ? viewerRole.replace(/_/g, " ") : "account"} access.
+              </p>
+              <Link
+                href="/placement/onboarding?add=1"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-semibold text-white cursor-pointer"
+              >
+                Add Locator Capability <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="mb-4 flex items-center gap-1 border-b border-gray-100">
         <button
@@ -81,12 +117,14 @@ export default function PartnerContractsPage() {
         >
           Available ({contracts.length})
         </button>
-        <button
-          onClick={() => setTab("mine")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px cursor-pointer ${tab === "mine" ? "border-green-primary text-green-primary" : "border-transparent text-gray-500 hover:text-gray-700"}`}
-        >
-          My Active Contracts ({myContracts.length})
-        </button>
+        {isPartner && (
+          <button
+            onClick={() => setTab("mine")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px cursor-pointer ${tab === "mine" ? "border-green-primary text-green-primary" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+          >
+            My Active Contracts ({myContracts.length})
+          </button>
+        )}
       </div>
 
       {tab === "available" && (

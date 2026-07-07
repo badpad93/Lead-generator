@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, MapPin, Package, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft } from "lucide-react";
+import { Loader2, Package, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, Sparkles } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface Contract {
@@ -27,6 +27,9 @@ interface ContractDetail {
   requirements: Array<{ industry: string | null; min_employees: number | null; min_traffic_score: number | null; power_required: boolean; parking_required: boolean }>;
   accepted: boolean;
   eligibility: { eligible: boolean; reasons: string[] };
+  is_partner: boolean;
+  viewer_role: string | null;
+  partner_onboarding_complete?: boolean;
 }
 
 export default function ContractDetailPage() {
@@ -78,7 +81,8 @@ export default function ContractDetailPage() {
     return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-green-primary" /></div>;
   }
 
-  const { contract, requirements, accepted, eligibility } = data;
+  const { contract, requirements, accepted, eligibility, is_partner, viewer_role, partner_onboarding_complete } = data;
+  const roleLabel = viewer_role ? viewer_role.replace(/_/g, " ") : "account";
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
@@ -145,44 +149,84 @@ export default function ContractDetailPage() {
         </div>
       )}
 
-      {!eligibility.eligible && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-semibold text-amber-900 mb-2 flex items-center gap-2">
-            <AlertCircle className="h-4 w-4" /> Not currently eligible
-          </p>
-          <ul className="text-xs text-amber-800 space-y-1 list-disc list-inside">
-            {eligibility.reasons.map((r, i) => <li key={i}>{r}</li>)}
-          </ul>
-        </div>
-      )}
-
-      {accepted ? (
-        <div className="space-y-3">
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 flex items-start gap-3">
-            <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
+      {!is_partner ? (
+        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="rounded-xl bg-emerald-100 p-2 shrink-0">
+              <Sparkles className="h-5 w-5 text-emerald-700" />
+            </div>
             <div className="flex-1">
-              <p className="font-semibold text-emerald-900">You&apos;re working on this contract</p>
-              <p className="text-xs text-emerald-700 mt-0.5">Submit as many candidate locations as you can — every accepted location pays out ${Number(contract.partner_payout).toLocaleString()}. This contract stays open to other Placement Providers until every slot is filled.</p>
+              <p className="text-base font-semibold text-gray-900">Add locator capability to accept</p>
+              <p className="text-sm text-gray-600 mt-1">
+                You&apos;re browsing as {roleLabel}. Locators sell placements against contracts like this one
+                and earn ${Number(contract.partner_payout).toLocaleString()} per accepted location. Adding this
+                capability keeps your current {roleLabel} account intact — it just unlocks the sell side.
+              </p>
+              <ul className="text-xs text-gray-600 mt-3 space-y-1 list-disc list-inside">
+                <li>Set your territories + industries</li>
+                <li>Upload W-9 + government ID</li>
+                <li>Add payout details</li>
+                <li>Sign the Placement Provider Agreement</li>
+              </ul>
             </div>
           </div>
           <Link
-            href={`/placement/submissions/new?contract=${contract.id}`}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-primary hover:bg-green-hover px-6 py-3 text-sm font-semibold text-white cursor-pointer"
+            href="/placement/onboarding?add=1"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-6 py-3 text-sm font-semibold text-white cursor-pointer"
           >
-            <Package className="h-4 w-4" /> Submit a Location
+            Add Locator Capability <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       ) : (
-        <div className="space-y-3">
-          <button
-            onClick={acceptContract}
-            disabled={!eligibility.eligible || saving === "accept"}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-primary hover:bg-green-hover px-6 py-3 text-sm font-semibold text-white cursor-pointer disabled:opacity-50"
-          >
-            {saving === "accept" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-            Accept Contract at Tier {contract.tier} (${Number(contract.partner_payout).toLocaleString()}/location)
-          </button>
-        </div>
+        <>
+          {!eligibility.eligible && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-semibold text-amber-900 mb-2 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" /> Not currently eligible
+              </p>
+              <ul className="text-xs text-amber-800 space-y-1 list-disc list-inside">
+                {eligibility.reasons.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+              {partner_onboarding_complete === false && (
+                <Link
+                  href="/placement/onboarding?add=1"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  Finish Locator Onboarding <ArrowRight className="h-3 w-3" />
+                </Link>
+              )}
+            </div>
+          )}
+
+          {accepted ? (
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 flex items-start gap-3">
+                <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold text-emerald-900">You&apos;re working on this contract</p>
+                  <p className="text-xs text-emerald-700 mt-0.5">Submit as many candidate locations as you can — every accepted location pays out ${Number(contract.partner_payout).toLocaleString()}. This contract stays open to other Placement Providers until every slot is filled.</p>
+                </div>
+              </div>
+              <Link
+                href={`/placement/submissions/new?contract=${contract.id}`}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-primary hover:bg-green-hover px-6 py-3 text-sm font-semibold text-white cursor-pointer"
+              >
+                <Package className="h-4 w-4" /> Submit a Location
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <button
+                onClick={acceptContract}
+                disabled={!eligibility.eligible || saving === "accept"}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-primary hover:bg-green-hover px-6 py-3 text-sm font-semibold text-white cursor-pointer disabled:opacity-50"
+              >
+                {saving === "accept" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Accept Contract at Tier {contract.tier} (${Number(contract.partner_payout).toLocaleString()}/location)
+              </button>
+            </div>
+          )}
+        </>
       )}
 
     </div>

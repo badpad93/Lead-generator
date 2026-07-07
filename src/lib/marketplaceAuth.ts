@@ -17,9 +17,16 @@ export interface PlacementPartnerUser {
 }
 
 /**
- * Validate the request is a Placement Partner (or team member).
- * Returns null if unauthorized. Fully self-contained — does not depend on
- * getSalesUser or any admin-side check.
+ * Validate the request can act as a Placement Partner. As of the dual-role
+ * work, a placement_partners row is the source of truth for "has locator
+ * capability" — operators, sales, requestors etc. can hold that row alongside
+ * their primary profile role without losing access to their real tools.
+ *
+ * Accepts:
+ *  - profile.role === 'placement_partner' — legacy PPs (may or may not have
+ *    a placement_partners row yet if they're mid-onboarding)
+ *  - profile.role === 'admin' — Vending Connector admin (QA / support flows)
+ *  - anyone with an active placement_partners row — dual-role users
  */
 export async function getPlacementPartner(req: NextRequest): Promise<PlacementPartnerUser | null> {
   const userId = await getUserIdFromRequest(req);
@@ -31,15 +38,6 @@ export async function getPlacementPartner(req: NextRequest): Promise<PlacementPa
     .eq("id", userId)
     .single();
   if (!profile) return null;
-
-  // Accept:
-  //  - placement_partner: normal PPs going through their own dashboard
-  //  - admin: so a Vending Connector admin can walk through the wizard
-  //    (for QA / debugging / supporting a partner over the phone) without
-  //    the "don't clobber elevated roles" guard in POST /partners blocking
-  //    them out of Step 2 onwards.
-  const allowed = profile.role === "placement_partner" || profile.role === "admin";
-  if (!allowed) return null;
 
   const { data: partner } = await supabaseAdmin
     .from("placement_partners")
@@ -53,6 +51,11 @@ export async function getPlacementPartner(req: NextRequest): Promise<PlacementPa
     .eq("profile_id", userId)
     .eq("active", true);
 
+  const hasPartnerRow = !!partner && partner.active !== false;
+  const hasTeamMembership = (memberships || []).length > 0;
+  const roleAllowed = profile.role === "placement_partner" || profile.role === "admin";
+  if (!hasPartnerRow && !hasTeamMembership && !roleAllowed) return null;
+
   return {
     id: userId,
     email: profile.email,
@@ -63,6 +66,53 @@ export async function getPlacementPartner(req: NextRequest): Promise<PlacementPa
     partner_type: partner?.partner_type || "individual",
     business_name: partner?.business_name || null,
     companies: (memberships || []).map((m) => ({ company_id: m.company_id, role: m.role as CompanyRole })),
+  };
+}
+
+export interface MarketplaceViewer {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string | null;
+  is_partner: boolean;              // true if they have an active placement_partners row
+  partner_active: boolean;          // partner row exists and .active !== false
+  partner_onboarding_complete: boolean;
+}
+
+/**
+ * Lightweight viewer for the marketplace browse surfaces. Any authed user can
+ * be a viewer — an operator/sales/requestor who wants to browse open contracts
+ * before deciding to add locator capability, an existing PP, or an admin.
+ *
+ * Use this on GET /api/marketplace/contracts + detail. Mutations
+ * (accept, submit, tier-propose) must keep using getPlacementPartner.
+ */
+export async function getMarketplaceViewer(req: NextRequest): Promise<MarketplaceViewer | null> {
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) return null;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id, full_name, email, role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!profile) return null;
+
+  const { data: partner } = await supabaseAdmin
+    .from("placement_partners")
+    .select("active, onboarding_complete")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const partner_active = !!partner && partner.active !== false;
+  return {
+    id: userId,
+    email: profile.email,
+    full_name: profile.full_name,
+    role: profile.role,
+    is_partner: partner_active,
+    partner_active,
+    partner_onboarding_complete: partner?.onboarding_complete === true,
   };
 }
 

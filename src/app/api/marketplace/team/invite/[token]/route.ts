@@ -63,11 +63,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     );
   }
 
-  // Upgrade role — but preserve elevated CRM roles. An admin, sales manager,
-  // etc. accepting an invite still gets the team_members row (so they can
-  // work under the company) without losing their existing tools.
-  const upgradableRoles = ["requestor", "operator", "locator", "location_manager"];
-  if (!profile.role || upgradableRoles.includes(profile.role)) {
+  // Dual-role model: team membership + placement_partners row existence
+  // is enough to grant PP capability. We do NOT overwrite the caller's
+  // primary profile.role — operators, sales, admins keep their existing
+  // access. Only set role when the account has no role assigned yet.
+  if (!profile.role) {
     await supabaseAdmin.from("profiles").update({ role: "placement_partner" }).eq("id", userId);
   }
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2, CheckCircle2, ArrowRight, ArrowLeft, Building2, MapPin, Briefcase,
-  FileText, User, AlertCircle, Upload,
+  FileText, User, AlertCircle, Upload, Sparkles,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import { INDUSTRIES } from "../industries";
@@ -66,6 +66,10 @@ export default function MarketplaceOnboardingPage() {
   const [ppaAcknowledge, setPpaAcknowledge] = useState(false);
   const [ppaConsentEsign, setPpaConsentEsign] = useState(false);
 
+  // Dual-role banner — surfaced when the caller already has a non-PP primary
+  // role so they see "you'll keep your <role> access" before starting.
+  const [existingRole, setExistingRole] = useState<string | null>(null);
+
   // Load existing state
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,6 +87,9 @@ export default function MarketplaceOnboardingPage() {
         return;
       }
       const data = await res.json();
+      if (data.profile?.role) {
+        setExistingRole(data.profile.role);
+      }
       if (data.partner) {
         setPartnerType(data.partner.partner_type === "company_owner" ? "company_owner" : "individual");
         setBusinessName(data.partner.business_name || "");
@@ -392,6 +399,25 @@ export default function MarketplaceOnboardingPage() {
           Set up your profile so we can match you with contracts in your territory.
         </p>
       </div>
+
+      {existingRole && existingRole !== "placement_partner" && (
+        <div className="mb-6 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-emerald-100 p-2 shrink-0">
+              <Sparkles className="h-4 w-4 text-emerald-700" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-900">
+                Adding locator capability to your {existingRole.replace(/_/g, " ")} account
+              </p>
+              <p className="text-xs text-gray-600 mt-0.5">
+                Your existing {existingRole.replace(/_/g, " ")} access stays exactly as it is. Completing
+                this onboarding just unlocks the ability to sell against placement contracts.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Step indicator */}
       <div className="mb-6 flex items-center gap-2">
