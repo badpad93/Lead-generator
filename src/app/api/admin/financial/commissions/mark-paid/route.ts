@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   const { data: before } = await supabaseAdmin
     .from("commission_ledger")
-    .select("id, status, user_id, amount_cents, clearable_at")
+    .select("id, status, user_id, amount_cents, clearable_at, metadata")
     .in("id", ids);
 
   const now = new Date();
@@ -39,15 +39,26 @@ export async function POST(req: NextRequest) {
   }
   if (eligibleIds.length === 0) return NextResponse.json({ paid: 0, skipped });
 
-  const { error } = await supabaseAdmin
-    .from("commission_ledger")
-    .update({
-      status: "paid",
-      paid_at: now.toISOString(),
-      notes: note,
-    })
-    .in("id", eligibleIds);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Preserve earn-time notes (e.g. "Line-level override", "Legacy backfill
+  // attribution"). The mark-paid caption lives on metadata.paid_note so the
+  // original context isn't destroyed.
+  const paidMetadataPatch = note ? { paid_note: note, paid_by: adminId } : { paid_by: adminId };
+
+  // We have to loop to merge metadata per-row — Supabase doesn't do a jsonb
+  // deep-merge in a single .update on a list.
+  for (const id of eligibleIds) {
+    const existing = (before || []).find((b) => b.id === id) as { metadata?: Record<string, unknown> } | undefined;
+    const existingMeta = existing?.metadata || {};
+    const { error } = await supabaseAdmin
+      .from("commission_ledger")
+      .update({
+        status: "paid",
+        paid_at: now.toISOString(),
+        metadata: { ...existingMeta, ...paidMetadataPatch },
+      })
+      .eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   const totalCents = (before || [])
     .filter((r) => eligibleIds.includes(r.id))

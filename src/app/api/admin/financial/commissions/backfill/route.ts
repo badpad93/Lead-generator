@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    needs_backfill: phase1 + phase2,
+    needs_backfill: phase0 + phase1 + phase2,
     breakdown: {
       orphan_payments: phase0,
       paid_payments_missing_ledger: phase1,

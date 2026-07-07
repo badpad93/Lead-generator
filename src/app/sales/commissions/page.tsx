@@ -143,17 +143,24 @@ export default function CommissionsPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Commissions</h1>
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-2xl font-bold text-gray-900">Manual Commission Adjustments</h1>
         {isAdmin && !showForm && (
           <button
             onClick={openForm}
             className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            Add Commission
+            Add Adjustment
           </button>
         )}
+      </div>
+      <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-xs text-blue-900">
+        <p className="font-semibold mb-0.5">Directors + market leaders — manual adjustments only.</p>
+        <p>
+          Rows here are entered by hand for bonuses, comp overrides, or one-off adjustments. They are <strong>separate</strong> from the automatic commission ledger driven by paid orders + attribution rules.
+          For that spine (auto-earn, holds, clawbacks, mark-paid) see <a className="underline" href="/admin/financial/commissions">Financial Center → Commissions</a>. Reps see the combined view on <a className="underline" href="/my/commissions">My Commissions</a>.
+        </p>
       </div>
 
       {/* Add Commission Form */}

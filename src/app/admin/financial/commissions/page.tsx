@@ -29,11 +29,13 @@ interface LedgerRow {
 interface Summary {
   earned_cents: number;
   held_cents: number;
+  pending_clearable_cents: number;
   reversed_cents: number;
   paid_cents: number;
   clawback_pending_cents: number;
   clawback_collected_cents: number;
   clawback_waived_cents: number;
+  net_available_cents: number;
   row_count: number;
 }
 
@@ -48,7 +50,9 @@ const STATUS_FILTERS = [
   { key: "held", label: "Held" },
   { key: "paid", label: "Paid" },
   { key: "reversed", label: "Reversed" },
-  { key: "clawback_pending", label: "Clawbacks" },
+  { key: "clawback_pending", label: "Clawback owed" },
+  { key: "clawback_collected", label: "Clawback collected" },
+  { key: "clawback_waived", label: "Clawback waived" },
 ];
 
 const STATUS_STYLES: Record<string, string> = {
@@ -56,7 +60,6 @@ const STATUS_STYLES: Record<string, string> = {
   held: "bg-amber-50 text-amber-700 border-amber-100",
   paid: "bg-blue-50 text-blue-700 border-blue-100",
   reversed: "bg-red-50 text-red-700 border-red-100",
-  cancelled: "bg-gray-100 text-gray-500 border-gray-200",
   clawback_pending: "bg-orange-50 text-orange-700 border-orange-200",
   clawback_collected: "bg-emerald-50 text-emerald-700 border-emerald-100",
   clawback_waived: "bg-gray-100 text-gray-500 border-gray-200",
@@ -77,6 +80,8 @@ export default function AdminCommissionsPage() {
 
   const [statusFilter, setStatusFilter] = useState("any");
   const [roleFilter, setRoleFilter] = useState("");
+  const [userFilter, setUserFilter] = useState("");
+  const [repOptions, setRepOptions] = useState<Array<{ id: string; full_name: string | null; email: string | null }>>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const [backfillNeeded, setBackfillNeeded] = useState<number | null>(null);
@@ -91,10 +96,12 @@ export default function AdminCommissionsPage() {
     const params = new URLSearchParams();
     if (statusFilter !== "any") params.set("status", statusFilter);
     if (roleFilter) params.set("role_code", roleFilter);
-    const [ledgerRes, rolesRes, backfillRes] = await Promise.all([
+    if (userFilter) params.set("user_id", userFilter);
+    const [ledgerRes, rolesRes, backfillRes, repsRes] = await Promise.all([
       fetch(`/api/admin/financial/commissions?${params}`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch("/api/attribution-roles", { headers: { Authorization: `Bearer ${token}` } }),
       fetch("/api/admin/financial/commissions/backfill", { headers: { Authorization: `Bearer ${token}` } }),
+      fetch("/api/admin/users?role=sales&limit=200", { headers: { Authorization: `Bearer ${token}` } }),
     ]);
     if (ledgerRes.ok) {
       const data = await ledgerRes.json();
@@ -106,8 +113,12 @@ export default function AdminCommissionsPage() {
       const b = await backfillRes.json();
       setBackfillNeeded(Number(b.needs_backfill) || 0);
     }
+    if (repsRes.ok) {
+      const j = await repsRes.json();
+      setRepOptions(Array.isArray(j) ? j : j.users || []);
+    }
     setLoading(false);
-  }, [token, statusFilter, roleFilter]);
+  }, [token, statusFilter, roleFilter, userFilter]);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -280,6 +291,19 @@ export default function AdminCommissionsPage() {
         </div>
       )}
 
+      {/* Net available hero — only shows when scoped to a single rep */}
+      {userFilter && summary && (
+        <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-700">
+              Net available to {repOptions.find((r) => r.id === userFilter)?.full_name || repOptions.find((r) => r.id === userFilter)?.email || "this rep"}
+            </p>
+            <p className="text-3xl font-bold text-emerald-800 mt-1">{fmt(summary.net_available_cents)}</p>
+            <p className="text-[11px] text-gray-500 mt-1">Earned + clearable held − reversed − outstanding clawbacks. Matches the number this rep sees on their My Commissions page.</p>
+          </div>
+        </div>
+      )}
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
         <div className="rounded-2xl border border-gray-100 bg-white p-4">
@@ -323,6 +347,10 @@ export default function AdminCommissionsPage() {
       {/* Filters */}
       <div className="mb-4 flex items-center gap-2 flex-wrap">
         <Filter className="h-4 w-4 text-gray-400" />
+        <select value={userFilter} onChange={(e) => setUserFilter(e.target.value)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs">
+          <option value="">All reps</option>
+          {repOptions.map((r) => <option key={r.id} value={r.id}>{r.full_name || r.email || r.id.slice(0, 8)}</option>)}
+        </select>
         <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs">
           <option value="">All roles</option>
           {roles.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
