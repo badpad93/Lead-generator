@@ -158,6 +158,10 @@ export async function sendCoffeeOrderNotification(params: OrderNotificationParam
   return getResend().emails.send({
     from: FROM_EMAIL,
     to: FULFILLMENT_EMAIL,
+    // CC the admin inbox so James sees every order come through in
+    // addition to the fulfillment mailbox. Falls through gracefully if
+    // both env vars point at the same address.
+    cc: ADMIN_EMAIL && ADMIN_EMAIL !== FULFILLMENT_EMAIL ? [ADMIN_EMAIL] : undefined,
     subject: `New Coffee Order: ${orderNumber} from ${operatorName}`,
     html,
   });

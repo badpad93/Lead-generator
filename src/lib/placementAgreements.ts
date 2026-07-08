@@ -212,12 +212,14 @@ export async function countersignAsAdmin(args: CountersignArgs): Promise<UserAgr
     .single();
   if (error) throw error;
 
-  // Mirror onto placement_partners for the legacy admin surface — turns
-  // any partner into fully-active once countersigned.
-  await supabaseAdmin
-    .from("placement_partners")
-    .update({ agreement_signed_at: nowIso, updated_at: nowIso })
-    .eq("id", current.user_id);
+  // Mirror onto placement_partners ONLY for the PPA type — coffee_supply
+  // (or any future type) shouldn't touch the marketplace partner row.
+  if (current.agreement_type === "placement_provider") {
+    await supabaseAdmin
+      .from("placement_partners")
+      .update({ agreement_signed_at: nowIso, updated_at: nowIso })
+      .eq("id", current.user_id);
+  }
 
   await audit(args.agreementId, args.adminUserId, "countersigned", current.status, "fully_executed", {
     countersigner: args.adminNameSnapshot,
@@ -369,6 +371,33 @@ export async function requireExecutedPlacementProviderAgreement(userId: string):
   return null;
 }
 
+/**
+ * requireExecutedCoffeeSupplyAgreement — mirror guard for the Equipment
+ * Loan & Beverage Supply Agreement. Blocks coffee checkout until the
+ * operator has signed and Vending Connector has countersigned (or the
+ * operator was grandfathered as legacy_approved during migration 117).
+ */
+export async function requireExecutedCoffeeSupplyAgreement(userId: string): Promise<string | null> {
+  const agreement = await getUserAgreement(userId, "coffee_supply");
+  if (!agreement) {
+    return "Sign the Equipment Loan & Beverage Supply Agreement to place orders.";
+  }
+  const ok: AgreementStatus[] = ["fully_executed", "legacy_approved"];
+  if (!ok.includes(agreement.status)) {
+    if (agreement.status === "provider_signed_pending_company_countersign") {
+      return "Your Equipment Loan & Beverage Supply Agreement is awaiting Apex AI countersignature.";
+    }
+    if (agreement.status === "correction_requested") {
+      return "Your Equipment Loan & Beverage Supply Agreement needs correction — please re-sign the corrected version.";
+    }
+    if (agreement.status === "declined") {
+      return "Your Equipment Loan & Beverage Supply Agreement was declined. Contact support.";
+    }
+    return "Equipment Loan & Beverage Supply Agreement not fully executed.";
+  }
+  return null;
+}
+
 // ─── Audit helper ──────────────────────────────────────────────────
 
 export async function audit(
@@ -453,7 +482,12 @@ function escapeHtml(s: string): string {
 // ─── Storage helper ─────────────────────────────────────────────────
 
 export async function persistExecutedDocument(agreement: UserAgreement, html: string): Promise<string> {
-  const path = `placement-providers/${agreement.user_id}/${agreement.agreement_version}/${agreement.id}.html`;
+  // Path segment is derived from agreement_type so new types (coffee_supply,
+  // etc.) live under their own prefix without colliding with PPA docs.
+  const typeSegment = agreement.agreement_type === "placement_provider"
+    ? "placement-providers"
+    : agreement.agreement_type.replace(/_/g, "-");
+  const path = `${typeSegment}/${agreement.user_id}/${agreement.agreement_version}/${agreement.id}.html`;
   const { error } = await supabaseAdmin
     .storage
     .from("user-agreements")

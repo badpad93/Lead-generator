@@ -5,6 +5,7 @@ import { getCoffeeUser, forbiddenResponse } from "@/lib/coffeeAuth";
 import { isQuickBooks } from "@/lib/paymentProvider";
 import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 import { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } from "@/lib/coffeeEmail";
+import { requireExecutedCoffeeSupplyAgreement } from "@/lib/placementAgreements";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +15,17 @@ export async function POST(req: NextRequest) {
     }
     if (!user.coffee_access_enabled) {
       return forbiddenResponse();
+    }
+
+    // Real Equipment Loan & Beverage Supply Agreement gate — must be fully
+    // executed (or grandfathered legacy_approved) before any order can be
+    // placed. Returns a clear "sign here" message when it isn't.
+    const agreementBlock = await requireExecutedCoffeeSupplyAgreement(user.id);
+    if (agreementBlock) {
+      return NextResponse.json(
+        { error: agreementBlock, sign_url: "/coffee/agreement" },
+        { status: 403 },
+      );
     }
 
     const body = await req.json();
