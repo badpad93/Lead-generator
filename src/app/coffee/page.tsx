@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Search, ShoppingCart, Coffee, Lock, Loader2, X, AlertCircle, BookOpen } from "lucide-react";
+import { Search, ShoppingCart, Coffee, Lock, Loader2, X, AlertCircle, BookOpen, FileSignature } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import CoffeeCartDrawer from "@/app/components/CoffeeCartDrawer";
@@ -56,6 +56,7 @@ export default function CoffeeMarketplacePage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [guides, setGuides] = useState<Guide[]>([]);
   const [selectedGuide, setSelectedGuide] = useState<Guide | null>(null);
+  const [agreementStatus, setAgreementStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -70,6 +71,21 @@ export default function CoffeeMarketplacePage() {
           if (res.ok) {
             const data = await res.json();
             setProfile(data);
+            // If the operator is already coffee-enabled, fetch their coffee
+            // supply agreement status so the banner + button gates can
+            // reflect it. Non-enabled users don't need this (they'll hit
+            // the "Apply for Coffee Services" CTA instead).
+            if (data.coffee_access_enabled) {
+              try {
+                const aRes = await fetch("/api/coffee/agreement", {
+                  headers: { Authorization: `Bearer ${session.access_token}` },
+                });
+                if (aRes.ok) {
+                  const a = await aRes.json();
+                  setAgreementStatus(a.agreement?.status || null);
+                }
+              } catch {}
+            }
           }
         } catch {}
       }
@@ -176,6 +192,10 @@ export default function CoffeeMarketplacePage() {
   }
 
   const coffeeEnabled = !!profile?.coffee_access_enabled;
+  const agreementSigned = agreementStatus === "fully_executed" || agreementStatus === "legacy_approved";
+  const agreementLegacy = agreementStatus === "legacy_approved";
+  const agreementPending = agreementStatus === "provider_signed_pending_company_countersign";
+  const needsAgreementSign = coffeeEnabled && agreementStatus !== null && !agreementSigned && !agreementPending;
 
   function stockBadge(status: string) {
     switch (status) {
@@ -281,6 +301,69 @@ export default function CoffeeMarketplacePage() {
                 className="flex-shrink-0 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700"
               >
                 Apply for Coffee Services
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {needsAgreementSign && (
+          <div className="mb-8 rounded-2xl border border-emerald-800 bg-emerald-900/30 p-6">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <FileSignature className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-400" />
+                <div>
+                  <p className="font-semibold text-white">Sign the Equipment Loan &amp; Beverage Supply Agreement</p>
+                  <p className="mt-1 text-sm text-gray-300">
+                    Your account is approved, but orders can&apos;t be placed until the agreement is signed
+                    and countersigned. Only takes a minute.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/coffee/agreement"
+                className="flex-shrink-0 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+              >
+                Sign Agreement
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {agreementPending && (
+          <div className="mb-8 rounded-2xl border border-amber-700 bg-amber-900/30 p-6">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-400" />
+                <div>
+                  <p className="font-semibold text-white">Agreement awaiting Apex AI countersign</p>
+                  <p className="mt-1 text-sm text-gray-300">
+                    You&apos;ve signed. We&apos;ll countersign shortly — orders open up automatically once
+                    that clears.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/coffee/agreement"
+                className="flex-shrink-0 rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
+              >
+                View Agreement
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {agreementLegacy && (
+          <div className="mb-6 rounded-xl border border-blue-800 bg-blue-900/30 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-gray-300">
+                Please sign the current Equipment Loan &amp; Beverage Supply Agreement when you have a moment —
+                you can keep ordering in the meantime.
+              </p>
+              <Link
+                href="/coffee/agreement"
+                className="flex-shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+              >
+                Sign
               </Link>
             </div>
           </div>

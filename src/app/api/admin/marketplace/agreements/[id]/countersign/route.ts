@@ -32,15 +32,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       adminEmailSnapshot: admin.email || "",
     });
 
-    // Render + persist the executed document.
-    const template = await getActiveTemplate("placement_provider");
+    // Render + persist the executed document. Uses the agreement's own type
+    // (placement_provider, coffee_supply, …) so the countersign flow works
+    // for every template kind.
+    const template = await getActiveTemplate(updated.agreement_type);
     if (template) {
       const html = renderExecutedHtml({ template, agreement: updated });
       await persistExecutedDocument(updated, html);
 
       // Email the provider a copy.
       try {
-        const providerAgreement = await getUserAgreement(updated.user_id, "placement_provider");
+        const providerAgreement = await getUserAgreement(updated.user_id, updated.agreement_type);
         const recipient = providerAgreement?.provider_email_snapshot;
         if (recipient) {
           const resend = new Resend(process.env.RESEND_API_KEY);
@@ -48,12 +50,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           await resend.emails.send({
             from,
             to: recipient,
-            subject: `Placement Provider Agreement — fully executed`,
-            html: `<p>Your Placement Provider Agreement has been fully executed by Vending Connector. A copy is attached below.</p>${html}`,
+            subject: `${template.title} — fully executed`,
+            html: `<p>Your ${template.title} has been fully executed by Vending Connector. A copy is attached below.</p>${html}`,
           });
         }
       } catch (e) {
-        console.error("[ppa.countersign] provider email failed:", e);
+        console.error("[agreement.countersign] provider email failed:", e);
       }
     }
 
