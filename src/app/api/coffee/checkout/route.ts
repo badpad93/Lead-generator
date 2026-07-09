@@ -17,15 +17,24 @@ export async function POST(req: NextRequest) {
       return forbiddenResponse();
     }
 
-    // Real Equipment Loan & Beverage Supply Agreement gate — must be fully
-    // executed (or grandfathered legacy_approved) before any order can be
-    // placed. Returns a clear "sign here" message when it isn't.
-    const agreementBlock = await requireExecutedCoffeeSupplyAgreement(user.id);
-    if (agreementBlock) {
-      return NextResponse.json(
-        { error: agreementBlock, sign_url: "/coffee/agreement" },
-        { status: 403 },
-      );
+    // Admin-grant override: the admin's coffee_access_enabled flag is the
+    // authoritative permission today. The Equipment Loan & Beverage Supply
+    // Agreement is prompted on the shop + checkout page as a nudge, but
+    // NOT enforced at payment time — that would strand admin-approved
+    // operators who haven't signed yet.
+    //
+    // Flip the env var COFFEE_AGREEMENT_ENFORCED=true to turn the hard
+    // gate back on once every active operator has signed. The full guard
+    // infrastructure (template, sign flow, countersign queue) is already
+    // wired — this flag is the only switch.
+    if (process.env.COFFEE_AGREEMENT_ENFORCED === "true") {
+      const agreementBlock = await requireExecutedCoffeeSupplyAgreement(user.id);
+      if (agreementBlock) {
+        return NextResponse.json(
+          { error: agreementBlock, sign_url: "/coffee/agreement" },
+          { status: 403 },
+        );
+      }
     }
 
     const body = await req.json();

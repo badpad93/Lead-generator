@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Search, ShoppingCart, Coffee, Lock, Loader2, X, AlertCircle, BookOpen, FileSignature } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
@@ -41,7 +40,6 @@ interface Product {
 }
 
 export default function CoffeeMarketplacePage() {
-  const router = useRouter();
   const [token, setToken] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,36 +71,21 @@ export default function CoffeeMarketplacePage() {
           if (res.ok) {
             const data = await res.json();
             setProfile(data);
-            // If the operator is already coffee-enabled, verify their
-            // coffee supply agreement is executed. Anything short of
-            // fully_executed / legacy_approved / pending-countersign gets
-            // auto-redirected to /coffee/agreement so the sign flow is
-            // the first thing they see.
-            //
-            // Fail-safe: if the fetch errors (e.g. template not yet seeded
-            // on this env), we still redirect. Better to land the operator
-            // on the sign page — where any real error is surfaced clearly —
-            // than to let them hit an opaque 403 at checkout.
+            // If the operator is already coffee-enabled, fetch their
+            // coffee supply agreement status so the banner can offer the
+            // sign flow. Admin's coffee_access_enabled grant is the
+            // authoritative permission — we don't redirect or block
+            // browsing here, just surface the sign CTA prominently.
             if (data.coffee_access_enabled) {
-              let status: string | null = null;
-              let fetchOk = false;
               try {
                 const aRes = await fetch("/api/coffee/agreement", {
                   headers: { Authorization: `Bearer ${session.access_token}` },
                 });
                 if (aRes.ok) {
-                  fetchOk = true;
                   const a = await aRes.json();
-                  status = a.agreement?.status || null;
-                  setAgreementStatus(status);
+                  setAgreementStatus(a.agreement?.status || null);
                 }
               } catch {}
-              const okStates = ["fully_executed", "legacy_approved", "provider_signed_pending_company_countersign"];
-              const canBrowse = fetchOk && okStates.includes(status || "");
-              if (!canBrowse) {
-                router.replace("/coffee/agreement");
-                return;
-              }
             }
           }
         } catch {}
