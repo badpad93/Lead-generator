@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
-import { Loader2, ShoppingCart, ArrowLeft, AlertCircle, CreditCard } from "lucide-react";
+import { Loader2, ShoppingCart, ArrowLeft, AlertCircle, CreditCard, FileSignature } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -42,6 +42,7 @@ function CheckoutContent() {
   const [items, setItems] = useState<CartItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [agreementStatus, setAgreementStatus] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     shipping_business_name: "",
@@ -90,6 +91,20 @@ function CheckoutContent() {
             router.push("/coffee/apply");
             return;
           }
+
+          // Fetch coffee supply agreement status so we can offer an
+          // inline "sign the agreement" panel above the form. Admin's
+          // coffee_access_enabled grant is the authoritative permission —
+          // this is a nudge, not a block. Ignore errors quietly.
+          try {
+            const aRes = await fetch("/api/coffee/agreement", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            if (aRes.ok) {
+              const a = await aRes.json();
+              setAgreementStatus(a.agreement?.status || null);
+            }
+          } catch {}
           setForm((prev) => ({
             ...prev,
             shipping_business_name: data.company_name || "",
@@ -250,6 +265,41 @@ function CheckoutContent() {
         <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
           {error}
+        </div>
+      )}
+
+      {agreementStatus !== null &&
+        agreementStatus !== "fully_executed" &&
+        agreementStatus !== "legacy_approved" &&
+        agreementStatus !== "provider_signed_pending_company_countersign" && (
+        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <FileSignature className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-700" />
+              <div>
+                <p className="font-semibold text-emerald-900">Sign the Equipment Loan &amp; Beverage Supply Agreement</p>
+                <p className="mt-0.5 text-sm text-emerald-800">
+                  You can complete this order today, but please sign the agreement so we have your
+                  record on file. Takes about a minute.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/coffee/agreement"
+              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+            >
+              Sign Now
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {agreementStatus === "provider_signed_pending_company_countersign" && (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="flex items-center gap-2 font-semibold">
+            <AlertCircle className="h-4 w-4" /> Agreement awaiting Apex AI countersignature
+          </p>
+          <p className="mt-1 text-xs">You&apos;ve signed. Apex AI will countersign shortly — your order will still process today.</p>
         </div>
       )}
 
