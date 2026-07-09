@@ -160,6 +160,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
     }
 
+    // Clear the cart as soon as the order + items are committed. Payment
+    // hasn't landed yet — but the order lives in awaiting_payment with the
+    // invoice/checkout URL, so if the customer bounces before paying they
+    // can still complete payment from /coffee/orders. Meanwhile the cart
+    // is empty for their next order (previous behavior only cleared cart
+    // on paid webhook, which meant QB customers who bounced before paying
+    // saw stale items on their next visit).
+    await supabaseAdmin
+      .from("coffee_cart_items")
+      .delete()
+      .eq("user_id", user.id);
+
     // Fire "order placed" emails immediately at checkout submission so the
     // buyer and fulfillment mailbox both see it right away — invoice link
     // follows on the same page. handleCoffeeOrderCompleted fires a second
