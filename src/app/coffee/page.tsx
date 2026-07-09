@@ -73,28 +73,36 @@ export default function CoffeeMarketplacePage() {
           if (res.ok) {
             const data = await res.json();
             setProfile(data);
-            // If the operator is already coffee-enabled, fetch their coffee
-            // supply agreement status. Users who haven't signed the agreement
-            // yet get auto-redirected to /coffee/agreement so the sign flow
-            // is the first thing they see — no need to click through a
-            // banner. Users mid-flow (already-signed-pending-countersign,
-            // legacy-approved) stay on the shop with a banner instead.
+            // If the operator is already coffee-enabled, verify their
+            // coffee supply agreement is executed. Anything short of
+            // fully_executed / legacy_approved / pending-countersign gets
+            // auto-redirected to /coffee/agreement so the sign flow is
+            // the first thing they see.
+            //
+            // Fail-safe: if the fetch errors (e.g. template not yet seeded
+            // on this env), we still redirect. Better to land the operator
+            // on the sign page — where any real error is surfaced clearly —
+            // than to let them hit an opaque 403 at checkout.
             if (data.coffee_access_enabled) {
+              let status: string | null = null;
+              let fetchOk = false;
               try {
                 const aRes = await fetch("/api/coffee/agreement", {
                   headers: { Authorization: `Bearer ${session.access_token}` },
                 });
                 if (aRes.ok) {
+                  fetchOk = true;
                   const a = await aRes.json();
-                  const status = a.agreement?.status || null;
+                  status = a.agreement?.status || null;
                   setAgreementStatus(status);
-                  const needsInitialSign = ["not_started", "draft", "correction_requested", "declined"].includes(status || "");
-                  if (needsInitialSign) {
-                    router.replace("/coffee/agreement");
-                    return;
-                  }
                 }
               } catch {}
+              const okStates = ["fully_executed", "legacy_approved", "provider_signed_pending_company_countersign"];
+              const canBrowse = fetchOk && okStates.includes(status || "");
+              if (!canBrowse) {
+                router.replace("/coffee/agreement");
+                return;
+              }
             }
           }
         } catch {}
