@@ -184,7 +184,14 @@ function CheckoutContent() {
           setError("Failed to create payment session");
         }
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        // Coffee Supply Agreement not fully executed — the API returned a
+        // sign_url. Route the operator to the agreement so they can sign
+        // right now instead of leaving them stuck on a raw error.
+        if (res.status === 403 && data.sign_url) {
+          window.location.href = data.sign_url;
+          return;
+        }
         setError(data.error || "Failed to process checkout");
       }
     } catch {
