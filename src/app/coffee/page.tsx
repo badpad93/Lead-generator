@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Search, ShoppingCart, Coffee, Lock, Loader2, X, AlertCircle, BookOpen, FileSignature } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
@@ -40,6 +41,7 @@ interface Product {
 }
 
 export default function CoffeeMarketplacePage() {
+  const router = useRouter();
   const [token, setToken] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,9 +74,11 @@ export default function CoffeeMarketplacePage() {
             const data = await res.json();
             setProfile(data);
             // If the operator is already coffee-enabled, fetch their coffee
-            // supply agreement status so the banner + button gates can
-            // reflect it. Non-enabled users don't need this (they'll hit
-            // the "Apply for Coffee Services" CTA instead).
+            // supply agreement status. Users who haven't signed the agreement
+            // yet get auto-redirected to /coffee/agreement so the sign flow
+            // is the first thing they see — no need to click through a
+            // banner. Users mid-flow (already-signed-pending-countersign,
+            // legacy-approved) stay on the shop with a banner instead.
             if (data.coffee_access_enabled) {
               try {
                 const aRes = await fetch("/api/coffee/agreement", {
@@ -82,7 +86,13 @@ export default function CoffeeMarketplacePage() {
                 });
                 if (aRes.ok) {
                   const a = await aRes.json();
-                  setAgreementStatus(a.agreement?.status || null);
+                  const status = a.agreement?.status || null;
+                  setAgreementStatus(status);
+                  const needsInitialSign = ["not_started", "draft", "correction_requested", "declined"].includes(status || "");
+                  if (needsInitialSign) {
+                    router.replace("/coffee/agreement");
+                    return;
+                  }
                 }
               } catch {}
             }
