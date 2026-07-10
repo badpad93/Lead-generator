@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowRight, CheckCircle2, Clock, Building2, Briefcase, Package, Users, Star, Bell, DollarSign, FileSignature } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle2, Clock, Building2, Briefcase, Package, Users, Star, Bell, DollarSign, FileSignature, Zap } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface Partner {
@@ -206,6 +206,20 @@ export default function PlacementDashboardPage() {
           </div>
           <h2 className="text-lg font-semibold text-gray-900 mb-1">My Submissions</h2>
           <p className="text-sm text-gray-500">Track candidate locations you&apos;ve submitted and see approval status.</p>
+        </Link>
+
+        <Link
+          href="/tools/lead-generator"
+          className="group rounded-2xl border border-gray-100 bg-white p-6 hover:border-green-200 hover:shadow-sm transition-all"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center">
+              <Zap className="h-6 w-6 text-green-700" />
+            </div>
+            <ArrowRight className="h-5 w-5 text-gray-300 group-hover:text-green-primary transition-colors" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Lead Generator</h2>
+          <p className="text-sm text-gray-500">Auto-build call lists from Google Places. Included with your account.</p>
         </Link>
 
         <Link
