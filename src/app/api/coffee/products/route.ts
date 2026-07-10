@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { resolveCoffeeProductsPricing } from "@/lib/coffeePricing";
 
+/**
+ * GET /api/coffee/products — public shopper feed.
+ *
+ * Prices returned to the caller are resolved against the caller's
+ * coffee pricing tier via resolveCoffeeProductsPricing. Unauth
+ * callers, or accounts with no tier assigned, resolve to Tier 1.
+ *
+ * The response shape is unchanged — `price` and `shipping_cost` on
+ * each row are overwritten with the tier-resolved values. Downstream
+ * clients (shop page, cart drawer) don't need to change.
+ */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -33,12 +46,28 @@ export async function GET(req: NextRequest) {
     }
 
     const { data, error } = await query;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const rows = data || [];
+    const userId = await getUserIdFromRequest(req);
+    const priced = await resolveCoffeeProductsPricing({
+      productIds: rows.map((r: { id: string }) => r.id),
+      userId,
+    });
 
-    return NextResponse.json({ products: data || [] });
+    const products = rows.map((r: Record<string, unknown>) => {
+      const resolved = priced.get(r.id as string);
+      if (!resolved) return r;
+      return {
+        ...r,
+        price: resolved.price,
+        shipping_cost: resolved.shipping_cost,
+        pricing_tier_id: resolved.pricing_tier_id,
+        pricing_tier_key: resolved.tier_key,
+      };
+    });
+
+    return NextResponse.json({ products });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });

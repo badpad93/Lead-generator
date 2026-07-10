@@ -22,6 +22,7 @@ export async function PATCH(
       "full_name", "email", "role", "company_name", "phone",
       "website", "bio", "address", "city", "state", "zip", "country",
       "verified", "featured", "coffee_access_enabled", "locator_status",
+      "coffee_pricing_tier_id",
     ];
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {
@@ -30,6 +31,29 @@ export async function PATCH(
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+    }
+
+    // Track the previous coffee_pricing_tier_id for audit-log write.
+    let previousTierId: string | null = null;
+    if ("coffee_pricing_tier_id" in updates) {
+      const { data: existing } = await supabaseAdmin
+        .from("profiles")
+        .select("coffee_pricing_tier_id")
+        .eq("id", id)
+        .maybeSingle();
+      previousTierId = (existing?.coffee_pricing_tier_id as string | null) || null;
+
+      // Validate the new tier id if non-null.
+      if (updates.coffee_pricing_tier_id) {
+        const { data: tier } = await supabaseAdmin
+          .from("coffee_pricing_tiers")
+          .select("id, tier_key, name")
+          .eq("id", updates.coffee_pricing_tier_id as string)
+          .maybeSingle();
+        if (!tier) {
+          return NextResponse.json({ error: "Unknown coffee pricing tier" }, { status: 400 });
+        }
+      }
     }
 
     // When admin removes featured status, cancel the Stripe subscription and clear the ID
@@ -85,6 +109,37 @@ export async function PATCH(
         .from("operator_listings")
         .update({ featured: updates.featured as boolean })
         .eq("operator_id", id);
+    }
+
+    // Audit log — coffee pricing tier assignment / reassignment.
+    if ("coffee_pricing_tier_id" in updates) {
+      const newTierId = (updates.coffee_pricing_tier_id as string | null) || null;
+      if (newTierId !== previousTierId) {
+        const tierIds = [previousTierId, newTierId].filter((v): v is string => !!v);
+        const { data: tierRows } = tierIds.length > 0
+          ? await supabaseAdmin
+              .from("coffee_pricing_tiers")
+              .select("id, tier_key, name")
+              .in("id", tierIds)
+          : { data: [] as Array<{ id: string; tier_key: string; name: string }> };
+        const byId = new Map((tierRows || []).map((t) => [t.id, t]));
+        await supabaseAdmin.from("audit_logs").insert({
+          actor_id: adminId,
+          action: "coffee_account_tier_reassigned",
+          entity_type: "profiles",
+          entity_id: id,
+          before: previousTierId
+            ? { coffee_pricing_tier_id: previousTierId, tier: byId.get(previousTierId) || null }
+            : { coffee_pricing_tier_id: null },
+          after: newTierId
+            ? { coffee_pricing_tier_id: newTierId, tier: byId.get(newTierId) || null }
+            : { coffee_pricing_tier_id: null },
+          metadata: {
+            user_email: data?.email || null,
+            user_full_name: data?.full_name || null,
+          },
+        });
+      }
     }
 
     return NextResponse.json(data);
