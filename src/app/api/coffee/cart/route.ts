@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getCoffeeUser, forbiddenResponse } from "@/lib/coffeeAuth";
+import { resolveCoffeeProductsPricing } from "@/lib/coffeePricing";
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,7 +20,32 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ items: data || [] });
+    // Overwrite the joined product's price + shipping_cost with the
+    // caller's tier-resolved values. The cart itself stores only
+    // quantity + product_id — pricing is always live, so no cart
+    // migration is needed when tiers change.
+    const items = (data || []) as Array<Record<string, unknown> & {
+      product_id: string;
+      coffee_products: { id: string; price: number; shipping_cost: number } & Record<string, unknown>;
+    }>;
+    if (items.length > 0) {
+      const priced = await resolveCoffeeProductsPricing({
+        productIds: items.map((i) => i.product_id),
+        userId: user.id,
+      });
+      for (const item of items) {
+        const r = priced.get(item.product_id);
+        if (r && item.coffee_products) {
+          item.coffee_products = {
+            ...item.coffee_products,
+            price: r.price,
+            shipping_cost: r.shipping_cost,
+          };
+        }
+      }
+    }
+
+    return NextResponse.json({ items });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });

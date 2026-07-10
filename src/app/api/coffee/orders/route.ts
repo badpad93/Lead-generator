@@ -5,6 +5,7 @@ import {
   sendCoffeeOrderNotification,
   sendCoffeeOrderConfirmation,
 } from "@/lib/coffeeEmail";
+import { resolveCoffeeProductsPricing } from "@/lib/coffeePricing";
 
 export async function GET(req: NextRequest) {
   try {
@@ -92,19 +93,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "All items in your cart are unavailable" }, { status: 400 });
     }
 
+    // Same tier resolution + snapshot as /api/coffee/checkout — both
+    // write paths must produce equivalent lines so admin editing a
+    // tier price never causes divergent behavior between them.
+    const productIds = validItems.map((i: Record<string, unknown>) => (i.coffee_products as Record<string, unknown>).id as string);
+    const priced = await resolveCoffeeProductsPricing({ productIds, userId: user.id });
+
     const orderNumber = `VC-${Date.now()}`;
 
     const orderItems = validItems.map((item: Record<string, unknown>) => {
       const product = item.coffee_products as Record<string, unknown>;
-      const unitPrice = Number(product.price);
+      const productId = product.id as string;
+      const resolved = priced.get(productId);
+      const unitPrice = resolved ? resolved.price : Number(product.price);
       const quantity = Number(item.quantity);
       return {
-        product_id: product.id as string,
+        product_id: productId,
         product_name: product.name as string,
         product_sku: product.sku as string,
         quantity,
         unit_price: unitPrice,
         line_total: unitPrice * quantity,
+        pricing_tier_id: resolved?.pricing_tier_id || null,
       };
     });
 

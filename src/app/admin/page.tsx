@@ -222,7 +222,8 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
-  const [editForm, setEditForm] = useState({ role: "", verified: false, featured: false, coffee_access_enabled: false, full_name: "", email: "", company_name: "", phone: "", address: "", city: "", state: "", zip: "" });
+  const [editForm, setEditForm] = useState({ role: "", verified: false, featured: false, coffee_access_enabled: false, coffee_pricing_tier_id: "", full_name: "", email: "", company_name: "", phone: "", address: "", city: "", state: "", zip: "" });
+  const [coffeeTiers, setCoffeeTiers] = useState<Array<{ id: string; tier_key: string; name: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
@@ -254,6 +255,23 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
     fetchUsers();
   }, [fetchUsers]);
 
+  // Load coffee pricing tiers once so the edit modal's tier dropdown
+  // has its options ready. Reads through the public "authenticated"
+  // policy on coffee_pricing_tiers — no admin route needed.
+  useEffect(() => {
+    (async () => {
+      try {
+        const supabase = (await import("@/lib/supabase")).createBrowserClient();
+        const { data } = await supabase
+          .from("coffee_pricing_tiers")
+          .select("id, tier_key, name")
+          .eq("is_active", true)
+          .order("sort_order");
+        setCoffeeTiers((data as Array<{ id: string; tier_key: string; name: string }>) || []);
+      } catch {}
+    })();
+  }, []);
+
   function openEdit(user: Profile) {
     setEditingUser(user);
     setEditForm({
@@ -261,6 +279,7 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
       verified: user.verified,
       featured: user.featured,
       coffee_access_enabled: !!user.coffee_access_enabled,
+      coffee_pricing_tier_id: (user as unknown as { coffee_pricing_tier_id?: string | null }).coffee_pricing_tier_id || "",
       full_name: user.full_name,
       email: user.email,
       company_name: user.company_name || "",
@@ -293,13 +312,20 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
     setSaving(true);
     setSaveError("");
     try {
+      // Empty string on the tier dropdown means "unassigned" → null so
+      // the FK check on the API side treats it as clearing rather than
+      // rejecting an invalid uuid.
+      const payload = {
+        ...editForm,
+        coffee_pricing_tier_id: editForm.coffee_pricing_tier_id || null,
+      };
       const res = await fetch(`/api/admin/users/${editingUser.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setEditingUser(null);
@@ -733,6 +759,23 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                     Coffee Access
                   </label>
                 </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-black-primary">Coffee Pricing Tier</label>
+                <select
+                  value={editForm.coffee_pricing_tier_id}
+                  onChange={(e) => setEditForm((f) => ({ ...f, coffee_pricing_tier_id: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary"
+                >
+                  <option value="">Unassigned (defaults to Tier 1)</option>
+                  {coffeeTiers.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Controls the price this operator sees + pays for coffee products.
+                  <Link href="/admin/coffee/tier-prices" className="ml-1 text-green-primary hover:underline">Edit tier prices →</Link>
+                </p>
               </div>
               <hr className="border-gray-100" />
               <p className="text-xs font-medium text-black-primary/50 uppercase tracking-wide">Location Info</p>

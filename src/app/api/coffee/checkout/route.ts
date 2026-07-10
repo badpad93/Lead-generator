@@ -6,6 +6,7 @@ import { isQuickBooks } from "@/lib/paymentProvider";
 import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 import { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } from "@/lib/coffeeEmail";
 import { requireExecutedCoffeeSupplyAgreement } from "@/lib/placementAgreements";
+import { resolveCoffeeProductsPricing } from "@/lib/coffeePricing";
 
 export async function POST(req: NextRequest) {
   try {
@@ -90,21 +91,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "All items in your cart are unavailable" }, { status: 400 });
     }
 
+    // Resolve every line's unit price against the operator's coffee
+    // pricing tier — the joined coffee_products.price is only used as
+    // a bootstrap fallback. Snapshot the resolved pricing_tier_id on
+    // the order line so historical orders stay correct after admin
+    // edits tier prices later.
+    const productIds = validItems.map((i: Record<string, unknown>) => (i.coffee_products as Record<string, unknown>).id as string);
+    const priced = await resolveCoffeeProductsPricing({ productIds, userId: user.id });
+
     const orderNumber = `VC-${Date.now()}`;
 
     const orderItems = validItems.map((item: Record<string, unknown>) => {
       const product = item.coffee_products as Record<string, unknown>;
-      const unitPrice = Number(product.price);
-      const shippingCost = Number(product.shipping_cost || 0);
+      const productId = product.id as string;
+      const resolved = priced.get(productId);
+      const unitPrice = resolved ? resolved.price : Number(product.price);
+      const shippingCost = resolved ? resolved.shipping_cost : Number(product.shipping_cost || 0);
       const quantity = Number(item.quantity);
       return {
-        product_id: product.id as string,
+        product_id: productId,
         product_name: product.name as string,
         product_sku: product.sku as string,
         quantity,
         unit_price: unitPrice,
         shipping_cost: shippingCost,
         line_total: (unitPrice + shippingCost) * quantity,
+        pricing_tier_id: resolved?.pricing_tier_id || null,
       };
     });
 
