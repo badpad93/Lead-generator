@@ -322,6 +322,22 @@ async function handleQBPayment(paymentId: string, realmId: string) {
       continue;
     }
 
+    // Check lead_generator_subscriptions — QB invoice acts as the
+    // recurring "period charge". On payment we advance the current
+    // period + activate the entitlement. Idempotent per (invoiceId, paymentId).
+    const { data: lgSub } = await supabaseAdmin
+      .from("lead_generator_subscriptions")
+      .select("id, user_id")
+      .eq("provider_subscription_id", invoiceId)
+      .maybeSingle();
+
+    if (lgSub) {
+      console.log(`[qb-webhook] Processing lead-generator subscription payment for QB invoice ${invoiceId}`);
+      const { handleInvoicePaid } = await import("@/lib/leadGeneratorSubscription");
+      await handleInvoicePaid({ invoiceId, paymentId: `qb_${paymentId}` });
+      continue;
+    }
+
     // Check user_listing_purchases (marketplace)
     const { data: marketplacePurchase } = await supabaseAdmin
       .from("user_listing_purchases")

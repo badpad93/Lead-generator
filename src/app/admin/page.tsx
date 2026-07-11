@@ -40,6 +40,7 @@ import {
   US_STATES,
 } from "@/lib/types";
 import type { Profile, VendingRequest, OperatorListing } from "@/lib/types";
+import LeadGeneratorAdminPanel from "@/app/components/LeadGeneratorAdminPanel";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -715,13 +716,24 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
                   <option value="locator">Locator</option>
                   <option value="location_manager">Location Manager</option>
                   <option value="requestor">Location</option>
+                  <option value="placement_partner">Placement Provider</option>
                   <option value="sales">Sales Rep</option>
                   <option value="sales_manager">Sales Manager</option>
                   <option value="market_leader">Market Leader</option>
                   <option value="director_of_sales">Director of Sales</option>
                   <option value="admin">Admin</option>
                 </select>
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Placement Providers get free Lead Generator access + zero CRM access.
+                  Operators, Location Managers, and Requestors are payment-gated for Lead Generator ($9.99/mo).
+                </p>
               </div>
+
+              {/* Lead Generator admin control panel */}
+              <LeadGeneratorAdminPanel
+                userId={editingUser?.id || ""}
+                token={token}
+              />
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
                   <input

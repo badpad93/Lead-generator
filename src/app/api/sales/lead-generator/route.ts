@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
+import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { getLeadGeneratorAccess } from "@/lib/leadGeneratorAccess";
 import { searchBusinesses } from "@/lib/placesApi";
 import { createLeadSheet, LeadRow } from "@/lib/googleSheets";
 
@@ -31,17 +32,54 @@ const INDUSTRIES = [
   "nursing schools",
 ];
 
+/**
+ * Auth model changed as part of the Lead Generator entitlement rollout:
+ * this API is no longer sales-only. Access resolution lives in
+ * getLeadGeneratorAccess — admin / sales-family / PP / dual-role /
+ * paid operators pass; unsubscribed operators + location_manager +
+ * requestor get 402 with a subscribe URL so the client can redirect
+ * them to the payment gate.
+ */
+async function authorize(req: NextRequest) {
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) {
+    return {
+      resp: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      userId: null as string | null,
+    };
+  }
+  const access = await getLeadGeneratorAccess(userId);
+  if (!access.canAccessLeadGenerator) {
+    if (access.shouldShowPaymentGate) {
+      return {
+        resp: NextResponse.json(
+          { error: "Lead Generator requires an active $9.99/month subscription", subscribe_url: "/tools/lead-generator/subscribe", reason: access.reason },
+          { status: 402 },
+        ),
+        userId,
+      };
+    }
+    return {
+      resp: NextResponse.json(
+        { error: "Lead Generator access not permitted for this account", reason: access.reason },
+        { status: 403 },
+      ),
+      userId,
+    };
+  }
+  return { resp: null, userId };
+}
+
 export async function GET(req: NextRequest) {
-  const user = await getSalesUser(req);
-  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { resp } = await authorize(req);
+  if (resp) return resp;
   return NextResponse.json({ industries: INDUSTRIES });
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getSalesUser(req);
-  if (!user) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const { resp, userId } = await authorize(req);
+  if (resp) return resp;
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
   const { city, state, industry, radius, lead_count, assigned_to, list_name } = body;
@@ -66,7 +104,7 @@ export async function POST(req: NextRequest) {
       lead_count: 0,
       status: "generating",
       assigned_to: assigned_to || null,
-      created_by: user.id,
+      created_by: userId,
     })
     .select("id")
     .single();

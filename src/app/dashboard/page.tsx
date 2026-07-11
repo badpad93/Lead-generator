@@ -25,6 +25,7 @@ import {
   ShoppingBag,
   Crown,
   Briefcase,
+  Zap,
 } from "lucide-react";
 import type {
   Profile,
@@ -670,6 +671,34 @@ export default function DashboardPage() {
               <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-green-primary" />
             </Link>
           )}
+
+          {/*
+            Lead Generator card — visible on the customer-facing dashboard
+            for every logged-in account. Access is gated server-side by
+            getLeadGeneratorAccess; free-role users go straight to the tool,
+            paid-role users (operator/location_manager/requestor) hit the
+            $9.99/mo gate on click. Placement Providers also get this link
+            from their /placement dashboard.
+          */}
+          <Link
+            href="/tools/lead-generator"
+            className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-primary group-hover:text-white">
+              <Zap className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="font-semibold text-black-primary">
+                Lead Generator
+              </p>
+              <p className="text-sm text-black-primary/50">
+                {(["operator", "location_manager", "requestor"] as const).includes(profile.role as unknown as "operator" | "location_manager" | "requestor")
+                  ? "Auto-build call lists from Google Places — $9.99/mo"
+                  : "Auto-build call lists from Google Places by city + industry"}
+              </p>
+            </div>
+            <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-green-primary" />
+          </Link>
         </div>
 
         {/* ------- RECENT REQUESTS ------- */}
