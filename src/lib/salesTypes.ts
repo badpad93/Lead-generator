@@ -36,7 +36,7 @@ export interface SalesLead {
   address: string | null;
   city?: string | null;
   state?: string | null;
-  status: "new" | "contacted" | "qualified" | "unqualified" | "lost";
+  status: "new" | "initiated" | "contacted" | "qualified" | "unqualified" | "lost";
   assigned_to: string | null;
   account_id?: string | null;
   created_by?: string | null;
