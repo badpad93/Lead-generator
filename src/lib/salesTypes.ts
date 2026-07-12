@@ -36,7 +36,7 @@ export interface SalesLead {
   address: string | null;
   city?: string | null;
   state?: string | null;
-  status: "new" | "contacted" | "qualified" | "unqualified" | "lost";
+  status: "new" | "initiated" | "contacted" | "qualified" | "unqualified" | "lost";
   assigned_to: string | null;
   account_id?: string | null;
   created_by?: string | null;
@@ -95,6 +95,10 @@ export interface SalesAccount {
   assigned_to?: string | null;
   created_by?: string | null;
   created_at: string;
+  // Platform sign-up date of the profile linked to this account by email.
+  // Sourced from profiles.created_at — matches the "Joined" field the
+  // Admin panel shows. Null when the account has no matching profile.
+  joined_at?: string | null;
 }
 
 export interface SalesOrder {

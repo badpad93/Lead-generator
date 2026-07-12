@@ -858,6 +858,7 @@ export default function LeadsPage() {
 
   const statusColor: Record<string, string> = {
     new: "bg-blue-50 text-blue-700 ring-blue-200",
+    initiated: "bg-indigo-50 text-indigo-700 ring-indigo-200",
     contacted: "bg-yellow-50 text-yellow-700 ring-yellow-200",
     qualified: "bg-green-50 text-green-700 ring-green-200",
     won: "bg-emerald-50 text-emerald-700 ring-emerald-200",
@@ -1164,6 +1165,7 @@ export default function LeadsPage() {
         >
           <option value="">All Statuses</option>
           <option value="new">New</option>
+          <option value="initiated">Initiated</option>
           <option value="contacted">Contacted</option>
           <option value="qualified">Qualified</option>
           <option value="unqualified">Unqualified</option>
@@ -1382,6 +1384,7 @@ export default function LeadsPage() {
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset cursor-pointer ${statusColor[lead.status] || ""}`}
                     >
                       <option value="new">New</option>
+                      <option value="initiated">Initiated</option>
                       <option value="contacted">Contacted</option>
                       <option value="qualified">Qualified</option>
                       <option value="won">Won</option>
