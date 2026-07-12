@@ -222,6 +222,7 @@ export default function AccountsPage() {
                 <th className="px-4 py-3 font-medium text-gray-500">Contact</th>
                 <th className="hidden px-4 py-3 font-medium text-gray-500 sm:table-cell">Phone</th>
                 <th className="hidden px-4 py-3 font-medium text-gray-500 sm:table-cell">Email</th>
+                <th className="px-4 py-3 font-medium text-gray-500">Joined</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Created</th>
                 <th className="px-4 py-3 font-medium text-gray-500"></th>
               </tr>
@@ -259,7 +260,12 @@ export default function AccountsPage() {
                   <td className="px-4 py-3 text-gray-600">{acct.contact_name || "—"}</td>
                   <td className="hidden px-4 py-3 text-gray-600 sm:table-cell">{acct.phone || "—"}</td>
                   <td className="hidden px-4 py-3 text-gray-600 sm:table-cell">{acct.email || "—"}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">{new Date(acct.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-xs text-gray-400" title="Platform sign-up date">
+                    {acct.joined_at ? new Date(acct.joined_at).toLocaleDateString() : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-400" title="CRM record created">
+                    {new Date(acct.created_at).toLocaleDateString()}
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       onClick={(e) => handleDelete(e, acct.id)}
