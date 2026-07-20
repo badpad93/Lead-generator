@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, ShoppingBag, ScrollText, Heart, Briefcase, Zap, Coffee } from "lucide-react";
+import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, ShoppingBag, ScrollText, Heart, Briefcase, Zap, Coffee, Globe } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import Tooltip from "@/app/components/Tooltip";
@@ -333,6 +333,16 @@ export default function Navbar() {
                       <Briefcase className="h-4 w-4 text-black-primary/50" />
                       Placement Providers
                     </Link>
+                    <Link
+                      href="/website-builder"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-black-primary transition-colors hover:bg-gray-50"
+                      title="Guided intake so our team can build a website tailored to your vending business"
+                      aria-label="Get Your Own Vending Website"
+                    >
+                      <Globe className="h-4 w-4 text-black-primary/50" />
+                      Get Your Own Vending Website
+                    </Link>
                     {profile?.coffee_access_enabled && (
                       <Link
                         href="/coffee"
@@ -546,6 +556,20 @@ export default function Navbar() {
                     <span className="flex items-center gap-2.5">
                       <Briefcase className="h-4 w-4" />
                       Placement Providers
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-white/40" />
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/website-builder"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
+                    aria-label="Get Your Own Vending Website"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Globe className="h-4 w-4" />
+                      Get Your Own Vending Website
                     </span>
                     <ChevronRight className="h-4 w-4 text-white/40" />
                   </Link>
