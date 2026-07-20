@@ -80,6 +80,7 @@ interface Agreement {
   total_due_prior_to_procurement: number;
   payment_due_date: string | null;
   payment_method_notes: string | null;
+  include_operator: boolean;
   include_equipment: boolean;
   include_location_services: boolean;
   include_shipping_storage: boolean;
@@ -186,6 +187,7 @@ type FormData = {
   contract_expiration_date: string;
   internal_notes: string;
   customer_notes: string;
+  include_operator: boolean;
   include_equipment: boolean;
   include_location_services: boolean;
   include_shipping_storage: boolean;
@@ -285,6 +287,7 @@ function agreementToForm(ag: Agreement): FormData {
     contract_expiration_date: ag.contract_expiration_date || "",
     internal_notes: ag.internal_notes || "",
     customer_notes: ag.customer_notes || "",
+    include_operator: ag.include_operator !== false,
     include_equipment: ag.include_equipment !== false,
     include_location_services: ag.include_location_services !== false,
     include_shipping_storage: ag.include_shipping_storage !== false,
@@ -457,6 +460,7 @@ function StandaloneAgreementEditor() {
       contract_expiration_date: form.contract_expiration_date || null,
       internal_notes: form.internal_notes,
       customer_notes: form.customer_notes,
+      include_operator: form.include_operator,
       include_equipment: form.include_equipment,
       include_location_services: form.include_location_services,
       include_shipping_storage: form.include_shipping_storage,
@@ -945,24 +949,45 @@ function StandaloneAgreementEditor() {
             />
           )}
 
-          {agreement.agreement_type !== "location_placement" && (
-          <>
-          {/* Operator Information */}
-          <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
-              <Building2 className="h-4 w-4 text-gray-400" /> Operator Information
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField label="Company Name" value={form.operator_company_name} onChange={(v) => updateField("operator_company_name", v)} disabled={isReadOnly} required />
-              <InputField label="Legal Name / Contact" value={form.operator_legal_name} onChange={(v) => updateField("operator_legal_name", v)} disabled={isReadOnly} required />
-              <InputField label="Email" type="email" value={form.operator_email} onChange={(v) => updateField("operator_email", v)} disabled={isReadOnly} required />
-              <InputField label="Phone" type="tel" value={form.operator_phone} onChange={(v) => updateField("operator_phone", v)} disabled={isReadOnly} />
-              <InputField label="Billing Address" value={form.operator_billing_address} onChange={(v) => updateField("operator_billing_address", v)} disabled={isReadOnly} />
-              <InputField label="Delivery Address" value={form.operator_delivery_address} onChange={(v) => updateField("operator_delivery_address", v)} disabled={isReadOnly} />
-              <InputField label="Title" value={form.operator_title} onChange={(v) => updateField("operator_title", v)} disabled={isReadOnly} />
+          {/*
+            Operator Information — now toggle-able. Turned OFF lets admin
+            save the agreement without an operator attached (the "add the
+            operator later" flow). Required-field markers only fire when
+            the section is included. Location Placement agreements often
+            start without an operator matched, so the toggle defaults ON
+            but is expected to be flipped OFF for that case.
+          */}
+          <div className={`rounded-xl border bg-white p-5 ${form.include_operator ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-gray-400" /> Operator Information
+              </h3>
+              <SectionToggle
+                included={form.include_operator}
+                onChange={(v) => updateBool("include_operator", v)}
+                disabled={isReadOnly}
+              />
             </div>
+            {form.include_operator ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputField label="Company Name" value={form.operator_company_name} onChange={(v) => updateField("operator_company_name", v)} disabled={isReadOnly} required />
+                <InputField label="Legal Name / Contact" value={form.operator_legal_name} onChange={(v) => updateField("operator_legal_name", v)} disabled={isReadOnly} required />
+                <InputField label="Email" type="email" value={form.operator_email} onChange={(v) => updateField("operator_email", v)} disabled={isReadOnly} required />
+                <InputField label="Phone" type="tel" value={form.operator_phone} onChange={(v) => updateField("operator_phone", v)} disabled={isReadOnly} />
+                <InputField label="Billing Address" value={form.operator_billing_address} onChange={(v) => updateField("operator_billing_address", v)} disabled={isReadOnly} />
+                <InputField label="Delivery Address" value={form.operator_delivery_address} onChange={(v) => updateField("operator_delivery_address", v)} disabled={isReadOnly} />
+                <InputField label="Title" value={form.operator_title} onChange={(v) => updateField("operator_title", v)} disabled={isReadOnly} />
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">
+                Operator not attached yet — the agreement will save without one, and you can toggle
+                this section back on later to fill in operator details.
+              </p>
+            )}
           </div>
 
+          {agreement.agreement_type !== "location_placement" && (
+          <>
           {/* Equipment Purchase */}
           <div className={`rounded-xl border bg-white p-5 ${form.include_equipment ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
             <div className="flex items-center justify-between mb-4">
