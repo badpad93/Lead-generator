@@ -118,6 +118,7 @@ export async function PATCH(
     "internal_notes",
     "customer_notes",
     // Section toggles & auto-invoice
+    "include_operator",
     "include_equipment",
     "include_location_services",
     "include_shipping_storage",
