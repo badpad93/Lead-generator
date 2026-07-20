@@ -949,13 +949,13 @@ function StandaloneAgreementEditor() {
             />
           )}
 
+          {agreement.agreement_type !== "location_placement" && (
+          <>
           {/*
-            Operator Information — now toggle-able. Turned OFF lets admin
-            save the agreement without an operator attached (the "add the
-            operator later" flow). Required-field markers only fire when
-            the section is included. Location Placement agreements often
-            start without an operator matched, so the toggle defaults ON
-            but is expected to be flipped OFF for that case.
+            Operator Information (equipment-agreement side) — toggle-able.
+            Turned OFF lets admin save without an operator attached. The
+            location_placement flow has its own operator block further
+            down that also carries the include_operator toggle.
           */}
           <div className={`rounded-xl border bg-white p-5 ${form.include_operator ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
             <div className="flex items-center justify-between mb-4">
@@ -986,8 +986,6 @@ function StandaloneAgreementEditor() {
             )}
           </div>
 
-          {agreement.agreement_type !== "location_placement" && (
-          <>
           {/* Equipment Purchase */}
           <div className={`rounded-xl border bg-white p-5 ${form.include_equipment ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
             <div className="flex items-center justify-between mb-4">
@@ -1490,20 +1488,41 @@ function LocationPlacementSections({
         </div>
       </div>
 
-      {/* Operator (the vending company placing the machine) */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
-        <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
-          <Building2 className="h-4 w-4 text-gray-400" /> Operator (Vending Company)
-        </h3>
+      {/*
+        Operator (the vending company placing the machine).
+        Toggle-able so admin can save a location placement agreement
+        without an operator attached, then add the operator later.
+        Shares the include_operator column with the equipment-side
+        operator section — semantically the same "is an operator on
+        this agreement" flag.
+      */}
+      <div className={`rounded-xl border bg-white p-5 ${form.include_operator ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-gray-400" /> Operator (Vending Company)
+          </h3>
+          <SectionToggle
+            included={form.include_operator}
+            onChange={(v) => updateBool("include_operator", v)}
+            disabled={isReadOnly}
+          />
+        </div>
         <p className="text-xs text-gray-500 mb-4">
           The vending operator placing the machine — a fully-signed copy is sent to their email.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <InputField label="Operator Company Name" value={form.placement_operator_company} onChange={(v) => updateField("placement_operator_company", v)} disabled={isReadOnly} required />
-          <InputField label="Contact Name" value={form.placement_operator_contact} onChange={(v) => updateField("placement_operator_contact", v)} disabled={isReadOnly} />
-          <InputField label="Email" type="email" value={form.placement_operator_email} onChange={(v) => updateField("placement_operator_email", v)} disabled={isReadOnly} required />
-          <InputField label="Phone" type="tel" value={form.placement_operator_phone} onChange={(v) => updateField("placement_operator_phone", v)} disabled={isReadOnly} />
-        </div>
+        {form.include_operator ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <InputField label="Operator Company Name" value={form.placement_operator_company} onChange={(v) => updateField("placement_operator_company", v)} disabled={isReadOnly} required />
+            <InputField label="Contact Name" value={form.placement_operator_contact} onChange={(v) => updateField("placement_operator_contact", v)} disabled={isReadOnly} />
+            <InputField label="Email" type="email" value={form.placement_operator_email} onChange={(v) => updateField("placement_operator_email", v)} disabled={isReadOnly} required />
+            <InputField label="Phone" type="tel" value={form.placement_operator_phone} onChange={(v) => updateField("placement_operator_phone", v)} disabled={isReadOnly} />
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500">
+            Operator not attached yet — the agreement will save without one. Toggle back on any
+            time to fill in operator details and email a fully-signed copy on completion.
+          </p>
+        )}
       </div>
 
       {/* Placement Terms */}
