@@ -152,7 +152,11 @@ export async function signAsProvider(args: SignAsProviderArgs): Promise<UserAgre
   if (current.user_id !== args.actingUserId) {
     throw new Error("You may only sign your own agreement");
   }
-  const allowedFrom: AgreementStatus[] = ["not_started", "draft", "correction_requested"];
+  // legacy_approved rows are backfilled grandfather grants; allow the
+  // user to upgrade to a real signature so their record reflects the
+  // current template. Sign flips them into pending-countersign like
+  // anyone else.
+  const allowedFrom: AgreementStatus[] = ["not_started", "draft", "correction_requested", "legacy_approved"];
   if (!allowedFrom.includes(current.status)) {
     throw new Error(`Cannot sign from status "${current.status}"`);
   }

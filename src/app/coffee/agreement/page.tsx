@@ -122,7 +122,11 @@ export default function CoffeeAgreementPage() {
   }
 
   const status = agreement?.status;
-  const alreadyExecuted = status === "fully_executed" || status === "legacy_approved";
+  // Only fully_executed hides the form — legacy_approved users are
+  // grandfathered so they can order, but they landed here on purpose to
+  // sign the real current version. Show them the form.
+  const alreadyExecuted = status === "fully_executed";
+  const isLegacy = status === "legacy_approved";
   const pendingCountersign = status === "provider_signed_pending_company_countersign";
 
   return (
