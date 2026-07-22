@@ -7,13 +7,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
 
-  // Fetch account with related leads, deals, orders, documents
-  const [accountRes, leadsRes, dealsRes, ordersRes, docsRes] = await Promise.all([
+  // Fetch account with related leads, deals, orders, documents, equipment.
+  // Equipment fetch is wrapped so a missing account_equipment table on an
+  // environment without migration 123 doesn't break the whole account page.
+  const equipmentQuery = supabaseAdmin
+    .from("account_equipment")
+    .select("*")
+    .eq("account_id", id)
+    .order("assigned_at", { ascending: false })
+    .then((r) => r, () => ({ data: [] as unknown[], error: null as unknown }));
+
+  const [accountRes, leadsRes, dealsRes, ordersRes, docsRes, equipmentRes] = await Promise.all([
     supabaseAdmin.from("sales_accounts").select("*").eq("id", id).single(),
     supabaseAdmin.from("sales_leads").select("*").eq("account_id", id).order("created_at", { ascending: false }),
     supabaseAdmin.from("sales_deals").select("*, deal_services(*)").eq("account_id", id).order("created_at", { ascending: false }),
     supabaseAdmin.from("sales_orders").select("*, order_items(*)").eq("account_id", id).order("created_at", { ascending: false }),
     supabaseAdmin.from("sales_documents").select("*").eq("account_id", id).order("created_at", { ascending: false }),
+    equipmentQuery,
   ]);
 
   if (accountRes.error) return NextResponse.json({ error: accountRes.error.message }, { status: 404 });
@@ -24,6 +34,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     deals: dealsRes.data || [],
     orders: ordersRes.data || [],
     documents: docsRes.data || [],
+    equipment: equipmentRes.data || [],
   });
 }
 

@@ -3,14 +3,29 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { ArrowLeft, Loader2, FileText, Upload, Trash2, X } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, Upload, Trash2, X, Package, Plus, PencilLine } from "lucide-react";
 import type { SalesAccount, SalesDeal, SalesOrder, SalesDocument, SalesLead } from "@/lib/salesTypes";
+
+interface Equipment {
+  id: string;
+  account_id: string;
+  name: string;
+  serial_number: string | null;
+  model: string | null;
+  notes: string | null;
+  status: "active" | "removed";
+  assigned_at: string;
+  removed_at: string | null;
+  removed_reason: string | null;
+  created_at: string;
+}
 
 interface AccountDetail extends SalesAccount {
   leads: SalesLead[];
   deals: SalesDeal[];
   orders: SalesOrder[];
   documents: SalesDocument[];
+  equipment: Equipment[];
 }
 
 export default function AccountDetailPage() {
@@ -21,6 +36,12 @@ export default function AccountDetailPage() {
   const [token, setToken] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Equipment add form state
+  const [showAddEquipment, setShowAddEquipment] = useState(false);
+  const [equipmentForm, setEquipmentForm] = useState({ name: "", serial_number: "", model: "", assigned_at: "", notes: "" });
+  const [equipmentSaving, setEquipmentSaving] = useState(false);
+  const [equipmentError, setEquipmentError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -40,6 +61,60 @@ export default function AccountDetailPage() {
   }, [token, id]);
 
   useEffect(() => { fetchAccount(); }, [fetchAccount]);
+
+  async function saveEquipment() {
+    if (!token || !id) return;
+    setEquipmentError(null);
+    if (!equipmentForm.name.trim()) { setEquipmentError("Equipment name is required."); return; }
+    setEquipmentSaving(true);
+    const res = await fetch(`/api/sales/accounts/${id}/equipment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        name: equipmentForm.name.trim(),
+        serial_number: equipmentForm.serial_number.trim() || null,
+        model: equipmentForm.model.trim() || null,
+        notes: equipmentForm.notes.trim() || null,
+        assigned_at: equipmentForm.assigned_at || undefined,
+      }),
+    });
+    setEquipmentSaving(false);
+    if (!res.ok) {
+      setEquipmentError((await res.json().catch(() => ({}))).error || "Failed to add equipment");
+      return;
+    }
+    setEquipmentForm({ name: "", serial_number: "", model: "", assigned_at: "", notes: "" });
+    setShowAddEquipment(false);
+    fetchAccount();
+  }
+
+  async function markEquipmentRemoved(equipmentId: string) {
+    const reason = prompt("Reason for removal? (optional)") ?? "";
+    const res = await fetch(`/api/sales/accounts/${id}/equipment/${equipmentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status: "removed", removed_reason: reason.trim() || null }),
+    });
+    if (res.ok) fetchAccount();
+  }
+
+  async function reactivateEquipment(equipmentId: string) {
+    const res = await fetch(`/api/sales/accounts/${id}/equipment/${equipmentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status: "active" }),
+    });
+    if (res.ok) fetchAccount();
+  }
+
+  async function deleteEquipment(equipmentId: string) {
+    if (!confirm("Permanently delete this equipment record? Use Remove instead to preserve history.")) return;
+    const res = await fetch(`/api/sales/accounts/${id}/equipment/${equipmentId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) fetchAccount();
+  }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -212,6 +287,144 @@ export default function AccountDetailPage() {
                 )}
                 <span className="text-xs text-gray-400">{new Date(doc.created_at).toLocaleDateString()}</span>
               </a>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Equipment */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+            <Package className="h-4 w-4 text-gray-400" /> Equipment ({(account.equipment || []).filter((e) => e.status === "active").length} active)
+          </h2>
+          {!showAddEquipment && (
+            <button
+              type="button"
+              onClick={() => setShowAddEquipment(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-green-primary hover:bg-green-hover px-3 py-1.5 text-xs font-semibold text-white cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" /> Assign Equipment
+            </button>
+          )}
+        </div>
+
+        {showAddEquipment && (
+          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={equipmentForm.name}
+                onChange={(e) => setEquipmentForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Equipment name *"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
+              />
+              <input
+                type="text"
+                value={equipmentForm.serial_number}
+                onChange={(e) => setEquipmentForm((f) => ({ ...f, serial_number: e.target.value }))}
+                placeholder="Serial number"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
+              />
+              <input
+                type="text"
+                value={equipmentForm.model}
+                onChange={(e) => setEquipmentForm((f) => ({ ...f, model: e.target.value }))}
+                placeholder="Model (optional)"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
+              />
+              <input
+                type="date"
+                value={equipmentForm.assigned_at}
+                onChange={(e) => setEquipmentForm((f) => ({ ...f, assigned_at: e.target.value }))}
+                placeholder="Date assigned"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
+              />
+            </div>
+            <textarea
+              value={equipmentForm.notes}
+              onChange={(e) => setEquipmentForm((f) => ({ ...f, notes: e.target.value }))}
+              placeholder="Notes (optional)"
+              rows={2}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
+            />
+            {equipmentError && <p className="text-xs text-red-600">{equipmentError}</p>}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={saveEquipment}
+                disabled={equipmentSaving}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white cursor-pointer disabled:opacity-50"
+              >
+                {equipmentSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />} Save
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowAddEquipment(false); setEquipmentError(null); }}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(account.equipment || []).length === 0 ? (
+          <p className="text-sm text-gray-400">No equipment assigned yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {(account.equipment || []).map((e) => (
+              <div key={e.id} className={`rounded-lg border ${e.status === "removed" ? "border-gray-100 bg-gray-50 opacity-70" : "border-gray-100 bg-white"} p-3`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {e.name}
+                      {e.model && <span className="text-xs text-gray-500 font-normal ml-1">· {e.model}</span>}
+                    </p>
+                    <div className="mt-0.5 text-[11px] text-gray-500 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                      {e.serial_number && <span>SN: {e.serial_number}</span>}
+                      <span>Assigned: {new Date(e.assigned_at).toLocaleDateString()}</span>
+                      {e.status === "removed" && e.removed_at && (
+                        <span className="text-red-600">Removed: {new Date(e.removed_at).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                    {e.notes && <p className="mt-1 text-[11px] text-gray-500 whitespace-pre-wrap">{e.notes}</p>}
+                    {e.removed_reason && <p className="mt-1 text-[11px] italic text-gray-500">Reason: {e.removed_reason}</p>}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${e.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-gray-200 text-gray-600"}`}>
+                      {e.status}
+                    </span>
+                    {e.status === "active" ? (
+                      <button
+                        type="button"
+                        onClick={() => markEquipmentRemoved(e.id)}
+                        title="Mark as removed"
+                        className="rounded-lg p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => reactivateEquipment(e.id)}
+                        title="Re-activate"
+                        className="rounded-lg p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 cursor-pointer"
+                      >
+                        <PencilLine className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => deleteEquipment(e.id)}
+                      title="Delete permanently"
+                      className="rounded-lg p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         )}
