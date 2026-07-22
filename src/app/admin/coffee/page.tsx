@@ -23,6 +23,7 @@ import {
   Database,
   Play,
   RefreshCw,
+  DollarSign,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
@@ -817,9 +818,25 @@ export default function AdminCoffeePage() {
           <ArrowLeft className="h-4 w-4" />
           Back to Admin Panel
         </Link>
-        <div className="flex items-center gap-3">
-          <Shield className="h-6 w-6 text-green-600" />
-          <h1 className="text-2xl font-bold text-gray-900">Coffee Management</h1>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Shield className="h-6 w-6 text-green-600" />
+            <h1 className="text-2xl font-bold text-gray-900">Coffee Management</h1>
+          </div>
+          {/*
+            Tier-pricing lives on its own dedicated route because the
+            editor is a wide product×tier grid — pulling it into a
+            tab in this monolithic file would blow the layout out.
+            The header link keeps it one click away from every tab.
+          */}
+          <Link
+            href="/admin/coffee/tier-prices"
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition-colors"
+            title="Edit per-tier prices for coffee products (Tier 1 / Tier 2 / Tier 3)"
+          >
+            <DollarSign className="h-4 w-4" />
+            Manage Tier Pricing
+          </Link>
         </div>
       </div>
 
