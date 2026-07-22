@@ -164,10 +164,19 @@ export async function POST(req: NextRequest) {
       order_id: order.id,
     }));
 
-    const { error: itemsError } = await supabaseAdmin
+    // Insert order lines. pricing_tier_id was added in migration 118 —
+    // if a customer hasn't applied it yet, PostgREST returns "Could not
+    // find the pricing_tier_id column". Fall back to inserting without
+    // the tier snapshot so orders still commit. Once migration 118 is
+    // applied the first attempt succeeds and the retry never runs.
+    let { error: itemsError } = await supabaseAdmin
       .from("coffee_order_items")
       .insert(itemsWithOrderId);
-
+    if (itemsError && /pricing_tier_id/.test(itemsError.message || "")) {
+      const legacy = itemsWithOrderId.map(({ pricing_tier_id: _tier, ...rest }) => rest);
+      const retry = await supabaseAdmin.from("coffee_order_items").insert(legacy);
+      itemsError = retry.error;
+    }
     if (itemsError) {
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
     }

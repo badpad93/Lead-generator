@@ -161,10 +161,16 @@ export async function POST(req: NextRequest) {
       order_id: order.id,
     }));
 
-    const { error: itemsError } = await supabaseAdmin
+    // Retry-without-tier-snapshot if migration 118 hasn't been applied
+    // in this environment yet (see /api/coffee/checkout for context).
+    let { error: itemsError } = await supabaseAdmin
       .from("coffee_order_items")
       .insert(itemsWithOrderId);
-
+    if (itemsError && /pricing_tier_id/.test(itemsError.message || "")) {
+      const legacy = itemsWithOrderId.map(({ pricing_tier_id: _tier, ...rest }) => rest);
+      const retry = await supabaseAdmin.from("coffee_order_items").insert(legacy);
+      itemsError = retry.error;
+    }
     if (itemsError) {
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
     }
