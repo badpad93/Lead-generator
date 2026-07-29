@@ -6,7 +6,9 @@ import { createBrowserClient } from "@/lib/supabase";
 import {
   Loader2, ClipboardList, Plus, Search, AlertCircle,
   ChevronRight, Package, MapPin, Coffee, Monitor, Wrench, DollarSign, FileText,
+  FileSpreadsheet,
 } from "lucide-react";
+import { exportRowsToCsv } from "@/lib/csvExport";
 
 interface OrderItem {
   id: string;
@@ -144,13 +146,50 @@ export default function OrdersPage() {
           <h1 className="text-2xl font-bold text-gray-900">Orders / Quotes</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage orders, quotes, and fulfillment</p>
         </div>
-        <button
-          onClick={() => router.push(`/sales/orders/new?type=${docType}`)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer"
-        >
-          <Plus className="h-4 w-4" />
-          New {docLabel}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              // Read-only CSV export — dumps the currently-loaded orders
+              // list (with active filters applied server-side) so team
+              // members can review offline or share in a report.
+              exportRowsToCsv({
+                filename: docType === "quote" ? "quotes_report" : "orders_report",
+                rows: orders,
+                columns: [
+                  { header: "Order #", value: (r) => r.order_number },
+                  { header: "Doc Type", value: (r) => r.document_type },
+                  { header: "Order Type", value: (r) => r.order_type },
+                  { header: "Status", value: (r) => r.order_status },
+                  { header: "Payment", value: (r) => r.payment_status },
+                  { header: "Invoice", value: (r) => r.invoice_status },
+                  { header: "Agreement", value: (r) => r.agreement_status },
+                  { header: "Fulfillment", value: (r) => r.fulfillment_status },
+                  { header: "Business", value: (r) => r.sales_accounts?.business_name },
+                  { header: "Contact", value: (r) => r.sales_accounts?.contact_name },
+                  { header: "Email", value: (r) => r.sales_accounts?.email },
+                  { header: "Phone", value: (r) => r.sales_accounts?.phone },
+                  { header: "Total", value: (r) => r.total_value },
+                  { header: "Assigned To", value: (r) => r.assigned_profile?.full_name },
+                  { header: "Next Action", value: (r) => r.next_required_action },
+                  { header: "Created", value: (r) => r.created_at ? new Date(r.created_at) : null },
+                  { header: "Updated", value: (r) => r.updated_at ? new Date(r.updated_at) : null },
+                ],
+              });
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+            title="Download the current list as a CSV file. Opens in Excel and Google Sheets."
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Export Report
+          </button>
+          <button
+            onClick={() => router.push(`/sales/orders/new?type=${docType}`)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            New {docLabel}
+          </button>
+        </div>
       </div>
 
       {/* Document Type Toggle */}

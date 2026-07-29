@@ -16,7 +16,9 @@ import {
   Clock,
   Ban,
   AlertCircle,
+  FileSpreadsheet,
 } from "lucide-react";
+import { exportRowsToCsv } from "@/lib/csvExport";
 
 interface AgreementRow {
   id: string;
@@ -156,14 +158,49 @@ export default function AgreementsListPage() {
           <h1 className="text-2xl font-bold text-gray-900">Agreements</h1>
           <p className="text-sm text-gray-500 mt-1">{headerSubtitle}</p>
         </div>
-        <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer inline-flex items-center gap-2"
-        >
-          {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          {newLabel}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              // Read-only CSV export of the filtered agreement rows so the
+              // team can email a report. Uses the same `filtered` list that
+              // drives the visible table — no server hop, no data mutation.
+              exportRowsToCsv({
+                filename: tab === "location_placement" ? "location_placement_agreements_report" : "agreements_report",
+                rows: filtered,
+                columns: [
+                  { header: "Type", value: (r) => r.agreement_type },
+                  { header: "Status", value: (r) => r.agreement_status },
+                  { header: "Operator Company", value: (r) => r.operator_company_name },
+                  { header: "Operator Contact", value: (r) => r.operator_legal_name },
+                  { header: "Operator Email", value: (r) => r.operator_email },
+                  { header: "Machine Model", value: (r) => r.machine_model },
+                  { header: "Machine Qty", value: (r) => r.machine_quantity },
+                  { header: "Due Prior to Procurement", value: (r) => r.total_due_prior_to_procurement },
+                  { header: "Location Business", value: (r) => r.location_business_name },
+                  { header: "Location Contact", value: (r) => r.location_contact_name },
+                  { header: "Location Email", value: (r) => r.location_contact_email },
+                  { header: "Placement Machine Count", value: (r) => r.placement_machine_count },
+                  { header: "Placement Term (months)", value: (r) => r.placement_term_months },
+                  { header: "Commission %", value: (r) => r.commission_pct },
+                  { header: "Created", value: (r) => r.created_at ? new Date(r.created_at) : null },
+                ],
+              });
+            }}
+            className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer inline-flex items-center gap-2"
+            title="Download the currently-filtered agreements as a CSV file. Opens in Excel and Google Sheets."
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Export Report
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={creating}
+            className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer inline-flex items-center gap-2"
+          >
+            {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {newLabel}
+          </button>
+        </div>
       </div>
 
       {/* Type tabs */}
