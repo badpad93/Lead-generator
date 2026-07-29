@@ -55,6 +55,7 @@ function SignupContent() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [salesRepName, setSalesRepName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
@@ -151,6 +152,7 @@ function SignupContent() {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           company_name: companyName.trim(),
+          sales_rep_name: salesRepName.trim(),
           email: email.trim().toLowerCase(),
           phone: phone.trim(),
           address: address.trim(),
@@ -337,6 +339,19 @@ function SignupContent() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Company <span className="text-gray-400 text-[10px]">(optional)</span></label>
               <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} disabled={!!loading} placeholder="Your company name" className={inputClass} autoComplete="organization" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Name of Sales Rep <span className="text-gray-400 text-[10px]">(optional)</span>
+              </label>
+              <input
+                value={salesRepName}
+                onChange={(e) => setSalesRepName(e.target.value)}
+                disabled={!!loading}
+                placeholder="Who told you about us?"
+                className={inputClass}
+              />
             </div>
 
             <div>

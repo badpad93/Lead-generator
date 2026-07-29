@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
     const firstName = String(body.first_name || "").trim();
     const lastName = String(body.last_name || "").trim();
     const companyName = String(body.company_name || "").trim();
+    const salesRepName = String(body.sales_rep_name || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
     const phone = String(body.phone || "").trim();
     const address = String(body.address || "").trim();
@@ -99,6 +100,7 @@ export async function POST(req: NextRequest) {
           zip,
           role,
           company_name: companyName || null,
+          referring_sales_rep_name: salesRepName || null,
           email_verified: false,
         },
         { onConflict: "id" },
