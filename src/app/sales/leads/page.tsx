@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2, Mail, Send, Clock, ShieldCheck, Paperclip, FileSignature, Globe } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
+import { exportRowsToCsv } from "@/lib/csvExport";
 
 const LEAD_FIELDS: { key: LeadFieldKey; label: string; required?: boolean }[] = [
   { key: "business_name", label: "Business Name", required: true },
@@ -881,6 +882,37 @@ export default function LeadsPage() {
               Remove Duplicates
             </button>
           )}
+          <button
+            onClick={() => {
+              // Read-only export of the currently-filtered leads to CSV. No
+              // API round-trip, no data mutation — the CSV comes from what's
+              // already loaded on the page (so any filters/sort apply).
+              exportRowsToCsv({
+                filename: "leads_report",
+                rows: filtered,
+                columns: [
+                  { header: "Business", value: (r) => r.business_name },
+                  { header: "Contact", value: (r) => r.contact_name },
+                  { header: "Phone", value: (r) => r.phone },
+                  { header: "Email", value: (r) => r.email },
+                  { header: "Address", value: (r) => r.address },
+                  { header: "City", value: (r) => r.city },
+                  { header: "State", value: (r) => r.state },
+                  { header: "Entity Type", value: (r) => r.entity_type },
+                  { header: "Immediate Need", value: (r) => r.immediate_need },
+                  { header: "Status", value: (r) => r.status },
+                  { header: "Assigned To", value: (r) => salesUsers.find((u) => u.id === r.assigned_to)?.full_name || "" },
+                  { header: "Notes", value: (r) => r.notes },
+                  { header: "Created", value: (r) => r.created_at ? new Date(r.created_at) : null },
+                ],
+              });
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            title="Download the currently-filtered leads as a CSV file. Opens in Excel and Google Sheets."
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Export Report
+          </button>
           <button
             onClick={() => { setShowImport(!showImport); setShowAdd(false); }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
