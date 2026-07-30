@@ -18,7 +18,7 @@ import {
   AlertCircle,
   FileSpreadsheet,
 } from "lucide-react";
-import { exportRowsToCsv } from "@/lib/csvExport";
+import { exportRowsToCsv } from "@/lib/spreadsheetExport";
 
 interface AgreementRow {
   id: string;

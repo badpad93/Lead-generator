@@ -8,7 +8,7 @@ import {
   ChevronRight, Package, MapPin, Coffee, Monitor, Wrench, DollarSign, FileText,
   FileSpreadsheet,
 } from "lucide-react";
-import { exportRowsToCsv } from "@/lib/csvExport";
+import { exportRowsToCsv } from "@/lib/spreadsheetExport";
 
 interface OrderItem {
   id: string;
