@@ -1,9 +1,12 @@
 /**
- * Spreadsheet export — client-side .xlsx generation.
+ * Spreadsheet export — client-side XLSX with CSV fallback.
  *
- * Produces a real Excel file that opens cleanly in Excel (no Import
- * Wizard) and Google Sheets (via File → Import). Column types are
- * preserved: dates render as dates, numbers as numbers, text as text.
+ * Tries to produce a real .xlsx via `write-excel-file/browser`. If that
+ * path fails for ANY reason (bundler quirk, popup blocker, unhandled
+ * lib exception), we fall through to a plain CSV built with a manual
+ * Blob + anchor-click download. CSV opens cleanly in Excel (with UTF-8
+ * BOM) and Google Sheets (File → Import), so the button always
+ * produces a downloadable report — no silent failures.
  *
  * READ-ONLY guarantee: caller passes rows already loaded on the page
  * (respecting active filters); helper writes a file to the browser's
@@ -51,34 +54,76 @@ function normalizeValue(v: unknown): string | number | boolean | Date | null {
 }
 
 /**
- * Export rows to a downloadable .xlsx file. Function name kept as
- * exportRowsToCsv for backward compatibility with existing callers —
- * it produces an .xlsx now, not a CSV.
- *
- * Throws with a visible alert on failure so users don't stare at a
- * button that seems to do nothing when something goes wrong upstream
- * (bad data shape, missing browser API, etc).
+ * Simple RFC-4180 CSV escape: wrap in quotes if the value contains
+ * comma / quote / newline; double any embedded quotes.
+ */
+function csvEscape(v: string | number | boolean | Date | null): string {
+  if (v == null) return "";
+  let s: string;
+  if (v instanceof Date) {
+    s = v.toISOString().slice(0, 10);
+  } else {
+    s = String(v);
+  }
+  if (/[",\r\n]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+/**
+ * Fallback: build a UTF-8 CSV Blob and trigger a download via a
+ * temporary anchor. Prepends BOM so Excel opens UTF-8 correctly.
+ * Runs entirely synchronously — no dynamic imports, no browser APIs
+ * beyond Blob/URL/anchor, all of which are universally available.
+ */
+function downloadAsCsv<T>(fileNameBase: string, rows: T[], columns: Column<T>[]): void {
+  const headerLine = columns.map((c) => csvEscape(c.header)).join(",");
+  const dataLines = rows.map((row) =>
+    columns.map((c) => csvEscape(normalizeValue(c.value(row)))).join(",")
+  );
+  const csv = "﻿" + [headerLine, ...dataLines].join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.style.display = "none";
+  a.href = url;
+  a.download = `${fileNameBase}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    if (a.parentNode) a.parentNode.removeChild(a);
+  }, 100);
+}
+
+/**
+ * Export rows to a downloadable spreadsheet. Function name kept as
+ * exportRowsToCsv for backward compatibility with existing callers.
+ * Tries .xlsx first, falls back to .csv so a click NEVER produces
+ * nothing.
  */
 export async function exportRowsToCsv<T>(args: {
   filename: string;
   rows: T[];
   columns: Column<T>[];
 }): Promise<void> {
+  console.log("[export] click received, rows=", args.rows.length);
+
+  if (args.rows.length === 0) {
+    alert("No rows to export with current filters.");
+    return;
+  }
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  const base = `${args.filename.replace(/\.(csv|xlsx)$/i, "")}_${stamp}`;
+
+  // Try XLSX path first.
   try {
-    const stamp = new Date().toISOString().slice(0, 10);
-    const base = args.filename.replace(/\.(csv|xlsx)$/i, "");
-    const fileName = `${base}_${stamp}.xlsx`;
+    console.log("[export] attempting xlsx via write-excel-file/browser");
+    const mod = await import("write-excel-file/browser");
+    const writeXlsxFile = mod.default;
 
-    if (args.rows.length === 0) {
-      alert("No rows to export with current filters.");
-      return;
-    }
-
-    // Dynamic import — client-only lib; keep out of the SSR bundle.
-    const writeXlsxFile = (await import("write-excel-file/browser")).default;
-
-    // Pre-compute type per column so every cell in that column gets
-    // the same Excel type constructor.
     const typeCtorFor: Record<CellType, StringConstructor | NumberConstructor | DateConstructor | BooleanConstructor> = {
       String,
       Number,
@@ -86,10 +131,6 @@ export async function exportRowsToCsv<T>(args: {
       Boolean,
     };
 
-    // v4 column shape:
-    //   { header, cell: (row) => ({ value, type }), width? }
-    // NOT the v3 shape (`column`, `value: fn`) — v3 syntax silently
-    // produces an empty spreadsheet with no error.
     const columns = args.columns.map((c) => {
       const t = inferType(c, args.rows);
       const TypeCtor = typeCtorFor[t];
@@ -104,17 +145,24 @@ export async function exportRowsToCsv<T>(args: {
       };
     });
 
-    // v4 API: writeXlsxFile(objects, { columns }).toFile(fileName)
-    // The library handles the browser download automatically.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = writeXlsxFile(args.rows as any, { columns: columns as any });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (result as any).toFile(fileName);
+    await (result as any).toFile(`${base}.xlsx`);
+    console.log("[export] xlsx download triggered");
+    return;
   } catch (err) {
-    // Fail loud rather than silent — a swallowed export bug is worse
-    // than a scary popup.
+    // Log and fall through to CSV so the user still gets a file.
+    console.warn("[export] xlsx path failed, falling back to CSV:", err);
+  }
+
+  // Fallback: plain CSV.
+  try {
+    downloadAsCsv(base, args.rows, args.columns);
+    console.log("[export] csv download triggered");
+  } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[exportRowsToCsv] failed:", err);
+    console.error("[export] csv fallback also failed:", err);
     alert(`Export failed: ${message}`);
   }
 }
