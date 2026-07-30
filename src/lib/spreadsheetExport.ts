@@ -1,48 +1,29 @@
 /**
- * Spreadsheet export — client-side. Produces a real .xlsx file that
- * opens cleanly in Excel and Google Sheets with the right column
- * types (dates are dates, numbers are numbers, text is text) — no
- * "Import Wizard" popup, no locale weirdness.
+ * Spreadsheet export — client-side .xlsx generation.
+ *
+ * Produces a real Excel file that opens cleanly in Excel (no Import
+ * Wizard) and Google Sheets (via File → Import). Column types are
+ * preserved: dates render as dates, numbers as numbers, text as text.
  *
  * READ-ONLY guarantee: caller passes rows already loaded on the page
- * (respecting any active filters), the helper writes a file to the
- * browser's download folder, and nothing round-trips to the server.
- * No possibility of data mutation.
+ * (respecting active filters); helper writes a file to the browser's
+ * download folder; nothing round-trips to the server; no possibility
+ * of data mutation.
  */
 
 export interface Column<T> {
   header: string;
-  /** Extract the value from a row. Return primitive, Date, or null. */
+  /** Extract the raw value from a row. */
   value: (row: T) => string | number | boolean | Date | null | undefined;
-  /** Optional explicit column type — inferred from data if omitted. */
+  /** Optional explicit column type. Inferred from data when omitted. */
   type?: "String" | "Number" | "Date" | "Boolean";
   /** Optional column width in Excel character units. */
   width?: number;
 }
 
-/**
- * Normalize a raw value into something write-excel-file's Cell type
- * accepts. Empty strings and null both become null (blank cell) so
- * Excel doesn't show `""` in every empty slot.
- */
-function normalizeValue(v: unknown): string | number | boolean | Date | null {
-  if (v == null) return null;
-  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
-  if (typeof v === "string") return v.trim() === "" ? null : v;
-  if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  if (typeof v === "boolean") return v;
-  return String(v);
-}
+type CellType = "String" | "Number" | "Date" | "Boolean";
 
-/**
- * Infer a column's type from its data. If every non-null value is a
- * Date, mark the column as Date so Excel formats it as a date. Same
- * for numbers and booleans. Mixed types fall through to String.
- */
-function inferType(
-  column: Column<unknown>,
-  rows: unknown[],
-): "String" | "Number" | "Date" | "Boolean" {
+function inferType<T>(column: Column<T>, rows: T[]): CellType {
   if (column.type) return column.type;
   let allDate = true, allNumber = true, allBool = true, anyValue = false;
   for (const row of rows) {
@@ -60,49 +41,80 @@ function inferType(
   return "String";
 }
 
+function normalizeValue(v: unknown): string | number | boolean | Date | null {
+  if (v == null) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if (typeof v === "string") return v.trim() === "" ? null : v;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "boolean") return v;
+  return String(v);
+}
+
 /**
- * Export rows as an .xlsx file. Function name kept as
+ * Export rows to a downloadable .xlsx file. Function name kept as
  * exportRowsToCsv for backward compatibility with existing callers —
- * it produces an .xlsx file now, not a CSV.
+ * it produces an .xlsx now, not a CSV.
+ *
+ * Throws with a visible alert on failure so users don't stare at a
+ * button that seems to do nothing when something goes wrong upstream
+ * (bad data shape, missing browser API, etc).
  */
 export async function exportRowsToCsv<T>(args: {
   filename: string;
   rows: T[];
   columns: Column<T>[];
 }): Promise<void> {
-  const stamp = new Date().toISOString().slice(0, 10);
-  const base = args.filename.replace(/\.(csv|xlsx)$/i, "");
-  const fileName = `${base}_${stamp}.xlsx`;
+  try {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const base = args.filename.replace(/\.(csv|xlsx)$/i, "");
+    const fileName = `${base}_${stamp}.xlsx`;
 
-  // Dynamic import — the library touches browser-only APIs (Blob,
-  // URL.createObjectURL); keep it out of the SSR bundle. Only loaded
-  // when the user clicks Export Report.
-  const writeXlsxFile = (await import("write-excel-file/browser")).default;
+    if (args.rows.length === 0) {
+      alert("No rows to export with current filters.");
+      return;
+    }
 
-  // Build the schema in v4 shape: each column has { header, cell,
-  // width } where `cell` returns either a primitive or a
-  // {value, type} object. Wrapping the value in {value, type} tells
-  // Excel to treat empty cells as blank instead of stringifying null.
-  const columns = args.columns.map((c) => {
-    const t = inferType(c as Column<unknown>, args.rows);
-    const TypeCtor = ({ String, Number, Date, Boolean } as const)[t];
-    return {
-      column: c.header,
-      type: TypeCtor,
-      width: c.width,
-      // v4 signature: cell(row, rowIndex) → Cell
-      value: (row: T) => normalizeValue(c.value(row)),
+    // Dynamic import — client-only lib; keep out of the SSR bundle.
+    const writeXlsxFile = (await import("write-excel-file/browser")).default;
+
+    // Pre-compute type per column so every cell in that column gets
+    // the same Excel type constructor.
+    const typeCtorFor: Record<CellType, StringConstructor | NumberConstructor | DateConstructor | BooleanConstructor> = {
+      String,
+      Number,
+      Date,
+      Boolean,
     };
-  });
 
-  // v4 returns { toBlob, toFile }; call toFile with the desired name.
-  // The type overload on the browser export is `SheetData` — the
-  // `Object[] + { columns }` overload lives on the universal export
-  // but the browser one accepts the same shape at runtime. Cast
-  // through unknown to satisfy TS without a runtime change.
-  await (
-    writeXlsxFile(args.rows as unknown as never, {
-      columns: columns as unknown as never,
-    }) as unknown as { toFile: (n: string) => Promise<void> }
-  ).toFile(fileName);
+    // v4 column shape:
+    //   { header, cell: (row) => ({ value, type }), width? }
+    // NOT the v3 shape (`column`, `value: fn`) — v3 syntax silently
+    // produces an empty spreadsheet with no error.
+    const columns = args.columns.map((c) => {
+      const t = inferType(c, args.rows);
+      const TypeCtor = typeCtorFor[t];
+      return {
+        header: c.header,
+        width: c.width,
+        cell: (row: T) => {
+          const v = normalizeValue(c.value(row));
+          if (v == null) return { value: null };
+          return { value: v, type: TypeCtor };
+        },
+      };
+    });
+
+    // v4 API: writeXlsxFile(objects, { columns }).toFile(fileName)
+    // The library handles the browser download automatically.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = writeXlsxFile(args.rows as any, { columns: columns as any });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (result as any).toFile(fileName);
+  } catch (err) {
+    // Fail loud rather than silent — a swallowed export bug is worse
+    // than a scary popup.
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[exportRowsToCsv] failed:", err);
+    alert(`Export failed: ${message}`);
+  }
 }
