@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2, Mail, Send, Clock, ShieldCheck, Paperclip, FileSignature, Globe } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
-import { exportRowsToCsv } from "@/lib/csvExport";
+import { exportRowsToCsv } from "@/lib/spreadsheetExport";
 
 const LEAD_FIELDS: { key: LeadFieldKey; label: string; required?: boolean }[] = [
   { key: "business_name", label: "Business Name", required: true },
@@ -869,9 +869,15 @@ export default function LeadsPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+      {/*
+        Header row: flex-wrap so the button group drops to a new line
+        instead of overflowing / pushing Export Report off-screen on
+        narrower widths. The button row itself wraps too so all four
+        actions stay reachable at every viewport width.
+      */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {userRole === "admin" && (
             <button
               onClick={handleDedup}
@@ -1200,6 +1206,7 @@ export default function LeadsPage() {
           <option value="initiated">Initiated</option>
           <option value="contacted">Contacted</option>
           <option value="qualified">Qualified</option>
+          <option value="won">Won</option>
           <option value="unqualified">Unqualified</option>
           <option value="lost">Lost</option>
         </select>

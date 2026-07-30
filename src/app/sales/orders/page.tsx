@@ -8,7 +8,7 @@ import {
   ChevronRight, Package, MapPin, Coffee, Monitor, Wrench, DollarSign, FileText,
   FileSpreadsheet,
 } from "lucide-react";
-import { exportRowsToCsv } from "@/lib/csvExport";
+import { exportRowsToCsv } from "@/lib/spreadsheetExport";
 
 interface OrderItem {
   id: string;
@@ -141,12 +141,12 @@ export default function OrdersPage() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Orders / Quotes</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage orders, quotes, and fulfillment</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => {
               // Read-only CSV export — dumps the currently-loaded orders
