@@ -145,8 +145,14 @@ export async function exportRowsToCsv<T>(args: {
       };
     });
 
+    // `dateFormat` is required by write-excel-file whenever any cell is
+    // a Date — otherwise it throws mid-generation. "yyyy-mm-dd" matches
+    // Excel's default date display and sorts naturally.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = writeXlsxFile(args.rows as any, { columns: columns as any });
+    const result = writeXlsxFile(args.rows as any, {
+      columns: columns as any,
+      dateFormat: "yyyy-mm-dd",
+    } as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (result as any).toFile(`${base}.xlsx`);
     console.log("[export] xlsx download triggered");
