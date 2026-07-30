@@ -196,6 +196,17 @@ export async function POST(req: NextRequest) {
     adminSubject: `Financing Application Copy: ${body.full_name}`,
   }).catch((e) => console.error("[financing] confirmation email error", e));
 
+  // Spawn financing workflow. Best-effort — never blocks the submission.
+  try {
+    const { spawnFromFinancingApplication } = await import("@/lib/workflows/hooks");
+    await spawnFromFinancingApplication(application.id, {
+      customerId: userId,
+      companyId: crmAccountId ?? undefined,
+    });
+  } catch (workflowErr) {
+    console.error("[financing] workflow spawn failed:", workflowErr);
+  }
+
   return NextResponse.json({ success: true, applicationId: application.id, crmAccountId, crmLeadId });
 }
 

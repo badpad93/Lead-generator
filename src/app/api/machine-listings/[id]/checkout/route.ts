@@ -86,6 +86,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `Failed to create purchase record: ${purchaseErr.message}` }, { status: 500 });
   }
 
+  // Spawn ai_machine_fulfillment workflow. Starts in pending_payment;
+  // the payment webhook advances payment_confirmed later. Best-effort —
+  // never blocks checkout.
+  try {
+    const { spawnFromMachineListingPurchase } = await import("@/lib/workflows/hooks");
+    await spawnFromMachineListingPurchase(purchase.id, {
+      customerId: userId,
+      listingId: listing.id,
+      machineTitle: listing.title,
+    });
+  } catch (workflowErr) {
+    console.error("[machine-checkout] workflow spawn failed:", workflowErr);
+  }
+
   const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
 
   if (isQuickBooks()) {

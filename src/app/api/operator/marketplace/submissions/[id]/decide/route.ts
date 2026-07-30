@@ -88,6 +88,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         activity_type: "operator_accepted_submission",
         description: `Operator accepted a submission — ${nextFilled}/${contract.locations_needed} filled${nextStatus === "fulfilled" ? " (contract now fulfilled)" : ""}`,
       });
+
+      // Propagate to the linked location_services workflow so both the
+      // PP marketplace and the CRM Workflows view show the same state.
+      try {
+        const { advanceLocationSecuredForContract } = await import("@/lib/workflows/hooks");
+        await advanceLocationSecuredForContract({
+          placementContractId: contract.id,
+          delta: 1,
+          actorUserId: user.id,
+          changeKey: `submission_accepted:${id}`,
+        });
+      } catch (workflowErr) {
+        console.error("[submissions.decide] workflow advance failed:", workflowErr);
+      }
     }
 
     // Queue payout + invoice. Payout starts in 'awaiting_collection' unless
