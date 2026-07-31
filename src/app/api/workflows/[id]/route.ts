@@ -129,6 +129,37 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
   }
 
+  // Customer profile — always fetched so both the CRM header and the
+  // customer's own view have a name to render. Contact info (email,
+  // phone) is included only for staff; customers already know their own.
+  const { data: customerProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("id, full_name, email, phone, role")
+    .eq("id", workflow.customer_id)
+    .maybeSingle();
+
+  const customerInfo = customerProfile
+    ? {
+        id: customerProfile.id,
+        full_name: customerProfile.full_name,
+        role: customerProfile.role,
+        email: staffView ? customerProfile.email : null,
+        phone: staffView ? customerProfile.phone : null,
+      }
+    : null;
+
+  // Optional company (sales_accounts) — only when workflow.company_id
+  // is set. Staff-only, since it's an internal account record.
+  let companyInfo: { id: string; business_name: string; phone: string | null; email: string | null } | null = null;
+  if (staffView && workflow.company_id) {
+    const { data: acc } = await supabaseAdmin
+      .from("sales_accounts")
+      .select("id, business_name, phone, email")
+      .eq("id", workflow.company_id)
+      .maybeSingle();
+    if (acc) companyInfo = acc;
+  }
+
   // Customer approvals (pending + recent decisions). Customers must see
   // pending items so they can accept/decline; staff need visibility for
   // support.
@@ -183,6 +214,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     approvals: approvals ?? [],
     remainingDeclines,
     balanceSummary,
+    customerInfo,
+    companyInfo,
     assigneeDisplay,
     isStaffView: staffView,
     isOwner,

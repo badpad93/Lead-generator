@@ -39,6 +39,8 @@ interface WorkflowRow {
   assigned_user_id: string | null;
   customer_id: string;
   company_id: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
   updated_at: string;
 }
 
@@ -254,6 +256,7 @@ export default function WorkflowsPage() {
           <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
             <tr>
               <th className="px-4 py-3">Workflow</th>
+              <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Progress</th>
               <th className="px-4 py-3">Status</th>
@@ -264,14 +267,14 @@ export default function WorkflowsPage() {
           <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
                   <Loader2 className="inline-block h-5 w-5 animate-spin mr-2" />
                   Loading workflows…
                 </td>
               </tr>
             ) : workflows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
                   <Filter className="inline-block h-5 w-5 mr-2 text-gray-400" />
                   No workflows match the current filters.
                 </td>
@@ -322,6 +325,14 @@ function WorkflowRowRender({ workflow, nowMs }: { workflow: WorkflowRow; nowMs: 
           <div className="font-medium text-gray-900 hover:text-emerald-700">{workflow.title}</div>
           {workflow.product_name && <div className="text-xs text-gray-500 mt-0.5">{workflow.product_name}</div>}
         </Link>
+      </td>
+      <td className="px-4 py-3">
+        <div className="text-sm font-medium text-gray-900">
+          {workflow.customer_name ?? workflow.customer_email ?? <span className="text-gray-400">—</span>}
+        </div>
+        {workflow.customer_email && workflow.customer_name && (
+          <div className="text-xs text-gray-500 truncate max-w-[200px]">{workflow.customer_email}</div>
+        )}
       </td>
       <td className="px-4 py-3">
         <div className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
