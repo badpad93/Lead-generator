@@ -220,6 +220,20 @@ export async function getOrCreateWorkflow(
     source: input.sourceType,
   });
 
+  // Fire the "workflow.created" notification unless the caller
+  // explicitly suppressed it (used by the legacy backfill import).
+  if (!workflow.suppress_initial_customer_email) {
+    try {
+      const { dispatchNotification } = await import("./notifications");
+      await dispatchNotification({
+        workflowId: workflow.id,
+        trigger: "workflow.created",
+      });
+    } catch (err) {
+      console.error("[workflows.service] notification dispatch failed:", err);
+    }
+  }
+
   return { workflow, stages, created: true };
 }
 
@@ -466,7 +480,68 @@ export async function updateStage(input: UpdateStageInput): Promise<UpdateStageR
   // Recompute derived overall_status + quantity_completed.
   const refreshedWorkflow = await recomputeWorkflowRollup(input.workflowId, input.updatedBy ?? null);
 
+  // Fire stage-specific notifications. Mapping stage_key → trigger:
+  //   shipped → machine.shipped / coffee.equipment_shipped
+  //   delivered → machine.delivered / coffee.equipment_delivered
+  //   secured → location.secured
+  //   completed → location.completed (for location_services)
+  //   approved / funded → financing.approved / financing.funded
+  //   installation_scheduled → coffee.installation_scheduled
+  try {
+    const trigger = triggerForStageEvent(refreshedWorkflow.workflow_type, stage.stage_key, updated as WorkflowStageRow);
+    if (trigger) {
+      const { dispatchNotification } = await import("./notifications");
+      await dispatchNotification({
+        workflowId: refreshedWorkflow.id,
+        trigger,
+        stageKey: stage.stage_key,
+      });
+    }
+    // If the rollup transitioned to `completed`, fire the completion email.
+    if (refreshedWorkflow.overall_status === "completed" && workflow.overall_status !== "completed") {
+      const { dispatchNotification } = await import("./notifications");
+      await dispatchNotification({
+        workflowId: refreshedWorkflow.id,
+        trigger: "workflow.completed",
+      });
+    }
+  } catch (err) {
+    console.error("[workflows.service] stage notification dispatch failed:", err);
+  }
+
   return { stage: updated as WorkflowStageRow, workflow: refreshedWorkflow, changed: true };
+}
+
+function triggerForStageEvent(
+  workflowType: string,
+  stageKey: string,
+  updated: WorkflowStageRow,
+): import("./notifications").NotificationTrigger | null {
+  // Only fire on quantity increases or status → completed transitions
+  // (avoids re-emitting for cosmetic edits).
+  const advanced = updated.status === "completed" || Number(updated.completed_quantity) > 0;
+  if (!advanced) return null;
+
+  if (workflowType === "ai_machine_fulfillment") {
+    if (stageKey === "shipped") return "machine.shipped";
+    if (stageKey === "delivered") return "machine.delivered";
+  }
+  if (workflowType === "coffee_equipment") {
+    if (stageKey === "shipped") return "coffee.equipment_shipped";
+    if (stageKey === "delivered") return "coffee.equipment_delivered";
+    if (stageKey === "installation_scheduled") return "coffee.installation_scheduled";
+  }
+  if (workflowType === "location_services") {
+    if (stageKey === "secured") return "location.secured";
+    if (stageKey === "completed") return "location.completed";
+  }
+  if (workflowType === "financing") {
+    if (stageKey === "pre_approved") return "financing.pre_approved";
+    if (stageKey === "approved") return "financing.approved";
+    if (stageKey === "funded") return "financing.funded";
+    if (stageKey === "declined") return "financing.declined";
+  }
+  return null;
 }
 
 async function getPriorQuantityStageMax(
@@ -694,6 +769,17 @@ export async function assignWorkflow(input: AssignmentInput) {
       actorUserId: input.assignedBy ?? null,
       actorType: "staff",
     });
+  }
+
+  // Notify the newly-assigned user.
+  try {
+    const { dispatchNotification } = await import("./notifications");
+    await dispatchNotification({
+      workflowId: input.workflowId,
+      trigger: "assignment.created",
+    });
+  } catch (err) {
+    console.error("[workflows.service] assignment notification failed:", err);
   }
 }
 
@@ -966,6 +1052,17 @@ export async function changeDeadline(args: {
     actorType: "staff",
     notes: args.reason,
   });
+
+  // Notify customer of the change.
+  try {
+    const { dispatchNotification } = await import("./notifications");
+    await dispatchNotification({
+      workflowId: workflow.id,
+      trigger: "deadline.changed",
+    });
+  } catch (err) {
+    console.error("[workflows.service] deadline notification failed:", err);
+  }
 
   return updated as WorkflowRow;
 }
