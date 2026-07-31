@@ -333,11 +333,14 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
                 : undefined
             }
           />
-          <InfoTile
-            icon={<UserCircle2 className="h-4 w-4" />}
-            label="Assigned"
-            value={data.assigneeDisplay ?? "Unassigned"}
-            hint={w.primary_team ? `Team: ${w.primary_team}` : undefined}
+          <AssigneeTile
+            assigneeDisplay={data.assigneeDisplay}
+            currentUserId={w.assigned_user_id}
+            team={w.primary_team}
+            staffView={data.isStaffView}
+            onAssign={(userId) =>
+              postAction("/assign", { userId, role: "primary_owner", makePrimary: true })
+            }
           />
           <InfoTile
             icon={<Package className="h-4 w-4" />}
@@ -714,6 +717,103 @@ function PriorityBadge({ priority }: { priority: string }) {
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium uppercase ${cls}`}>
       {priority}
     </span>
+  );
+}
+
+interface StaffPicker { id: string; full_name: string | null; email: string; role: string }
+
+function AssigneeTile({
+  assigneeDisplay,
+  currentUserId,
+  team,
+  staffView,
+  onAssign,
+}: {
+  assigneeDisplay: string | null;
+  currentUserId: string | null;
+  team: string | null;
+  staffView: boolean;
+  onAssign: (userId: string) => Promise<boolean>;
+}) {
+  const [picking, setPicking] = useState(false);
+  const [staff, setStaff] = useState<StaffPicker[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  async function openPicker() {
+    setPicking(true);
+    if (staff.length > 0) return;
+    setLoading(true);
+    const supabase = createBrowserClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      const res = await fetch("/api/sales/users", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) setStaff(await res.json());
+    }
+    setLoading(false);
+  }
+
+  async function assign(userId: string) {
+    setSaving(userId);
+    const ok = await onAssign(userId);
+    setSaving(null);
+    if (ok) setPicking(false);
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+      <div className="text-xs uppercase tracking-wide text-gray-500 flex items-center gap-1">
+        <UserCircle2 className="h-4 w-4" /> Assigned
+      </div>
+      <div className="text-sm font-medium text-gray-900 mt-1 capitalize">
+        {assigneeDisplay ?? "Unassigned"}
+      </div>
+      {team && <div className="text-xs text-gray-500 mt-0.5">Team: {team}</div>}
+      {staffView && !picking && (
+        <button
+          type="button"
+          onClick={openPicker}
+          className="mt-2 text-xs text-emerald-700 hover:underline"
+        >
+          {currentUserId ? "Reassign" : "Assign"}
+        </button>
+      )}
+      {staffView && picking && (
+        <div className="mt-2">
+          {loading ? (
+            <div className="text-xs text-gray-500 inline-flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> Loading team…
+            </div>
+          ) : (
+            <>
+              <select
+                onChange={(e) => e.target.value && assign(e.target.value)}
+                defaultValue=""
+                disabled={saving !== null}
+                className="w-full rounded-md border border-gray-200 text-xs px-2 py-1"
+              >
+                <option value="" disabled>Select assignee…</option>
+                {staff.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.full_name ?? s.email} ({s.role})
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setPicking(false)}
+                className="mt-1 text-xs text-gray-500 hover:text-gray-800"
+                disabled={saving !== null}
+              >
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
