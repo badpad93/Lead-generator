@@ -155,10 +155,14 @@ export async function GET(req: NextRequest) {
     return true;
   });
 
-  // --- Orders ---
+  // --- Orders + Quotes (sales_orders holds both, distinguished by document_type) ---
+  // Prior code summed ALL sales_orders rows into revenue, which counted
+  // quotes as revenue and inflated every downstream metric. We now select
+  // document_type and split them; falls back gracefully if the column
+  // doesn't exist on very old schemas (all rows treated as orders then).
   let ordersQuery = supabaseAdmin
     .from("sales_orders")
-    .select("id, status, total_value, deal_id, created_at")
+    .select("id, status, total_value, deal_id, created_at, document_type")
     .gte("created_at", since);
   if (until) ordersQuery = ordersQuery.lte("created_at", until);
 
@@ -168,7 +172,31 @@ export async function GET(req: NextRequest) {
     ordersQuery = ordersQuery.in("created_by", allowedUserIds);
   }
 
-  const { data: orders } = await ordersQuery;
+  // eslint-disable-next-line prefer-const
+  let { data: allSalesOrderRows, error: ordersError } = await ordersQuery;
+
+  if (ordersError && String(ordersError.message).includes("document_type")) {
+    let retry = supabaseAdmin
+      .from("sales_orders")
+      .select("id, status, total_value, deal_id, created_at")
+      .gte("created_at", since);
+    if (until) retry = retry.lte("created_at", until);
+    if (targetUserId) {
+      retry = retry.eq("created_by", targetUserId);
+    } else if (allowedUserIds) {
+      retry = retry.in("created_by", allowedUserIds);
+    }
+    const fallback = await retry;
+    // Legacy rows have no document_type — cast to the wider shape and
+    // let the null-coalesce below default them to 'order'.
+    allSalesOrderRows = (fallback.data ?? []).map((r) => ({ ...r, document_type: null }));
+  }
+
+  const rows = allSalesOrderRows || [];
+  // Treat NULL document_type as 'order' (legacy rows created before the
+  // column existed were all orders). Quotes are filtered out so they
+  // never contribute to orders_total / order_revenue / deals_won.
+  const orders = rows.filter((r) => (r.document_type ?? "order") === "order");
 
   // --- Commissions ---
   let commissionsQuery = supabaseAdmin

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { createBrowserClient } from "@/lib/supabase";
 import {
   Users,
@@ -15,6 +15,13 @@ import {
   Copy,
   Check,
   Calendar,
+  FileText,
+  ScrollText,
+  Workflow,
+  Package,
+  MapPin,
+  Coffee,
+  Globe,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -46,6 +53,22 @@ interface ResultsResponse {
     target_leads: number;
     target_commission: number;
   } | null;
+}
+
+interface SnapshotResponse {
+  period: { since: string; until: string | null; label: string };
+  scope: { user_id: string | null; market_id: string | null; is_company_wide: boolean; viewer_role: string };
+  quotes: { sent: number; outstanding: number; converted: number; total_value: number };
+  orders: { placed: number; completed: number; outstanding: number; revenue: number };
+  agreements: {
+    crm_sent: number; crm_awaiting: number; crm_signed: number;
+    provider_sent: number; provider_awaiting: number; provider_signed: number;
+    provider_included: boolean;
+  };
+  workflows: { active: number; unassigned: number; due_7d: number; overdue: number; by_type: Record<string, number> };
+  leads: { total: number; by_status: Record<string, number> };
+  deals: { total: number; pipeline_value: number; in_stage: Record<string, number> };
+  commissions: { total: number; pending: number; approved: number; paid: number };
 }
 
 interface SalesUserOption {
@@ -98,6 +121,7 @@ export default function SalesDashboard() {
   const [filterUserId, setFilterUserId] = useState<string>("");
   const [salesUsers, setSalesUsers] = useState<SalesUserOption[]>([]);
   const [results, setResults] = useState<ResultsResponse | null>(null);
+  const [snapshot, setSnapshot] = useState<SnapshotResponse | null>(null);
   const [counts, setCounts] = useState({ leads: 0, deals: 0, accounts: 0, orders: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -125,43 +149,51 @@ export default function SalesDashboard() {
       });
   }, [token, userId]);
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    if (period === "custom" && !startDate) return;
-    setLoading(true);
-    const headers = { Authorization: `Bearer ${token}` };
+  useEffect(() => {
+    async function load() {
+      if (!token) return;
+      if (period === "custom" && !startDate) return;
+      setLoading(true);
+      const headers = { Authorization: `Bearer ${token}` };
 
-    let resultsUrl = `/api/sales/results?period=${period}`;
-    if (period === "custom" && startDate) {
-      resultsUrl += `&start_date=${startDate}`;
-      if (endDate) resultsUrl += `&end_date=${endDate}`;
+      let resultsUrl = `/api/sales/results?period=${period}`;
+      let snapshotUrl = `/api/sales/executive-snapshot?period=${period}`;
+      if (period === "custom" && startDate) {
+        const qs = `&start_date=${startDate}${endDate ? `&end_date=${endDate}` : ""}`;
+        resultsUrl += qs;
+        snapshotUrl += qs;
+      }
+      if (filterUserId) {
+        resultsUrl += `&user_id=${filterUserId}`;
+        snapshotUrl += `&user_id=${filterUserId}`;
+      }
+
+      const [resultsRes, snapshotRes, leadsRes, dealsRes, accountsRes, ordersRes] = await Promise.all([
+        fetch(resultsUrl, { headers }),
+        fetch(snapshotUrl, { headers }),
+        fetch("/api/sales/leads", { headers }),
+        fetch("/api/sales/deals", { headers }),
+        fetch("/api/sales/accounts", { headers }),
+        fetch("/api/sales/orders", { headers }),
+      ]);
+      if (resultsRes.ok) setResults(await resultsRes.json());
+      if (snapshotRes.ok) setSnapshot(await snapshotRes.json());
+      const [leads, deals, accounts, orders] = await Promise.all([
+        leadsRes.ok ? leadsRes.json() : [],
+        dealsRes.ok ? dealsRes.json() : [],
+        accountsRes.ok ? accountsRes.json() : [],
+        ordersRes.ok ? ordersRes.json() : [],
+      ]);
+      setCounts({
+        leads: leads.length,
+        deals: deals.length,
+        accounts: accounts.length,
+        orders: orders.length,
+      });
+      setLoading(false);
     }
-    if (filterUserId) resultsUrl += `&user_id=${filterUserId}`;
-
-    const [resultsRes, leadsRes, dealsRes, accountsRes, ordersRes] = await Promise.all([
-      fetch(resultsUrl, { headers }),
-      fetch("/api/sales/leads", { headers }),
-      fetch("/api/sales/deals", { headers }),
-      fetch("/api/sales/accounts", { headers }),
-      fetch("/api/sales/orders", { headers }),
-    ]);
-    if (resultsRes.ok) setResults(await resultsRes.json());
-    const [leads, deals, accounts, orders] = await Promise.all([
-      leadsRes.ok ? leadsRes.json() : [],
-      dealsRes.ok ? dealsRes.json() : [],
-      accountsRes.ok ? accountsRes.json() : [],
-      ordersRes.ok ? ordersRes.json() : [],
-    ]);
-    setCounts({
-      leads: leads.length,
-      deals: deals.length,
-      accounts: accounts.length,
-      orders: orders.length,
-    });
-    setLoading(false);
+    load();
   }, [token, period, startDate, endDate, filterUserId]);
-
-  useEffect(() => { load(); }, [load]);
 
   const cards = [
     { label: "Leads", value: counts.leads, icon: Users, href: "/sales/leads", color: "text-blue-600 bg-blue-50" },
@@ -266,6 +298,9 @@ export default function SalesDashboard() {
               </div>
             </div>
           )}
+
+          {/* Executive Snapshot — quotes / orders / agreements / workflows */}
+          {snapshot && <ExecutiveSnapshot data={snapshot} />}
 
           {/* Totals */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -420,6 +455,184 @@ export default function SalesDashboard() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Executive Snapshot                                                */
+/*  A compact operating view: quotes/orders/agreements/workflows.     */
+/*  Numerator/denominator + progress bar for each so leadership sees  */
+/*  the gap at a glance. Individual reps see their own numbers;       */
+/*  admin + DOS see company-wide (or filtered).                       */
+/* ------------------------------------------------------------------ */
+function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
+  const q = data.quotes;
+  const o = data.orders;
+  const a = data.agreements;
+  const w = data.workflows;
+
+  const wfTypeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+    ai_machine_fulfillment: Package,
+    location_services: MapPin,
+    financing: DollarSign,
+    coffee_equipment: Coffee,
+    coffee_service: Coffee,
+    website_build: Globe,
+  };
+
+  const wfTypeLabels: Record<string, string> = {
+    ai_machine_fulfillment: "AI Machines",
+    location_services: "Location Services",
+    financing: "Financing",
+    coffee_equipment: "Coffee Equipment",
+    coffee_service: "Coffee Service",
+    website_build: "Website Builds",
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <Target className="h-5 w-5 text-green-600" />
+        <h2 className="text-base font-semibold text-gray-900">
+          Executive Snapshot — {data.period.label}
+          <span className="ml-2 text-sm font-normal text-gray-500">
+            {data.scope.is_company_wide ? "Company-wide" : data.scope.user_id ? "This rep" : "My activity"}
+          </span>
+        </h2>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <SnapshotCard
+          icon={<FileText className="h-4 w-4" />}
+          label="Quotes"
+          primary={`${q.sent} sent`}
+          numerator={q.converted}
+          denominator={Math.max(q.sent, q.converted)}
+          progressLabel={`${q.converted} converted`}
+          rows={[
+            [`Outstanding`, `${q.outstanding}`],
+            [`Total quoted value`, `$${q.total_value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`],
+          ]}
+          tone="blue"
+        />
+        <SnapshotCard
+          icon={<ClipboardList className="h-4 w-4" />}
+          label="Orders"
+          primary={`${o.placed} placed`}
+          numerator={o.completed}
+          denominator={Math.max(o.placed, o.completed)}
+          progressLabel={`${o.completed} completed`}
+          rows={[
+            [`Outstanding`, `${o.outstanding}`],
+            [`Revenue`, `$${o.revenue.toLocaleString("en-US", { maximumFractionDigits: 0 })}`],
+          ]}
+          tone="orange"
+        />
+        <SnapshotCard
+          icon={<ScrollText className="h-4 w-4" />}
+          label="Agreements"
+          primary={`${a.crm_sent} sent`}
+          numerator={a.crm_signed}
+          denominator={Math.max(a.crm_sent, a.crm_signed)}
+          progressLabel={`${a.crm_signed} fully signed`}
+          rows={[
+            [`Awaiting signature`, `${a.crm_awaiting}`],
+            ...(a.provider_included
+              ? [[`Provider (PPA + coffee)`, `${a.provider_signed}/${a.provider_sent}`] as [string, string]]
+              : []),
+          ]}
+          tone="emerald"
+        />
+        <SnapshotCard
+          icon={<Workflow className="h-4 w-4" />}
+          label="Workflows"
+          primary={`${w.active} active`}
+          numerator={w.active - w.overdue - w.unassigned}
+          denominator={w.active}
+          progressLabel={w.active === 0 ? "—" : `${w.active - w.overdue - w.unassigned} on track`}
+          rows={[
+            [`Overdue`, `${w.overdue}`],
+            [`Unassigned`, `${w.unassigned}`],
+            [`Due within 7d`, `${w.due_7d}`],
+          ]}
+          tone="purple"
+        />
+      </div>
+
+      {/* By-type workflow breakdown (only shown when there are any) */}
+      {Object.keys(w.by_type).length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+          <span className="font-medium uppercase tracking-wide text-gray-500">Active by service:</span>
+          {Object.entries(w.by_type).map(([type, count]) => {
+            const Icon = wfTypeIcons[type] ?? Workflow;
+            return (
+              <span
+                key={type}
+                className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1"
+              >
+                <Icon className="h-3 w-3" />
+                {wfTypeLabels[type] ?? type} · <span className="font-semibold">{count}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SnapshotCard({
+  icon,
+  label,
+  primary,
+  numerator,
+  denominator,
+  progressLabel,
+  rows,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  primary: string;
+  numerator: number;
+  denominator: number;
+  progressLabel: string;
+  rows: [string, string][];
+  tone: "blue" | "orange" | "emerald" | "purple";
+}) {
+  const pct = denominator > 0 ? Math.min(100, Math.round((numerator / denominator) * 100)) : 0;
+  const toneClasses = {
+    blue: { text: "text-blue-700", bg: "bg-blue-50", bar: "bg-blue-500" },
+    orange: { text: "text-orange-700", bg: "bg-orange-50", bar: "bg-orange-500" },
+    emerald: { text: "text-emerald-700", bg: "bg-emerald-50", bar: "bg-emerald-500" },
+    purple: { text: "text-purple-700", bg: "bg-purple-50", bar: "bg-purple-500" },
+  }[tone];
+
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-500">
+        <span className={toneClasses.text}>{icon}</span>
+        {label}
+      </div>
+      <div className="mt-1 text-xl font-bold text-gray-900">{primary}</div>
+      <div className="mt-2">
+        <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+          <span>{progressLabel}</span>
+          <span>{denominator > 0 ? `${pct}%` : "—"}</span>
+        </div>
+        <div className="h-2 w-full rounded-full bg-gray-100">
+          <div className={`h-2 rounded-full ${toneClasses.bar}`} style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+      <div className="mt-3 space-y-1 text-xs">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex justify-between text-gray-600">
+            <span>{k}</span>
+            <span className="font-medium text-gray-900">{v}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
