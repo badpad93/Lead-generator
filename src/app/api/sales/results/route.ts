@@ -197,6 +197,7 @@ export async function GET(req: NextRequest) {
   // column existed were all orders). Quotes are filtered out so they
   // never contribute to orders_total / order_revenue / deals_won.
   const orders = rows.filter((r) => (r.document_type ?? "order") === "order");
+  const quotesInPeriod = rows.filter((r) => r.document_type === "quote");
 
   // --- Commissions ---
   let commissionsQuery = supabaseAdmin
@@ -255,13 +256,39 @@ export async function GET(req: NextRequest) {
   );
   const completedOrders = (orders || []).filter((o) => o.status === "completed").length;
 
-  // Close rate = % of orders placed in the period that were completed.
-  // Prior formula was `unique-deal-ids-on-orders / total-deals`, which
-  // returned 0% whenever orders were created without a linked deal
-  // (which happens routinely for direct-created orders and any manual
-  // one-off). New formula matches what the numbers on the same tile
-  // visibly imply: completed_orders / orders_placed.
-  const closeRate = orders.length > 0 ? completedOrders / orders.length : 0;
+  // Close rate = (quotes sent in period that turned into a PAID order) /
+  // (quotes sent in period). Per business rule: not every paid order
+  // comes from a quote, so we can't use paid-orders/orders-placed; we
+  // scope strictly to quotes and check whether their deal_id ended up
+  // on a paid order (any date — a quote sent in Q1 that gets paid in
+  // Q2 still counts as converted for the Q1 rate).
+  //
+  // Quotes with no deal_id can't be tied back to an order, so they're
+  // counted in the denominator but never in the numerator (surfaces
+  // the real drop-off from quote-without-attribution).
+  let closeRate = 0;
+  if (quotesInPeriod.length > 0) {
+    const quoteDealIds = Array.from(
+      new Set(quotesInPeriod.map((q) => q.deal_id).filter(Boolean) as string[]),
+    );
+    let paidDealIdSet = new Set<string>();
+    if (quoteDealIds.length > 0) {
+      const { data: paidOrdersFromQuotes } = await supabaseAdmin
+        .from("sales_orders")
+        .select("deal_id")
+        .in("deal_id", quoteDealIds)
+        .eq("payment_status", "paid");
+      paidDealIdSet = new Set(
+        ((paidOrdersFromQuotes ?? []) as { deal_id: string | null }[])
+          .map((r) => r.deal_id)
+          .filter(Boolean) as string[],
+      );
+    }
+    const convertedQuotes = quotesInPeriod.filter(
+      (q) => q.deal_id && paidDealIdSet.has(q.deal_id),
+    ).length;
+    closeRate = convertedQuotes / quotesInPeriod.length;
+  }
 
   // Commission metrics
   let commissionTotal = 0;

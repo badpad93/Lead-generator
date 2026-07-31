@@ -207,6 +207,26 @@ export async function GET(req: NextRequest) {
   const quoteTotalValue = quoteRows.reduce((s, q) => s + Number(q.total_value ?? 0), 0);
   const ordersCompleted = orderRows.filter((o) => o.status === "completed").length;
 
+  // Close rate = (quotes sent in period that turned into a PAID order)
+  // / (quotes sent in period). Matches the metric definition on
+  // /api/sales/results — not every paid order comes from a quote, so
+  // we scope strictly to quote-to-paid-order conversion.
+  let quotesPaid = 0;
+  if (quoteDealIds.length > 0) {
+    const { data: paidFromQuotes } = await supabaseAdmin
+      .from("sales_orders")
+      .select("deal_id")
+      .in("deal_id", quoteDealIds)
+      .eq("payment_status", "paid");
+    const paidSet = new Set(
+      ((paidFromQuotes ?? []) as { deal_id: string | null }[])
+        .map((r) => r.deal_id)
+        .filter(Boolean) as string[],
+    );
+    quotesPaid = quoteRows.filter((q) => q.deal_id && paidSet.has(q.deal_id)).length;
+  }
+  const closeRate = quoteRows.length > 0 ? quotesPaid / quoteRows.length : 0;
+
   // ─── Purchase agreements (CRM: machine + location placement) ────────
   let agrQuery = supabaseAdmin
     .from("purchase_agreements")
@@ -353,15 +373,16 @@ export async function GET(req: NextRequest) {
     quotes: {
       sent: quoteRows.length,
       outstanding: outstandingQuotes,
-      converted: quotesConverted,
+      converted: quotesConverted,           // quote → any order (attribution)
+      paid: quotesPaid,                     // quote → paid order (close rate numerator)
       total_value: quoteTotalValue,
+      close_rate: closeRate,                // paid-from-quote / quotes_sent
     },
     orders: {
       placed: orderRows.length,
       completed: ordersCompleted,
       outstanding: outstandingOrders,
       revenue: orderRevenue,
-      close_rate: orderRows.length > 0 ? ordersCompleted / orderRows.length : 0,
     },
     agreements: {
       crm_sent: crmSent,
