@@ -474,15 +474,33 @@ function StageRow({
   saving: boolean;
   staffView: boolean;
 }) {
+  // Adjust-state-when-a-prop-changes pattern (React 19). Snapshot the
+  // last-seen persisted values; when the parent supplies a new stage
+  // row, reset the drafts inline. Avoids the useEffect+setState
+  // anti-pattern flagged by react-hooks/set-state-in-effect.
+  const [lastSeen, setLastSeen] = useState({
+    completed_quantity: stage.completed_quantity,
+    internal_notes: stage.internal_notes ?? "",
+    customer_message: stage.customer_message ?? "",
+  });
   const [qtyDraft, setQtyDraft] = useState(String(stage.completed_quantity));
   const [notesDraft, setNotesDraft] = useState(stage.internal_notes ?? "");
   const [customerDraft, setCustomerDraft] = useState(stage.customer_message ?? "");
 
-  useEffect(() => {
+  if (
+    lastSeen.completed_quantity !== stage.completed_quantity ||
+    lastSeen.internal_notes !== (stage.internal_notes ?? "") ||
+    lastSeen.customer_message !== (stage.customer_message ?? "")
+  ) {
+    setLastSeen({
+      completed_quantity: stage.completed_quantity,
+      internal_notes: stage.internal_notes ?? "",
+      customer_message: stage.customer_message ?? "",
+    });
     setQtyDraft(String(stage.completed_quantity));
     setNotesDraft(stage.internal_notes ?? "");
     setCustomerDraft(stage.customer_message ?? "");
-  }, [stage.completed_quantity, stage.internal_notes, stage.customer_message]);
+  }
 
   const isQuantity = stage.stage_type === "quantity";
   const target = stage.target_quantity ?? 0;

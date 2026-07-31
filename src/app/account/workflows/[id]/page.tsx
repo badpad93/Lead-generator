@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
 import {
@@ -97,23 +97,26 @@ export default function MyWorkflowDetail({ params }: { params: Promise<{ id: str
   const [data, setData] = useState<DetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(0);
 
-  const load = useCallback(async () => {
-    const supabase = createBrowserClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return;
-    const res = await fetch(`/api/workflows/${id}`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    if (res.ok) {
-      setData(await res.json());
-    } else if (res.status === 403 || res.status === 404) {
-      setError("This order isn't available or you don't have access.");
+  useEffect(() => {
+    async function load() {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/workflows/${id}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        setData(await res.json());
+      } else if (res.status === 403 || res.status === 404) {
+        setError("This order isn't available or you don't have access.");
+      }
+      setNowMs(Date.now());
+      setLoading(false);
     }
-    setLoading(false);
+    load();
   }, [id]);
-
-  useEffect(() => { load(); }, [load]);
 
   if (loading) {
     return (
@@ -140,7 +143,9 @@ export default function MyWorkflowDetail({ params }: { params: Promise<{ id: str
   const isComplete = w.overall_status === "completed";
   const isDelayed = w.overall_status === "overdue" || w.overall_status === "at_risk";
   const isCancelled = w.overall_status === "cancelled";
-  const daysDelta = w.due_date ? Math.floor((new Date(w.due_date).getTime() - Date.now()) / 86400_000) : null;
+  const daysDelta = w.due_date && nowMs !== 0
+    ? Math.floor((new Date(w.due_date).getTime() - nowMs) / 86400_000)
+    : null;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">

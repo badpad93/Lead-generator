@@ -276,12 +276,12 @@ const TEMPLATES: Record<string, TemplateFn> = {
     body: `<p>All ${w.quantity_purchased} locations for your <strong>${escape(w.title)}</strong> order have been secured and completed.</p>`,
     ctaLabel: "View summary",
   }),
-  financing_approved_customer: (w) => ({
+  financing_approved_customer: () => ({
     title: `Your financing has been approved`,
     body: `<p>Your SBA financing application has been approved. Funding will follow shortly — we'll email you the moment funds are disbursed.</p>`,
     ctaLabel: "View application",
   }),
-  financing_funded_customer: (w) => ({
+  financing_funded_customer: () => ({
     title: `Your financing has been funded`,
     body: `<p>Funds from your SBA financing have been disbursed. This closes your financing workflow.</p>`,
     ctaLabel: "View summary",

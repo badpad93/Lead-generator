@@ -19,7 +19,7 @@
  */
 
 import { supabaseAdmin } from "../supabaseAdmin";
-import { getTemplateDef, WORKFLOW_TEMPLATES, type TemplateDef } from "./templates";
+import { getTemplateDef, WORKFLOW_TEMPLATES } from "./templates";
 import type {
   AddNoteInput,
   AddShipmentInput,

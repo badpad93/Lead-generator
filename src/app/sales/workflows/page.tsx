@@ -82,13 +82,38 @@ const EMPTY_FILTERS: Filters = {
   search: "",
 };
 
+function filtersForView(savedView: string, search: string): Filters {
+  switch (savedView) {
+    case "overdue":
+      return { ...EMPTY_FILTERS, search, overdue: "true" };
+    case "unassigned":
+      return { ...EMPTY_FILTERS, search, unassigned: "true" };
+    case "in_progress":
+      return { ...EMPTY_FILTERS, search, status: "in_progress" };
+    case "completed":
+      return { ...EMPTY_FILTERS, search, status: "completed" };
+    default:
+      if (Object.hasOwn(TYPE_META, savedView)) {
+        return { ...EMPTY_FILTERS, search, workflowType: savedView };
+      }
+      return { ...EMPTY_FILTERS, search };
+  }
+}
+
 export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<WorkflowRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [search, setSearch] = useState("");
   const [savedView, setSavedView] = useState<string>("all");
   const [orderBy, setOrderBy] = useState<"due_date" | "created_at" | "updated_at" | "priority">("due_date");
   const [orderDir, setOrderDir] = useState<"asc" | "desc">("asc");
+
+  const filters = useMemo(() => filtersForView(savedView, search), [savedView, search]);
+
+  // We snapshot Date.now() at fetch time and thread it down into row
+  // renders. This keeps the render pass pure (React 19 purity rule)
+  // while still giving accurate "5m ago" / "3d overdue" labels.
+  const [nowMs, setNowMs] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -117,45 +142,22 @@ export default function WorkflowsPage() {
         const data = await res.json();
         setWorkflows(data.workflows ?? []);
       }
+      setNowMs(Date.now());
       setLoading(false);
     }
     load();
   }, [filters, orderBy, orderDir]);
 
-  // Saved-view chips → apply preset filters.
-  useEffect(() => {
-    switch (savedView) {
-      case "all":
-        setFilters((f) => ({ ...EMPTY_FILTERS, search: f.search }));
-        break;
-      case "overdue":
-        setFilters((f) => ({ ...EMPTY_FILTERS, search: f.search, overdue: "true" }));
-        break;
-      case "unassigned":
-        setFilters((f) => ({ ...EMPTY_FILTERS, search: f.search, unassigned: "true" }));
-        break;
-      case "in_progress":
-        setFilters((f) => ({ ...EMPTY_FILTERS, search: f.search, status: "in_progress" }));
-        break;
-      case "completed":
-        setFilters((f) => ({ ...EMPTY_FILTERS, search: f.search, status: "completed" }));
-        break;
-      default:
-        // A type-specific view.
-        if (Object.hasOwn(TYPE_META, savedView)) {
-          setFilters((f) => ({ ...EMPTY_FILTERS, search: f.search, workflowType: savedView }));
-        }
-    }
-  }, [savedView]);
-
   const counts = useMemo(() => {
     const total = workflows.length;
-    const overdue = workflows.filter(
-      (w) => w.due_date && new Date(w.due_date) < new Date() && !["completed", "cancelled"].includes(w.overall_status),
-    ).length;
+    const overdue = nowMs === 0
+      ? 0
+      : workflows.filter(
+          (w) => w.due_date && new Date(w.due_date).getTime() < nowMs && !["completed", "cancelled"].includes(w.overall_status),
+        ).length;
     const unassigned = workflows.filter((w) => !w.assigned_user_id).length;
     return { total, overdue, unassigned };
-  }, [workflows]);
+  }, [workflows, nowMs]);
 
   return (
     <div className="p-6">
@@ -197,8 +199,8 @@ export default function WorkflowsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="search"
-            value={filters.search}
-            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by number, title, or product…"
             className="w-full rounded-lg border border-gray-200 bg-white pl-10 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
@@ -254,7 +256,7 @@ export default function WorkflowsPage() {
                 </td>
               </tr>
             ) : (
-              workflows.map((w) => <WorkflowRowRender key={w.id} workflow={w} />)
+              workflows.map((w) => <WorkflowRowRender key={w.id} workflow={w} nowMs={nowMs} />)
             )}
           </tbody>
         </table>
@@ -263,7 +265,7 @@ export default function WorkflowsPage() {
   );
 }
 
-function WorkflowRowRender({ workflow }: { workflow: WorkflowRow }) {
+function WorkflowRowRender({ workflow, nowMs }: { workflow: WorkflowRow; nowMs: number }) {
   const meta = TYPE_META[workflow.workflow_type] ?? { label: workflow.workflow_type, icon: Package, team: "" };
   const Icon = meta.icon;
   const status = STATUS_STYLE[workflow.overall_status] ?? STATUS_STYLE.not_started;
@@ -272,8 +274,7 @@ function WorkflowRowRender({ workflow }: { workflow: WorkflowRow }) {
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
 
   const dueMs = workflow.due_date ? new Date(workflow.due_date).getTime() : null;
-  const now = Date.now();
-  const daysDelta = dueMs != null ? Math.floor((dueMs - now) / 86400_000) : null;
+  const daysDelta = dueMs != null && nowMs !== 0 ? Math.floor((dueMs - nowMs) / 86400_000) : null;
   let dueTone = "text-gray-500";
   let dueLabel = "—";
   if (dueMs != null) {
@@ -329,7 +330,7 @@ function WorkflowRowRender({ workflow }: { workflow: WorkflowRow }) {
         <StatusBadge status={workflow.overall_status} label={status.label} className={status.badge} />
       </td>
       <td className={`px-4 py-3 text-sm ${dueTone}`}>{dueLabel}</td>
-      <td className="px-4 py-3 text-xs text-gray-500">{formatRelative(workflow.updated_at)}</td>
+      <td className="px-4 py-3 text-xs text-gray-500">{formatRelative(workflow.updated_at, nowMs)}</td>
     </tr>
   );
 }
@@ -389,8 +390,9 @@ function SavedViewChip({
   );
 }
 
-function formatRelative(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
+function formatRelative(iso: string, nowMs: number): string {
+  const ref = nowMs === 0 ? new Date(iso).getTime() : nowMs;
+  const ms = ref - new Date(iso).getTime();
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return "just now";
   const minutes = Math.floor(seconds / 60);

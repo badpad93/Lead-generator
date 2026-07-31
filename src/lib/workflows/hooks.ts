@@ -417,13 +417,14 @@ async function resolveCustomerId(args: {
   return null;
 }
 
-// Assignee resolution via team-email env vars. Returns the user_id of
-// the profile whose email matches the env var; null if no match. Falls
-// back to unassigned so the workflow is still created.
-function teamEmailAssignee(_team: "fulfillment" | "locations" | "financing" | "coffee"): string | null {
-  // Placeholder — resolved async at read time by the API layer using
-  // WORKFLOWS_TEAM_EMAIL_* env vars. Passing null here means the
-  // workflow is initially unassigned and shows in "unassigned" filters
-  // for the appropriate team; the auto-assign cron then picks it up.
+// Assignee resolution runs asynchronously via the notification service
+// (WORKFLOWS_TEAM_EMAIL_* env vars provide the fallback recipient when
+// the workflow has no direct assignee). We create every workflow
+// initially unassigned so the "Unassigned" saved view surfaces it for
+// the appropriate team.
+function teamEmailAssignee(
+  _team: "fulfillment" | "locations" | "financing" | "coffee",
+): string | null {
+  void _team;
   return null;
 }

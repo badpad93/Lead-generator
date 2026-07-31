@@ -62,6 +62,7 @@ const CUSTOMER_STATUS_LABELS: Record<string, string> = {
 export default function MyWorkflowsPage() {
   const [workflows, setWorkflows] = useState<WorkflowCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nowMs, setNowMs] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -78,6 +79,7 @@ export default function MyWorkflowsPage() {
         const data = await res.json();
         setWorkflows(data.workflows ?? []);
       }
+      setNowMs(Date.now());
       setLoading(false);
     }
     load();
@@ -105,13 +107,13 @@ export default function MyWorkflowsPage() {
       ) : (
         <div className="space-y-8">
           {active.length > 0 && (
-            <Section title="Active" workflows={active} />
+            <Section title="Active" workflows={active} nowMs={nowMs} />
           )}
           {completed.length > 0 && (
-            <Section title="Completed" workflows={completed} tone="muted" />
+            <Section title="Completed" workflows={completed} tone="muted" nowMs={nowMs} />
           )}
           {other.length > 0 && (
-            <Section title="Archived" workflows={other} tone="muted" />
+            <Section title="Archived" workflows={other} tone="muted" nowMs={nowMs} />
           )}
         </div>
       )}
@@ -119,7 +121,7 @@ export default function MyWorkflowsPage() {
   );
 }
 
-function Section({ title, workflows, tone }: { title: string; workflows: WorkflowCard[]; tone?: "muted" }) {
+function Section({ title, workflows, tone, nowMs }: { title: string; workflows: WorkflowCard[]; tone?: "muted"; nowMs: number }) {
   return (
     <div>
       <h2 className={`text-xs uppercase tracking-wide font-semibold mb-3 ${tone === "muted" ? "text-gray-400" : "text-gray-500"}`}>
@@ -127,19 +129,21 @@ function Section({ title, workflows, tone }: { title: string; workflows: Workflo
       </h2>
       <div className="grid gap-3">
         {workflows.map((w) => (
-          <WorkflowCardRender key={w.id} workflow={w} muted={tone === "muted"} />
+          <WorkflowCardRender key={w.id} workflow={w} muted={tone === "muted"} nowMs={nowMs} />
         ))}
       </div>
     </div>
   );
 }
 
-function WorkflowCardRender({ workflow, muted }: { workflow: WorkflowCard; muted?: boolean }) {
+function WorkflowCardRender({ workflow, muted, nowMs }: { workflow: WorkflowCard; muted?: boolean; nowMs: number }) {
   const Icon = TYPE_ICON[workflow.workflow_type] ?? Package;
   const total = Number(workflow.quantity_purchased);
   const done = Number(workflow.quantity_completed);
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-  const daysDelta = workflow.due_date ? Math.floor((new Date(workflow.due_date).getTime() - Date.now()) / 86400_000) : null;
+  const daysDelta = workflow.due_date && nowMs !== 0
+    ? Math.floor((new Date(workflow.due_date).getTime() - nowMs) / 86400_000)
+    : null;
 
   const statusLabel = CUSTOMER_STATUS_LABELS[workflow.overall_status] ?? workflow.overall_status;
   const isDelayed = workflow.overall_status === "overdue" || workflow.overall_status === "at_risk";
