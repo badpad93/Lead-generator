@@ -76,8 +76,29 @@ export async function GET(req: NextRequest) {
   const { data, error, count } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Batch-fetch customer names for the returned page so the CRM table
+  // can show "who this workflow is for" without an N+1.
+  const rows = data ?? [];
+  const customerIds = Array.from(new Set(rows.map((r) => r.customer_id).filter(Boolean)));
+  const customerMap: Record<string, { full_name: string | null; email: string | null }> = {};
+  if (customerIds.length > 0) {
+    const { data: profiles } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", customerIds);
+    for (const p of profiles ?? []) {
+      customerMap[p.id] = { full_name: p.full_name, email: p.email };
+    }
+  }
+
+  const workflowsWithCustomer = rows.map((r) => ({
+    ...r,
+    customer_name: customerMap[r.customer_id]?.full_name ?? null,
+    customer_email: customerMap[r.customer_id]?.email ?? null,
+  }));
+
   return NextResponse.json({
-    workflows: data ?? [],
+    workflows: workflowsWithCustomer,
     total: count ?? 0,
     limit,
     offset,

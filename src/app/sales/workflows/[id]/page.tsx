@@ -20,6 +20,8 @@ import {
   Package,
   Eye,
   EyeOff,
+  Mail,
+  Phone,
 } from "lucide-react";
 
 interface Stage {
@@ -89,6 +91,19 @@ interface PlacementSummary {
   submissions_accepted: number;
   submissions_pending_admin: number;
 }
+interface CustomerInfo {
+  id: string;
+  full_name: string | null;
+  role: string | null;
+  email: string | null;
+  phone: string | null;
+}
+interface CompanyInfo {
+  id: string;
+  business_name: string;
+  phone: string | null;
+  email: string | null;
+}
 interface DetailPayload {
   workflow: {
     id: string;
@@ -118,6 +133,8 @@ interface DetailPayload {
   orderItems: OrderItem[];
   events: EventRow[];
   placementSummary: PlacementSummary | null;
+  customerInfo: CustomerInfo | null;
+  companyInfo: CompanyInfo | null;
   assigneeDisplay: string | null;
   isStaffView: boolean;
 }
@@ -232,13 +249,53 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
       {/* Header */}
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="font-mono text-xs text-gray-500">{w.workflow_number}</div>
               <StatusBadge status={w.overall_status} />
               <PriorityBadge priority={w.priority} />
             </div>
-            <h1 className="text-2xl font-semibold text-gray-900 mt-2">{w.title}</h1>
+            {/* Customer identity — always shown above title so staff see
+                who this workflow is for at a glance. */}
+            {data.customerInfo && (
+              <div className="mt-3 flex items-center gap-2 text-lg font-semibold text-gray-900">
+                <UserCircle2 className="h-5 w-5 text-gray-500" />
+                <span>{data.customerInfo.full_name ?? data.customerInfo.email ?? "Customer"}</span>
+                {data.companyInfo && (
+                  <span className="text-sm font-normal text-gray-500">
+                    · {data.companyInfo.business_name}
+                  </span>
+                )}
+              </div>
+            )}
+            {data.customerInfo && (data.customerInfo.email || data.customerInfo.phone) && (
+              <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                {data.customerInfo.email && (
+                  <a
+                    href={`mailto:${data.customerInfo.email}`}
+                    className="inline-flex items-center gap-1 hover:text-emerald-700"
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    {data.customerInfo.email}
+                  </a>
+                )}
+                {data.customerInfo.phone && (
+                  <a
+                    href={`tel:${data.customerInfo.phone}`}
+                    className="inline-flex items-center gap-1 hover:text-emerald-700"
+                  >
+                    <Phone className="h-3.5 w-3.5" />
+                    {data.customerInfo.phone}
+                  </a>
+                )}
+                {data.customerInfo.role && (
+                  <span className="text-xs uppercase tracking-wide text-gray-400">
+                    {data.customerInfo.role.replace(/_/g, " ")}
+                  </span>
+                )}
+              </div>
+            )}
+            <h1 className="text-2xl font-semibold text-gray-900 mt-3">{w.title}</h1>
             {w.description && <p className="text-sm text-gray-600 mt-1">{w.description}</p>}
             {w.product_name && <p className="text-xs text-gray-500 mt-2">{w.product_name}</p>}
           </div>
