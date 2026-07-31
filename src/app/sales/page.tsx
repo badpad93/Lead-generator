@@ -58,7 +58,7 @@ interface ResultsResponse {
 interface SnapshotResponse {
   period: { since: string; until: string | null; label: string };
   scope: { user_id: string | null; market_id: string | null; is_company_wide: boolean; viewer_role: string };
-  quotes: { sent: number; outstanding: number; converted: number; paid: number; total_value: number; close_rate: number };
+  quotes: { sent: number; outstanding: number; converted: number; closed: number; total_value: number; close_rate: number };
   orders: { placed: number; completed: number; outstanding: number; revenue: number };
   agreements: {
     crm_sent: number; crm_awaiting: number; crm_signed: number;
@@ -507,9 +507,9 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
           icon={<FileText className="h-4 w-4" />}
           label="Quotes"
           primary={`${q.sent} sent`}
-          numerator={q.paid}
+          numerator={q.closed}
           denominator={q.sent}
-          progressLabel={`${q.paid} paid (${Math.round(q.close_rate * 100)}% close rate)`}
+          progressLabel={`${q.closed} closed (${Math.round(q.close_rate * 100)}% close rate)`}
           rows={[
             [`Converted to order`, `${q.converted}`],
             [`Outstanding`, `${q.outstanding}`],
