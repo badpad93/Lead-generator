@@ -71,5 +71,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     console.error("[website-request.submit] notification failed:", e);
   }
 
+  // Spawn website_build workflow. Best-effort — never blocks the submit.
+  try {
+    const { spawnFromWebsiteRequest } = await import("@/lib/workflows/hooks");
+    await spawnFromWebsiteRequest(id, {
+      customerId: userId,
+      siteName: (updated as { business_name?: string }).business_name,
+    });
+  } catch (e) {
+    console.error("[website-request.submit] workflow spawn failed:", e);
+  }
+
   return NextResponse.json({ ok: true, request: updated });
 }

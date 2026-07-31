@@ -59,6 +59,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
+    // Spawn workflows for coffee_supply agreements. placement_provider
+    // agreements are not fulfillment workflows (the PP program has its
+    // own tracking).
+    if (updated.agreement_type === "coffee_supply") {
+      try {
+        const { spawnFromCoffeeAgreement } = await import("@/lib/workflows/hooks");
+        await spawnFromCoffeeAgreement(updated.id);
+      } catch (e) {
+        console.error("[agreement.countersign] workflow spawn failed:", e);
+      }
+    }
+
     return NextResponse.json({ ok: true, agreement: updated });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Countersign failed" }, { status: 400 });

@@ -230,6 +230,24 @@ export async function POST(req: NextRequest) {
       // Email failures should not block the order
     }
 
+    // Attach this order to the customer's coffee_service workflow as a
+    // fulfillment sub-item. Best-effort — never blocks checkout. If the
+    // customer has no coffee_service workflow yet (legacy customers who
+    // signed before this system launched), the backfill tool can create
+    // one.
+    try {
+      const { attachCoffeeOrderToServiceWorkflow } = await import("@/lib/workflows/hooks");
+      await attachCoffeeOrderToServiceWorkflow({
+        customerId: user.id,
+        coffeeOrderId: order.id,
+        orderNumber,
+        orderTotal: total,
+        orderStatus: order.status,
+      });
+    } catch (workflowErr) {
+      console.error("[coffee-checkout] workflow attach failed:", workflowErr);
+    }
+
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
 
     if (isQuickBooks()) {

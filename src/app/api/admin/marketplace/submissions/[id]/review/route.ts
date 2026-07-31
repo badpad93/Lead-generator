@@ -60,5 +60,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     notifyPartnerSubmissionReviewed(id, action as "approve" | "request_changes" | "reject", note || null).catch(() => undefined);
   }
 
+  // If the contract has a linked location_services workflow, snapshot
+  // the location and present it to the customer for accept/decline.
+  // Best-effort — the admin review already committed above.
+  if (action === "approve") {
+    try {
+      const { presentSubmissionToCustomer } = await import("@/lib/workflows/approvals");
+      await presentSubmissionToCustomer({ submissionId: id });
+    } catch (e) {
+      console.error("[admin.submission.review] workflow approval spawn failed:", e);
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }

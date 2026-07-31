@@ -918,6 +918,29 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
       });
     }
   }
+
+  // Spawn Workflows fulfillment records. Best-effort — a workflow
+  // failure never breaks the underlying signing transaction.
+  try {
+    const { spawnFromPurchaseAgreement } = await import("./workflows/hooks");
+    const created = await spawnFromPurchaseAgreement(agreementId);
+    if (created.length > 0) {
+      await supabaseAdmin.from("agreement_activity_log").insert({
+        agreement_id: agreementId,
+        activity_type: "workflows_created",
+        description: `Created ${created.length} fulfillment workflow${created.length > 1 ? "s" : ""}: ${created
+          .map((w) => `${w.workflow_type}#${w.workflow_number}`)
+          .join(", ")}`,
+      });
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await supabaseAdmin.from("agreement_activity_log").insert({
+      agreement_id: agreementId,
+      activity_type: "workflows_failed",
+      description: `Workflow auto-creation failed: ${msg}`,
+    });
+  }
 }
 
 /* ================================================================== */
