@@ -24,6 +24,7 @@ export type NotificationTrigger =
   | "workflow.cancelled"
   | "workflow.reopened"
   | "customer.action_required"
+  | "customer.approval_needed"
   | "deadline.changed"
   | "machine.shipped"
   | "machine.delivered"
@@ -295,6 +296,17 @@ const TEMPLATES: Record<string, TemplateFn> = {
     title: `Action needed — ${w.title}`,
     body: `<p>${escape(String(ctx.actionMessage ?? "Our team needs some information from you to keep your order moving."))}</p>`,
     ctaLabel: "Take action",
+  }),
+  approval_needed_customer: (w, ctx) => ({
+    title: `New location to review — ${w.title}`,
+    body: `<p>A location has been found and is ready for your review.</p>${
+      ctx.businessName
+        ? `<p style="margin-top:8px"><strong>${escape(String(ctx.businessName))}</strong>${
+            ctx.city || ctx.state ? ` — ${escape([ctx.city, ctx.state].filter(Boolean).join(", "))}` : ""
+          }</p>`
+        : ""
+    }<p style="margin-top:8px">Open your order to accept or decline. Please review promptly.</p>`,
+    ctaLabel: "Review location",
   }),
   deadline_changed_customer: (w) => ({
     title: `Deadline updated for ${w.title}`,

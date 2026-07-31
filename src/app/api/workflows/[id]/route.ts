@@ -129,6 +129,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
   }
 
+  // Customer approvals (pending + recent decisions). Customers must see
+  // pending items so they can accept/decline; staff need visibility for
+  // support.
+  const { data: approvals } = await supabaseAdmin
+    .from("workflow_customer_approvals")
+    .select("id, status, location_snapshot, decided_at, decline_reason, presented_at, placement_submission_id")
+    .eq("workflow_id", id)
+    .order("presented_at", { ascending: false });
+
+  const pendingApprovals = (approvals ?? []).filter((a) => a.status === "pending");
+  const remainingDeclines = Math.max(
+    0,
+    Number(workflow.quantity_purchased) - Number((workflow as { decline_budget_used?: number }).decline_budget_used ?? 0),
+  );
+
+  const balanceSummary = {
+    totalDueCents: Number(workflow.total_due_cents ?? 0),
+    depositPaidCents: Number(workflow.deposit_paid_cents ?? 0),
+    balanceCents: Math.max(
+      0,
+      Number(workflow.total_due_cents ?? 0) - Number(workflow.deposit_paid_cents ?? 0),
+    ),
+  };
+
   // Assignee display name for customer view (only if opt-in flag on).
   let assigneeDisplay: string | null = null;
   if (workflow.assigned_user_id) {
@@ -155,6 +179,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     orderItems: orderItems ?? [],
     events: events ?? [],
     placementSummary,
+    pendingApprovals,
+    approvals: approvals ?? [],
+    remainingDeclines,
+    balanceSummary,
     assigneeDisplay,
     isStaffView: staffView,
     isOwner,

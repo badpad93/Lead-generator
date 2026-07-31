@@ -186,6 +186,70 @@ export async function POST(req: Request) {
     sendLocationRequestConfirmation({ to: email, name: contact_name })
       .catch((e) => console.error("[request-location] confirmation email error", e));
 
+    // Bridge to Workflows: if a profile already exists for this email,
+    // spawn the location_services workflow immediately with
+    // payment_status='partial' + deposit metadata so the customer sees
+    // it on their /account/workflows page as soon as they log in. If no
+    // profile exists yet, the workflow can be backfilled from
+    // /admin/workflows/backfill once the customer signs up.
+    try {
+      const { data: existingProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .ilike("email", email)
+        .maybeSingle();
+
+      if (existingProfile) {
+        const { getOrCreateWorkflow } = await import("@/lib/workflows/service");
+        // Placement fee assumption: standard $500/location Apex Placement Fee.
+        // Adjust in the workflow's metadata if pricing differs; the
+        // customer's Pay Balance flow just reads workflow.total_due_cents.
+        const totalDueCents = DEPOSIT_CENTS + machine_count * 50000;
+
+        await getOrCreateWorkflow({
+          customerId: existingProfile.id,
+          workflowType: "location_services",
+          sourceType: "location_request",
+          sourceId: lead.id,
+          locationRequestId: lead.id,
+          productKey: "location_services",
+          productName: `Location Services — ${machine_count} location${machine_count > 1 ? "s" : ""}`,
+          quantityPurchased: machine_count,
+          paymentStatus: "partial",
+          primaryTeam: "locations",
+          startDate: new Date().toISOString(),
+          metadata: {
+            source: "request-location-deposit",
+            deposit_amount_cents: DEPOSIT_CENTS,
+            deposit_paid_cents: DEPOSIT_CENTS,
+            total_due_cents: totalDueCents,
+            state,
+            zip_codes,
+            business_name,
+            contact_name,
+            phone,
+            email,
+          },
+          actorType: "system",
+        });
+
+        // Set the money columns via a targeted update — the service's
+        // metadata block is a jsonb sidecar, but total_due_cents /
+        // deposit_paid_cents are dedicated columns the UI reads.
+        await supabaseAdmin
+          .from("workflows")
+          .update({
+            deposit_paid_cents: DEPOSIT_CENTS,
+            total_due_cents: totalDueCents,
+          })
+          .eq("source_type", "location_request")
+          .eq("source_id", lead.id)
+          .eq("workflow_type", "location_services");
+      }
+    } catch (workflowErr) {
+      console.error("[request-location] workflow spawn failed:", workflowErr);
+    }
+
     if (fullInvoice.InvoiceLink) {
       return NextResponse.json({ url: fullInvoice.InvoiceLink });
     }
