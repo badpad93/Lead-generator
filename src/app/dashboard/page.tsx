@@ -27,6 +27,7 @@ import {
   Briefcase,
   Zap,
   Globe,
+  Workflow,
 } from "lucide-react";
 import type {
   Profile,
@@ -633,6 +634,29 @@ export default function DashboardPage() {
               </p>
             </div>
             <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-purple-600" />
+          </Link>
+          {/*
+            My Order Status card — surfaces the customer's own workflow
+            list (AI machines, location services, financing, coffee,
+            website builds). Everyone sees this — if they have no
+            workflows the page shows an empty state, no penalty.
+          */}
+          <Link
+            href="/account/workflows"
+            className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white">
+              <Workflow className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="font-semibold text-black-primary">
+                My Order Status
+              </p>
+              <p className="text-sm text-black-primary/50">
+                Track fulfillment on every product and service you&apos;ve purchased
+              </p>
+            </div>
+            <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-blue-600" />
           </Link>
           {(profile.role === "operator" || profile.role === "locator" || profile.role === "location_manager") && (
             <Link
