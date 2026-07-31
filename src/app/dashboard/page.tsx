@@ -538,11 +538,11 @@ export default function DashboardPage() {
             <>
               <Link
                 href="/browse-requests"
-                className="group flex items-center gap-4 rounded-2xl border-2 border-black bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:shadow-md"
+                className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
                 title={TOOLTIP_COPY["Locations for Sale"]}
                 aria-label={TOOLTIP_COPY["Locations for Sale"]}
               >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-primary group-hover:text-white">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-green-primary shadow-sm transition-colors group-hover:bg-green-primary group-hover:text-white">
                   <Search className="h-6 w-6" />
                 </div>
                 <div>
@@ -560,11 +560,11 @@ export default function DashboardPage() {
             <>
               <Link
                 href="/post-request"
-                className="group flex items-center gap-4 rounded-2xl border-2 border-black bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:shadow-md"
+                className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
                 title={TOOLTIP_COPY["Post a Request"]}
                 aria-label={TOOLTIP_COPY["Post a Request"]}
               >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-primary group-hover:text-white">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-green-primary shadow-sm transition-colors group-hover:bg-green-primary group-hover:text-white">
                   <Plus className="h-6 w-6" />
                 </div>
                 <div>
@@ -579,7 +579,7 @@ export default function DashboardPage() {
               </Link>
               <Link
                 href="/browse-operators"
-                className="group flex items-center gap-4 rounded-2xl border-2 border-black bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:shadow-md"
+                className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
                 title={TOOLTIP_COPY["Browse Operators"]}
                 aria-label={TOOLTIP_COPY["Browse Operators"]}
               >
@@ -600,7 +600,7 @@ export default function DashboardPage() {
           )}
           <Link
             href="/post-route"
-            className="group flex items-center gap-4 rounded-2xl border-2 border-black bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:shadow-md"
+            className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
             title={TOOLTIP_COPY["Sell a Route"]}
             aria-label={TOOLTIP_COPY["Sell a Route"]}
           >
@@ -619,7 +619,7 @@ export default function DashboardPage() {
           </Link>
           <Link
             href="/your-leads"
-            className="group flex items-center gap-4 rounded-2xl border-2 border-black bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:shadow-md"
+            className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
             title={TOOLTIP_COPY["Your Leads"]}
             aria-label={TOOLTIP_COPY["Your Leads"]}
           >
@@ -644,7 +644,7 @@ export default function DashboardPage() {
           */}
           <Link
             href="/account/workflows"
-            className="group flex items-center gap-4 rounded-2xl border-2 border-black bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:shadow-md"
+            className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
           >
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white">
               <Workflow className="h-6 w-6" />
@@ -662,7 +662,7 @@ export default function DashboardPage() {
           {(profile.role === "operator" || profile.role === "locator" || profile.role === "location_manager") && (
             <Link
               href="/my-listings"
-              className="group flex items-center gap-4 rounded-2xl border-2 border-black bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:shadow-md"
+              className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
             >
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
                 <HandCoins className="h-6 w-6" />
@@ -681,9 +681,9 @@ export default function DashboardPage() {
           {profile.role === "operator" && (
             <Link
               href="/operator/contracts"
-              className="group flex items-center gap-4 rounded-2xl border-2 border-black bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:shadow-md"
+              className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
             >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-primary group-hover:text-white">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-green-primary shadow-sm transition-colors group-hover:bg-green-primary group-hover:text-white">
                 <Briefcase className="h-6 w-6" />
               </div>
               <div>
@@ -708,9 +708,9 @@ export default function DashboardPage() {
           */}
           <Link
             href="/tools/lead-generator"
-            className="group flex items-center gap-4 rounded-2xl border-2 border-black bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:shadow-md"
+            className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
           >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-primary group-hover:text-white">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-green-primary shadow-sm transition-colors group-hover:bg-green-primary group-hover:text-white">
               <Zap className="h-6 w-6" />
             </div>
             <div>
@@ -734,9 +734,9 @@ export default function DashboardPage() {
           */}
           <Link
             href="/website-builder"
-            className="group flex items-center gap-4 rounded-2xl border-2 border-black bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:shadow-md"
+            className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
           >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary transition-colors group-hover:bg-green-primary group-hover:text-white">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-green-primary shadow-sm transition-colors group-hover:bg-green-primary group-hover:text-white">
               <Globe className="h-6 w-6" />
             </div>
             <div>
@@ -758,7 +758,7 @@ export default function DashboardPage() {
           */}
           <Link
             href="/coffee/apply"
-            className="group flex items-center gap-4 rounded-2xl border-2 border-black bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:shadow-md"
+            className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
           >
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 transition-colors group-hover:bg-amber-700 group-hover:text-white">
               <Coffee className="h-6 w-6" />
