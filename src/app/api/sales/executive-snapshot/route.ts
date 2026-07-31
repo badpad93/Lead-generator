@@ -207,25 +207,25 @@ export async function GET(req: NextRequest) {
   const quoteTotalValue = quoteRows.reduce((s, q) => s + Number(q.total_value ?? 0), 0);
   const ordersCompleted = orderRows.filter((o) => o.status === "completed").length;
 
-  // Close rate = (quotes sent in period that turned into a PAID order)
-  // / (quotes sent in period). Matches the metric definition on
-  // /api/sales/results — not every paid order comes from a quote, so
-  // we scope strictly to quote-to-paid-order conversion.
-  let quotesPaid = 0;
+  // Close rate = (quotes whose deal_id ended up on a CLOSED order) /
+  // (quotes sent in period). A "closed" order is payment_status='paid'
+  // OR order_status='completed' — an order being completed = paid in
+  // this workflow.
+  let quotesClosed = 0;
   if (quoteDealIds.length > 0) {
-    const { data: paidFromQuotes } = await supabaseAdmin
+    const { data: closedFromQuotes } = await supabaseAdmin
       .from("sales_orders")
       .select("deal_id")
       .in("deal_id", quoteDealIds)
-      .eq("payment_status", "paid");
-    const paidSet = new Set(
-      ((paidFromQuotes ?? []) as { deal_id: string | null }[])
+      .or("payment_status.eq.paid,order_status.eq.completed");
+    const closedSet = new Set(
+      ((closedFromQuotes ?? []) as { deal_id: string | null }[])
         .map((r) => r.deal_id)
         .filter(Boolean) as string[],
     );
-    quotesPaid = quoteRows.filter((q) => q.deal_id && paidSet.has(q.deal_id)).length;
+    quotesClosed = quoteRows.filter((q) => q.deal_id && closedSet.has(q.deal_id)).length;
   }
-  const closeRate = quoteRows.length > 0 ? quotesPaid / quoteRows.length : 0;
+  const closeRate = quoteRows.length > 0 ? quotesClosed / quoteRows.length : 0;
 
   // ─── Purchase agreements (CRM: machine + location placement) ────────
   let agrQuery = supabaseAdmin
@@ -374,9 +374,9 @@ export async function GET(req: NextRequest) {
       sent: quoteRows.length,
       outstanding: outstandingQuotes,
       converted: quotesConverted,           // quote → any order (attribution)
-      paid: quotesPaid,                     // quote → paid order (close rate numerator)
+      closed: quotesClosed,                 // quote → completed OR paid order (close rate numerator)
       total_value: quoteTotalValue,
-      close_rate: closeRate,                // paid-from-quote / quotes_sent
+      close_rate: closeRate,                // closed-from-quote / quotes_sent
     },
     orders: {
       placed: orderRows.length,
