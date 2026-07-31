@@ -9,23 +9,34 @@ import type { Profile } from "@/lib/types";
 import Tooltip from "@/app/components/Tooltip";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
-const navLinks = [
-  { label: "Locations and Routes For Sale", href: "/signup?redirect=/browse-requests" },
+/**
+ * `label` is the canonical name — it keys into TOOLTIP_COPY and is shown in
+ * the mobile drawer where there's room. `short` is the compact desktop-bar
+ * display so all links fit on a single line.
+ */
+interface NavLink {
+  label: string;
+  href: string;
+  short?: string;
+}
+
+const navLinks: NavLink[] = [
+  { label: "Locations and Routes For Sale", short: "Locations & Routes", href: "/signup?redirect=/browse-requests" },
   { label: "Sell a Location", href: "/signup?role=locator&redirect=/marketplace" },
-  { label: "Machines for Sale", href: "/signup?redirect=/machines-for-sale" },
-  { label: "Placement Providers", href: "/signup?redirect=/placement" },
-  { label: "Browse Operators", href: "/signup?redirect=/browse-operators" },
+  { label: "Machines for Sale", short: "Machines", href: "/signup?redirect=/machines-for-sale" },
+  { label: "Placement Providers", short: "Placement", href: "/signup?redirect=/placement" },
+  { label: "Browse Operators", short: "Operators", href: "/signup?redirect=/browse-operators" },
   { label: "Financing", href: "/signup?redirect=/financing" },
 ];
 
-const authNavLinks = [
-  { label: "Locations and Routes For Sale", href: "/browse-requests" },
+// "Your Leads" and "Coffee" live in the account dropdown (Coffee is
+// access-gated there), so they stay out of the top bar.
+const authNavLinks: NavLink[] = [
+  { label: "Locations and Routes For Sale", short: "Locations & Routes", href: "/browse-requests" },
   { label: "Sell a Location", href: "/marketplace" },
-  { label: "Your Leads", href: "/your-leads" },
-  { label: "Machines for Sale", href: "/machines-for-sale" },
-  { label: "Placement Providers", href: "/placement" },
-  { label: "Browse Operators", href: "/browse-operators" },
-  { label: "Coffee", href: "/coffee" },
+  { label: "Machines for Sale", short: "Machines", href: "/machines-for-sale" },
+  { label: "Placement Providers", short: "Placement", href: "/placement" },
+  { label: "Browse Operators", short: "Operators", href: "/browse-operators" },
   { label: "Financing", href: "/financing" },
 ];
 
@@ -220,22 +231,22 @@ export default function Navbar() {
       >
         <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex shrink-0 items-center gap-2">
             <Zap className="h-6 w-6 text-green-600" />
-            <span className="text-lg font-bold text-gray-900">Vending Connector</span>
+            <span className="whitespace-nowrap text-lg font-bold text-gray-900">Vending Connector</span>
           </Link>
 
           {/* Desktop Navigation */}
-          <ul className="hidden items-center gap-1 lg:flex">
+          <ul className="hidden items-center gap-0.5 xl:flex">
             {(isLoggedIn ? authNavLinks : navLinks).map((link) => (
               <li key={link.href}>
                 <Tooltip content={TOOLTIP_COPY[link.label] ?? link.label}>
                   <Link
                     href={link.href}
-                    className="nav-link-animated rounded-lg px-3 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
+                    className="nav-link-animated whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
                     aria-label={TOOLTIP_COPY[link.label] ?? undefined}
                   >
-                    {link.label}
+                    {link.short ?? link.label}
                   </Link>
                 </Tooltip>
               </li>
@@ -243,18 +254,19 @@ export default function Navbar() {
           </ul>
 
           {/* Desktop Auth Buttons / User Menu */}
-          <div className="hidden items-center gap-3 lg:flex">
-            <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
-              <Link
-                href={isLoggedIn ? "/request-location" : "/signup?redirect=/request-location"}
-                className="rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
-                aria-label={TOOLTIP_COPY["Request Location Services"]}
-                title={TOOLTIP_COPY["Request Location Services"]}
-              >
-                Request Location Services
-              </Link>
-            </Tooltip>
+          <div className="hidden shrink-0 items-center gap-2 xl:flex">
             {isLoggedIn ? (
+              <>
+              <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
+                <Link
+                  href="/request-location"
+                  className="whitespace-nowrap rounded-lg bg-green-primary px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
+                  aria-label={TOOLTIP_COPY["Request Location Services"]}
+                  title={TOOLTIP_COPY["Request Location Services"]}
+                >
+                  Request Location Services
+                </Link>
+              </Tooltip>
               <div className="relative">
                 <button
                   type="button"
@@ -385,12 +397,13 @@ export default function Navbar() {
                   </div>
                 )}
               </div>
+              </>
             ) : (
               <>
                 <Tooltip content={TOOLTIP_COPY["Login"]}>
                   <Link
                     href="/login"
-                    className="rounded-lg px-4 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
+                    className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-gray-50"
                     aria-label={TOOLTIP_COPY["Login"]}
                   >
                     Login
@@ -399,10 +412,20 @@ export default function Navbar() {
                 <Tooltip content={TOOLTIP_COPY["Get Started"]}>
                   <Link
                     href="/signup"
-                    className="rounded-lg bg-green-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
+                    className="whitespace-nowrap rounded-lg border border-green-primary/40 px-3.5 py-2 text-sm font-semibold text-green-primary transition-colors hover:border-green-primary hover:bg-green-50"
                     aria-label={TOOLTIP_COPY["Get Started"]}
                   >
                     Get Started
+                  </Link>
+                </Tooltip>
+                <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
+                  <Link
+                    href="/signup?redirect=/request-location"
+                    className="whitespace-nowrap rounded-lg bg-green-primary px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
+                    aria-label={TOOLTIP_COPY["Request Location Services"]}
+                    title={TOOLTIP_COPY["Request Location Services"]}
+                  >
+                    Request Location Services
                   </Link>
                 </Tooltip>
               </>
@@ -413,7 +436,7 @@ export default function Navbar() {
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="inline-flex items-center justify-center rounded-lg p-2 text-black-primary transition-colors hover:bg-gray-100 lg:hidden"
+            className="inline-flex items-center justify-center rounded-lg p-2 text-black-primary transition-colors hover:bg-gray-100 xl:hidden"
             aria-label="Open menu"
           >
             <Menu className="h-6 w-6" />
@@ -424,7 +447,7 @@ export default function Navbar() {
       {/* Mobile Overlay — outside header to avoid stacking context issues */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-[9990] bg-black/50 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-[9990] bg-black/50 backdrop-blur-sm xl:hidden"
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
@@ -432,7 +455,7 @@ export default function Navbar() {
 
       {/* Mobile Slide-out Drawer — outside header for proper z-index layering */}
       <div
-        className={`fixed right-0 top-0 z-[9991] flex h-full w-[85vw] max-w-80 flex-col bg-green-primary shadow-2xl transition-all duration-300 ease-in-out lg:hidden ${
+        className={`fixed right-0 top-0 z-[9991] flex h-full w-[85vw] max-w-80 flex-col bg-green-primary shadow-2xl transition-all duration-300 ease-in-out xl:hidden ${
           mobileOpen ? "translate-x-0 visible opacity-100" : "translate-x-full invisible opacity-0"
         }`}
       >
