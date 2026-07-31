@@ -361,6 +361,7 @@ export async function GET(req: NextRequest) {
       completed: ordersCompleted,
       outstanding: outstandingOrders,
       revenue: orderRevenue,
+      close_rate: orderRows.length > 0 ? ordersCompleted / orderRows.length : 0,
     },
     agreements: {
       crm_sent: crmSent,

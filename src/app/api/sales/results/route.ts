@@ -255,8 +255,13 @@ export async function GET(req: NextRequest) {
   );
   const completedOrders = (orders || []).filter((o) => o.status === "completed").length;
 
-  const totalDeals = (allDeals || []).length;
-  const closeRate = totalDeals > 0 ? wonCount / totalDeals : 0;
+  // Close rate = % of orders placed in the period that were completed.
+  // Prior formula was `unique-deal-ids-on-orders / total-deals`, which
+  // returned 0% whenever orders were created without a linked deal
+  // (which happens routinely for direct-created orders and any manual
+  // one-off). New formula matches what the numbers on the same tile
+  // visibly imply: completed_orders / orders_placed.
+  const closeRate = orders.length > 0 ? completedOrders / orders.length : 0;
 
   // Commission metrics
   let commissionTotal = 0;

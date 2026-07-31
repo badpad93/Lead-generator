@@ -6,7 +6,7 @@ import { createBrowserClient } from "@/lib/supabase";
 import {
   Loader2, ClipboardList, Plus, Search, AlertCircle,
   ChevronRight, Package, MapPin, Coffee, Monitor, Wrench, DollarSign, FileText,
-  FileSpreadsheet,
+  FileSpreadsheet, Trash2,
 } from "lucide-react";
 import { exportRowsToCsv } from "@/lib/spreadsheetExport";
 
@@ -101,11 +101,25 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [docType, setDocType] = useState<"order" | "quote">("order");
+  const [userRole, setUserRole] = useState<string>("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const canDelete = ["admin", "director_of_sales", "market_leader"].includes(userRole);
 
   useEffect(() => {
     const supabase = createBrowserClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) setToken(session.access_token);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.access_token) return;
+      setToken(session.access_token);
+      // Fetch role so we know whether to render the delete control.
+      const res = await fetch("/api/sales/users", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const users: { id: string; role: string }[] = await res.json();
+        const me = users.find((u) => u.id === session.user.id);
+        if (me) setUserRole(me.role);
+      }
     });
   }, []);
 
@@ -137,6 +151,30 @@ export default function OrdersPage() {
 
   const isQuote = docType === "quote";
   const docLabel = isQuote ? "Quote" : "Order";
+
+  async function deleteOrder(orderId: string, orderNumber: number | string) {
+    const label = `${docLabel} #${orderNumber || orderId.slice(0, 6).toUpperCase()}`;
+    if (!window.confirm(
+      `Delete ${label}?\n\nThis permanently removes the ${docLabel.toLowerCase()} and its line items. Attached PDFs and any linked workflow's order reference will be cleared. This cannot be undone.`,
+    )) return;
+    setDeletingId(orderId);
+    try {
+      const res = await fetch(`/api/sales/orders/${orderId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        window.alert(`Delete failed: ${err.error ?? "Unknown error"}`);
+      }
+    } catch (e) {
+      window.alert(`Delete failed: ${e instanceof Error ? e.message : "Network error"}`);
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className="p-6">
@@ -314,6 +352,26 @@ export default function OrdersPage() {
                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${STATUS_COLORS[order.order_status] || STATUS_COLORS.draft}`}>
                   {formatStatus(order.order_status || "draft")}
                 </span>
+
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteOrder(order.id, order.order_number);
+                    }}
+                    disabled={deletingId === order.id}
+                    className="shrink-0 rounded-lg p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
+                    title={`Delete ${docLabel.toLowerCase()}`}
+                    aria-label={`Delete ${docLabel.toLowerCase()}`}
+                  >
+                    {deletingId === order.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </button>
+                )}
 
                 <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-green-500 shrink-0" />
               </div>
