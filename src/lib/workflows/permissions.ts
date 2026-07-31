@@ -73,7 +73,10 @@ export function hasPermission(actor: WorkflowActor, permission: WorkflowPermissi
     case "workflows.view_own":
       return true; // any authenticated user
     case "workflows.create":
-      return ROLES_ADMIN_ONLY.has(actor.role);
+      // Widened from admin-only so DOS and market_leader can spin up a
+      // workflow for a customer without asking admin every time.
+      // sales_manager + sales still route through their manager.
+      return ROLES_PUBLISH_CUSTOMER_UPDATES.has(actor.role);
     case "workflows.edit_status":
     case "workflows.edit_quantity":
     case "workflows.edit_deadline":

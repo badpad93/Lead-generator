@@ -19,6 +19,8 @@ import {
   CheckCircle2,
   Pause,
   XCircle,
+  Plus,
+  X,
 } from "lucide-react";
 
 interface WorkflowRow {
@@ -107,6 +109,7 @@ export default function WorkflowsPage() {
   const [savedView, setSavedView] = useState<string>("all");
   const [orderBy, setOrderBy] = useState<"due_date" | "created_at" | "updated_at" | "priority">("due_date");
   const [orderDir, setOrderDir] = useState<"asc" | "desc">("asc");
+  const [showNewModal, setShowNewModal] = useState(false);
 
   const filters = useMemo(() => filtersForView(savedView, search), [savedView, search]);
 
@@ -172,8 +175,26 @@ export default function WorkflowsPage() {
           <MetricPill label="Active" value={counts.total} />
           <MetricPill label="Overdue" value={counts.overdue} tone="danger" />
           <MetricPill label="Unassigned" value={counts.unassigned} tone="warn" />
+          <button
+            type="button"
+            onClick={() => setShowNewModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-emerald-700"
+          >
+            <Plus className="h-4 w-4" />
+            New Workflow
+          </button>
         </div>
       </div>
+
+      {showNewModal && (
+        <NewWorkflowModal
+          onClose={() => setShowNewModal(false)}
+          onCreated={(id) => {
+            setShowNewModal(false);
+            window.location.href = `/sales/workflows/${id}`;
+          }}
+        />
+      )}
 
       {/* Saved views */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -387,6 +408,239 @@ function SavedViewChip({
     >
       {label}
     </button>
+  );
+}
+
+interface CustomerHit { id: string; full_name: string | null; email: string | null; role: string | null; }
+
+function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreated: (workflowId: string) => void }) {
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerResults, setCustomerResults] = useState<CustomerHit[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerHit | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [workflowType, setWorkflowType] = useState<string>("ai_machine_fulfillment");
+  const [productName, setProductName] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [dueDate, setDueDate] = useState("");
+  const [priority, setPriority] = useState("normal");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Only fetch (and only mutate state) when there's actually a query
+  // worth running. Clearing on empty/selected happens inline in the
+  // callbacks that change those, not here — this keeps the effect free
+  // of setState in its main body.
+  const shouldSearch = !selectedCustomer && customerQuery.trim().length >= 2;
+  useEffect(() => {
+    if (!shouldSearch) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setSearching(true);
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) { setSearching(false); return; }
+      const res = await fetch(
+        `/api/workflows/customer-search?q=${encodeURIComponent(customerQuery.trim())}`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } },
+      );
+      if (res.ok && !cancelled) {
+        const json = await res.json();
+        setCustomerResults(json.results ?? []);
+      }
+      if (!cancelled) setSearching(false);
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [customerQuery, shouldSearch]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedCustomer) { setError("Pick a customer first"); return; }
+    setSubmitting(true);
+    setError(null);
+    const supabase = createBrowserClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) { setSubmitting(false); return; }
+
+    const res = await fetch("/api/workflows", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({
+        customerId: selectedCustomer.id,
+        workflowType,
+        productName: productName || undefined,
+        quantityPurchased: Number(quantity) || 1,
+        dueDate: dueDate ? new Date(`${dueDate}T00:00:00.000Z`).toISOString() : undefined,
+        priority,
+        description: notes || undefined,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json.workflow?.id) {
+      onCreated(json.workflow.id);
+    } else {
+      setError(json.error ?? "Failed to create workflow");
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto">
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl mt-16 mb-8">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-900">Create workflow</h2>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Customer</label>
+            {selectedCustomer ? (
+              <div className="flex items-center justify-between rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
+                <div>
+                  <div className="font-medium text-emerald-900">{selectedCustomer.full_name ?? selectedCustomer.email}</div>
+                  {selectedCustomer.email && selectedCustomer.full_name && (
+                    <div className="text-xs text-emerald-700">{selectedCustomer.email}</div>
+                  )}
+                </div>
+                <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerQuery(""); }} className="text-xs text-emerald-700 hover:underline">
+                  Change
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={customerQuery}
+                  onChange={(e) => {
+                    setCustomerQuery(e.target.value);
+                    if (e.target.value.trim().length < 2) setCustomerResults([]);
+                  }}
+                  placeholder="Search by name or email…"
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                />
+                {searching && <div className="text-xs text-gray-400 mt-1">Searching…</div>}
+                {customerResults.length > 0 && (
+                  <ul className="mt-2 max-h-48 overflow-y-auto rounded-md border border-gray-100 divide-y divide-gray-100">
+                    {customerResults.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCustomer(c);
+                            setCustomerResults([]);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                        >
+                          <div className="font-medium text-gray-900">{c.full_name ?? c.email ?? c.id.slice(0, 8)}</div>
+                          {c.email && <div className="text-xs text-gray-500">{c.email}{c.role ? ` • ${c.role}` : ""}</div>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Type</label>
+              <select
+                value={workflowType}
+                onChange={(e) => setWorkflowType(e.target.value)}
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+              >
+                <option value="ai_machine_fulfillment">AI Machine Fulfillment</option>
+                <option value="location_services">Location Services</option>
+                <option value="financing">Financing</option>
+                <option value="coffee_equipment">Coffee Equipment</option>
+                <option value="coffee_service">Coffee Service</option>
+                <option value="website_build">Website Build</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Quantity</label>
+              <input
+                type="number"
+                min={1}
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Product name (optional)</label>
+            <input
+              type="text"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              placeholder="e.g. 5 × VendEra AI Machine"
+              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Due date</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Priority</label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+              >
+                <option value="low">Low</option>
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Notes (optional)</label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+            />
+          </div>
+
+          <p className="text-xs text-gray-500 bg-gray-50 rounded-md px-3 py-2">
+            The customer will receive an email confirming the workflow has been created.
+          </p>
+
+          {error && <div className="text-sm text-red-600">{error}</div>}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="text-sm text-gray-600 hover:text-gray-800 px-3 py-2">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!selectedCustomer || submitting}
+              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 text-white px-4 py-2 text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Create workflow
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
