@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getWorkflowActor, isStaff } from "@/lib/workflows/permissions";
-import { listWorkflowsQuerySchema } from "@/lib/workflows/schemas";
+import { getWorkflowActor, hasPermission, isStaff } from "@/lib/workflows/permissions";
+import { createWorkflowSchema, listWorkflowsQuerySchema } from "@/lib/workflows/schemas";
+import { getOrCreateWorkflow } from "@/lib/workflows/service";
+import type { WorkflowType } from "@/lib/workflows/types";
 
 /**
  * GET /api/workflows
@@ -80,4 +82,54 @@ export async function GET(req: NextRequest) {
     limit,
     offset,
   });
+}
+
+/**
+ * POST /api/workflows
+ *
+ * Manual workflow creation. Requires workflows.create (admin, DOS,
+ * market_leader). Customer always gets the "workflow created" email
+ * unless the caller explicitly passes suppressInitialCustomerEmail=true.
+ *
+ * Body: matches createWorkflowSchema, with sourceType forced to
+ * 'admin_manual' and sourceId set to a fresh uuid so the idempotency
+ * index doesn't clash with auto-spawned workflows.
+ */
+export async function POST(req: NextRequest) {
+  const actor = await getWorkflowActor(req);
+  if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasPermission(actor, "workflows.create")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+
+  if (!body.customerId) {
+    return NextResponse.json({ error: "customerId is required" }, { status: 400 });
+  }
+  if (!body.workflowType) {
+    return NextResponse.json({ error: "workflowType is required" }, { status: 400 });
+  }
+
+  // Force source_type + source_id so manual creations get a fresh
+  // idempotency key every time (never collides with auto-spawned
+  // workflows from agreements/orders).
+  const parsed = createWorkflowSchema.safeParse({
+    ...body,
+    sourceType: "admin_manual",
+    sourceId: crypto.randomUUID(),
+    workflowType: body.workflowType as WorkflowType,
+    createdBy: actor.id,
+    actorType: "staff",
+  });
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid input", details: parsed.error.format() }, { status: 400 });
+  }
+
+  try {
+    const { workflow, stages, created } = await getOrCreateWorkflow(parsed.data);
+    return NextResponse.json({ ok: true, workflow, stagesCount: stages.length, created });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Create failed" }, { status: 400 });
+  }
 }
