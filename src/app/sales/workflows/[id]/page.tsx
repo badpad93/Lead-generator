@@ -24,6 +24,8 @@ import {
   Mail,
   Phone,
   Trash2,
+  Plus,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -56,6 +58,7 @@ interface Assignment {
   team: string | null;
   active: boolean;
   assigned_at: string;
+  user_profile: { full_name: string | null; email: string | null } | null;
 }
 interface Shipment {
   id: string;
@@ -344,14 +347,14 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
                 : undefined
             }
           />
-          <AssigneeTile
+          <AssigneesTile
+            assignments={data.assignments}
             assigneeDisplay={data.assigneeDisplay}
             currentUserId={w.assigned_user_id}
             team={w.primary_team}
             staffView={data.isStaffView}
-            onAssign={(userId) =>
-              postAction("/assign", { userId, role: "primary_owner", makePrimary: true })
-            }
+            workflowId={id}
+            onChanged={load}
           />
           <PaymentTile
             paymentStatus={w.payment_status}
@@ -775,28 +778,42 @@ function PriorityBadge({ priority }: { priority: string }) {
 
 interface StaffPicker { id: string; full_name: string | null; email: string; role: string }
 
-function AssigneeTile({
+/**
+ * Multi-assignee tile — shows the primary owner + every collaborator,
+ * each with a remove button. Also exposes an inline picker to add
+ * another team member as a collaborator, or to set a new primary
+ * owner (when Reassign is clicked).
+ *
+ * Every add/remove hits the shared /assign endpoint and its
+ * DELETE?assignmentId variant, then calls onChanged() so the parent
+ * re-fetches and re-renders with the fresh list.
+ */
+function AssigneesTile({
+  assignments,
   assigneeDisplay,
   currentUserId,
   team,
   staffView,
-  onAssign,
+  workflowId,
+  onChanged,
 }: {
+  assignments: Assignment[];
   assigneeDisplay: string | null;
   currentUserId: string | null;
   team: string | null;
   staffView: boolean;
-  onAssign: (userId: string) => Promise<boolean>;
+  workflowId: string;
+  onChanged: () => Promise<void> | void;
 }) {
-  const [picking, setPicking] = useState(false);
+  const [mode, setMode] = useState<null | "primary" | "collaborator">(null);
   const [staff, setStaff] = useState<StaffPicker[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState<string | null>(null);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  async function openPicker() {
-    setPicking(true);
+  async function openPicker(next: "primary" | "collaborator") {
+    setMode(next);
     if (staff.length > 0) return;
-    setLoading(true);
+    setLoadingStaff(true);
     const supabase = createBrowserClient();
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) {
@@ -805,60 +822,163 @@ function AssigneeTile({
       });
       if (res.ok) setStaff(await res.json());
     }
-    setLoading(false);
+    setLoadingStaff(false);
   }
 
-  async function assign(userId: string) {
-    setSaving(userId);
-    const ok = await onAssign(userId);
-    setSaving(null);
-    if (ok) setPicking(false);
+  async function withAuth<T>(fn: (token: string) => Promise<T>): Promise<T | null> {
+    const supabase = createBrowserClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return null;
+    return fn(session.access_token);
   }
+
+  async function pickUser(userId: string) {
+    if (!mode) return;
+    setBusy(userId);
+    const body = mode === "primary"
+      ? { userId, role: "primary_owner", makePrimary: true }
+      : { userId, role: "observer" };
+    const res = await withAuth((token) =>
+      fetch(`/api/workflows/${workflowId}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      }),
+    );
+    setBusy(null);
+    if (res && res.ok) {
+      setMode(null);
+      await onChanged();
+    } else if (res) {
+      const err = await res.json().catch(() => ({}));
+      alert(`Failed: ${err.error ?? "Unknown"}`);
+    }
+  }
+
+  async function removeAssignment(assignmentId: string) {
+    if (!window.confirm("Remove this assignment?")) return;
+    setBusy(assignmentId);
+    const res = await withAuth((token) =>
+      fetch(`/api/workflows/${workflowId}/assign?assignmentId=${assignmentId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    );
+    setBusy(null);
+    if (res && res.ok) {
+      await onChanged();
+    } else if (res) {
+      const err = await res.json().catch(() => ({}));
+      alert(`Failed: ${err.error ?? "Unknown"}`);
+    }
+  }
+
+  // Show only active rows. Sort primary_owner first so the tile has a
+  // clear header person.
+  const active = [...assignments]
+    .filter((a) => a.active)
+    .sort((a, b) => {
+      if (a.role === "primary_owner" && b.role !== "primary_owner") return -1;
+      if (b.role === "primary_owner" && a.role !== "primary_owner") return 1;
+      return a.assigned_at.localeCompare(b.assigned_at);
+    });
+
+  // Prevent the picker from suggesting people already on the list.
+  const assignedUserIds = new Set(active.map((a) => a.user_id));
+  const pickable = staff.filter((s) => !assignedUserIds.has(s.id));
 
   return (
     <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
       <div className="text-xs uppercase tracking-wide text-gray-500 flex items-center gap-1">
-        <UserCircle2 className="h-4 w-4" /> Assigned
+        <UserCircle2 className="h-4 w-4" /> Assigned{active.length > 1 ? ` (${active.length})` : ""}
       </div>
-      <div className="text-sm font-medium text-gray-900 mt-1 capitalize">
-        {assigneeDisplay ?? "Unassigned"}
-      </div>
-      {team && <div className="text-xs text-gray-500 mt-0.5">Team: {team}</div>}
-      {staffView && !picking && (
-        <button
-          type="button"
-          onClick={openPicker}
-          className="mt-2 text-xs text-emerald-700 hover:underline"
-        >
-          {currentUserId ? "Reassign" : "Assign"}
-        </button>
+
+      {active.length === 0 ? (
+        <div className="text-sm font-medium text-gray-900 mt-1">
+          {assigneeDisplay ?? "Unassigned"}
+        </div>
+      ) : (
+        <div className="mt-1 space-y-1">
+          {active.map((a) => (
+            <div key={a.id} className="flex items-center justify-between gap-2 text-sm">
+              <div className="min-w-0">
+                <div className="font-medium text-gray-900 truncate">
+                  {a.user_profile?.full_name ?? a.user_profile?.email ?? a.user_id.slice(0, 8)}
+                </div>
+                <div className="text-[10px] uppercase tracking-wide text-gray-500">
+                  {a.role.replace(/_/g, " ")}
+                </div>
+              </div>
+              {staffView && (
+                <button
+                  type="button"
+                  onClick={() => removeAssignment(a.id)}
+                  disabled={busy === a.id}
+                  className="text-gray-400 hover:text-red-600 disabled:opacity-40"
+                  title="Remove this assignment"
+                >
+                  {busy === a.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       )}
-      {staffView && picking && (
+
+      {team && <div className="text-xs text-gray-500 mt-1.5">Team: {team}</div>}
+
+      {staffView && !mode && (
+        <div className="mt-2 flex flex-wrap gap-3 text-xs">
+          <button
+            type="button"
+            onClick={() => openPicker("primary")}
+            className="text-emerald-700 hover:underline"
+          >
+            {currentUserId ? "Reassign primary" : "Set primary"}
+          </button>
+          <button
+            type="button"
+            onClick={() => openPicker("collaborator")}
+            className="text-emerald-700 hover:underline inline-flex items-center gap-1"
+          >
+            <Plus className="h-3 w-3" /> Add collaborator
+          </button>
+        </div>
+      )}
+
+      {staffView && mode && (
         <div className="mt-2">
-          {loading ? (
+          <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">
+            {mode === "primary" ? "Set primary owner" : "Add collaborator"}
+          </div>
+          {loadingStaff ? (
             <div className="text-xs text-gray-500 inline-flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" /> Loading team…
             </div>
           ) : (
             <>
               <select
-                onChange={(e) => e.target.value && assign(e.target.value)}
+                onChange={(e) => e.target.value && pickUser(e.target.value)}
                 defaultValue=""
-                disabled={saving !== null}
+                disabled={busy !== null}
                 className="w-full rounded-md border border-gray-200 text-xs px-2 py-1"
               >
-                <option value="" disabled>Select assignee…</option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.full_name ?? s.email} ({s.role})
-                  </option>
-                ))}
+                <option value="" disabled>Select team member…</option>
+                {pickable.length === 0 ? (
+                  <option value="" disabled>Everyone is already on this workflow</option>
+                ) : (
+                  pickable.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.full_name ?? s.email} ({s.role})
+                    </option>
+                  ))
+                )}
               </select>
               <button
                 type="button"
-                onClick={() => setPicking(false)}
+                onClick={() => setMode(null)}
                 className="mt-1 text-xs text-gray-500 hover:text-gray-800"
-                disabled={saving !== null}
+                disabled={busy !== null}
               >
                 Cancel
               </button>
