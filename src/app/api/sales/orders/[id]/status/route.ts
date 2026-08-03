@@ -147,5 +147,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
+  // Mirror the payment onto any workflow linked to this order.
+  if (action === "mark_paid") {
+    try {
+      const { syncWorkflowFromSalesOrderPaid } = await import("@/lib/workflows/paymentSync");
+      await syncWorkflowFromSalesOrderPaid({
+        orderId: id,
+        source: "sales_orders.status",
+        changeKey: `manual:sales_order:${id}:mark_paid`,
+      });
+    } catch (e) {
+      console.error("[orders.status] workflow payment sync failed:", e);
+    }
+  }
+
   return NextResponse.json(data);
 }

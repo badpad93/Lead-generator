@@ -50,6 +50,11 @@ export default function TimeClockPage() {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"today" | "week">("today");
   const [noSession, setNoSession] = useState(false);
+  // Optional workflow the user is punching in on. Blank = generic /
+  // admin overhead; picking one feeds the /sales/workload hours-per-
+  // workflow rollup so leadership sees where time actually goes.
+  const [workflowPicks, setWorkflowPicks] = useState<{ id: string; label: string }[]>([]);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -122,6 +127,25 @@ export default function TimeClockPage() {
     return () => clearInterval(interval);
   }, [activeEntry]);
 
+  // Fetch workflows this user is currently assigned to so they can
+  // punch in on a specific one. Fires when the token first loads.
+  useEffect(() => {
+    if (!token || !userId) return;
+    fetch(`/api/workflows?assignedUserId=${userId}&status=in_progress&limit=25`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : { workflows: [] }))
+      .then((data: { workflows?: { id: string; workflow_number: string; title: string }[] }) => {
+        setWorkflowPicks(
+          (data.workflows ?? []).map((w) => ({
+            id: w.id,
+            label: `${w.workflow_number} — ${w.title}`,
+          })),
+        );
+      })
+      .catch(() => setWorkflowPicks([]));
+  }, [token, userId]);
+
   async function clockIn() {
     setActing(true);
     setError(null);
@@ -129,7 +153,7 @@ export default function TimeClockPage() {
       const res = await fetch("/api/time-entries", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ workflow_id: selectedWorkflowId || undefined }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -264,15 +288,32 @@ export default function TimeClockPage() {
                     Punch Out
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={clockIn}
-                    disabled={acting}
-                    className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer transition-colors"
-                  >
-                    {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                    Punch In
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {workflowPicks.length > 0 && (
+                      <select
+                        value={selectedWorkflowId}
+                        onChange={(e) => setSelectedWorkflowId(e.target.value)}
+                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-green-500 focus:outline-none max-w-[240px]"
+                        title="Optional — punch in on a specific workflow so it counts toward that workflow's hours"
+                      >
+                        <option value="">General work (no workflow)</option>
+                        {workflowPicks.map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.label.length > 40 ? `${w.label.slice(0, 40)}…` : w.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      type="button"
+                      onClick={clockIn}
+                      disabled={acting}
+                      className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer transition-colors"
+                    >
+                      {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                      Punch In
+                    </button>
+                  </div>
                 )}
               </td>
             </tr>

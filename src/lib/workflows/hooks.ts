@@ -16,6 +16,33 @@ import { supabaseAdmin } from "../supabaseAdmin";
 import { getOrCreateWorkflow, updateStage } from "./service";
 import type { CreateWorkflowInput, WorkflowRow } from "./types";
 
+/**
+ * Project a source row into a shape safe to snapshot into
+ * workflow.metadata.source_intake. Strips columns that are noise for
+ * "what did the customer submit" (system timestamps, internal-only IDs,
+ * anything containing a secret). Everything else — including the
+ * business context, contact info, and per-form fields — is copied
+ * verbatim so whoever picks up the workflow has full context without
+ * clicking back to the source table.
+ */
+function snapshotSourceIntake<T extends Record<string, unknown>>(row: T): Record<string, unknown> {
+  const DROP = new Set([
+    "id", "created_at", "updated_at", "created_by", "updated_by",
+    "deleted_at", "sign_token", "qb_invoice_id",
+    "location_remaining_qb_invoice_id", "apex_placement_qb_invoice_id",
+    "stripe_customer_id", "stripe_subscription_id", "stripe_account_id",
+    "stripe_checkout_session_id", "stripe_payment_intent_id",
+    "raw_stripe_event", "raw_webhook",
+  ]);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (DROP.has(k)) continue;
+    if (v === null || v === undefined) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 // ─── Purchase agreement (machine + location placement) ──────────────────
 //
 // Called from generateAgreementPdf.handleFullySignedAgreement when both
@@ -65,6 +92,7 @@ export async function spawnFromPurchaseAgreement(
         unit_price: ag.machine_unit_price,
         total: ag.total_due_prior_to_procurement,
         operator_company: ag.operator_company_name,
+        source_intake: snapshotSourceIntake(ag),
       },
       actorType: "system",
     });
@@ -110,6 +138,7 @@ export async function spawnFromPurchaseAgreement(
         location_state: ag.location_state,
         send_to_marketplace: ag.send_to_marketplace,
         marketplace_contract_id: placementContractId,
+        source_intake: snapshotSourceIntake(ag),
       },
       actorType: "system",
     });
@@ -140,6 +169,22 @@ export async function spawnFromCoffeeAgreement(
   const committedQty =
     Number((ua.metadata as Record<string, unknown> | null)?.equipment_quantity) || 1;
 
+  // Pull the original coffee_application intake so the fulfillment
+  // team sees the customer's shipping address, contact, volume estimate,
+  // notes, etc. — not just the agreement.
+  const { data: application } = await supabaseAdmin
+    .from("coffee_applications")
+    .select("*")
+    .eq("operator_id", customerId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const coffeeIntake = {
+    agreement: snapshotSourceIntake(ua),
+    application: application ? snapshotSourceIntake(application) : null,
+  };
+
   const equipmentResult = await safeCreate({
     customerId,
     workflowType: "coffee_equipment",
@@ -151,7 +196,10 @@ export async function spawnFromCoffeeAgreement(
     paymentStatus: "na",
     primaryTeam: "coffee",
     assignedUserId: teamEmailAssignee("coffee"),
-    metadata: { source_agreement: userAgreementId },
+    metadata: {
+      source_agreement: userAgreementId,
+      source_intake: coffeeIntake,
+    },
     actorType: "system",
   });
   if (equipmentResult) spawned.push(equipmentResult);
@@ -169,7 +217,10 @@ export async function spawnFromCoffeeAgreement(
     paymentStatus: "na",
     primaryTeam: "coffee",
     assignedUserId: teamEmailAssignee("coffee"),
-    metadata: { source_agreement: userAgreementId },
+    metadata: {
+      source_agreement: userAgreementId,
+      source_intake: coffeeIntake,
+    },
     actorType: "system",
   });
   if (serviceResult) spawned.push(serviceResult);
@@ -218,6 +269,15 @@ export async function spawnFromMachineListingPurchase(
     machineTitle?: string;
   },
 ): Promise<WorkflowRow | null> {
+  // Grab the full buyer intake so the fulfillment team sees buyer type,
+  // business address, LLC status, location plan, timeline, power/space
+  // flags, connectivity, shipping intent, etc.
+  const { data: purchase } = await supabaseAdmin
+    .from("machine_listing_purchases")
+    .select("*")
+    .eq("id", purchaseId)
+    .maybeSingle();
+
   return safeCreate({
     customerId: args.customerId,
     workflowType: "ai_machine_fulfillment",
@@ -230,6 +290,7 @@ export async function spawnFromMachineListingPurchase(
     paymentStatus: "paid",
     primaryTeam: "fulfillment",
     assignedUserId: teamEmailAssignee("fulfillment"),
+    metadata: purchase ? { source_intake: snapshotSourceIntake(purchase) } : undefined,
     actorType: "system",
   });
 }
@@ -239,6 +300,15 @@ export async function spawnFromFinancingApplication(
   applicationId: string,
   args: { customerId: string; companyId?: string },
 ): Promise<WorkflowRow | null> {
+  // Load the full application row so the financing team sees the
+  // 17-field intake (income, credit range, background flags, etc.)
+  // without needing to click into the source table.
+  const { data: application } = await supabaseAdmin
+    .from("financing_applications")
+    .select("*")
+    .eq("id", applicationId)
+    .maybeSingle();
+
   return safeCreate({
     customerId: args.customerId,
     companyId: args.companyId ?? null,
@@ -252,6 +322,7 @@ export async function spawnFromFinancingApplication(
     paymentStatus: "na",
     primaryTeam: "financing",
     assignedUserId: teamEmailAssignee("financing"),
+    metadata: application ? { source_intake: snapshotSourceIntake(application) } : undefined,
     actorType: "system",
   });
 }
@@ -261,6 +332,15 @@ export async function spawnFromWebsiteRequest(
   requestId: string,
   args: { customerId: string; companyId?: string; siteName?: string },
 ): Promise<WorkflowRow | null> {
+  // Pull the full wizard payload so the build team sees every step —
+  // business, brand, domain, content, products, media, features,
+  // contact, launch prefs — without opening a separate admin view.
+  const { data: request } = await supabaseAdmin
+    .from("website_requests")
+    .select("*")
+    .eq("id", requestId)
+    .maybeSingle();
+
   return safeCreate({
     customerId: args.customerId,
     companyId: args.companyId ?? null,
@@ -274,6 +354,7 @@ export async function spawnFromWebsiteRequest(
     paymentStatus: "na",
     primaryTeam: "fulfillment",
     assignedUserId: teamEmailAssignee("fulfillment"),
+    metadata: request ? { source_intake: snapshotSourceIntake(request) } : undefined,
     actorType: "system",
   });
 }

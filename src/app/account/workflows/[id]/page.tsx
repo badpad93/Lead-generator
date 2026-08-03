@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
+import { SourceIntakePanel } from "@/app/components/SourceIntakePanel";
 import {
   ChevronLeft,
   CheckCircle2,
@@ -91,6 +92,7 @@ interface DetailPayload {
     completed_at: string | null;
     primary_team: string | null;
     payment_status: string;
+    metadata: Record<string, unknown> | null;
   };
   stages: Stage[];
   notes: Note[];
@@ -284,6 +286,12 @@ export default function MyWorkflowDetail({ params }: { params: Promise<{ id: str
           </div>
         </div>
       )}
+
+      {/* Source Intake (customer-safe view — hides staff-only fields) */}
+      <SourceIntakePanel
+        intake={(data.workflow.metadata as { source_intake?: unknown } | null)?.source_intake}
+        customerSafe
+      />
 
       {/* Stages timeline */}
       <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">

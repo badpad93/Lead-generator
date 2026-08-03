@@ -579,7 +579,71 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
           })}
         </div>
       )}
+
+      {/* Team Workload row — only company/market scope; per-rep hides it */}
+      {(data.scope.is_company_wide || data.scope.viewer_role === "market_leader") && (
+        <TeamWorkloadRow periodLabel={data.period.label} />
+      )}
     </div>
+  );
+}
+
+interface WorkloadPayload {
+  employees: {
+    user_id: string; active: number; overdue: number; hours_period: number; capacity: "green" | "yellow" | "red";
+  }[];
+}
+
+function TeamWorkloadRow({ periodLabel }: { periodLabel: string }) {
+  const [data, setData] = useState<WorkloadPayload | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/sales/workload?period=${periodLabel.toLowerCase().replace(/\s/g, "")}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) setData(await res.json());
+    }
+    load();
+  }, [periodLabel]);
+
+  if (!data || data.employees.length === 0) return null;
+
+  const totalActive = data.employees.reduce((s, e) => s + e.active, 0);
+  const totalOverdue = data.employees.reduce((s, e) => s + e.overdue, 0);
+  const totalHours = data.employees.reduce((s, e) => s + e.hours_period, 0);
+  const overCapacity = data.employees.filter((e) => e.capacity === "red").length;
+  const avgPerPerson = data.employees.length > 0
+    ? Math.round(totalActive / data.employees.length)
+    : 0;
+
+  return (
+    <Link
+      href="/sales/workload"
+      className="mt-4 block rounded-lg border border-gray-200 bg-gray-50 p-3 hover:bg-gray-100 transition-colors"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+          <Users className="h-4 w-4 text-purple-600" />
+          Team Workload
+        </div>
+        <div className="flex flex-wrap items-center gap-4 text-xs text-gray-600">
+          <span><span className="font-semibold text-gray-900">{totalActive}</span> active</span>
+          <span>~<span className="font-semibold text-gray-900">{avgPerPerson}</span>/person</span>
+          {totalOverdue > 0 && (
+            <span className="text-red-700"><span className="font-semibold">{totalOverdue}</span> overdue</span>
+          )}
+          {overCapacity > 0 && (
+            <span className="text-red-700 font-semibold">{overCapacity} over capacity</span>
+          )}
+          <span><span className="font-semibold text-gray-900">{Math.round(totalHours)}h</span> logged</span>
+          <span className="text-emerald-700">Open →</span>
+        </div>
+      </div>
+    </Link>
   );
 }
 
