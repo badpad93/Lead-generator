@@ -112,6 +112,9 @@ export default function WorkflowsPage() {
   const [orderBy, setOrderBy] = useState<"due_date" | "created_at" | "updated_at" | "priority">("due_date");
   const [orderDir, setOrderDir] = useState<"asc" | "desc">("asc");
   const [showNewModal, setShowNewModal] = useState(false);
+  const [userRole, setUserRole] = useState<string>("");
+  const canOverride = ["admin", "director_of_sales", "market_leader"].includes(userRole);
+  const [overriding, setOverriding] = useState<string | null>(null);
 
   const filters = useMemo(() => filtersForView(savedView, search), [savedView, search]);
 
@@ -119,6 +122,57 @@ export default function WorkflowsPage() {
   // renders. This keeps the render pass pure (React 19 purity rule)
   // while still giving accurate "5m ago" / "3d overdue" labels.
   const [nowMs, setNowMs] = useState(0);
+
+  // Fetch role once so the row-level "Mark Paid" quick action can
+  // render for admin/DOS/market_leader only.
+  useEffect(() => {
+    async function loadRole() {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/sales/users", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const users: { id: string; role: string }[] = await res.json();
+        const me = users.find((u) => u.id === session.user.id);
+        if (me) setUserRole(me.role);
+      }
+    }
+    loadRole();
+  }, []);
+
+  async function markPaid(workflowId: string, workflowNumber: string) {
+    const reason = window.prompt(
+      `Mark ${workflowNumber} as paid?\n\nReason (audit-logged, required):`,
+      "Payment received off-platform",
+    );
+    if (!reason || !reason.trim()) return;
+    setOverriding(workflowId);
+    try {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/workflows/${workflowId}/payment-status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ payment_status: "paid", reason: reason.trim() }),
+      });
+      if (res.ok) {
+        // Force list refetch by toggling filters (small no-op that triggers useEffect).
+        setWorkflows((prev) => prev.map((w) =>
+          w.id === workflowId
+            ? { ...w, overall_status: w.overall_status === "pending_payment" ? "in_progress" : w.overall_status }
+            : w,
+        ));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        window.alert(`Override failed: ${err.error ?? "Unknown"}`);
+      }
+    } finally {
+      setOverriding(null);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -280,7 +334,16 @@ export default function WorkflowsPage() {
                 </td>
               </tr>
             ) : (
-              workflows.map((w) => <WorkflowRowRender key={w.id} workflow={w} nowMs={nowMs} />)
+              workflows.map((w) => (
+                <WorkflowRowRender
+                  key={w.id}
+                  workflow={w}
+                  nowMs={nowMs}
+                  canOverride={canOverride}
+                  overriding={overriding === w.id}
+                  onMarkPaid={() => markPaid(w.id, w.workflow_number)}
+                />
+              ))
             )}
           </tbody>
         </table>
@@ -289,7 +352,19 @@ export default function WorkflowsPage() {
   );
 }
 
-function WorkflowRowRender({ workflow, nowMs }: { workflow: WorkflowRow; nowMs: number }) {
+function WorkflowRowRender({
+  workflow,
+  nowMs,
+  canOverride,
+  overriding,
+  onMarkPaid,
+}: {
+  workflow: WorkflowRow;
+  nowMs: number;
+  canOverride: boolean;
+  overriding: boolean;
+  onMarkPaid: () => void;
+}) {
   const meta = TYPE_META[workflow.workflow_type] ?? { label: workflow.workflow_type, icon: Package, team: "" };
   const Icon = meta.icon;
   const status = STATUS_STYLE[workflow.overall_status] ?? STATUS_STYLE.not_started;
@@ -359,7 +434,20 @@ function WorkflowRowRender({ workflow, nowMs }: { workflow: WorkflowRow; nowMs: 
         )}
       </td>
       <td className="px-4 py-3">
-        <StatusBadge status={workflow.overall_status} label={status.label} className={status.badge} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={workflow.overall_status} label={status.label} className={status.badge} />
+          {canOverride && workflow.overall_status === "pending_payment" && (
+            <button
+              type="button"
+              onClick={onMarkPaid}
+              disabled={overriding}
+              className="text-xs text-emerald-700 hover:underline disabled:opacity-50 whitespace-nowrap"
+              title="Mark payment received (audit-logged with your name + reason)"
+            >
+              {overriding ? "…" : "Mark paid"}
+            </button>
+          )}
+        </div>
       </td>
       <td className={`px-4 py-3 text-sm ${dueTone}`}>{dueLabel}</td>
       <td className="px-4 py-3 text-xs text-gray-500">{formatRelative(workflow.updated_at, nowMs)}</td>
