@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { canViewWorkflow, getWorkflowActor, isStaff } from "@/lib/workflows/permissions";
+import { canViewWorkflow, getWorkflowActor, hasPermission, isStaff } from "@/lib/workflows/permissions";
 
 /**
  * GET /api/workflows/[id]
@@ -219,7 +219,66 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     assigneeDisplay,
     isStaffView: staffView,
     isOwner,
+    canDelete: hasPermission(actor, "workflows.delete"),
   });
+}
+
+/**
+ * DELETE /api/workflows/[id]
+ *
+ * Admin-only hard delete. The workflow row and every child
+ * (workflow_stages, workflow_events, workflow_notes,
+ * workflow_assignments, workflow_shipments, workflow_order_items,
+ * workflow_notification_dispatches, workflow_customer_approvals) drop
+ * via ON DELETE CASCADE. time_entries.workflow_id is SET NULL so time
+ * clock history stays intact.
+ *
+ * An audit_logs row is written BEFORE the delete so the paper trail
+ * survives the cascade — reason is required.
+ */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const actor = await getWorkflowActor(req);
+  if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasPermission(actor, "workflows.delete")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const { id } = await params;
+
+  const body = await req.json().catch(() => ({}));
+  const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
+  if (!reason) {
+    return NextResponse.json({ error: "Reason is required" }, { status: 400 });
+  }
+  if (reason.length > 500) {
+    return NextResponse.json({ error: "Reason too long" }, { status: 400 });
+  }
+
+  const { data: workflow } = await supabaseAdmin
+    .from("workflows")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (!workflow) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Write the audit trail first — after the delete the workflow_events
+  // rows are gone with the cascade, so audit_logs is the last surviving
+  // record of who did what and why.
+  await supabaseAdmin.from("audit_logs").insert({
+    actor_id: actor.id,
+    action: "workflow_deleted",
+    entity_type: "workflow",
+    entity_id: id,
+    reason,
+    before: workflow,
+    after: null,
+  });
+
+  const { error } = await supabaseAdmin.from("workflows").delete().eq("id", id);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
 }
 
 function friendlyTeamName(team: string | null): string {

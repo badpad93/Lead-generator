@@ -23,7 +23,9 @@ import {
   EyeOff,
   Mail,
   Phone,
+  Trash2,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface Stage {
   id: string;
@@ -138,10 +140,12 @@ interface DetailPayload {
   companyInfo: CompanyInfo | null;
   assigneeDisplay: string | null;
   isStaffView: boolean;
+  canDelete: boolean;
 }
 
 export default function WorkflowDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [data, setData] = useState<DetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -531,7 +535,14 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
       {/* Admin actions */}
       {data.isStaffView && (
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 flex flex-wrap gap-3">
-          <AdminActions workflowId={id} status={w.overall_status} onDone={load} />
+          <AdminActions
+            workflowId={id}
+            workflowNumber={w.workflow_number}
+            status={w.overall_status}
+            canDelete={data.canDelete}
+            onDone={load}
+            onDeleted={() => router.push("/sales/workflows")}
+          />
         </div>
       )}
     </div>
@@ -1053,7 +1064,23 @@ function AddShipmentButton({ workflowId, onSaved }: { workflowId: string; onSave
   );
 }
 
-function AdminActions({ workflowId, status, onDone }: { workflowId: string; status: string; onDone: () => void }) {
+function AdminActions({
+  workflowId,
+  workflowNumber,
+  status,
+  canDelete,
+  onDone,
+  onDeleted,
+}: {
+  workflowId: string;
+  workflowNumber: string;
+  status: string;
+  canDelete: boolean;
+  onDone: () => void;
+  onDeleted: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+
   async function submit(path: string, method: string, body: Record<string, unknown>) {
     const reason = window.prompt("Reason (audit-logged):");
     if (!reason) return;
@@ -1067,6 +1094,42 @@ function AdminActions({ workflowId, status, onDone }: { workflowId: string; stat
     });
     if (res.ok) onDone();
     else alert(`Failed: ${(await res.json()).error}`);
+  }
+
+  async function handleDelete() {
+    // Two-step confirm because the delete cascades every stage, note,
+    // shipment, order-item, event, and pending approval — irreversible.
+    const confirmed = window.confirm(
+      `Permanently delete workflow ${workflowNumber}?\n\n` +
+      `This removes every stage, note, shipment, order item, event, and pending approval. ` +
+      `Time entries stay but lose their workflow link. Prefer Cancel over Delete for real customer work.`,
+    );
+    if (!confirmed) return;
+    const reason = window.prompt(
+      `Reason (audit-logged, required):`,
+      "Test/duplicate workflow cleanup",
+    );
+    if (!reason || !reason.trim()) return;
+
+    setDeleting(true);
+    try {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`/api/workflows/${workflowId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      if (res.ok) {
+        onDeleted();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Delete failed: ${err.error ?? "Unknown"}`);
+      }
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -1107,6 +1170,18 @@ function AdminActions({ workflowId, status, onDone }: { workflowId: string; stat
           className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white text-gray-700 px-3 py-1.5 text-sm hover:bg-gray-50"
         >
           <RotateCw className="h-3.5 w-3.5" /> Reopen
+        </button>
+      )}
+      {canDelete && (
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-red-300 bg-red-600 text-white px-3 py-1.5 text-sm hover:bg-red-700 disabled:opacity-50"
+          title="Permanently delete this workflow and all its children (admin only)"
+        >
+          {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          Delete
         </button>
       )}
     </>
