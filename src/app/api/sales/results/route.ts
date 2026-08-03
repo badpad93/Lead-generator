@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
   // doesn't exist on very old schemas (all rows treated as orders then).
   let ordersQuery = supabaseAdmin
     .from("sales_orders")
-    .select("id, status, total_value, deal_id, created_at, document_type")
+    .select("id, status, payment_status, total_value, deal_id, created_at, document_type")
     .gte("created_at", since);
   if (until) ordersQuery = ordersQuery.lte("created_at", until);
 
@@ -178,7 +178,7 @@ export async function GET(req: NextRequest) {
   if (ordersError && String(ordersError.message).includes("document_type")) {
     let retry = supabaseAdmin
       .from("sales_orders")
-      .select("id, status, total_value, deal_id, created_at")
+      .select("id, status, payment_status, total_value, deal_id, created_at")
       .gte("created_at", since);
     if (until) retry = retry.lte("created_at", until);
     if (targetUserId) {
@@ -200,11 +200,15 @@ export async function GET(req: NextRequest) {
   const quotesInPeriod = rows.filter((r) => r.document_type === "quote");
 
   // --- Commissions ---
+  // commission_ledger is the current source (migration 109). The older
+  // sales_commissions table (migration 028) is deprecated and empty
+  // in production — querying it always returned $0. Read from ledger
+  // and convert amount_cents → dollars for the payload.
   let commissionsQuery = supabaseAdmin
-    .from("sales_commissions")
-    .select("id, commission_amount, status, created_at")
-    .gte("created_at", since);
-  if (until) commissionsQuery = commissionsQuery.lte("created_at", until);
+    .from("commission_ledger")
+    .select("id, amount_cents, status, earned_at")
+    .gte("earned_at", since);
+  if (until) commissionsQuery = commissionsQuery.lte("earned_at", until);
 
   if (targetUserId) {
     commissionsQuery = commissionsQuery.eq("user_id", targetUserId);
@@ -212,7 +216,27 @@ export async function GET(req: NextRequest) {
     commissionsQuery = commissionsQuery.in("user_id", allowedUserIds);
   }
 
-  const { data: commissions } = await commissionsQuery;
+  // eslint-disable-next-line prefer-const
+  let { data: commissions, error: commissionErr } = await commissionsQuery;
+  if (commissionErr) {
+    // Fallback for schemas that still only have sales_commissions.
+    let retry = supabaseAdmin
+      .from("sales_commissions")
+      .select("id, commission_amount, status, created_at")
+      .gte("created_at", since);
+    if (until) retry = retry.lte("created_at", until);
+    if (targetUserId) retry = retry.eq("user_id", targetUserId);
+    else if (allowedUserIds) retry = retry.in("user_id", allowedUserIds);
+    const fallback = await retry;
+    // Normalize old shape (commission_amount in dollars) to new shape
+    // (amount_cents) so the aggregator below stays uniform.
+    commissions = (fallback.data ?? []).map((r) => ({
+      id: (r as { id: string }).id,
+      amount_cents: Math.round(Number((r as { commission_amount: number }).commission_amount ?? 0) * 100),
+      status: (r as { status: string }).status,
+      earned_at: (r as { created_at: string }).created_at,
+    }));
+  }
 
   // --- Goal ---
   const goalPeriod = period === "ytd" ? "yearly" : period === "custom" ? "yearly" : period;
@@ -239,17 +263,16 @@ export async function GET(req: NextRequest) {
     pipelineValue += Number(d.value || 0);
   }
 
-  // Won metrics: orders linked to deals in the period
-  let wonValue = 0;
-  let wonCount = 0;
-  const wonDealIds = new Set<string>();
-  for (const o of orders || []) {
-    if (o.deal_id && !wonDealIds.has(o.deal_id)) {
-      wonDealIds.add(o.deal_id);
-      wonValue += Number(o.total_value || 0);
-      wonCount += 1;
-    }
-  }
+  // Won metrics — redefined to match Completed Orders / Order Revenue
+  // definition. Prior formula was "unique deal_ids on any order in the
+  // period", which returned 0 whenever orders had no deal_id (which is
+  // typical for direct-created and manual one-off orders). New formula:
+  // orders that are completed or paid.
+  const wonOrders = (orders || []).filter(
+    (o) => o.status === "completed" || (o as { payment_status?: string }).payment_status === "paid",
+  );
+  const wonCount = wonOrders.length;
+  const wonValue = wonOrders.reduce((sum, o) => sum + Number(o.total_value || 0), 0);
 
   const orderRevenue = (orders || []).reduce(
     (sum, o) => sum + Number(o.total_value || 0), 0
@@ -288,18 +311,27 @@ export async function GET(req: NextRequest) {
     closeRate = closedQuotes / quotesInPeriod.length;
   }
 
-  // Commission metrics
-  let commissionTotal = 0;
-  let commissionPending = 0;
-  let commissionApproved = 0;
-  let commissionPaid = 0;
+  // Commission metrics — commission_ledger stores amount_cents.
+  // status enum: 'pending' | 'held' | 'earned' | 'reversed' | 'paid' |
+  // 'cancelled'. Group them into the four buckets the dashboard shows:
+  // pending → pending; held+earned → approved; paid → paid; anything
+  // else drops out.
+  let commissionCentsTotal = 0;
+  let commissionCentsPending = 0;
+  let commissionCentsApproved = 0;
+  let commissionCentsPaid = 0;
   for (const c of commissions || []) {
-    const amt = Number(c.commission_amount || 0);
-    commissionTotal += amt;
-    if (c.status === "pending") commissionPending += amt;
-    else if (c.status === "approved") commissionApproved += amt;
-    else if (c.status === "paid") commissionPaid += amt;
+    const cents = Number((c as { amount_cents?: number }).amount_cents ?? 0);
+    commissionCentsTotal += cents;
+    const status = (c as { status: string }).status;
+    if (status === "pending") commissionCentsPending += cents;
+    else if (status === "earned" || status === "held" || status === "approved") commissionCentsApproved += cents;
+    else if (status === "paid") commissionCentsPaid += cents;
   }
+  const commissionTotal = commissionCentsTotal / 100;
+  const commissionPending = commissionCentsPending / 100;
+  const commissionApproved = commissionCentsApproved / 100;
+  const commissionPaid = commissionCentsPaid / 100;
 
   return NextResponse.json({
     period,

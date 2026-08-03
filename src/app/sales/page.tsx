@@ -352,10 +352,6 @@ export default function SalesDashboard() {
                     <p className="text-xl font-bold text-green-600">{fmt(results.metrics.won_value)}</p>
                   </div>
                   <div className="rounded-lg bg-gray-50 p-4">
-                    <p className="text-xs text-gray-500">Pipeline</p>
-                    <p className="text-xl font-bold text-gray-900">{fmt(results.metrics.pipeline_value)}</p>
-                  </div>
-                  <div className="rounded-lg bg-gray-50 p-4">
                     <p className="text-xs text-gray-500">Orders Sent</p>
                     <p className="text-xl font-bold text-gray-900">{results.metrics.orders_total}</p>
                   </div>
