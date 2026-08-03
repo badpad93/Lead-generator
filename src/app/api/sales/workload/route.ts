@@ -134,7 +134,14 @@ export async function GET(req: NextRequest) {
   for (const p of profiles ?? []) profileMap.set(p.id, p);
 
   // ─── Workflows: pull only what we need for aggregation ────────────
-  const OPEN = ["not_started", "in_progress", "waiting_on_customer", "waiting_on_vendor", "ready_to_begin", "at_risk", "overdue"];
+  // A workflow counts as "active workload" until it reaches a terminal
+  // state (completed / cancelled / refunded / expired). Prior list only
+  // included the seven "in flight" statuses, which excluded newly-
+  // assigned workflows whose overall_status was still pending_payment,
+  // draft, or on_hold — those got dropped from workload counts even
+  // though the assignee still owned them.
+  const TERMINAL = ["completed", "cancelled", "refunded", "expired"];
+  const isOpen = (s: string) => !TERMINAL.includes(s);
 
   const { data: allWorkflows } = await supabaseAdmin
     .from("workflows")
@@ -238,7 +245,7 @@ export async function GET(req: NextRequest) {
   const employees = Array.from(profileMap.values()).map((profile) => {
     const wfIds = Array.from(userWorkflows.get(profile.id) ?? []);
     const wfs = wfIds.map((id) => workflowMap.get(id)!).filter(Boolean);
-    const openWfs = wfs.filter((w) => OPEN.includes(w.overall_status));
+    const openWfs = wfs.filter((w) => isOpen(w.overall_status));
     const byType: Record<string, number> = {};
     for (const w of openWfs) byType[w.workflow_type] = (byType[w.workflow_type] ?? 0) + 1;
     const overdue = openWfs.filter((w) => w.due_date && w.due_date < nowIso).length;

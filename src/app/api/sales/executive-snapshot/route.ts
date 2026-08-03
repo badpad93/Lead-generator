@@ -277,16 +277,12 @@ export async function GET(req: NextRequest) {
   }
 
   // ─── Workflows ──────────────────────────────────────────────────────
-  // Company-wide only when the caller isn't scoped to one user.
-  const OPEN_STATUSES = [
-    "not_started",
-    "in_progress",
-    "waiting_on_customer",
-    "waiting_on_vendor",
-    "ready_to_begin",
-    "at_risk",
-    "overdue",
-  ];
+  // Company-wide only when the caller isn't scoped to one user. A
+  // workflow counts as "open" until it reaches a terminal state — this
+  // matches the workload endpoint definition so counts on the Exec
+  // Snapshot and Team Workload views agree with each other.
+  const TERMINAL = new Set(["completed", "cancelled", "refunded", "expired"]);
+  const isOpen = (status: string) => !TERMINAL.has(status);
   const nowIso = new Date().toISOString();
   const in7 = new Date(Date.now() + 7 * 86400_000).toISOString();
 
@@ -296,17 +292,17 @@ export async function GET(req: NextRequest) {
 
   const { data: wfRowsRaw } = await wfBase;
   const wfRows = wfRowsRaw ?? [];
-  const wfActive = wfRows.filter((w) => OPEN_STATUSES.includes(w.overall_status)).length;
-  const wfUnassigned = wfRows.filter((w) => !w.assigned_user_id && OPEN_STATUSES.includes(w.overall_status)).length;
+  const wfActive = wfRows.filter((w) => isOpen(w.overall_status)).length;
+  const wfUnassigned = wfRows.filter((w) => !w.assigned_user_id && isOpen(w.overall_status)).length;
   const wfDue7d = wfRows.filter(
-    (w) => OPEN_STATUSES.includes(w.overall_status) && w.due_date && w.due_date <= in7 && w.due_date >= nowIso,
+    (w) => isOpen(w.overall_status) && w.due_date && w.due_date <= in7 && w.due_date >= nowIso,
   ).length;
   const wfOverdue = wfRows.filter(
-    (w) => OPEN_STATUSES.includes(w.overall_status) && w.due_date && w.due_date < nowIso,
+    (w) => isOpen(w.overall_status) && w.due_date && w.due_date < nowIso,
   ).length;
   const wfByType: Record<string, number> = {};
   for (const w of wfRows) {
-    if (OPEN_STATUSES.includes(w.overall_status)) {
+    if (isOpen(w.overall_status)) {
       wfByType[w.workflow_type] = (wfByType[w.workflow_type] ?? 0) + 1;
     }
   }
