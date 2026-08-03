@@ -65,6 +65,8 @@ export interface Profile {
   payout_account_number?: string | null;
   payout_notes?: string | null;
   locator_status?: string | null;
+  avatar_url?: string | null;
+  logo_url?: string | null;
   created_at: string;
 }
 

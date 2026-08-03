@@ -13,6 +13,9 @@ import {
   MapPin,
   Phone,
   Mail,
+  Camera,
+  Image as ImageIcon,
+  Trash2,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import { US_STATES } from "@/lib/types";
@@ -215,6 +218,14 @@ function ProfilePageInner() {
 
       <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
         <form onSubmit={handleSave} className="space-y-6">
+          {/* Photos + Logo — outside the save-on-submit path because
+              uploads are POST/DELETE-per-file and independently
+              persisted. The rest of the form still saves as a batch. */}
+          <MediaSection
+            profile={profile}
+            onUpdated={(next) => setProfile(next)}
+          />
+
           {/* Personal Info */}
           <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-lg font-semibold text-black-primary">
@@ -551,6 +562,194 @@ function ProfilePageInner() {
           )}
           {toast.message}
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Avatar + business logo uploader. Independent of the main form's
+ * save-on-submit because each upload/removal is its own POST/DELETE
+ * against /api/account/media — the server owns per-user auth and
+ * cleans up the previous file on replacement.
+ *
+ * Renders two identical widgets side-by-side: a round preview for the
+ * avatar, a rectangular one for the logo. Both accept the same image
+ * types; the API validates size and MIME.
+ */
+function MediaSection({
+  profile,
+  onUpdated,
+}: {
+  profile: Profile;
+  onUpdated: (next: Profile) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+      <h2 className="mb-1 text-lg font-semibold text-black-primary">
+        Photo &amp; Logo
+      </h2>
+      <p className="mb-4 text-xs text-black-primary/50">
+        Up to 5&nbsp;MB each. PNG, JPG, WebP, GIF, or SVG.
+      </p>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <MediaUploader
+          type="avatar"
+          label="Profile Photo"
+          currentUrl={profile.avatar_url ?? null}
+          shape="circle"
+          icon={<Camera className="h-6 w-6 text-black-primary/30" />}
+          onUpdated={onUpdated}
+        />
+        <MediaUploader
+          type="logo"
+          label="Business Logo"
+          currentUrl={profile.logo_url ?? null}
+          shape="rect"
+          icon={<ImageIcon className="h-6 w-6 text-black-primary/30" />}
+          onUpdated={onUpdated}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MediaUploader({
+  type,
+  label,
+  currentUrl,
+  shape,
+  icon,
+  onUpdated,
+}: {
+  type: "avatar" | "logo";
+  label: string;
+  currentUrl: string | null;
+  shape: "circle" | "rect";
+  icon: React.ReactNode;
+  onUpdated: (next: Profile) => void;
+}) {
+  const [busy, setBusy] = useState<"upload" | "delete" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function refreshProfile(token: string) {
+    const meRes = await fetch("/api/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (meRes.ok) onUpdated(await meRes.json());
+  }
+
+  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setBusy("upload");
+
+    const supabase = createBrowserClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setBusy(null);
+      setError("Please sign in again.");
+      return;
+    }
+
+    const form = new FormData();
+    form.append("file", file);
+    form.append("type", type);
+
+    const res = await fetch("/api/account/media", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: form,
+    });
+
+    if (res.ok) {
+      await refreshProfile(session.access_token);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      setError(err.error ?? "Upload failed");
+    }
+    setBusy(null);
+    // Clear the file input so re-uploading the same file re-triggers change.
+    e.target.value = "";
+  }
+
+  async function onRemove() {
+    if (!window.confirm(`Remove your ${label.toLowerCase()}?`)) return;
+    setError(null);
+    setBusy("delete");
+    const supabase = createBrowserClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setBusy(null);
+      return;
+    }
+    const res = await fetch(`/api/account/media?type=${type}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (res.ok) {
+      await refreshProfile(session.access_token);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      setError(err.error ?? "Remove failed");
+    }
+    setBusy(null);
+  }
+
+  const previewShape = shape === "circle"
+    ? "h-24 w-24 rounded-full"
+    : "h-24 w-32 rounded-xl";
+
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-medium text-black-primary">
+        {label}
+      </label>
+      <div className="flex items-center gap-4">
+        <div className={`${previewShape} flex items-center justify-center overflow-hidden border border-gray-200 bg-gray-50`}>
+          {currentUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={currentUrl} alt={label} className="h-full w-full object-cover" />
+          ) : (
+            icon
+          )}
+        </div>
+        <div className="flex flex-col gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-black-primary hover:bg-gray-50">
+            {busy === "upload" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Camera className="h-3.5 w-3.5" />
+            )}
+            {currentUrl ? "Replace" : "Upload"}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              className="hidden"
+              onChange={onFileChange}
+              disabled={busy !== null}
+            />
+          </label>
+          {currentUrl && (
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={busy !== null}
+              className="inline-flex items-center gap-1.5 text-xs text-red-600 hover:underline disabled:opacity-50"
+            >
+              {busy === "delete" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+      {error && (
+        <div className="mt-2 text-xs text-red-600">{error}</div>
       )}
     </div>
   );
