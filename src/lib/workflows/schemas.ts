@@ -7,13 +7,21 @@
 
 import { z } from "zod";
 
-const workflowTypeEnum = z.enum([
+const BUILT_IN_TYPES = [
   "ai_machine_fulfillment",
   "location_services",
   "financing",
   "coffee_equipment",
   "coffee_service",
   "website_build",
+] as const;
+
+// Accept either a built-in workflow type or a custom:xxx admin-defined
+// type. Length + charset constraints keep the type key safe as a URL
+// path segment when needed.
+const workflowTypeEnum = z.union([
+  z.enum(BUILT_IN_TYPES),
+  z.string().regex(/^custom:[a-z0-9_]+$/i).min(8).max(80),
 ]);
 
 const sourceTypeEnum = z.enum([
@@ -212,7 +220,7 @@ export const setOverallStatusSchema = z.object({
 
 // ─── Filters for list endpoints ───────────────────────────────────────────
 export const listWorkflowsQuerySchema = z.object({
-  workflowType: workflowTypeEnum.optional(),
+  workflowType: workflowTypeEnum.optional() as z.ZodOptional<typeof workflowTypeEnum>,
   status: overallStatusEnum.optional(),
   assignedUserId: z.string().uuid().optional(),
   customerId: z.string().uuid().optional(),

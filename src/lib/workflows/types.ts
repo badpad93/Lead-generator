@@ -6,13 +6,18 @@
  * consumers can treat rows as `Workflow` without re-mapping.
  */
 
-export type WorkflowType =
+// Built-in workflow types + a wildcard for admin-created custom
+// templates (workflow_type keys prefixed with "custom:"). Anywhere the
+// exact built-in narrowing matters, use the BuiltInWorkflowType alias.
+export type BuiltInWorkflowType =
   | "ai_machine_fulfillment"
   | "location_services"
   | "financing"
   | "coffee_equipment"
   | "coffee_service"
   | "website_build";
+
+export type WorkflowType = BuiltInWorkflowType | (string & { readonly __brand?: "workflow_type" });
 
 export type WorkflowSourceType =
   | "agreement"
@@ -100,7 +105,7 @@ export type PrimaryTeam =
 
 export interface WorkflowTemplateRow {
   id: string;
-  workflow_type: WorkflowType;
+  workflow_type: string;
   version: number;
   title: string;
   description: string | null;
@@ -108,6 +113,9 @@ export interface WorkflowTemplateRow {
   quantity_based: boolean;
   completion_rule: CompletionRule;
   active: boolean;
+  workload_weight: number;
+  is_custom: boolean;
+  category: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;

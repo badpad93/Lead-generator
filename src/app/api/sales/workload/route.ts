@@ -145,7 +145,7 @@ export async function GET(req: NextRequest) {
 
   const { data: allWorkflows } = await supabaseAdmin
     .from("workflows")
-    .select("id, workflow_type, overall_status, assigned_user_id, due_date, created_at, completed_at, customer_id")
+    .select("id, workflow_type, overall_status, assigned_user_id, due_date, created_at, completed_at, customer_id, template_id")
     .in("assigned_user_id", staffIds);
 
   // Also pick up collaborator assignments (workflow_assignments).
@@ -176,7 +176,7 @@ export async function GET(req: NextRequest) {
   const collaboratorWorkflows = collaboratorOnlyIds.size > 0
     ? (await supabaseAdmin
         .from("workflows")
-        .select("id, workflow_type, overall_status, assigned_user_id, due_date, created_at, completed_at, customer_id")
+        .select("id, workflow_type, overall_status, assigned_user_id, due_date, created_at, completed_at, customer_id, template_id")
         .in("id", Array.from(collaboratorOnlyIds))).data ?? []
     : [];
   type WorkflowSlim = {
@@ -188,11 +188,33 @@ export async function GET(req: NextRequest) {
     created_at: string;
     completed_at: string | null;
     customer_id: string;
+    template_id: string | null;
   };
   const workflowMap = new Map<string, WorkflowSlim>();
   for (const w of [...(allWorkflows ?? []), ...collaboratorWorkflows]) {
     workflowMap.set(w.id, w as WorkflowSlim);
   }
+
+  // Fetch template weights so we can compute weighted load per user.
+  // Built-in templates default to weight=1; custom templates carry the
+  // admin-configured value.
+  const templateIds = Array.from(new Set(
+    [...(allWorkflows ?? []), ...collaboratorWorkflows]
+      .map((w) => w.template_id)
+      .filter(Boolean) as string[],
+  ));
+  const weightByTemplate = new Map<string, number>();
+  if (templateIds.length > 0) {
+    const { data: tmpls } = await supabaseAdmin
+      .from("workflow_templates")
+      .select("id, workload_weight")
+      .in("id", templateIds);
+    for (const t of tmpls ?? []) {
+      weightByTemplate.set(t.id, Number((t as { workload_weight?: number }).workload_weight ?? 1));
+    }
+  }
+  const weightFor = (w: WorkflowSlim): number =>
+    w.template_id ? weightByTemplate.get(w.template_id) ?? 1 : 1;
 
   // ─── Time entries in period ───────────────────────────────────────
   let timeQuery = supabaseAdmin
@@ -267,9 +289,15 @@ export async function GET(req: NextRequest) {
     const closedQuotes = quotesClosedByUser.get(profile.id) ?? 0;
     const closeRate = sentQuotes > 0 ? closedQuotes / sentQuotes : 0;
     const active = openWfs.length;
-    const capacity: "green" | "yellow" | "red" = active <= CAPACITY_GREEN_MAX
+    // Weighted load — built-in templates contribute 1 each, custom
+    // templates contribute their admin-configured weight (1-20). This
+    // is what drives the capacity flag so a rep with 3 heavy accounts
+    // (weight 5 each = 15) is flagged the same as one with 15 quick
+    // tasks.
+    const load = openWfs.reduce((sum, w) => sum + weightFor(w), 0);
+    const capacity: "green" | "yellow" | "red" = load <= CAPACITY_GREEN_MAX
       ? "green"
-      : active <= CAPACITY_YELLOW_MAX
+      : load <= CAPACITY_YELLOW_MAX
         ? "yellow"
         : "red";
 
@@ -279,6 +307,7 @@ export async function GET(req: NextRequest) {
       email: profile.email,
       role: profile.role,
       active,
+      load,
       by_type: byType,
       overdue,
       due_7d: due7d,
@@ -291,7 +320,7 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  employees.sort((a, b) => b.active - a.active);
+  employees.sort((a, b) => b.load - a.load);
 
   return NextResponse.json({
     period: { since, until, label: period },
