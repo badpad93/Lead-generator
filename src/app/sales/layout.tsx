@@ -43,6 +43,7 @@ const NAV_ITEMS = [
   { href: "/sales/orders", label: "Orders / Quotes", icon: ClipboardList, minLevel: 4 as const },
   { href: "/sales/agreements", label: "Agreements", icon: ScrollText, minLevel: 4 as const },
   { href: "/sales/workflows", label: "Workflows", icon: Workflow, minLevel: 4 as const },
+  { href: "/sales/workload", label: "Team Workload", icon: BarChart3, minLevel: 3 as const },
   { href: "/sales/catalog", label: "Item Catalog", icon: BookOpen, minLevel: 1 as const },
   { href: "/sales/team", label: "Team", icon: UserCog, minLevel: 3 as const },
   { href: "/sales/commissions", label: "Commissions", icon: DollarSign, minLevel: 4 as const },

@@ -199,6 +199,17 @@ async function handleQBPayment(paymentId: string, realmId: string) {
         description: `QuickBooks payment received on invoice ${invoiceId}${isRemaining ? " (remaining balance)" : ""}`,
       });
       await stampOrderAndEarnCommissions(paymentId, salesOrder.id, null);
+      // Mirror the payment onto any workflow linked to this order.
+      try {
+        const { syncWorkflowFromSalesOrderPaid } = await import("@/lib/workflows/paymentSync");
+        await syncWorkflowFromSalesOrderPaid({
+          orderId: salesOrder.id,
+          source: "qb_webhook",
+          changeKey: `qb_payment:${paymentId}:${invoiceId}`,
+        });
+      } catch (e) {
+        console.error("[qb-webhook] workflow payment sync failed:", e);
+      }
       continue;
     }
 
@@ -297,6 +308,17 @@ async function handleQBPayment(paymentId: string, realmId: string) {
         .from("machine_listing_purchases")
         .update({ qb_payment_id: paymentId })
         .eq("id", machinePurchase.id);
+      // Mirror to workflow.
+      try {
+        const { syncWorkflowFromMachinePurchasePaid } = await import("@/lib/workflows/paymentSync");
+        await syncWorkflowFromMachinePurchasePaid({
+          purchaseId: machinePurchase.id,
+          source: "qb_webhook",
+          changeKey: `qb_payment:${paymentId}:${invoiceId}`,
+        });
+      } catch (e) {
+        console.error("[qb-webhook] machine workflow sync failed:", e);
+      }
       continue;
     }
 
@@ -319,7 +341,34 @@ async function handleQBPayment(paymentId: string, realmId: string) {
         .from("coffee_orders")
         .update({ qb_payment_id: paymentId })
         .eq("id", coffeeOrder.id);
+      // Mark the corresponding workflow_order_items sub-item fulfilled.
+      try {
+        const { syncCoffeeOrderPaid } = await import("@/lib/workflows/paymentSync");
+        await syncCoffeeOrderPaid({
+          coffeeOrderId: coffeeOrder.id,
+          source: "qb_webhook",
+          changeKey: `qb_payment:${paymentId}:${invoiceId}`,
+        });
+      } catch (e) {
+        console.error("[qb-webhook] coffee order workflow sync failed:", e);
+      }
       continue;
+    }
+
+    // Check workflow balance invoices (created via /api/account/workflows/[id]/pay-balance).
+    try {
+      const { syncWorkflowFromBalanceInvoicePaid } = await import("@/lib/workflows/paymentSync");
+      const balanceUpdated = await syncWorkflowFromBalanceInvoicePaid({
+        qbInvoiceId: invoiceId,
+        source: "qb_webhook",
+        changeKey: `qb_payment:${paymentId}:${invoiceId}`,
+      });
+      if (balanceUpdated > 0) {
+        console.log(`[qb-webhook] Marked ${balanceUpdated} workflow(s) as paid via balance invoice ${invoiceId}`);
+        continue;
+      }
+    } catch (e) {
+      console.error("[qb-webhook] balance invoice sync check failed:", e);
     }
 
     // Check lead_generator_subscriptions — QB invoice acts as the

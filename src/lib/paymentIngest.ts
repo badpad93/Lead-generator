@@ -83,6 +83,21 @@ export async function ingestStripeEvent(event: Stripe.Event, eventRowId: string)
       status: "paid",
       paidAt: new Date().toISOString(),
     });
+
+    // Mirror the payment to any workflow linked to this order.
+    if (orderId) {
+      try {
+        const { syncWorkflowFromSalesOrderPaid } = await import("./workflows/paymentSync");
+        await syncWorkflowFromSalesOrderPaid({
+          orderId,
+          amountCents: amount,
+          source: "stripe_webhook",
+          changeKey: `stripe:${paymentIntentId || session.id}`,
+        });
+      } catch (e) {
+        console.error("[paymentIngest] workflow payment sync failed:", e);
+      }
+    }
     return;
   }
 

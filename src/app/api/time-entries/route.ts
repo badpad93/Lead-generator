@@ -122,6 +122,12 @@ export async function POST(req: NextRequest) {
     notes: body.notes || null,
   };
   if (role) insertData.role = role;
+  // Optional workflow link — feeds the /sales/workload hours-per-workflow
+  // rollup. Only set when the client passed one; NULL means "generic /
+  // admin overhead time".
+  if (typeof body.workflow_id === "string" && body.workflow_id.length === 36) {
+    insertData.workflow_id = body.workflow_id;
+  }
 
   const { data, error } = await supabaseAdmin
     .from("time_entries")

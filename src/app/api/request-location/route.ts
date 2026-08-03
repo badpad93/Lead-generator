@@ -223,12 +223,20 @@ export async function POST(req: Request) {
             deposit_amount_cents: DEPOSIT_CENTS,
             deposit_paid_cents: DEPOSIT_CENTS,
             total_due_cents: totalDueCents,
-            state,
-            zip_codes,
-            business_name,
-            contact_name,
-            phone,
-            email,
+            // source_intake = exactly what the customer submitted, so
+            // whoever picks up the workflow sees the full request.
+            source_intake: {
+              business_name,
+              contact_name,
+              phone,
+              email,
+              address, // was previously dropped — bug fix
+              state,
+              zip_codes,
+              zip_code,
+              machine_count,
+              referring_sales_rep_name: referringRepName,
+            },
           },
           actorType: "system",
         });

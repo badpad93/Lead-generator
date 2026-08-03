@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
+import { SourceIntakePanel } from "@/app/components/SourceIntakePanel";
 import {
   Loader2,
   ChevronLeft,
@@ -387,6 +388,12 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
+      {/* Source Intake — as-submitted customer data from the origin form.
+          Snapshots into workflow.metadata.source_intake at spawn time so
+          the person picking up this workflow sees the full context
+          without clicking back to the source table. */}
+      <SourceIntakePanel intake={(w.metadata as { source_intake?: unknown } | null)?.source_intake} />
+
       {/* Order items (coffee_service etc.) */}
       {data.orderItems.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -636,42 +643,38 @@ function StageRow({
       {staffView && (
         <div className="mt-3 grid md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Internal note</label>
-            <div className="flex gap-2">
-              <textarea
-                value={notesDraft}
-                onChange={(e) => setNotesDraft(e.target.value)}
-                rows={2}
-                className="flex-1 rounded-md border border-gray-200 px-2 py-1 text-sm resize-none"
-              />
-              <button
-                type="button"
-                disabled={notesDraft === (stage.internal_notes ?? "")}
-                onClick={() => onUpdate({ internalNotes: notesDraft })}
-                className="text-xs text-emerald-700 hover:underline disabled:opacity-40"
-              >
-                Save
-              </button>
-            </div>
+            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+              Internal note
+              <span className="text-gray-400 normal-case font-normal ml-2">auto-saves on blur</span>
+            </label>
+            <textarea
+              value={notesDraft}
+              onChange={(e) => setNotesDraft(e.target.value)}
+              onBlur={() => {
+                if (notesDraft !== (stage.internal_notes ?? "")) {
+                  onUpdate({ internalNotes: notesDraft });
+                }
+              }}
+              rows={2}
+              className="w-full rounded-md border border-gray-200 px-2 py-1 text-sm resize-none"
+            />
           </div>
           <div>
-            <label className="block text-xs uppercase tracking-wide text-emerald-700 mb-1">Customer message</label>
-            <div className="flex gap-2">
-              <textarea
-                value={customerDraft}
-                onChange={(e) => setCustomerDraft(e.target.value)}
-                rows={2}
-                className="flex-1 rounded-md border border-emerald-200 bg-emerald-50/50 px-2 py-1 text-sm resize-none"
-              />
-              <button
-                type="button"
-                disabled={customerDraft === (stage.customer_message ?? "")}
-                onClick={() => onUpdate({ customerMessage: customerDraft })}
-                className="text-xs text-emerald-700 hover:underline disabled:opacity-40"
-              >
-                Publish
-              </button>
-            </div>
+            <label className="block text-xs uppercase tracking-wide text-emerald-700 mb-1">
+              Customer message
+              <span className="text-emerald-600/60 normal-case font-normal ml-2">auto-saves on blur</span>
+            </label>
+            <textarea
+              value={customerDraft}
+              onChange={(e) => setCustomerDraft(e.target.value)}
+              onBlur={() => {
+                if (customerDraft !== (stage.customer_message ?? "")) {
+                  onUpdate({ customerMessage: customerDraft });
+                }
+              }}
+              rows={2}
+              className="w-full rounded-md border border-emerald-200 bg-emerald-50/50 px-2 py-1 text-sm resize-none"
+            />
           </div>
         </div>
       )}
