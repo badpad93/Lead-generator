@@ -356,13 +356,18 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
             workflowId={id}
             onChanged={load}
           />
-          <PaymentTile
-            paymentStatus={w.payment_status}
-            staffView={data.isStaffView}
-            onOverride={(next, reason) =>
-              postAction("/payment-status", { payment_status: next, reason })
-            }
-          />
+          {/* Payment tile is hidden when the template opted out of
+              payment tracking (requires_payment=false → status='na').
+              The row collapses to three tiles naturally. */}
+          {w.payment_status !== "na" && (
+            <PaymentTile
+              paymentStatus={w.payment_status}
+              staffView={data.isStaffView}
+              onOverride={(next, reason) =>
+                postAction("/payment-status", { payment_status: next, reason })
+              }
+            />
+          )}
           <InfoTile
             icon={<Clock className="h-4 w-4" />}
             label="Started"

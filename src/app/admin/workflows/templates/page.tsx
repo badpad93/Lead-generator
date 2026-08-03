@@ -32,6 +32,7 @@ interface Template {
   workload_weight: number;
   is_custom: boolean;
   category: string | null;
+  requires_payment: boolean;
   stages: Stage[];
 }
 
@@ -197,6 +198,7 @@ function TemplateEditorModal({
     template?.completion_rule ?? "never_auto_completes",
   );
   const [active, setActive] = useState(template?.active ?? true);
+  const [requiresPayment, setRequiresPayment] = useState(template?.requires_payment ?? true);
   const [stages, setStages] = useState<Stage[]>(
     template?.stages ?? [
       { stage_key: "started", stage_name: "Started", stage_order: 10, stage_type: "milestone", required_for_completion: false, customer_visible: true },
@@ -262,6 +264,7 @@ function TemplateEditorModal({
       quantity_based: quantityBased,
       completion_rule: completionRule,
       active,
+      requires_payment: requiresPayment,
       stages: stages.map((s, idx) => ({
         stage_key: s.stage_key.trim(),
         stage_name: s.stage_name.trim(),
@@ -373,6 +376,10 @@ function TemplateEditorModal({
               <label className="inline-flex items-center gap-2">
                 <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
                 Active (available for new workflows)
+              </label>
+              <label className="inline-flex items-center gap-2" title="Turn off for perpetual/coaching work with no invoice — the Payment tile is hidden on the workflow page.">
+                <input type="checkbox" checked={requiresPayment} onChange={(e) => setRequiresPayment(e.target.checked)} />
+                Requires payment (shows the Payment tile on workflows)
               </label>
             </div>
           </div>

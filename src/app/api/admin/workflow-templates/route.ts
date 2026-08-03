@@ -40,6 +40,7 @@ const createSchema = z.object({
     .default("never_auto_completes"),
   workload_weight: z.number().int().min(1).max(20).default(1),
   category: z.string().max(80).nullable().optional(),
+  requires_payment: z.boolean().default(true),
   stages: z.array(stageSchema).min(1).max(30),
 });
 
@@ -117,6 +118,7 @@ export async function POST(req: NextRequest) {
       workload_weight: input.workload_weight,
       is_custom: true,
       category: input.category ?? null,
+      requires_payment: input.requires_payment,
       active: true,
     })
     .select("*")
