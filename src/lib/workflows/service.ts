@@ -377,6 +377,7 @@ export async function updateStage(input: UpdateStageInput): Promise<UpdateStageR
     completed_quantity: stage.completed_quantity,
     internal_notes: stage.internal_notes,
     customer_message: stage.customer_message,
+    stage_name: stage.stage_name,
   };
 
   const patch: Record<string, unknown> = { updated_by: input.updatedBy ?? null };
@@ -438,6 +439,17 @@ export async function updateStage(input: UpdateStageInput): Promise<UpdateStageR
   if (input.customerMessage !== undefined && input.customerMessage !== stage.customer_message) {
     patch.customer_message = input.customerMessage;
     changedFields.push("customer_message");
+  }
+
+  if (input.stageName !== undefined) {
+    const trimmed = input.stageName.trim();
+    if (trimmed.length === 0) {
+      throw new Error("stage_name cannot be empty");
+    }
+    if (trimmed !== stage.stage_name) {
+      patch.stage_name = trimmed;
+      changedFields.push("stage_name");
+    }
   }
 
   if (changedFields.length === 0) {
@@ -503,6 +515,7 @@ export async function updateStage(input: UpdateStageInput): Promise<UpdateStageR
       completed_quantity: (updated as WorkflowStageRow).completed_quantity,
       internal_notes: (updated as WorkflowStageRow).internal_notes,
       customer_message: (updated as WorkflowStageRow).customer_message,
+      stage_name: (updated as WorkflowStageRow).stage_name,
     },
     changedFields,
     actorUserId: input.updatedBy ?? null,

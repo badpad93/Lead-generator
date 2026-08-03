@@ -132,6 +132,11 @@ export const updateStageSchema = z.object({
   completedQuantity: z.number().nonnegative().optional(),
   internalNotes: z.string().max(4000).optional(),
   customerMessage: z.string().max(2000).optional(),
+  // Staff-only inline rename for in-flight workflow stages. Template
+  // edits don't propagate to workflows already spawned (they carry
+  // their own copy), so admin needs a way to fix "New Stage" holdovers
+  // on existing workflows.
+  stageName: z.string().min(1).max(200).optional(),
   updatedBy: z.string().uuid().nullable().optional(),
   changeKey: z.string().max(200).optional(),
   allowOverTarget: z.boolean().optional(),

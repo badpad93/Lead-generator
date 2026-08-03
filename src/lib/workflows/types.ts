@@ -321,6 +321,7 @@ export interface UpdateStageInput {
   completedQuantity?: number;
   internalNotes?: string;
   customerMessage?: string;
+  stageName?: string;
   updatedBy?: string | null;
   changeKey?: string;
   allowOverTarget?: boolean;
