@@ -684,28 +684,21 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
                 onChange={(e) => setWorkflowType(e.target.value)}
                 className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
               >
-                {/* Built-in templates always available even if the API
-                    fetch didn't return them (defensive). */}
+                {/* All 6 built-in types render unconditionally — they
+                    exist in code even before the first spawn creates
+                    the DB row, so relying on the API alone would hide
+                    any type that hasn't been used yet. */}
                 <optgroup label="Built-in">
-                  {templates.filter((t) => !t.is_custom).length > 0
-                    ? templates
-                        .filter((t) => !t.is_custom)
-                        .map((t) => (
-                          <option key={t.workflow_type} value={t.workflow_type}>{t.title}</option>
-                        ))
-                    : (
-                      <>
-                        <option value="ai_machine_fulfillment">AI Machine Fulfillment</option>
-                        <option value="location_services">Location Services</option>
-                        <option value="financing">Financing</option>
-                        <option value="coffee_equipment">Coffee Equipment</option>
-                        <option value="coffee_service">Coffee Service</option>
-                        <option value="website_build">Website Build</option>
-                      </>
-                    )}
+                  <option value="ai_machine_fulfillment">AI Machine Fulfillment</option>
+                  <option value="location_services">Location Services</option>
+                  <option value="financing">Financing</option>
+                  <option value="coffee_equipment">Coffee Equipment</option>
+                  <option value="coffee_service">Coffee Service</option>
+                  <option value="website_build">Website Build</option>
                 </optgroup>
-                {/* Custom templates grouped by category. Only appear
-                    when admin has created them via /admin/workflows/templates. */}
+                {/* Custom templates grouped by admin-assigned category.
+                    Only appear when admin has created them via
+                    /admin/workflows/templates. */}
                 {Array.from(
                   new Set(
                     templates.filter((t) => t.is_custom).map((t) => t.category ?? "Uncategorized"),
