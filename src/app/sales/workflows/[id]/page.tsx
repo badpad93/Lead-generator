@@ -200,7 +200,13 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
   async function postAction(path: string, body: Record<string, unknown>) {
     const res = await withAuth((token) =>
       fetch(`/api/workflows/${id}${path}`, {
-        method: path.includes("/deadline") || path.includes("/status") || path.includes("/order-items") ? "PATCH" : "POST",
+        method:
+          path.includes("/deadline") ||
+          path.includes("/status") ||
+          path.includes("/order-items") ||
+          path.includes("/payment-status")
+            ? "PATCH"
+            : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       }),
@@ -343,10 +349,12 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
               postAction("/assign", { userId, role: "primary_owner", makePrimary: true })
             }
           />
-          <InfoTile
-            icon={<Package className="h-4 w-4" />}
-            label="Payment"
-            value={w.payment_status.replace(/_/g, " ")}
+          <PaymentTile
+            paymentStatus={w.payment_status}
+            staffView={data.isStaffView}
+            onOverride={(next, reason) =>
+              postAction("/payment-status", { payment_status: next, reason })
+            }
           />
           <InfoTile
             icon={<Clock className="h-4 w-4" />}
@@ -814,6 +822,92 @@ function AssigneeTile({
               </button>
             </>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PaymentTile({
+  paymentStatus,
+  staffView,
+  onOverride,
+}: {
+  paymentStatus: string;
+  staffView: boolean;
+  onOverride: (next: string, reason: string) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [next, setNext] = useState(paymentStatus);
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    if (!reason.trim()) return;
+    setSaving(true);
+    const ok = await onOverride(next, reason.trim());
+    setSaving(false);
+    if (ok) { setEditing(false); setReason(""); }
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+      <div className="text-xs uppercase tracking-wide text-gray-500 flex items-center gap-1">
+        <Package className="h-4 w-4" /> Payment
+      </div>
+      <div className="text-sm font-medium text-gray-900 mt-1 capitalize">
+        {paymentStatus.replace(/_/g, " ")}
+      </div>
+      {staffView && !editing && (
+        <button
+          type="button"
+          onClick={() => { setNext(paymentStatus); setEditing(true); }}
+          className="mt-2 text-xs text-emerald-700 hover:underline"
+        >
+          Override
+        </button>
+      )}
+      {staffView && editing && (
+        <div className="mt-2 space-y-2">
+          <select
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+            disabled={saving}
+            className="w-full rounded-md border border-gray-200 text-xs px-2 py-1"
+          >
+            <option value="unpaid">Unpaid</option>
+            <option value="partial">Partial</option>
+            <option value="paid">Paid</option>
+            <option value="refunded">Refunded</option>
+            <option value="na">N/A</option>
+          </select>
+          <input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason (audit-logged)"
+            disabled={saving}
+            className="w-full rounded-md border border-gray-200 text-xs px-2 py-1"
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => { setEditing(false); setReason(""); }}
+              disabled={saving}
+              className="text-xs text-gray-500 hover:text-gray-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={saving || !reason.trim() || next === paymentStatus}
+              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 text-white px-2 py-1 text-xs disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Save
+            </button>
+          </div>
         </div>
       )}
     </div>
