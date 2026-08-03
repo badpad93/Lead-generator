@@ -90,7 +90,11 @@ export function hasPermission(actor: WorkflowActor, permission: WorkflowPermissi
     case "workflows.reopen":
       return ROLES_ADMIN_ONLY.has(actor.role);
     case "workflows.delete":
-      return false; // never — cancellation only
+      // Admin-only hard delete. Cancellation remains the default path;
+      // delete exists for cleaning up test/duplicate workflows the CRM
+      // shouldn't carry forever. Every deletion writes an audit_logs
+      // row before the cascade fires.
+      return ROLES_ADMIN_ONLY.has(actor.role);
     case "workflows.manage_templates":
     case "workflows.override_validation":
       return ROLES_ADMIN_ONLY.has(actor.role);
