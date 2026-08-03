@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import {
   Loader2, ClipboardList, Plus, Search, AlertCircle,
@@ -101,7 +101,12 @@ export default function OrdersPage() {
   const [token, setToken] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [docType, setDocType] = useState<"order" | "quote">("order");
+  // Read ?doc=quote on first render so the Executive Snapshot's Quotes
+  // card can deep-link straight into the quotes toggle without an extra
+  // click. Undefined/other values keep the default (orders).
+  const searchParams = useSearchParams();
+  const initialDocType = searchParams.get("doc") === "quote" ? "quote" : "order";
+  const [docType, setDocType] = useState<"order" | "quote">(initialDocType);
   const [userRole, setUserRole] = useState<string>("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
