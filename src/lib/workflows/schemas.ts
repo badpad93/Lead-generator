@@ -17,11 +17,13 @@ const BUILT_IN_TYPES = [
 ] as const;
 
 // Accept either a built-in workflow type or a custom:xxx admin-defined
-// type. Length + charset constraints keep the type key safe as a URL
-// path segment when needed.
+// type. Length keeps rows bounded; charset is intentionally permissive
+// because the admin CRUD lets admins type free-form keys ("Ongoing
+// Coaching", "Ops-Support", "AM/Coach", etc.) and we'd rather accept
+// what's already stored than reject spawns after the fact.
 const workflowTypeEnum = z.union([
   z.enum(BUILT_IN_TYPES),
-  z.string().regex(/^custom:[a-z0-9_]+$/i).min(8).max(80),
+  z.string().regex(/^custom:.+$/).min(8).max(80),
 ]);
 
 const sourceTypeEnum = z.enum([

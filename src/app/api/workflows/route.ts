@@ -144,7 +144,17 @@ export async function POST(req: NextRequest) {
     actorType: "staff",
   });
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input", details: parsed.error.format() }, { status: 400 });
+    // Bubble the first failed field into `error` so the client shows
+    // something actionable instead of the generic "Invalid input".
+    const first = parsed.error.issues[0];
+    const path = first?.path?.join(".") || "unknown_field";
+    return NextResponse.json(
+      {
+        error: `Invalid input on ${path}: ${first?.message ?? "validation failed"}`,
+        details: parsed.error.format(),
+      },
+      { status: 400 },
+    );
   }
 
   try {
