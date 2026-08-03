@@ -55,6 +55,33 @@ export async function GET(req: NextRequest) {
 
   let results = data || [];
 
+  // Hydrate the creator's display name from profiles. Manual join
+  // rather than a PostgREST embed because sales_orders.created_by
+  // references auth.users, and the embed hop to profiles is flaky in
+  // that direction. Adds `created_by_profile: { full_name } | null`
+  // to every row — this is what the Export Report "Sales Person"
+  // column reads for creator-based accountability.
+  const creatorIds = Array.from(
+    new Set(
+      (results as Record<string, unknown>[])
+        .map((r) => r.created_by as string | null | undefined)
+        .filter((v): v is string => typeof v === "string" && v.length > 0),
+    ),
+  );
+  if (creatorIds.length > 0) {
+    const { data: creators } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", creatorIds);
+    const byId = new Map(
+      (creators ?? []).map((c) => [c.id, { full_name: c.full_name, email: c.email }]),
+    );
+    results = (results as Record<string, unknown>[]).map((r) => ({
+      ...r,
+      created_by_profile: r.created_by ? byId.get(r.created_by as string) ?? null : null,
+    }));
+  }
+
   if (search) {
     const s = search.toLowerCase();
     results = results.filter((o: Record<string, unknown>) => {
