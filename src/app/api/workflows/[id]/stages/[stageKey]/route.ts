@@ -48,6 +48,10 @@ export async function PATCH(
   if (input.customerMessage !== undefined && !hasPermission(actor, "workflows.publish_customer_updates")) {
     return NextResponse.json({ error: "Forbidden — cannot publish customer updates" }, { status: 403 });
   }
+  // Renaming a stage is a status-class edit — sales_manager and above.
+  if (input.stageName !== undefined && !hasPermission(actor, "workflows.edit_status")) {
+    return NextResponse.json({ error: "Forbidden — cannot rename stage" }, { status: 403 });
+  }
   if (input.allowOverTarget && !hasPermission(actor, "workflows.override_validation")) {
     return NextResponse.json({ error: "Forbidden — cannot override validation" }, { status: 403 });
   }

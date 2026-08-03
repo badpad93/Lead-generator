@@ -568,24 +568,29 @@ function StageRow({
     completed_quantity: stage.completed_quantity,
     internal_notes: stage.internal_notes ?? "",
     customer_message: stage.customer_message ?? "",
+    stage_name: stage.stage_name,
   });
   const [qtyDraft, setQtyDraft] = useState(String(stage.completed_quantity));
   const [notesDraft, setNotesDraft] = useState(stage.internal_notes ?? "");
   const [customerDraft, setCustomerDraft] = useState(stage.customer_message ?? "");
+  const [nameDraft, setNameDraft] = useState(stage.stage_name);
 
   if (
     lastSeen.completed_quantity !== stage.completed_quantity ||
     lastSeen.internal_notes !== (stage.internal_notes ?? "") ||
-    lastSeen.customer_message !== (stage.customer_message ?? "")
+    lastSeen.customer_message !== (stage.customer_message ?? "") ||
+    lastSeen.stage_name !== stage.stage_name
   ) {
     setLastSeen({
       completed_quantity: stage.completed_quantity,
       internal_notes: stage.internal_notes ?? "",
       customer_message: stage.customer_message ?? "",
+      stage_name: stage.stage_name,
     });
     setQtyDraft(String(stage.completed_quantity));
     setNotesDraft(stage.internal_notes ?? "");
     setCustomerDraft(stage.customer_message ?? "");
+    setNameDraft(stage.stage_name);
   }
 
   const isQuantity = stage.stage_type === "quantity";
@@ -598,7 +603,33 @@ function StageRow({
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <StageStatusIcon status={stage.status} />
-            <span className="font-medium text-gray-900">{stage.stage_name}</span>
+            {staffView ? (
+              // Inline rename — template edits don't propagate to
+              // spawned workflows, so admins need to fix "New Stage"
+              // holdovers here. Auto-saves on blur; empty values are
+              // rejected server-side.
+              <input
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={() => {
+                  const trimmed = nameDraft.trim();
+                  if (trimmed.length === 0) {
+                    // Refuse empty — snap back to persisted name.
+                    setNameDraft(stage.stage_name);
+                    return;
+                  }
+                  if (trimmed !== stage.stage_name) {
+                    onUpdate({ stageName: trimmed });
+                  }
+                }}
+                className="font-medium text-gray-900 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-emerald-500 focus:outline-none px-1 -mx-1 rounded-none min-w-[10rem]"
+                placeholder="Stage name"
+                title="Click to rename this stage"
+              />
+            ) : (
+              <span className="font-medium text-gray-900">{stage.stage_name}</span>
+            )}
             {stage.required_for_completion && (
               <span className="text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
                 Required
