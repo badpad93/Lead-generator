@@ -163,7 +163,14 @@ export async function getOrCreateWorkflow(
     service_id: input.serviceId ?? null,
     quantity_purchased: input.quantityPurchased ?? 1,
     quantity_completed: 0,
-    payment_status: input.paymentStatus ?? "unpaid",
+    // Templates flagged requires_payment=false (perpetual/coaching work
+    // with no invoice) start as 'na' so the Payment tile hides itself.
+    // An explicit caller-supplied paymentStatus still wins.
+    payment_status:
+      input.paymentStatus ??
+      ((template as { requires_payment?: boolean } | null)?.requires_payment === false
+        ? "na"
+        : "unpaid"),
     overall_status: "not_started",
     priority: input.priority ?? "normal",
     start_date: input.startDate ?? new Date().toISOString(),

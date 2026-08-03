@@ -38,6 +38,7 @@ const patchSchema = z.object({
     .optional(),
   workload_weight: z.number().int().min(1).max(20).optional(),
   category: z.string().max(80).nullable().optional(),
+  requires_payment: z.boolean().optional(),
   active: z.boolean().optional(),
   stages: z.array(stageSchema).min(1).max(30).optional(),
 });
