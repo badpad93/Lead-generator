@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import {
   Search,
@@ -108,7 +109,21 @@ export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<WorkflowRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [savedView, setSavedView] = useState<string>("all");
+  // Deep-link support for the Executive Snapshot chips (?workflowType=…)
+  // and for the Team Workload page's "overdue" link (?overdue=true).
+  // filtersForView already keys off savedView, so we translate URL
+  // params → the matching savedView on first render.
+  const urlParams = useSearchParams();
+  const initialSavedView = (() => {
+    const overdue = urlParams.get("overdue");
+    if (overdue === "true") return "overdue";
+    const unassigned = urlParams.get("unassigned");
+    if (unassigned === "true") return "unassigned";
+    const type = urlParams.get("workflowType");
+    if (type && Object.hasOwn(TYPE_META, type)) return type;
+    return "all";
+  })();
+  const [savedView, setSavedView] = useState<string>(initialSavedView);
   const [orderBy, setOrderBy] = useState<"due_date" | "created_at" | "updated_at" | "priority">("due_date");
   const [orderDir, setOrderDir] = useState<"asc" | "desc">("asc");
   const [showNewModal, setShowNewModal] = useState(false);

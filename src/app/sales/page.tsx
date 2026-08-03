@@ -500,6 +500,7 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <SnapshotCard
+          href="/sales/orders?doc=quote"
           icon={<FileText className="h-4 w-4" />}
           label="Quotes"
           primary={`${q.sent} sent`}
@@ -514,6 +515,7 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
           tone="blue"
         />
         <SnapshotCard
+          href="/sales/orders"
           icon={<ClipboardList className="h-4 w-4" />}
           label="Orders"
           primary={`${o.placed} placed`}
@@ -527,6 +529,7 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
           tone="orange"
         />
         <SnapshotCard
+          href="/sales/agreements"
           icon={<ScrollText className="h-4 w-4" />}
           label="Agreements"
           primary={`${a.crm_sent} sent`}
@@ -542,6 +545,7 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
           tone="emerald"
         />
         <SnapshotCard
+          href="/sales/workflows"
           icon={<Workflow className="h-4 w-4" />}
           label="Workflows"
           primary={`${w.active} active`}
@@ -564,13 +568,14 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
           {Object.entries(w.by_type).map(([type, count]) => {
             const Icon = wfTypeIcons[type] ?? Workflow;
             return (
-              <span
+              <Link
                 key={type}
-                className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1"
+                href={`/sales/workflows?workflowType=${encodeURIComponent(type)}`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
               >
                 <Icon className="h-3 w-3" />
                 {wfTypeLabels[type] ?? type} · <span className="font-semibold">{count}</span>
-              </span>
+              </Link>
             );
           })}
         </div>
@@ -644,6 +649,7 @@ function TeamWorkloadRow({ periodLabel }: { periodLabel: string }) {
 }
 
 function SnapshotCard({
+  href,
   icon,
   label,
   primary,
@@ -653,6 +659,7 @@ function SnapshotCard({
   rows,
   tone,
 }: {
+  href?: string;
   icon: React.ReactNode;
   label: string;
   primary: string;
@@ -670,8 +677,15 @@ function SnapshotCard({
     purple: { text: "text-purple-700", bg: "bg-purple-50", bar: "bg-purple-500" },
   }[tone];
 
-  return (
-    <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+  // Whole-card click target — cleaner than nesting per-row links which
+  // would require breaking out of the outer anchor. Hover state hints
+  // that the card is interactive.
+  const containerCls = href
+    ? "block rounded-lg border border-gray-100 bg-gray-50 p-4 hover:border-gray-200 hover:bg-white transition-colors cursor-pointer"
+    : "rounded-lg border border-gray-100 bg-gray-50 p-4";
+
+  const body = (
+    <>
       <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-500">
         <span className={toneClasses.text}>{icon}</span>
         {label}
@@ -694,6 +708,12 @@ function SnapshotCard({
           </div>
         ))}
       </div>
-    </div>
+    </>
+  );
+
+  return href ? (
+    <Link href={href} className={containerCls}>{body}</Link>
+  ) : (
+    <div className={containerCls}>{body}</div>
   );
 }
