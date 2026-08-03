@@ -13,6 +13,7 @@ interface EmployeeRow {
   email: string;
   role: string;
   active: number;
+  load: number;
   by_type: Record<string, number>;
   overdue: number;
   due_7d: number;
@@ -48,13 +49,13 @@ const TYPE_LABEL: Record<string, string> = {
   website_build: "Web",
 };
 
-type SortKey = "name" | "active" | "overdue" | "hours" | "close_rate";
+type SortKey = "name" | "active" | "load" | "overdue" | "hours" | "close_rate";
 
 export default function WorkloadPage() {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("monthly");
-  const [sortKey, setSortKey] = useState<SortKey>("active");
+  const [sortKey, setSortKey] = useState<SortKey>("load");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
@@ -77,6 +78,7 @@ export default function WorkloadPage() {
     switch (sortKey) {
       case "name": return a.name.localeCompare(b.name) * dir;
       case "active": return (a.active - b.active) * dir;
+      case "load": return (a.load - b.load) * dir;
       case "overdue": return (a.overdue - b.overdue) * dir;
       case "hours": return (a.hours_period - b.hours_period) * dir;
       case "close_rate": return (a.close_rate - b.close_rate) * dir;
@@ -97,15 +99,23 @@ export default function WorkloadPage() {
             Active workflows, capacity, hours, and close rate per employee.
           </p>
         </div>
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value as Period)}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
-        >
-          {PERIODS.map((p) => (
-            <option key={p.value} value={p.value}>{p.label}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/workflows/templates"
+            className="text-sm text-emerald-700 hover:underline"
+          >
+            Manage templates →
+          </Link>
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as Period)}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+          >
+            {PERIODS.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {data && data.capacity_thresholds && (
@@ -126,6 +136,7 @@ export default function WorkloadPage() {
             <tr>
               <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort("name")}>Employee</th>
               <th className="px-4 py-3 cursor-pointer text-right" onClick={() => toggleSort("active")}>Active</th>
+              <th className="px-4 py-3 cursor-pointer text-right" onClick={() => toggleSort("load")} title="Weighted load — custom templates carry a point value; built-ins = 1">Load</th>
               <th className="px-4 py-3">By Type</th>
               <th className="px-4 py-3 cursor-pointer text-right" onClick={() => toggleSort("overdue")}>Overdue</th>
               <th className="px-4 py-3 text-right">Due 7d</th>
@@ -136,11 +147,11 @@ export default function WorkloadPage() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-500">
                 <Loader2 className="inline-block h-5 w-5 animate-spin mr-2" /> Loading…
               </td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-500">
                 <Users className="inline-block h-5 w-5 mr-2 text-gray-400" />
                 No team members in this scope.
               </td></tr>
@@ -168,8 +179,11 @@ function EmployeeRowRender({ row }: { row: EmployeeRow }) {
         <div className="text-xs text-gray-500">{row.role.replace(/_/g, " ")}</div>
       </td>
       <td className="px-4 py-3 text-right">
+        <span className="text-lg font-bold text-gray-900">{row.active}</span>
+      </td>
+      <td className="px-4 py-3 text-right">
         <div className="inline-flex items-center gap-2">
-          <span className="text-lg font-bold text-gray-900">{row.active}</span>
+          <span className="text-lg font-bold text-gray-900">{row.load}</span>
           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${capacityColors}`}>
             {row.capacity}
           </span>

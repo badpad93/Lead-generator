@@ -512,12 +512,44 @@ function SavedViewChip({
 
 interface CustomerHit { id: string; full_name: string | null; email: string | null; role: string | null; }
 
+interface TemplateOption { workflow_type: string; title: string; category: string | null; is_custom: boolean; }
+
 function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreated: (workflowId: string) => void }) {
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<CustomerHit[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerHit | null>(null);
   const [searching, setSearching] = useState(false);
   const [workflowType, setWorkflowType] = useState<string>("ai_machine_fulfillment");
+  const [templates, setTemplates] = useState<TemplateOption[]>([]);
+
+  useEffect(() => {
+    // Pull custom templates so the dropdown includes admin-created
+    // perpetual-task types (Account Management, Cold Calling, etc.).
+    // Built-in templates are hard-coded in the fallback list below and
+    // rendered even if this fetch fails or returns nothing.
+    async function loadTemplates() {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/admin/workflow-templates", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTemplates(
+          (data.templates ?? [])
+            .filter((t: { active: boolean }) => t.active)
+            .map((t: TemplateOption) => ({
+              workflow_type: t.workflow_type,
+              title: t.title,
+              category: t.category,
+              is_custom: t.is_custom,
+            })),
+        );
+      }
+    }
+    loadTemplates();
+  }, []);
   const [productName, setProductName] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [dueDate, setDueDate] = useState("");
@@ -652,12 +684,41 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
                 onChange={(e) => setWorkflowType(e.target.value)}
                 className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
               >
-                <option value="ai_machine_fulfillment">AI Machine Fulfillment</option>
-                <option value="location_services">Location Services</option>
-                <option value="financing">Financing</option>
-                <option value="coffee_equipment">Coffee Equipment</option>
-                <option value="coffee_service">Coffee Service</option>
-                <option value="website_build">Website Build</option>
+                {/* Built-in templates always available even if the API
+                    fetch didn't return them (defensive). */}
+                <optgroup label="Built-in">
+                  {templates.filter((t) => !t.is_custom).length > 0
+                    ? templates
+                        .filter((t) => !t.is_custom)
+                        .map((t) => (
+                          <option key={t.workflow_type} value={t.workflow_type}>{t.title}</option>
+                        ))
+                    : (
+                      <>
+                        <option value="ai_machine_fulfillment">AI Machine Fulfillment</option>
+                        <option value="location_services">Location Services</option>
+                        <option value="financing">Financing</option>
+                        <option value="coffee_equipment">Coffee Equipment</option>
+                        <option value="coffee_service">Coffee Service</option>
+                        <option value="website_build">Website Build</option>
+                      </>
+                    )}
+                </optgroup>
+                {/* Custom templates grouped by category. Only appear
+                    when admin has created them via /admin/workflows/templates. */}
+                {Array.from(
+                  new Set(
+                    templates.filter((t) => t.is_custom).map((t) => t.category ?? "Uncategorized"),
+                  ),
+                ).map((cat) => (
+                  <optgroup key={cat} label={cat}>
+                    {templates
+                      .filter((t) => t.is_custom && (t.category ?? "Uncategorized") === cat)
+                      .map((t) => (
+                        <option key={t.workflow_type} value={t.workflow_type}>{t.title}</option>
+                      ))}
+                  </optgroup>
+                ))}
               </select>
             </div>
             <div>
