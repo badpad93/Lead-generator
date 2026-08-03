@@ -518,6 +518,14 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<CustomerHit[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerHit | null>(null);
+  // "Internal task" mode — swaps the customer picker for a team-member
+  // picker so admin can create workflows for perpetual internal work
+  // (Cold Calling, Account Management, Operator Coaching, etc.). On
+  // submit, both customer_id and assigned_user_id are set to the
+  // picked rep so it shows up under both their assigned-workflow list
+  // AND their personal /account/workflows page.
+  const [isInternal, setIsInternal] = useState(false);
+  const [staffList, setStaffList] = useState<CustomerHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [workflowType, setWorkflowType] = useState<string>("ai_machine_fulfillment");
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
@@ -562,7 +570,25 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
   // worth running. Clearing on empty/selected happens inline in the
   // callbacks that change those, not here — this keeps the effect free
   // of setState in its main body.
-  const shouldSearch = !selectedCustomer && customerQuery.trim().length >= 2;
+  // Load the sales team once when Internal mode is first turned on.
+  useEffect(() => {
+    if (!isInternal || staffList.length > 0) return;
+    async function loadStaff() {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/sales/users", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const rows: { id: string; full_name: string | null; email: string; role: string }[] = await res.json();
+        setStaffList(rows.map((r) => ({ id: r.id, full_name: r.full_name, email: r.email, role: r.role })));
+      }
+    }
+    loadStaff();
+  }, [isInternal, staffList.length]);
+
+  const shouldSearch = !selectedCustomer && !isInternal && customerQuery.trim().length >= 2;
   useEffect(() => {
     if (!shouldSearch) return;
     let cancelled = false;
@@ -598,6 +624,10 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({
         customerId: selectedCustomer.id,
+        // Internal tasks — auto-assign to the same rep who "owns" the
+        // work so it appears in their /sales/workflows queue and their
+        // load bumps on /sales/workload immediately.
+        assignedUserId: isInternal ? selectedCustomer.id : undefined,
         workflowType,
         productName: productName || undefined,
         quantityPurchased: Number(quantity) || 1,
@@ -626,20 +656,63 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
         </div>
 
         <form onSubmit={submit} className="p-5 space-y-4">
+          {/* Internal-task toggle — swap the customer picker for a
+              team-member picker so admins can create perpetual-work
+              workflows (Cold Calling, Account Management, etc.) where
+              the assignee IS the "customer" and it shows up on both
+              their /sales/workflows queue and their /account/workflows
+              page. */}
+          <label className="flex items-center gap-2 text-sm bg-gray-50 rounded-md px-3 py-2 border border-gray-200">
+            <input
+              type="checkbox"
+              checked={isInternal}
+              onChange={(e) => {
+                setIsInternal(e.target.checked);
+                setSelectedCustomer(null);
+                setCustomerQuery("");
+                setCustomerResults([]);
+              }}
+            />
+            <span>
+              <span className="font-medium text-gray-900">Internal task</span>
+              <span className="text-gray-500"> — assign to a team member (e.g. Cold Calling, Account Management)</span>
+            </span>
+          </label>
+
           <div>
-            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Customer</label>
+            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+              {isInternal ? "Team member" : "Customer"}
+            </label>
             {selectedCustomer ? (
               <div className="flex items-center justify-between rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
                 <div>
                   <div className="font-medium text-emerald-900">{selectedCustomer.full_name ?? selectedCustomer.email}</div>
                   {selectedCustomer.email && selectedCustomer.full_name && (
-                    <div className="text-xs text-emerald-700">{selectedCustomer.email}</div>
+                    <div className="text-xs text-emerald-700">
+                      {selectedCustomer.email}{selectedCustomer.role ? ` · ${selectedCustomer.role.replace(/_/g, " ")}` : ""}
+                    </div>
                   )}
                 </div>
                 <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerQuery(""); }} className="text-xs text-emerald-700 hover:underline">
                   Change
                 </button>
               </div>
+            ) : isInternal ? (
+              <select
+                value=""
+                onChange={(e) => {
+                  const staff = staffList.find((s) => s.id === e.target.value);
+                  if (staff) setSelectedCustomer(staff);
+                }}
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+              >
+                <option value="">Choose a team member…</option>
+                {staffList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.full_name ?? s.email} ({s.role})
+                  </option>
+                ))}
+              </select>
             ) : (
               <>
                 <input
@@ -684,28 +757,21 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
                 onChange={(e) => setWorkflowType(e.target.value)}
                 className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
               >
-                {/* Built-in templates always available even if the API
-                    fetch didn't return them (defensive). */}
+                {/* All 6 built-in types render unconditionally — they
+                    exist in code even before the first spawn creates
+                    the DB row, so relying on the API alone would hide
+                    any type that hasn't been used yet. */}
                 <optgroup label="Built-in">
-                  {templates.filter((t) => !t.is_custom).length > 0
-                    ? templates
-                        .filter((t) => !t.is_custom)
-                        .map((t) => (
-                          <option key={t.workflow_type} value={t.workflow_type}>{t.title}</option>
-                        ))
-                    : (
-                      <>
-                        <option value="ai_machine_fulfillment">AI Machine Fulfillment</option>
-                        <option value="location_services">Location Services</option>
-                        <option value="financing">Financing</option>
-                        <option value="coffee_equipment">Coffee Equipment</option>
-                        <option value="coffee_service">Coffee Service</option>
-                        <option value="website_build">Website Build</option>
-                      </>
-                    )}
+                  <option value="ai_machine_fulfillment">AI Machine Fulfillment</option>
+                  <option value="location_services">Location Services</option>
+                  <option value="financing">Financing</option>
+                  <option value="coffee_equipment">Coffee Equipment</option>
+                  <option value="coffee_service">Coffee Service</option>
+                  <option value="website_build">Website Build</option>
                 </optgroup>
-                {/* Custom templates grouped by category. Only appear
-                    when admin has created them via /admin/workflows/templates. */}
+                {/* Custom templates grouped by admin-assigned category.
+                    Only appear when admin has created them via
+                    /admin/workflows/templates. */}
                 {Array.from(
                   new Set(
                     templates.filter((t) => t.is_custom).map((t) => t.category ?? "Uncategorized"),
