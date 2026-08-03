@@ -553,7 +553,11 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
           denominator={w.active}
           progressLabel={w.active === 0 ? "—" : `${w.active - w.overdue - w.unassigned} on track`}
           rows={[
-            [`Overdue`, `${w.overdue}`],
+            // Overdue row flips red when > 0 so the exec eye can catch
+            // it at a glance. The `deadline.overdue` cron simultaneously
+            // fires an email to every admin the first time each
+            // workflow crosses its deadline (send_once per admin).
+            [`Overdue`, `${w.overdue}`, w.overdue > 0 ? "danger" : undefined],
             [`Unassigned`, `${w.unassigned}`],
             [`Due within 7d`, `${w.due_7d}`],
           ]}
@@ -666,7 +670,9 @@ function SnapshotCard({
   numerator: number;
   denominator: number;
   progressLabel: string;
-  rows: [string, string][];
+  // Optional 3rd tuple slot = per-row emphasis. "danger" turns the row
+  // red so the exec eye catches an overdue/blocked count immediately.
+  rows: Array<[string, string] | [string, string, "danger" | undefined]>;
   tone: "blue" | "orange" | "emerald" | "purple";
 }) {
   const pct = denominator > 0 ? Math.min(100, Math.round((numerator / denominator) * 100)) : 0;
@@ -701,12 +707,19 @@ function SnapshotCard({
         </div>
       </div>
       <div className="mt-3 space-y-1 text-xs">
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex justify-between text-gray-600">
-            <span>{k}</span>
-            <span className="font-medium text-gray-900">{v}</span>
-          </div>
-        ))}
+        {rows.map((row) => {
+          const [k, v, emphasis] = row;
+          const danger = emphasis === "danger";
+          return (
+            <div
+              key={k}
+              className={`flex justify-between ${danger ? "text-red-700 font-semibold" : "text-gray-600"}`}
+            >
+              <span>{k}</span>
+              <span className={danger ? "text-red-700" : "font-medium text-gray-900"}>{v}</span>
+            </div>
+          );
+        })}
       </div>
     </>
   );

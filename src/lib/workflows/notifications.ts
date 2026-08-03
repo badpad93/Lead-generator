@@ -139,6 +139,7 @@ async function resolveRecipients(
     send_to_customer: boolean;
     send_to_assignee: boolean;
     send_to_team_email: string | null;
+    send_to_admins?: boolean;
   },
   workflow: WorkflowRow,
 ): Promise<Recipient[]> {
@@ -168,6 +169,19 @@ async function resolveRecipients(
 
   if (rule.send_to_team_email) {
     recipients.push({ email: rule.send_to_team_email, audience: "team" });
+  }
+
+  if (rule.send_to_admins) {
+    // Every profiles.role='admin' gets a copy. The notification log's
+    // send-once index keys on recipient, so if the rule is send_once
+    // each admin gets exactly one email per workflow.
+    const { data: admins } = await supabaseAdmin
+      .from("profiles")
+      .select("email")
+      .eq("role", "admin");
+    for (const a of admins ?? []) {
+      if (a?.email) recipients.push({ email: a.email, audience: "team" });
+    }
   }
 
   return recipients;
@@ -328,6 +342,17 @@ const TEMPLATES: Record<string, TemplateFn> = {
   overdue_employee: (w) => ({
     title: `Overdue: ${w.workflow_number} — ${w.title}`,
     body: `<p>This workflow has passed its deadline${w.due_date ? ` (${new Date(w.due_date).toLocaleDateString()})` : ""} and remains open. Escalation recommended.</p>`,
+    ctaLabel: "Open workflow",
+  }),
+  overdue_admin: (w) => ({
+    title: `[Overdue] ${w.workflow_number} — ${w.title}`,
+    body: `<p>A workflow has just gone overdue and needs admin attention.</p>
+      <table style="margin-top:12px;border-collapse:collapse;font-size:13px">
+        <tr><td style="padding:2px 12px 2px 0;color:#6b7280">Type</td><td style="padding:2px 0"><strong>${escape(w.workflow_type)}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#6b7280">Due date</td><td style="padding:2px 0"><strong>${w.due_date ? new Date(w.due_date).toLocaleDateString() : "unset"}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#6b7280">Status</td><td style="padding:2px 0"><strong>${escape(w.overall_status)}</strong></td></tr>
+        <tr><td style="padding:2px 12px 2px 0;color:#6b7280">Assigned</td><td style="padding:2px 0"><strong>${w.assigned_user_id ? "yes" : "unassigned"}</strong></td></tr>
+      </table>`,
     ctaLabel: "Open workflow",
   }),
 };
