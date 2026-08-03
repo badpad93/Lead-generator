@@ -35,6 +35,7 @@ interface Order {
   sales_accounts: { id: string; business_name: string; contact_name: string; email: string; phone: string } | null;
   order_items: OrderItem[];
   assigned_profile: { full_name: string } | null;
+  created_by_profile: { full_name: string | null; email: string | null } | null;
 }
 
 const STATUS_FILTERS = [
@@ -207,6 +208,11 @@ export default function OrdersPage() {
                   { header: "Email", value: (r) => r.sales_accounts?.email },
                   { header: "Phone", value: (r) => r.sales_accounts?.phone },
                   { header: "Total", value: (r) => r.total_value },
+                  // "Sales Person" = the rep who created the record.
+                  // Distinct from "Assigned To" because ownership can be
+                  // reassigned later; accountability for the initial
+                  // creation stays with the creator.
+                  { header: "Sales Person", value: (r) => r.created_by_profile?.full_name ?? r.created_by_profile?.email },
                   { header: "Assigned To", value: (r) => r.assigned_profile?.full_name },
                   { header: "Next Action", value: (r) => r.next_required_action },
                   { header: "Created", value: (r) => r.created_at ? new Date(r.created_at) : null },

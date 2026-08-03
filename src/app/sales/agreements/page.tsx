@@ -38,6 +38,11 @@ interface AgreementRow {
   placement_term_months: number | null;
   commission_pct: number | null;
   created_at: string;
+  // Stamped at POST time from the creating rep's profile (see
+  // /api/sales/agreements POST). Used by the Export Report
+  // "Sales Person" column for accountability tracking.
+  rep_name: string | null;
+  rep_email: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -170,6 +175,11 @@ export default function AgreementsListPage() {
                 columns: [
                   { header: "Type", value: (r) => r.agreement_type },
                   { header: "Status", value: (r) => r.agreement_status },
+                  // Rep name is stamped at agreement creation time
+                  // (POST /api/sales/agreements pulls it from profiles).
+                  // Falls back to email so pre-migration rows still
+                  // surface something rather than a blank cell.
+                  { header: "Sales Person", value: (r) => r.rep_name ?? r.rep_email },
                   { header: "Operator Company", value: (r) => r.operator_company_name },
                   { header: "Operator Contact", value: (r) => r.operator_legal_name },
                   { header: "Operator Email", value: (r) => r.operator_email },
