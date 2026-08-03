@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus } from "lucide-react";
+import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus, Trash2 } from "lucide-react";
 
 interface TeamMember {
   id: string;
@@ -146,6 +146,31 @@ export default function TeamPage() {
     }
   }
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDelete(userId: string, userName: string, userEmail: string) {
+    if (!window.confirm(
+      `Delete ${userName || userEmail}?\n\nThis removes their sales account, unassigns them from every workflow/lead/order (records stay), and cannot be undone.`,
+    )) return;
+    setDeletingId(userId);
+    try {
+      const res = await fetch(`/api/sales/users/${userId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setTeamMembers((prev) => prev.filter((m) => m.id !== userId));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        window.alert(`Delete failed: ${err.error ?? "Unknown error"}`);
+      }
+    } catch (e) {
+      window.alert(`Delete failed: ${e instanceof Error ? e.message : "Network error"}`);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function handleRoleChange(userId: string, newRole: string) {
     setRoleUpdating(userId);
     setRoleError(null);
@@ -271,6 +296,9 @@ export default function TeamPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Name</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Email</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Role</th>
+                {currentUserRole === "admin" && (
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 w-20">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -300,10 +328,30 @@ export default function TeamPage() {
                       </span>
                     )}
                   </td>
+                  {currentUserRole === "admin" && (
+                    <td className="px-4 py-3 text-right">
+                      {m.id !== currentUserId && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(m.id, m.full_name, m.email)}
+                          disabled={deletingId === m.id}
+                          className="inline-flex items-center gap-1 rounded-md p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
+                          title={`Delete ${m.full_name || m.email}`}
+                          aria-label={`Delete ${m.full_name || m.email}`}
+                        >
+                          {deletingId === m.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
               {filteredTeam.length === 0 && (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-400">No team members found.</td></tr>
+                <tr><td colSpan={currentUserRole === "admin" ? 4 : 3} className="px-4 py-8 text-center text-gray-400">No team members found.</td></tr>
               )}
             </tbody>
           </table>
