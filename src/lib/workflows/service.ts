@@ -459,6 +459,40 @@ export async function updateStage(input: UpdateStageInput): Promise<UpdateStageR
     throw new Error("Stage update failed — another user may have edited it. Please refresh.");
   }
 
+  // Auto-sync workflow.payment_status when the payment_confirmed stage
+  // is marked completed. Fixes the "workflow list still says 'pending
+  // payment' after clicking the stage complete" bug — the two fields
+  // were tracking the same concept without staying in sync.
+  const updatedStage = updated as WorkflowStageRow;
+  if (
+    stage.stage_key === "payment_confirmed" &&
+    updatedStage.status === "completed" &&
+    workflow.payment_status !== "paid"
+  ) {
+    await supabaseAdmin
+      .from("workflows")
+      .update({
+        payment_status: "paid",
+        version: workflow.version + 1,
+        updated_by: input.updatedBy ?? null,
+      })
+      .eq("id", workflow.id)
+      .eq("version", workflow.version);
+    await recordEvent({
+      workflowId: workflow.id,
+      eventType: "payment_status_auto_synced",
+      previousValue: { payment_status: workflow.payment_status },
+      newValue: { payment_status: "paid" },
+      changedFields: ["payment_status"],
+      actorUserId: input.updatedBy ?? null,
+      actorType: input.actorType ?? "staff",
+      source: "payment_confirmed_stage",
+    });
+    // Bump the local copy so the rollup below sees the new value.
+    workflow.payment_status = "paid";
+    workflow.version = workflow.version + 1;
+  }
+
   await recordEvent({
     workflowId: input.workflowId,
     stageId: stage.id,
