@@ -205,25 +205,33 @@ function TemplateEditorModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // All four mutators use functional setState — otherwise the closure
+  // over `stages` at render time can drop updates when the admin types
+  // in a stage-name input and clicks Add Stage / reorder / delete
+  // faster than React can re-render. The visible symptom was every
+  // stage getting saved as the default "New Stage" placeholder because
+  // the previous keystroke's update never reached committed state.
   function moveStage(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (j < 0 || j >= stages.length) return;
-    const copy = [...stages];
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-    setStages(copy.map((s, idx) => ({ ...s, stage_order: (idx + 1) * 10 })));
+    setStages((prev) => {
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const copy = [...prev];
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+      return copy.map((s, idx) => ({ ...s, stage_order: (idx + 1) * 10 }));
+    });
   }
 
   function updateStage(i: number, patch: Partial<Stage>) {
-    setStages(stages.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+    setStages((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   }
 
   function addStage() {
-    setStages([
-      ...stages,
+    setStages((prev) => [
+      ...prev,
       {
-        stage_key: `stage_${stages.length + 1}`,
+        stage_key: `stage_${prev.length + 1}`,
         stage_name: "New Stage",
-        stage_order: (stages.length + 1) * 10,
+        stage_order: (prev.length + 1) * 10,
         stage_type: "milestone",
         required_for_completion: false,
         customer_visible: true,
@@ -232,7 +240,9 @@ function TemplateEditorModal({
   }
 
   function removeStage(i: number) {
-    setStages(stages.filter((_, idx) => idx !== i).map((s, idx) => ({ ...s, stage_order: (idx + 1) * 10 })));
+    setStages((prev) =>
+      prev.filter((_, idx) => idx !== i).map((s, idx) => ({ ...s, stage_order: (idx + 1) * 10 })),
+    );
   }
 
   async function save() {
