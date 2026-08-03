@@ -60,13 +60,36 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   // Assignments (staff only — customers see only assignee name when
   // show_assignee_to_customer is true on the workflow, joined below).
-  const { data: assignments } = staffView
-    ? await supabaseAdmin
-        .from("workflow_assignments")
-        .select("*")
-        .eq("workflow_id", id)
-        .eq("active", true)
-    : { data: null };
+  // Hydrated with each user's display name so the detail-page
+  // Assignees panel can render "Vic Reynolds — primary_owner" without
+  // an N+1 lookup on the client.
+  const rawAssignments = staffView
+    ? (
+        await supabaseAdmin
+          .from("workflow_assignments")
+          .select("*")
+          .eq("workflow_id", id)
+          .eq("active", true)
+          .order("assigned_at", { ascending: true })
+      ).data ?? []
+    : [];
+  let assignments: Array<Record<string, unknown>> = rawAssignments;
+  if (rawAssignments.length > 0) {
+    const assigneeIds = Array.from(
+      new Set(rawAssignments.map((a) => a.user_id).filter(Boolean) as string[]),
+    );
+    const { data: assigneeProfiles } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", assigneeIds);
+    const byId = new Map(
+      (assigneeProfiles ?? []).map((p) => [p.id, { full_name: p.full_name, email: p.email }]),
+    );
+    assignments = rawAssignments.map((a) => ({
+      ...a,
+      user_profile: a.user_id ? byId.get(a.user_id) ?? null : null,
+    }));
+  }
 
   // Shipments always visible.
   const { data: shipments } = await supabaseAdmin

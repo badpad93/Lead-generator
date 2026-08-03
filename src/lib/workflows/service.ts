@@ -830,6 +830,60 @@ export async function assignWorkflow(input: AssignmentInput) {
   }
 }
 
+/**
+ * Remove an assignment (soft-delete via active=false + removed_at).
+ *
+ * If the assignment being removed is the primary_owner, we blank
+ * workflows.assigned_user_id too so the CRM list stops showing them as
+ * owner. The caller is expected to re-assign a new primary right
+ * after; otherwise the workflow shows "Unassigned".
+ */
+export async function unassignWorkflow(input: {
+  workflowId: string;
+  assignmentId: string;
+  removedBy?: string | null;
+}) {
+  const { data: assignment } = await supabaseAdmin
+    .from("workflow_assignments")
+    .select("*")
+    .eq("id", input.assignmentId)
+    .eq("workflow_id", input.workflowId)
+    .maybeSingle();
+  if (!assignment) throw new Error("Assignment not found");
+  if (!assignment.active) return { ok: true, already: true };
+
+  await supabaseAdmin
+    .from("workflow_assignments")
+    .update({ active: false, removed_at: new Date().toISOString() })
+    .eq("id", assignment.id);
+
+  if (assignment.role === "primary_owner") {
+    const workflow = await getWorkflow(input.workflowId);
+    if (workflow && workflow.assigned_user_id === assignment.user_id) {
+      await supabaseAdmin
+        .from("workflows")
+        .update({
+          assigned_user_id: null,
+          updated_by: input.removedBy ?? null,
+          version: workflow.version + 1,
+        })
+        .eq("id", input.workflowId)
+        .eq("version", workflow.version);
+    }
+  }
+
+  await recordEvent({
+    workflowId: input.workflowId,
+    eventType: "assignment_removed",
+    previousValue: { user_id: assignment.user_id, role: assignment.role },
+    newValue: null,
+    actorUserId: input.removedBy ?? null,
+    actorType: "staff",
+  });
+
+  return { ok: true, already: false };
+}
+
 // ─── Notes ────────────────────────────────────────────────────────────────
 
 export async function addNote(input: AddNoteInput) {
