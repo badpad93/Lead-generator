@@ -160,7 +160,7 @@ export async function GET(req: NextRequest) {
   // counts closes badly.
   let ordersQuery = supabaseAdmin
     .from("sales_orders")
-    .select("id, status, total_value, deal_id, account_id, created_at, document_type")
+    .select("id, status, total_value, deal_id, account_id, lead_id, created_at, document_type")
     .gte("created_at", since);
   if (until) ordersQuery = ordersQuery.lte("created_at", until);
   ordersQuery = scopeByCreator(ordersQuery);
@@ -170,7 +170,7 @@ export async function GET(req: NextRequest) {
   if (soErr && String(soErr.message).includes("document_type")) {
     let retry = supabaseAdmin
       .from("sales_orders")
-      .select("id, status, total_value, deal_id, account_id, created_at")
+      .select("id, status, total_value, deal_id, account_id, lead_id, created_at")
       .gte("created_at", since);
     if (until) retry = retry.lte("created_at", until);
     retry = scopeByCreator(retry);
@@ -224,42 +224,40 @@ export async function GET(req: NextRequest) {
   //   (b) its account_id matches a closed order's account_id and
   //       that closed order was created at/after the quote (i.e.
   //       plausibly resulted from it).
+  // Match quotes to closed orders on THREE axes (any hit counts):
+  //   1. deal_id
+  //   2. lead_id
+  //   3. account_id, when a closed order for that account exists at/after the quote
+  // "Closed" = payment_status='paid' OR status='completed' OR
+  // order_status='completed'. No document_type filter — legacy orders
+  // with null document_type still count.
   let quotesClosed = 0;
-  const quoteAccountIds = Array.from(
-    new Set(
-      quoteRows
-        .map((q) => (q as { account_id?: string | null }).account_id)
-        .filter((v): v is string => !!v),
-    ),
-  );
-  if (quoteRows.length > 0) {
-    // Pull every closed (paid OR completed) order whose deal_id OR
-    // account_id overlaps our quotes' set.
+  const q2 = quoteRows as Array<{
+    id: string;
+    deal_id: string | null;
+    account_id: string | null;
+    lead_id: string | null;
+    created_at: string;
+  }>;
+
+  if (q2.length > 0) {
     let paidQuery = supabaseAdmin
       .from("sales_orders")
-      .select("id, deal_id, account_id, created_at")
-      // sales_orders has BOTH `status` and `order_status`; different
-      // parts of the app write to each. Accept either being 'completed'
-      // as evidence the order closed, plus payment_status='paid'.
-      .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed")
-      .eq("document_type", "order");
+      .select("id, deal_id, account_id, lead_id, created_at, document_type")
+      .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed");
     paidQuery = scopeByCreator(paidQuery);
-    if (quoteDealIds.length > 0 || quoteAccountIds.length > 0) {
-      const clauses: string[] = [];
-      if (quoteDealIds.length > 0) clauses.push(`deal_id.in.(${quoteDealIds.join(",")})`);
-      if (quoteAccountIds.length > 0) clauses.push(`account_id.in.(${quoteAccountIds.join(",")})`);
-      paidQuery = paidQuery.or(clauses.join(","));
-    }
-    const { data: paidRows } = await paidQuery;
-    const paid = (paidRows ?? []) as {
+    const { data: paidRowsAll } = await paidQuery;
+    const paid = ((paidRowsAll ?? []) as Array<{
       id: string;
       deal_id: string | null;
       account_id: string | null;
+      lead_id: string | null;
       created_at: string;
-    }[];
+      document_type: string | null;
+    }>).filter((p) => p.document_type !== "quote");
+
     const paidByDeal = new Set(paid.map((p) => p.deal_id).filter(Boolean) as string[]);
-    // Group paid orders by account_id → sorted list of created_at so we
-    // can ask "is there a paid order for this account created ≥ quote".
+    const paidByLead = new Set(paid.map((p) => p.lead_id).filter(Boolean) as string[]);
     const paidByAccount = new Map<string, string[]>();
     for (const p of paid) {
       if (!p.account_id) continue;
@@ -267,23 +265,19 @@ export async function GET(req: NextRequest) {
       list.push(p.created_at);
       paidByAccount.set(p.account_id, list);
     }
-    for (const [k, v] of paidByAccount) {
-      v.sort();
-      paidByAccount.set(k, v);
-    }
+    for (const [, v] of paidByAccount) v.sort();
 
-    quotesClosed = quoteRows.filter((q) => {
-      const dealId = q.deal_id;
-      if (dealId && paidByDeal.has(dealId)) return true;
-      const accountId = (q as { account_id?: string | null }).account_id;
-      if (!accountId) return false;
-      const paidAts = paidByAccount.get(accountId);
-      if (!paidAts || paidAts.length === 0) return false;
-      // Any paid order created at/after this quote → count it.
-      return paidAts.some((at) => at >= q.created_at);
+    quotesClosed = q2.filter((q) => {
+      if (q.deal_id && paidByDeal.has(q.deal_id)) return true;
+      if (q.lead_id && paidByLead.has(q.lead_id)) return true;
+      if (q.account_id) {
+        const paidAts = paidByAccount.get(q.account_id);
+        if (paidAts?.some((at) => at >= q.created_at)) return true;
+      }
+      return false;
     }).length;
   }
-  const closeRate = quoteRows.length > 0 ? quotesClosed / quoteRows.length : 0;
+  const closeRate = q2.length > 0 ? quotesClosed / q2.length : 0;
 
   // ─── Purchase agreements (CRM: machine + location placement) ────────
   let agrQuery = supabaseAdmin
@@ -456,6 +450,26 @@ export async function GET(req: NextRequest) {
       closed: quotesClosed,                 // quote → completed OR paid order (close rate numerator)
       total_value: quoteTotalValue,
       close_rate: closeRate,                // closed-from-quote / quotes_sent
+      // Diagnostic — visible only when explicitly requested with
+      // ?debug=1 so we can see WHY close rate is what it is when it
+      // reads unexpectedly (missing account/deal/lead links, etc.).
+      ...(url.searchParams.get("debug") === "1"
+        ? {
+            debug: {
+              quotes_have_deal_id: q2.filter((q) => q.deal_id).length,
+              quotes_have_account_id: q2.filter((q) => q.account_id).length,
+              quotes_have_lead_id: q2.filter((q) => q.lead_id).length,
+              // Sample the first 3 quotes so we can eyeball their fields.
+              sample_quotes: q2.slice(0, 3).map((q) => ({
+                id: q.id,
+                deal_id: q.deal_id,
+                account_id: q.account_id,
+                lead_id: q.lead_id,
+                created_at: q.created_at,
+              })),
+            },
+          }
+        : {}),
     },
     orders: {
       placed: orderRows.length,
