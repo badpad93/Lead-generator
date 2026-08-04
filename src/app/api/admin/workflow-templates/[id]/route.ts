@@ -76,7 +76,18 @@ export async function PATCH(
       .from("workflow_templates")
       .update(templateUpdate)
       .eq("id", id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error && /requires_payment/i.test(error.message)) {
+      // Retry without the field when the DB predates migration 132.
+      const { requires_payment: _rp, ...rest } = templateUpdate as Record<string, unknown>;
+      void _rp;
+      const retry = await supabaseAdmin
+        .from("workflow_templates")
+        .update(rest)
+        .eq("id", id);
+      if (retry.error) return NextResponse.json({ error: retry.error.message }, { status: 500 });
+    } else if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
   }
 
   if (stages) {

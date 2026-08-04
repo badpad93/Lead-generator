@@ -207,17 +207,17 @@ export async function GET(req: NextRequest) {
   const quoteTotalValue = quoteRows.reduce((s, q) => s + Number(q.total_value ?? 0), 0);
   const ordersCompleted = orderRows.filter((o) => o.status === "completed").length;
 
-  // Close rate = (quotes whose deal_id ended up on a CLOSED order) /
-  // (quotes sent in period). A "closed" order is payment_status='paid'
-  // OR order_status='completed' — an order being completed = paid in
-  // this workflow.
+  // Close rate = (quotes whose deal_id ended up on a PAID order) /
+  // (quotes sent in period). "Paid" is strictly payment_status='paid'
+  // — an order marked completed without payment does not count as
+  // closed here, so the rate reflects actual revenue conversion.
   let quotesClosed = 0;
   if (quoteDealIds.length > 0) {
     const { data: closedFromQuotes } = await supabaseAdmin
       .from("sales_orders")
       .select("deal_id")
       .in("deal_id", quoteDealIds)
-      .or("payment_status.eq.paid,order_status.eq.completed");
+      .eq("payment_status", "paid");
     const closedSet = new Set(
       ((closedFromQuotes ?? []) as { deal_id: string | null }[])
         .map((r) => r.deal_id)

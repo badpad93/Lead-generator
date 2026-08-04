@@ -105,24 +105,42 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   const version = (existing?.version ?? 0) + 1;
 
-  const { data: template, error: tErr } = await supabaseAdmin
+  // Insert payload. `requires_payment` only exists once migration 132
+  // has run. When the DB predates it PostgREST returns a schema-cache
+  // miss on that column name — we detect that and retry without the
+  // field so template creation still works before the migration is
+  // applied.
+  const insertBase = {
+    workflow_type: workflowType,
+    version,
+    title: input.title,
+    description: input.description ?? null,
+    default_deadline_days: input.default_deadline_days ?? null,
+    quantity_based: input.quantity_based,
+    completion_rule: input.completion_rule,
+    workload_weight: input.workload_weight,
+    is_custom: true,
+    category: input.category ?? null,
+    active: true,
+  };
+  let template: Record<string, unknown> | null = null;
+  let tErr: { message: string } | null = null;
+  const first = await supabaseAdmin
     .from("workflow_templates")
-    .insert({
-      workflow_type: workflowType,
-      version,
-      title: input.title,
-      description: input.description ?? null,
-      default_deadline_days: input.default_deadline_days ?? null,
-      quantity_based: input.quantity_based,
-      completion_rule: input.completion_rule,
-      workload_weight: input.workload_weight,
-      is_custom: true,
-      category: input.category ?? null,
-      requires_payment: input.requires_payment,
-      active: true,
-    })
+    .insert({ ...insertBase, requires_payment: input.requires_payment })
     .select("*")
     .single();
+  template = first.data as Record<string, unknown> | null;
+  tErr = first.error;
+  if (tErr && /requires_payment/i.test(tErr.message)) {
+    const retry = await supabaseAdmin
+      .from("workflow_templates")
+      .insert(insertBase)
+      .select("*")
+      .single();
+    template = retry.data as Record<string, unknown> | null;
+    tErr = retry.error;
+  }
   if (tErr || !template) {
     return NextResponse.json({ error: tErr?.message ?? "Template insert failed" }, { status: 500 });
   }

@@ -245,11 +245,13 @@ export async function GET(req: NextRequest) {
   );
   const closedDealIds = new Set<string>();
   if (quoteDealIds.length > 0) {
+    // "Closed" = strictly payment_status='paid' (matches executive
+    // snapshot). Completed-but-unpaid orders do not count as closed.
     const { data: closedOrders } = await supabaseAdmin
       .from("sales_orders")
       .select("deal_id")
       .in("deal_id", quoteDealIds)
-      .or("payment_status.eq.paid,order_status.eq.completed");
+      .eq("payment_status", "paid");
     for (const r of (closedOrders ?? []) as { deal_id: string | null }[]) {
       if (r.deal_id) closedDealIds.add(r.deal_id);
     }
