@@ -328,6 +328,24 @@ export async function GET(req: NextRequest) {
       const name = normName(acct?.business_name);
       if (name) paidNames.add(name);
     }
+    // Build the QUOTE-side identity sets using the exact same
+    // resolution rules — this is the diagnostic surface. If these
+    // sets don't overlap paidEmails/paidNames at all, no automated
+    // match can succeed and the metric needs the data cleanup
+    // (dedup + backfill) documented in the TODO above.
+    const quoteEmails = new Set<string>();
+    const quoteNames = new Set<string>();
+    let quoteAcctsWithoutEmail = 0;
+    let quoteAcctsWithoutName = 0;
+    for (const q of q2) {
+      const acct = q.account_id ? accountById.get(q.account_id) : null;
+      const email = normEmail(acct?.email) ?? normEmail(q.recipient_email);
+      if (email) quoteEmails.add(email);
+      else quoteAcctsWithoutEmail++;
+      const name = normName(acct?.business_name);
+      if (name) quoteNames.add(name);
+      else quoteAcctsWithoutName++;
+    }
     const paidByDeal = new Set(paid.map((p) => p.deal_id).filter(Boolean) as string[]);
     const paidByLead = new Set(paid.map((p) => p.lead_id).filter(Boolean) as string[]);
     const paidByAccountId = new Set(paid.map((p) => p.account_id).filter((v): v is string => !!v));
@@ -345,6 +363,15 @@ export async function GET(req: NextRequest) {
       return false;
     }).length;
 
+    // Set-overlap check independent of the match loop — sanity-checks
+    // that the "matched_by_*" counts are consistent with the raw
+    // identity sets. If overlap>0 but matched=0 something's wrong in
+    // the loop. If overlap=0 the data itself has no shared identity.
+    const emailOverlap = new Set<string>();
+    for (const e of quoteEmails) if (paidEmails.has(e)) emailOverlap.add(e);
+    const nameOverlap = new Set<string>();
+    for (const n of quoteNames) if (paidNames.has(n)) nameOverlap.add(n);
+
     debugMatchDetail = {
       matched_by_deal: matchedByDeal,
       matched_by_lead: matchedByLead,
@@ -353,8 +380,20 @@ export async function GET(req: NextRequest) {
       matched_by_business_name: matchedByName,
       paid_side_distinct_emails: paidEmails.size,
       paid_side_distinct_names: paidNames.size,
-      sample_paid_emails: Array.from(paidEmails).slice(0, 3),
-      sample_paid_names: Array.from(paidNames).slice(0, 3),
+      sample_paid_emails: Array.from(paidEmails).slice(0, 5),
+      sample_paid_names: Array.from(paidNames).slice(0, 5),
+      // Symmetric quote-side diagnostics.
+      quote_side_distinct_emails: quoteEmails.size,
+      quote_side_distinct_names: quoteNames.size,
+      sample_quote_emails: Array.from(quoteEmails).slice(0, 5),
+      sample_quote_names: Array.from(quoteNames).slice(0, 5),
+      quote_accounts_without_email: quoteAcctsWithoutEmail,
+      quote_accounts_without_name: quoteAcctsWithoutName,
+      // Direct set intersection — should equal matched_by_email/name.
+      email_set_overlap_count: emailOverlap.size,
+      email_set_overlap_sample: Array.from(emailOverlap).slice(0, 5),
+      name_set_overlap_count: nameOverlap.size,
+      name_set_overlap_sample: Array.from(nameOverlap).slice(0, 5),
     };
   }
   const closeRate = q2.length > 0 ? quotesClosed / q2.length : 0;
