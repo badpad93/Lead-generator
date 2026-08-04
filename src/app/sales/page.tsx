@@ -22,6 +22,7 @@ import {
   MapPin,
   Coffee,
   Globe,
+  UserCheck,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -66,6 +67,7 @@ interface SnapshotResponse {
     provider_included: boolean;
   };
   workflows: { active: number; unassigned: number; due_7d: number; overdue: number; by_type: Record<string, number> };
+  assignments: { total: number; accepted: number; pending: number; accept_rate: number };
   leads: { total: number; by_status: Record<string, number> };
   deals: { total: number; pipeline_value: number; in_stage: Record<string, number> };
   commissions: { total: number; pending: number; approved: number; paid: number };
@@ -498,7 +500,7 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
         </h2>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <SnapshotCard
           href="/sales/orders?doc=quote"
           icon={<FileText className="h-4 w-4" />}
@@ -562,6 +564,26 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
             [`Due within 7d`, `${w.due_7d}`],
           ]}
           tone="purple"
+        />
+        <SnapshotCard
+          href="/sales/workflows"
+          icon={<UserCheck className="h-4 w-4" />}
+          label="Assignments"
+          primary={`${data.assignments.total} assigned`}
+          numerator={data.assignments.accepted}
+          denominator={data.assignments.total}
+          progressLabel={
+            data.assignments.total === 0
+              ? "—"
+              : `${data.assignments.accepted} accepted (${Math.round(data.assignments.accept_rate * 100)}%)`
+          }
+          rows={[
+            // Pending flips red the moment anyone hasn't clicked
+            // Accept — accountability signal for the exec.
+            [`Pending acceptance`, `${data.assignments.pending}`, data.assignments.pending > 0 ? "danger" : undefined],
+            [`Accepted`, `${data.assignments.accepted}`],
+          ]}
+          tone="emerald"
         />
       </div>
 

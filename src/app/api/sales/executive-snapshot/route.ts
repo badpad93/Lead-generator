@@ -307,6 +307,31 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ─── Assignment acceptance rollup ───────────────────────────────────
+  // Count active workflow_assignments in scope and split by whether
+  // the assignee has clicked Accept. Limited to open workflows so a
+  // completed workflow's stale pending assignment doesn't distort the
+  // "waiting to acknowledge" number.
+  const openWfIds = wfRows.filter((w) => isOpen(w.overall_status)).map((w) => w.id);
+  let assignmentsTotal = 0;
+  let assignmentsAccepted = 0;
+  if (openWfIds.length > 0) {
+    let assignQuery = supabaseAdmin
+      .from("workflow_assignments")
+      .select("id, user_id, accepted_at")
+      .eq("active", true)
+      .in("workflow_id", openWfIds);
+    if (targetUserId) assignQuery = assignQuery.eq("user_id", targetUserId);
+    else if (allowedUserIds) assignQuery = assignQuery.in("user_id", allowedUserIds);
+    const { data: assignRows } = await assignQuery;
+    for (const a of assignRows ?? []) {
+      assignmentsTotal += 1;
+      if (a.accepted_at) assignmentsAccepted += 1;
+    }
+  }
+  const assignmentsPending = assignmentsTotal - assignmentsAccepted;
+  const acceptRate = assignmentsTotal > 0 ? assignmentsAccepted / assignmentsTotal : 0;
+
   // ─── Leads ──────────────────────────────────────────────────────────
   let leadsQuery = supabaseAdmin
     .from("sales_leads")
@@ -395,6 +420,12 @@ export async function GET(req: NextRequest) {
       due_7d: wfDue7d,
       overdue: wfOverdue,
       by_type: wfByType,
+    },
+    assignments: {
+      total: assignmentsTotal,
+      accepted: assignmentsAccepted,
+      pending: assignmentsPending,
+      accept_rate: acceptRate,
     },
     leads: { total: (leads ?? []).length, by_status: leadsByStatus },
     deals: { total: dealsInPeriod.length, pipeline_value: pipelineValue, in_stage: dealsByStage },
