@@ -360,18 +360,23 @@ export async function spawnFromWebsiteRequest(
 }
 
 // ─── Coffee order → attach to coffee_service workflow ───────────────────
-// Called from the coffee checkout QB-paid webhook.
+// Called from the coffee checkout QB-paid webhook AND from any code
+// path that needs to make sure a coffee order shows up in the CRM.
+//
+// If no active coffee_service workflow exists for this customer, one
+// is auto-spawned before attaching — legacy customers who signed
+// their coffee agreement before this system launched no longer fall
+// through the cracks. The spawned workflow lands with
+// primary_team='coffee' + workflow_type='coffee_service' so it counts
+// against the coffee-team unassigned bucket in the workload view.
 export async function attachCoffeeOrderToServiceWorkflow(args: {
   customerId: string;
   coffeeOrderId: string;
   orderNumber?: string;
   orderTotal?: number;
   orderStatus?: string;
-}): Promise<{ workflowId: string; attached: boolean } | null> {
-  // Find the customer's active coffee_service workflow. If none exists
-  // yet (they signed the agreement before this system launched), skip —
-  // legacy backfill can create one.
-  const { data: workflow } = await supabaseAdmin
+}): Promise<{ workflowId: string; attached: boolean; spawned: boolean } | null> {
+  const { data: existing } = await supabaseAdmin
     .from("workflows")
     .select("id")
     .eq("customer_id", args.customerId)
@@ -388,11 +393,54 @@ export async function attachCoffeeOrderToServiceWorkflow(args: {
     .limit(1)
     .maybeSingle();
 
-  if (!workflow) return null;
+  let workflowId: string;
+  let spawned = false;
+
+  if (existing) {
+    workflowId = existing.id;
+  } else {
+    // Auto-spawn a coffee_service workflow for this customer. Use a
+    // deterministic (source_type, source_id) so retries within the
+    // same call don't create duplicates — the DB's idempotency index
+    // covers (source_type, source_id, workflow_type, product_key).
+    // COFFEE_DEFAULT_ASSIGNEE_ID (if set) becomes the primary owner so
+    // this shows up on someone's workload immediately; otherwise it
+    // sits in the coffee-team "unassigned" bucket for admin to route.
+    const { getOrCreateWorkflow } = await import("./service");
+    const defaultAssignee = process.env.COFFEE_DEFAULT_ASSIGNEE_ID || null;
+
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name, email, company_name")
+      .eq("id", args.customerId)
+      .maybeSingle();
+    const displayName =
+      profile?.company_name || profile?.full_name || profile?.email || "customer";
+
+    const result = await getOrCreateWorkflow({
+      customerId: args.customerId,
+      workflowType: "coffee_service",
+      sourceType: "coffee_agreement",
+      // Deterministic per-customer source_id so subsequent auto-spawns
+      // (from later orders arriving before an admin creates a proper
+      // workflow) resolve to the same row via the idempotency index.
+      sourceId: args.customerId,
+      primaryTeam: "coffee",
+      assignedUserId: defaultAssignee,
+      title: `Coffee Service — ${displayName}`,
+      actorType: "system",
+      // Skip the "workflow created" email for auto-spawned service
+      // workflows — legacy customers didn't ask to be onboarded to a
+      // new workflow system and getting a random email would confuse.
+      suppressInitialCustomerEmail: true,
+    });
+    workflowId = result.workflow.id;
+    spawned = result.created;
+  }
 
   const { attachOrderToWorkflow } = await import("./service");
   const item = await attachOrderToWorkflow({
-    workflowId: workflow.id,
+    workflowId,
     externalOrderId: args.coffeeOrderId,
     externalOrderType: "coffee_order",
     orderNumber: args.orderNumber,
@@ -401,8 +449,10 @@ export async function attachCoffeeOrderToServiceWorkflow(args: {
   });
 
   // Advance "initial_order_placed" → "recurring_active" on first order.
+  // Best-effort — the template may not have these stage keys (custom
+  // templates); we swallow those errors.
   await updateStage({
-    workflowId: workflow.id,
+    workflowId,
     stageKey: "initial_order_placed",
     status: "completed",
     actorType: "system",
@@ -410,7 +460,7 @@ export async function attachCoffeeOrderToServiceWorkflow(args: {
     changeKey: `coffee_order_placed:${args.coffeeOrderId}`,
   }).catch(() => null);
   await updateStage({
-    workflowId: workflow.id,
+    workflowId,
     stageKey: "recurring_active",
     status: "in_progress",
     actorType: "system",
@@ -418,7 +468,7 @@ export async function attachCoffeeOrderToServiceWorkflow(args: {
     changeKey: `coffee_order_active:${args.coffeeOrderId}`,
   }).catch(() => null);
 
-  return { workflowId: workflow.id, attached: !!item };
+  return { workflowId, attached: !!item, spawned };
 }
 
 // ─── Marketplace submission (PP) → advance location_services workflow ──
