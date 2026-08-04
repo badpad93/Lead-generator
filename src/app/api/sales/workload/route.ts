@@ -231,36 +231,70 @@ export async function GET(req: NextRequest) {
   }
 
   // ─── Sales orders/quotes for close-rate ───────────────────────────
-  // Pull quotes created in period for these users, then look for matching
-  // closed orders (any date) via deal_id.
+  // Match quotes to paid orders permissively — a quote counts as
+  // closed if its deal_id ended up paid OR the same account_id has a
+  // paid order created at/after the quote. Deal-flow-less pipelines
+  // otherwise read 0% close rate because deal_id is rarely populated
+  // on either quote or order.
   const { data: quoteRows } = await supabaseAdmin
     .from("sales_orders")
-    .select("id, deal_id, created_by, document_type, created_at")
+    .select("id, deal_id, account_id, created_by, document_type, created_at")
     .in("created_by", staffIds)
     .eq("document_type", "quote")
     .gte("created_at", since);
-  const quoteRowsList = (quoteRows ?? []) as { id: string; deal_id: string | null; created_by: string; created_at: string }[];
+  const quoteRowsList = (quoteRows ?? []) as {
+    id: string;
+    deal_id: string | null;
+    account_id: string | null;
+    created_by: string;
+    created_at: string;
+  }[];
   const quoteDealIds = Array.from(
     new Set(quoteRowsList.map((q) => q.deal_id).filter(Boolean) as string[]),
   );
-  const closedDealIds = new Set<string>();
-  if (quoteDealIds.length > 0) {
-    // "Closed" = strictly payment_status='paid' (matches executive
-    // snapshot). Completed-but-unpaid orders do not count as closed.
-    const { data: closedOrders } = await supabaseAdmin
+  const quoteAccountIds = Array.from(
+    new Set(quoteRowsList.map((q) => q.account_id).filter(Boolean) as string[]),
+  );
+
+  const paidByDeal = new Set<string>();
+  const paidByAccount = new Map<string, string[]>();
+  if (quoteRowsList.length > 0 && (quoteDealIds.length > 0 || quoteAccountIds.length > 0)) {
+    let paidQuery = supabaseAdmin
       .from("sales_orders")
-      .select("deal_id")
-      .in("deal_id", quoteDealIds)
-      .eq("payment_status", "paid");
-    for (const r of (closedOrders ?? []) as { deal_id: string | null }[]) {
-      if (r.deal_id) closedDealIds.add(r.deal_id);
+      .select("deal_id, account_id, created_at, created_by")
+      .in("created_by", staffIds)
+      .eq("payment_status", "paid")
+      .eq("document_type", "order");
+    const clauses: string[] = [];
+    if (quoteDealIds.length > 0) clauses.push(`deal_id.in.(${quoteDealIds.join(",")})`);
+    if (quoteAccountIds.length > 0) clauses.push(`account_id.in.(${quoteAccountIds.join(",")})`);
+    paidQuery = paidQuery.or(clauses.join(","));
+    const { data: paidRows } = await paidQuery;
+    for (const p of (paidRows ?? []) as { deal_id: string | null; account_id: string | null; created_at: string }[]) {
+      if (p.deal_id) paidByDeal.add(p.deal_id);
+      if (p.account_id) {
+        const list = paidByAccount.get(p.account_id) ?? [];
+        list.push(p.created_at);
+        paidByAccount.set(p.account_id, list);
+      }
+    }
+    for (const [k, v] of paidByAccount) {
+      v.sort();
+      paidByAccount.set(k, v);
     }
   }
+
   const quotesSentByUser = new Map<string, number>();
   const quotesClosedByUser = new Map<string, number>();
   for (const q of quoteRowsList) {
     quotesSentByUser.set(q.created_by, (quotesSentByUser.get(q.created_by) ?? 0) + 1);
-    if (q.deal_id && closedDealIds.has(q.deal_id)) {
+    let closed = false;
+    if (q.deal_id && paidByDeal.has(q.deal_id)) closed = true;
+    else if (q.account_id) {
+      const paidAts = paidByAccount.get(q.account_id);
+      if (paidAts?.some((at) => at >= q.created_at)) closed = true;
+    }
+    if (closed) {
       quotesClosedByUser.set(q.created_by, (quotesClosedByUser.get(q.created_by) ?? 0) + 1);
     }
   }
