@@ -160,7 +160,7 @@ export async function GET(req: NextRequest) {
   // counts closes badly.
   let ordersQuery = supabaseAdmin
     .from("sales_orders")
-    .select("id, status, total_value, deal_id, account_id, lead_id, created_at, document_type")
+    .select("id, status, total_value, deal_id, account_id, lead_id, recipient_email, created_at, document_type")
     .gte("created_at", since);
   if (until) ordersQuery = ordersQuery.lte("created_at", until);
   ordersQuery = scopeByCreator(ordersQuery);
@@ -170,7 +170,7 @@ export async function GET(req: NextRequest) {
   if (soErr && String(soErr.message).includes("document_type")) {
     let retry = supabaseAdmin
       .from("sales_orders")
-      .select("id, status, total_value, deal_id, account_id, lead_id, created_at")
+      .select("id, status, total_value, deal_id, account_id, lead_id, recipient_email, created_at")
       .gte("created_at", since);
     if (until) retry = retry.lte("created_at", until);
     retry = scopeByCreator(retry);
@@ -224,10 +224,21 @@ export async function GET(req: NextRequest) {
   //   (b) its account_id matches a closed order's account_id and
   //       that closed order was created at/after the quote (i.e.
   //       plausibly resulted from it).
-  // Match quotes to closed orders on THREE axes (any hit counts):
+  // Match quotes to closed orders on FOUR axes (any hit counts):
   //   1. deal_id
   //   2. lead_id
-  //   3. account_id, when a closed order for that account exists at/after the quote
+  //   3. account_id — closed order exists for that account (ANY date)
+  //   4. recipient_email (lowercased) — closed order exists for that
+  //      recipient (ANY date). Reps very often type the same customer
+  //      email on both quote and follow-up order, so this catches the
+  //      case where none of the FKs are populated.
+  //
+  // No timestamp guard on axes 3 and 4: real pipelines have repeat
+  // customers whose paid orders often predate the newest quote, and
+  // requiring paid_at ≥ quote_at was zeroing the rate out. We
+  // interpret "this quote's customer has a closed relationship" as
+  // "closed" for the purpose of this metric.
+  //
   // "Closed" = payment_status='paid' OR status='completed' OR
   // order_status='completed'. No document_type filter — legacy orders
   // with null document_type still count.
@@ -237,13 +248,17 @@ export async function GET(req: NextRequest) {
     deal_id: string | null;
     account_id: string | null;
     lead_id: string | null;
+    recipient_email: string | null;
     created_at: string;
   }>;
+
+  let debugPaidAccountIds: string[] = [];
+  let debugPaidCount = 0;
 
   if (q2.length > 0) {
     let paidQuery = supabaseAdmin
       .from("sales_orders")
-      .select("id, deal_id, account_id, lead_id, created_at, document_type")
+      .select("id, deal_id, account_id, lead_id, recipient_email, created_at, document_type")
       .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed");
     paidQuery = scopeByCreator(paidQuery);
     const { data: paidRowsAll } = await paidQuery;
@@ -252,28 +267,30 @@ export async function GET(req: NextRequest) {
       deal_id: string | null;
       account_id: string | null;
       lead_id: string | null;
+      recipient_email: string | null;
       created_at: string;
       document_type: string | null;
     }>).filter((p) => p.document_type !== "quote");
 
+    debugPaidCount = paid.length;
+    debugPaidAccountIds = Array.from(
+      new Set(paid.map((p) => p.account_id).filter((v): v is string => !!v)),
+    );
+
     const paidByDeal = new Set(paid.map((p) => p.deal_id).filter(Boolean) as string[]);
     const paidByLead = new Set(paid.map((p) => p.lead_id).filter(Boolean) as string[]);
-    const paidByAccount = new Map<string, string[]>();
-    for (const p of paid) {
-      if (!p.account_id) continue;
-      const list = paidByAccount.get(p.account_id) ?? [];
-      list.push(p.created_at);
-      paidByAccount.set(p.account_id, list);
-    }
-    for (const [, v] of paidByAccount) v.sort();
+    const paidByAccount = new Set(paid.map((p) => p.account_id).filter((v): v is string => !!v));
+    const paidByEmail = new Set(
+      paid
+        .map((p) => p.recipient_email?.trim().toLowerCase())
+        .filter((v): v is string => !!v),
+    );
 
     quotesClosed = q2.filter((q) => {
       if (q.deal_id && paidByDeal.has(q.deal_id)) return true;
       if (q.lead_id && paidByLead.has(q.lead_id)) return true;
-      if (q.account_id) {
-        const paidAts = paidByAccount.get(q.account_id);
-        if (paidAts?.some((at) => at >= q.created_at)) return true;
-      }
+      if (q.account_id && paidByAccount.has(q.account_id)) return true;
+      if (q.recipient_email && paidByEmail.has(q.recipient_email.trim().toLowerCase())) return true;
       return false;
     }).length;
   }
@@ -459,14 +476,24 @@ export async function GET(req: NextRequest) {
               quotes_have_deal_id: q2.filter((q) => q.deal_id).length,
               quotes_have_account_id: q2.filter((q) => q.account_id).length,
               quotes_have_lead_id: q2.filter((q) => q.lead_id).length,
-              // Sample the first 3 quotes so we can eyeball their fields.
+              quotes_have_recipient_email: q2.filter((q) => q.recipient_email).length,
+              paid_orders_in_scope: debugPaidCount,
+              paid_orders_distinct_account_ids: debugPaidAccountIds.length,
+              // Overlap between quote-side account_ids and paid-side
+              // account_ids — this number should equal quotesClosed when
+              // account_id is the only match axis populated.
+              quote_account_ids_matching_paid: q2.filter(
+                (q) => q.account_id && debugPaidAccountIds.includes(q.account_id),
+              ).length,
               sample_quotes: q2.slice(0, 3).map((q) => ({
                 id: q.id,
                 deal_id: q.deal_id,
                 account_id: q.account_id,
                 lead_id: q.lead_id,
+                recipient_email: q.recipient_email,
                 created_at: q.created_at,
               })),
+              sample_paid_account_ids: debugPaidAccountIds.slice(0, 3),
             },
           }
         : {}),

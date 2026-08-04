@@ -287,16 +287,17 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Match on ANY of deal_id, account_id (no timestamp guard —
+  // repeat customers whose paid orders predate a new quote were
+  // being dropped).
+  const paidByAccountSet = new Set(paidByAccount.keys());
   const quotesSentByUser = new Map<string, number>();
   const quotesClosedByUser = new Map<string, number>();
   for (const q of quoteRowsList) {
     quotesSentByUser.set(q.created_by, (quotesSentByUser.get(q.created_by) ?? 0) + 1);
-    let closed = false;
-    if (q.deal_id && paidByDeal.has(q.deal_id)) closed = true;
-    else if (q.account_id) {
-      const paidAts = paidByAccount.get(q.account_id);
-      if (paidAts?.some((at) => at >= q.created_at)) closed = true;
-    }
+    const closed =
+      (q.deal_id && paidByDeal.has(q.deal_id)) ||
+      (q.account_id && paidByAccountSet.has(q.account_id));
     if (closed) {
       quotesClosedByUser.set(q.created_by, (quotesClosedByUser.get(q.created_by) ?? 0) + 1);
     }
