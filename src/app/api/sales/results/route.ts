@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
   // doesn't exist on very old schemas (all rows treated as orders then).
   let ordersQuery = supabaseAdmin
     .from("sales_orders")
-    .select("id, status, payment_status, total_value, deal_id, created_at, document_type")
+    .select("id, status, payment_status, total_value, deal_id, account_id, created_at, document_type")
     .gte("created_at", since);
   if (until) ordersQuery = ordersQuery.lte("created_at", until);
 
@@ -178,7 +178,7 @@ export async function GET(req: NextRequest) {
   if (ordersError && String(ordersError.message).includes("document_type")) {
     let retry = supabaseAdmin
       .from("sales_orders")
-      .select("id, status, payment_status, total_value, deal_id, created_at")
+      .select("id, status, payment_status, total_value, deal_id, account_id, created_at")
       .gte("created_at", since);
     if (until) retry = retry.lte("created_at", until);
     if (targetUserId) {
@@ -279,35 +279,64 @@ export async function GET(req: NextRequest) {
   );
   const completedOrders = (orders || []).filter((o) => o.status === "completed").length;
 
-  // Close rate = (quotes sent in period that turned into a CLOSED
-  // order) / (quotes sent in period). A "closed" order is one that
-  // reached payment_status='paid' OR order_status='completed' — per
-  // business rule an order being completed = paid in this workflow.
+  // Close rate = quotes-in-period that turned into a paid order /
+  // quotes-in-period. "Paid" is strictly payment_status='paid'.
   //
-  // Quotes with no deal_id can't be tied back to an order, so they're
-  // counted in the denominator but never in the numerator (surfaces
-  // the real drop-off from quote-without-attribution).
+  // Match permissively — a quote counts as closed if EITHER its
+  // deal_id matches a paid order's deal_id OR its account_id
+  // matches a paid order's account_id created at/after the quote.
+  // Deal-flow-less pipelines were previously reading 0% because
+  // deal_id is rarely populated on real quotes or orders.
   let closeRate = 0;
   if (quotesInPeriod.length > 0) {
     const quoteDealIds = Array.from(
       new Set(quotesInPeriod.map((q) => q.deal_id).filter(Boolean) as string[]),
     );
-    let closedDealIdSet = new Set<string>();
-    if (quoteDealIds.length > 0) {
-      const { data: closedOrdersFromQuotes } = await supabaseAdmin
+    const quoteAccountIds = Array.from(
+      new Set(
+        quotesInPeriod
+          .map((q) => (q as { account_id?: string | null }).account_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    const paidByDeal = new Set<string>();
+    const paidByAccount = new Map<string, string[]>();
+    if (quoteDealIds.length > 0 || quoteAccountIds.length > 0) {
+      let paidQuery = supabaseAdmin
         .from("sales_orders")
-        .select("deal_id")
-        .in("deal_id", quoteDealIds)
-        .or("payment_status.eq.paid,order_status.eq.completed");
-      closedDealIdSet = new Set(
-        ((closedOrdersFromQuotes ?? []) as { deal_id: string | null }[])
-          .map((r) => r.deal_id)
-          .filter(Boolean) as string[],
-      );
+        .select("deal_id, account_id, created_at, created_by")
+        .eq("payment_status", "paid");
+      if (targetUserId) paidQuery = paidQuery.eq("created_by", targetUserId);
+      else if (allowedUserIds) paidQuery = paidQuery.in("created_by", allowedUserIds);
+      const clauses: string[] = [];
+      if (quoteDealIds.length > 0) clauses.push(`deal_id.in.(${quoteDealIds.join(",")})`);
+      if (quoteAccountIds.length > 0) clauses.push(`account_id.in.(${quoteAccountIds.join(",")})`);
+      paidQuery = paidQuery.or(clauses.join(","));
+      const { data: paidRows } = await paidQuery;
+      for (const p of (paidRows ?? []) as {
+        deal_id: string | null;
+        account_id: string | null;
+        created_at: string;
+      }[]) {
+        if (p.deal_id) paidByDeal.add(p.deal_id);
+        if (p.account_id) {
+          const list = paidByAccount.get(p.account_id) ?? [];
+          list.push(p.created_at);
+          paidByAccount.set(p.account_id, list);
+        }
+      }
+      for (const [k, v] of paidByAccount) {
+        v.sort();
+        paidByAccount.set(k, v);
+      }
     }
-    const closedQuotes = quotesInPeriod.filter(
-      (q) => q.deal_id && closedDealIdSet.has(q.deal_id),
-    ).length;
+    const closedQuotes = quotesInPeriod.filter((q) => {
+      if (q.deal_id && paidByDeal.has(q.deal_id)) return true;
+      const accountId = (q as { account_id?: string | null }).account_id;
+      if (!accountId) return false;
+      const paidAts = paidByAccount.get(accountId);
+      return paidAts?.some((at) => at >= q.created_at) ?? false;
+    }).length;
     closeRate = closedQuotes / quotesInPeriod.length;
   }
 

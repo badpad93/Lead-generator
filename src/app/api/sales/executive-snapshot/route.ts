@@ -154,9 +154,13 @@ export async function GET(req: NextRequest) {
   }
 
   // ─── Sales orders + quotes (split by document_type) ─────────────────
+  // account_id is fetched so close-rate matching can fall back to
+  // "same account had a paid order after this quote" — a lot of real
+  // quotes never carry a deal_id, so deal_id-only matching under-
+  // counts closes badly.
   let ordersQuery = supabaseAdmin
     .from("sales_orders")
-    .select("id, status, total_value, deal_id, created_at, document_type")
+    .select("id, status, total_value, deal_id, account_id, created_at, document_type")
     .gte("created_at", since);
   if (until) ordersQuery = ordersQuery.lte("created_at", until);
   ordersQuery = scopeByCreator(ordersQuery);
@@ -166,7 +170,7 @@ export async function GET(req: NextRequest) {
   if (soErr && String(soErr.message).includes("document_type")) {
     let retry = supabaseAdmin
       .from("sales_orders")
-      .select("id, status, total_value, deal_id, created_at")
+      .select("id, status, total_value, deal_id, account_id, created_at")
       .gte("created_at", since);
     if (until) retry = retry.lte("created_at", until);
     retry = scopeByCreator(retry);
@@ -207,23 +211,76 @@ export async function GET(req: NextRequest) {
   const quoteTotalValue = quoteRows.reduce((s, q) => s + Number(q.total_value ?? 0), 0);
   const ordersCompleted = orderRows.filter((o) => o.status === "completed").length;
 
-  // Close rate = (quotes whose deal_id ended up on a PAID order) /
-  // (quotes sent in period). "Paid" is strictly payment_status='paid'
-  // — an order marked completed without payment does not count as
-  // closed here, so the rate reflects actual revenue conversion.
+  // Close rate = quotes-in-period that turned into a paid order,
+  // divided by quotes sent in period. "Paid" is strictly
+  // payment_status='paid'.
+  //
+  // Matching is permissive because real-world quotes often skip
+  // deal-flow: a quote counts as closed if ANY of these hold —
+  //   (a) its deal_id matches a paid order's deal_id, OR
+  //   (b) its account_id matches a paid order's account_id and that
+  //       paid order was created at/after the quote (i.e. plausibly
+  //       resulted from it).
+  //
+  // Without (b), close rate reads 0% whenever the rep quoted the
+  // customer directly and then created the order without a deal
+  // record — which is the common case for many pipelines.
   let quotesClosed = 0;
-  if (quoteDealIds.length > 0) {
-    const { data: closedFromQuotes } = await supabaseAdmin
+  const quoteAccountIds = Array.from(
+    new Set(
+      quoteRows
+        .map((q) => (q as { account_id?: string | null }).account_id)
+        .filter((v): v is string => !!v),
+    ),
+  );
+  if (quoteRows.length > 0) {
+    // Pull every paid order whose deal_id OR account_id overlaps our
+    // quotes' set. Scope to the same reps so a different rep's paid
+    // order doesn't credit this one.
+    let paidQuery = supabaseAdmin
       .from("sales_orders")
-      .select("deal_id")
-      .in("deal_id", quoteDealIds)
-      .eq("payment_status", "paid");
-    const closedSet = new Set(
-      ((closedFromQuotes ?? []) as { deal_id: string | null }[])
-        .map((r) => r.deal_id)
-        .filter(Boolean) as string[],
-    );
-    quotesClosed = quoteRows.filter((q) => q.deal_id && closedSet.has(q.deal_id)).length;
+      .select("id, deal_id, account_id, created_at")
+      .eq("payment_status", "paid")
+      .eq("document_type", "order");
+    paidQuery = scopeByCreator(paidQuery);
+    if (quoteDealIds.length > 0 || quoteAccountIds.length > 0) {
+      const clauses: string[] = [];
+      if (quoteDealIds.length > 0) clauses.push(`deal_id.in.(${quoteDealIds.join(",")})`);
+      if (quoteAccountIds.length > 0) clauses.push(`account_id.in.(${quoteAccountIds.join(",")})`);
+      paidQuery = paidQuery.or(clauses.join(","));
+    }
+    const { data: paidRows } = await paidQuery;
+    const paid = (paidRows ?? []) as {
+      id: string;
+      deal_id: string | null;
+      account_id: string | null;
+      created_at: string;
+    }[];
+    const paidByDeal = new Set(paid.map((p) => p.deal_id).filter(Boolean) as string[]);
+    // Group paid orders by account_id → sorted list of created_at so we
+    // can ask "is there a paid order for this account created ≥ quote".
+    const paidByAccount = new Map<string, string[]>();
+    for (const p of paid) {
+      if (!p.account_id) continue;
+      const list = paidByAccount.get(p.account_id) ?? [];
+      list.push(p.created_at);
+      paidByAccount.set(p.account_id, list);
+    }
+    for (const [k, v] of paidByAccount) {
+      v.sort();
+      paidByAccount.set(k, v);
+    }
+
+    quotesClosed = quoteRows.filter((q) => {
+      const dealId = q.deal_id;
+      if (dealId && paidByDeal.has(dealId)) return true;
+      const accountId = (q as { account_id?: string | null }).account_id;
+      if (!accountId) return false;
+      const paidAts = paidByAccount.get(accountId);
+      if (!paidAts || paidAts.length === 0) return false;
+      // Any paid order created at/after this quote → count it.
+      return paidAts.some((at) => at >= q.created_at);
+    }).length;
   }
   const closeRate = quoteRows.length > 0 ? quotesClosed / quoteRows.length : 0;
 
