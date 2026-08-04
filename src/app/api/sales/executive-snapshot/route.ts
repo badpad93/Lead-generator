@@ -224,20 +224,33 @@ export async function GET(req: NextRequest) {
   //   (b) its account_id matches a closed order's account_id and
   //       that closed order was created at/after the quote (i.e.
   //       plausibly resulted from it).
-  // Match quotes to closed orders on FOUR axes (any hit counts):
-  //   1. deal_id
-  //   2. lead_id
-  //   3. account_id — closed order exists for that account (ANY date)
-  //   4. recipient_email (lowercased) — closed order exists for that
-  //      recipient (ANY date). Reps very often type the same customer
-  //      email on both quote and follow-up order, so this catches the
-  //      case where none of the FKs are populated.
+  // Match quotes to closed orders.
   //
-  // No timestamp guard on axes 3 and 4: real pipelines have repeat
-  // customers whose paid orders often predate the newest quote, and
-  // requiring paid_at ≥ quote_at was zeroing the rate out. We
-  // interpret "this quote's customer has a closed relationship" as
-  // "closed" for the purpose of this metric.
+  // === Root cause + real fix (TODO) ===================================
+  // sales_accounts has no unique constraint on email/business_name, and
+  // every insert site is a naked INSERT — see the flows in
+  // src/lib/coffeeCrmMirror.ts, src/app/api/sales/accounts/route.ts,
+  // src/app/api/sales/leads/route.ts, src/lib/paymentHandlers.ts, etc.
+  // Rep-created quote accounts and coffee-mirror-created paid-order
+  // accounts are DIFFERENT sales_accounts rows for the same real
+  // customer, so direct account_id comparison never lands.
+  //
+  // The RIGHT fix is a dedup guard on sales_accounts inserts (find-or-
+  // create by normalized email+name), plus a one-shot backfill that
+  // merges duplicate accounts and updates all FKs. Until that ships,
+  // this metric normalizes both sides to a customer identity
+  // (email lowercased, or business_name lower+whitespace-collapsed) and
+  // matches through THAT. Direct FK matches still short-circuit first,
+  // so existing data-clean rows don't regress.
+  // ====================================================================
+  //
+  // Axes, any hit counts (highest to lowest confidence):
+  //   1. deal_id (exact)
+  //   2. lead_id (exact)
+  //   3. account_id (exact)
+  //   4. normalized email — quote.account.email OR quote.recipient_email
+  //      vs paid.account.email OR paid.recipient_email
+  //   5. normalized business_name (fallback for accounts with no email)
   //
   // "Closed" = payment_status='paid' OR status='completed' OR
   // order_status='completed'. No document_type filter — legacy orders
@@ -254,6 +267,7 @@ export async function GET(req: NextRequest) {
 
   let debugPaidAccountIds: string[] = [];
   let debugPaidCount = 0;
+  let debugMatchDetail: Record<string, unknown> = {};
 
   if (q2.length > 0) {
     let paidQuery = supabaseAdmin
@@ -277,22 +291,71 @@ export async function GET(req: NextRequest) {
       new Set(paid.map((p) => p.account_id).filter((v): v is string => !!v)),
     );
 
+    // Resolve every account_id referenced by either side to its
+    // sales_accounts row so we can match on normalized email/name.
+    const allAccountIds = Array.from(
+      new Set(
+        [
+          ...q2.map((q) => q.account_id),
+          ...paid.map((p) => p.account_id),
+        ].filter((v): v is string => !!v),
+      ),
+    );
+    const accountById = new Map<string, { email: string | null; business_name: string | null }>();
+    if (allAccountIds.length > 0) {
+      const { data: accts } = await supabaseAdmin
+        .from("sales_accounts")
+        .select("id, email, business_name")
+        .in("id", allAccountIds);
+      for (const a of accts ?? []) {
+        accountById.set(a.id, { email: a.email, business_name: a.business_name });
+      }
+    }
+
+    const normEmail = (s: string | null | undefined) =>
+      s ? s.trim().toLowerCase() || null : null;
+    const normName = (s: string | null | undefined) =>
+      s ? s.trim().toLowerCase().replace(/\s+/g, " ") || null : null;
+
+    // Build paid-side identity sets from account.email, account.business_name,
+    // and recipient_email.
+    const paidEmails = new Set<string>();
+    const paidNames = new Set<string>();
+    for (const p of paid) {
+      const acct = p.account_id ? accountById.get(p.account_id) : null;
+      const email = normEmail(acct?.email) ?? normEmail(p.recipient_email);
+      if (email) paidEmails.add(email);
+      const name = normName(acct?.business_name);
+      if (name) paidNames.add(name);
+    }
     const paidByDeal = new Set(paid.map((p) => p.deal_id).filter(Boolean) as string[]);
     const paidByLead = new Set(paid.map((p) => p.lead_id).filter(Boolean) as string[]);
-    const paidByAccount = new Set(paid.map((p) => p.account_id).filter((v): v is string => !!v));
-    const paidByEmail = new Set(
-      paid
-        .map((p) => p.recipient_email?.trim().toLowerCase())
-        .filter((v): v is string => !!v),
-    );
+    const paidByAccountId = new Set(paid.map((p) => p.account_id).filter((v): v is string => !!v));
 
+    let matchedByDeal = 0, matchedByLead = 0, matchedByAccount = 0, matchedByEmail = 0, matchedByName = 0;
     quotesClosed = q2.filter((q) => {
-      if (q.deal_id && paidByDeal.has(q.deal_id)) return true;
-      if (q.lead_id && paidByLead.has(q.lead_id)) return true;
-      if (q.account_id && paidByAccount.has(q.account_id)) return true;
-      if (q.recipient_email && paidByEmail.has(q.recipient_email.trim().toLowerCase())) return true;
+      if (q.deal_id && paidByDeal.has(q.deal_id)) { matchedByDeal++; return true; }
+      if (q.lead_id && paidByLead.has(q.lead_id)) { matchedByLead++; return true; }
+      if (q.account_id && paidByAccountId.has(q.account_id)) { matchedByAccount++; return true; }
+      const acct = q.account_id ? accountById.get(q.account_id) : null;
+      const qEmail = normEmail(acct?.email) ?? normEmail(q.recipient_email);
+      if (qEmail && paidEmails.has(qEmail)) { matchedByEmail++; return true; }
+      const qName = normName(acct?.business_name);
+      if (qName && paidNames.has(qName)) { matchedByName++; return true; }
       return false;
     }).length;
+
+    debugMatchDetail = {
+      matched_by_deal: matchedByDeal,
+      matched_by_lead: matchedByLead,
+      matched_by_account: matchedByAccount,
+      matched_by_email: matchedByEmail,
+      matched_by_business_name: matchedByName,
+      paid_side_distinct_emails: paidEmails.size,
+      paid_side_distinct_names: paidNames.size,
+      sample_paid_emails: Array.from(paidEmails).slice(0, 3),
+      sample_paid_names: Array.from(paidNames).slice(0, 3),
+    };
   }
   const closeRate = q2.length > 0 ? quotesClosed / q2.length : 0;
 
@@ -479,12 +542,10 @@ export async function GET(req: NextRequest) {
               quotes_have_recipient_email: q2.filter((q) => q.recipient_email).length,
               paid_orders_in_scope: debugPaidCount,
               paid_orders_distinct_account_ids: debugPaidAccountIds.length,
-              // Overlap between quote-side account_ids and paid-side
-              // account_ids — this number should equal quotesClosed when
-              // account_id is the only match axis populated.
               quote_account_ids_matching_paid: q2.filter(
                 (q) => q.account_id && debugPaidAccountIds.includes(q.account_id),
               ).length,
+              ...debugMatchDetail,
               sample_quotes: q2.slice(0, 3).map((q) => ({
                 id: q.id,
                 deal_id: q.deal_id,

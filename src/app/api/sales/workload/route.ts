@@ -231,14 +231,14 @@ export async function GET(req: NextRequest) {
   }
 
   // ─── Sales orders/quotes for close-rate ───────────────────────────
-  // Match quotes to paid orders permissively — a quote counts as
-  // closed if its deal_id ended up paid OR the same account_id has a
-  // paid order created at/after the quote. Deal-flow-less pipelines
-  // otherwise read 0% close rate because deal_id is rarely populated
-  // on either quote or order.
+  // See executive-snapshot for the full explanation of why we match
+  // through normalized sales_accounts identity instead of raw
+  // account_id: quotes and paid orders come from different creation
+  // flows that produce different sales_accounts rows for the same
+  // real customer. Real fix is a dedup guard + backfill.
   const { data: quoteRows } = await supabaseAdmin
     .from("sales_orders")
-    .select("id, deal_id, account_id, created_by, document_type, created_at")
+    .select("id, deal_id, account_id, lead_id, recipient_email, created_by, document_type, created_at")
     .in("created_by", staffIds)
     .eq("document_type", "quote")
     .gte("created_at", since);
@@ -246,60 +246,84 @@ export async function GET(req: NextRequest) {
     id: string;
     deal_id: string | null;
     account_id: string | null;
+    lead_id: string | null;
+    recipient_email: string | null;
     created_by: string;
     created_at: string;
   }[];
-  const quoteDealIds = Array.from(
-    new Set(quoteRowsList.map((q) => q.deal_id).filter(Boolean) as string[]),
-  );
-  const quoteAccountIds = Array.from(
-    new Set(quoteRowsList.map((q) => q.account_id).filter(Boolean) as string[]),
-  );
 
-  const paidByDeal = new Set<string>();
-  const paidByAccount = new Map<string, string[]>();
-  if (quoteRowsList.length > 0 && (quoteDealIds.length > 0 || quoteAccountIds.length > 0)) {
-    let paidQuery = supabaseAdmin
-      .from("sales_orders")
-      .select("deal_id, account_id, created_at, created_by")
-      .in("created_by", staffIds)
-      // Accept payment_status='paid' OR either of the two status
-      // columns being 'completed' — matches Won Revenue's definition
-      // and matches the executive snapshot.
-      .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed")
-      .eq("document_type", "order");
-    const clauses: string[] = [];
-    if (quoteDealIds.length > 0) clauses.push(`deal_id.in.(${quoteDealIds.join(",")})`);
-    if (quoteAccountIds.length > 0) clauses.push(`account_id.in.(${quoteAccountIds.join(",")})`);
-    paidQuery = paidQuery.or(clauses.join(","));
-    const { data: paidRows } = await paidQuery;
-    for (const p of (paidRows ?? []) as { deal_id: string | null; account_id: string | null; created_at: string }[]) {
-      if (p.deal_id) paidByDeal.add(p.deal_id);
-      if (p.account_id) {
-        const list = paidByAccount.get(p.account_id) ?? [];
-        list.push(p.created_at);
-        paidByAccount.set(p.account_id, list);
-      }
-    }
-    for (const [k, v] of paidByAccount) {
-      v.sort();
-      paidByAccount.set(k, v);
-    }
-  }
-
-  // Match on ANY of deal_id, account_id (no timestamp guard —
-  // repeat customers whose paid orders predate a new quote were
-  // being dropped).
-  const paidByAccountSet = new Set(paidByAccount.keys());
   const quotesSentByUser = new Map<string, number>();
   const quotesClosedByUser = new Map<string, number>();
-  for (const q of quoteRowsList) {
-    quotesSentByUser.set(q.created_by, (quotesSentByUser.get(q.created_by) ?? 0) + 1);
-    const closed =
-      (q.deal_id && paidByDeal.has(q.deal_id)) ||
-      (q.account_id && paidByAccountSet.has(q.account_id));
-    if (closed) {
-      quotesClosedByUser.set(q.created_by, (quotesClosedByUser.get(q.created_by) ?? 0) + 1);
+
+  if (quoteRowsList.length > 0) {
+    // Pull every closed order in scope (any date, any doc_type).
+    const { data: paidRowsAll } = await supabaseAdmin
+      .from("sales_orders")
+      .select("deal_id, account_id, lead_id, recipient_email, created_at, created_by, document_type")
+      .in("created_by", staffIds)
+      .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed");
+    const paid = ((paidRowsAll ?? []) as Array<{
+      deal_id: string | null;
+      account_id: string | null;
+      lead_id: string | null;
+      recipient_email: string | null;
+      created_at: string;
+      created_by: string;
+      document_type: string | null;
+    }>).filter((p) => p.document_type !== "quote");
+
+    // Resolve every referenced account_id to its normalized identity.
+    const allAccountIds = Array.from(
+      new Set(
+        [
+          ...quoteRowsList.map((q) => q.account_id),
+          ...paid.map((p) => p.account_id),
+        ].filter((v): v is string => !!v),
+      ),
+    );
+    const accountById = new Map<string, { email: string | null; business_name: string | null }>();
+    if (allAccountIds.length > 0) {
+      const { data: accts } = await supabaseAdmin
+        .from("sales_accounts")
+        .select("id, email, business_name")
+        .in("id", allAccountIds);
+      for (const a of accts ?? []) {
+        accountById.set(a.id, { email: a.email, business_name: a.business_name });
+      }
+    }
+
+    const normEmail = (s: string | null | undefined) =>
+      s ? s.trim().toLowerCase() || null : null;
+    const normName = (s: string | null | undefined) =>
+      s ? s.trim().toLowerCase().replace(/\s+/g, " ") || null : null;
+
+    const paidByDeal = new Set(paid.map((p) => p.deal_id).filter(Boolean) as string[]);
+    const paidByLead = new Set(paid.map((p) => p.lead_id).filter(Boolean) as string[]);
+    const paidByAccountId = new Set(paid.map((p) => p.account_id).filter((v): v is string => !!v));
+    const paidEmails = new Set<string>();
+    const paidNames = new Set<string>();
+    for (const p of paid) {
+      const acct = p.account_id ? accountById.get(p.account_id) : null;
+      const email = normEmail(acct?.email) ?? normEmail(p.recipient_email);
+      if (email) paidEmails.add(email);
+      const name = normName(acct?.business_name);
+      if (name) paidNames.add(name);
+    }
+
+    for (const q of quoteRowsList) {
+      quotesSentByUser.set(q.created_by, (quotesSentByUser.get(q.created_by) ?? 0) + 1);
+      const acct = q.account_id ? accountById.get(q.account_id) : null;
+      const qEmail = normEmail(acct?.email) ?? normEmail(q.recipient_email);
+      const qName = normName(acct?.business_name);
+      const closed =
+        (q.deal_id && paidByDeal.has(q.deal_id)) ||
+        (q.lead_id && paidByLead.has(q.lead_id)) ||
+        (q.account_id && paidByAccountId.has(q.account_id)) ||
+        (qEmail && paidEmails.has(qEmail)) ||
+        (qName && paidNames.has(qName));
+      if (closed) {
+        quotesClosedByUser.set(q.created_by, (quotesClosedByUser.get(q.created_by) ?? 0) + 1);
+      }
     }
   }
 
