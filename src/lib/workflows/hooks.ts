@@ -438,7 +438,7 @@ export async function attachCoffeeOrderToServiceWorkflow(args: {
     spawned = result.created;
   }
 
-  const { attachOrderToWorkflow } = await import("./service");
+  const { attachOrderToWorkflow, addNote } = await import("./service");
   const item = await attachOrderToWorkflow({
     workflowId,
     externalOrderId: args.coffeeOrderId,
@@ -447,6 +447,38 @@ export async function attachCoffeeOrderToServiceWorkflow(args: {
     orderTotal: args.orderTotal,
     orderStatus: args.orderStatus,
   });
+
+  // Also drop the order specifics into workflow_notes as an internal
+  // note so fulfillment can read "what needs to ship" directly from
+  // the workflow instead of digging into the order table. Fetch items
+  // here rather than pushing them through the call signature so every
+  // call site benefits.
+  try {
+    const { data: items } = await supabaseAdmin
+      .from("coffee_order_items")
+      .select("product_name, product_sku, quantity, unit_price, line_total")
+      .eq("order_id", args.coffeeOrderId);
+    const lines = (items ?? []).map((i) => {
+      const sku = i.product_sku ? ` (${i.product_sku})` : "";
+      const unit = i.unit_price != null ? ` @ $${Number(i.unit_price).toFixed(2)}` : "";
+      const line = i.line_total != null ? ` = $${Number(i.line_total).toFixed(2)}` : "";
+      return `• ${i.quantity ?? 1}× ${i.product_name ?? "Item"}${sku}${unit}${line}`;
+    });
+    const header = `Coffee order #${args.orderNumber ?? args.coffeeOrderId.slice(0, 8)} placed`;
+    const totalLine = args.orderTotal != null
+      ? `Total: $${Number(args.orderTotal).toFixed(2)}`
+      : "";
+    const body = [header, "", ...lines, totalLine].filter(Boolean).join("\n");
+    await addNote({
+      workflowId,
+      body,
+      visibility: "internal",
+      authorUserId: null,
+    });
+  } catch (noteErr) {
+    // Never let note failure block the attach + stage advance.
+    console.error("[coffee-hook] order-note insert failed:", noteErr);
+  }
 
   // Advance "initial_order_placed" → "recurring_active" on first order.
   // Best-effort — the template may not have these stage keys (custom

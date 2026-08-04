@@ -243,6 +243,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     isStaffView: staffView,
     isOwner,
     canDelete: hasPermission(actor, "workflows.delete"),
+    // Exposed so the Assignees panel can decide whether the current
+    // viewer's own assignment needs an "Accept" button.
+    viewerId: actor.id,
   });
 }
 

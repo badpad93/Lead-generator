@@ -58,6 +58,7 @@ interface Assignment {
   team: string | null;
   active: boolean;
   assigned_at: string;
+  accepted_at: string | null;
   user_profile: { full_name: string | null; email: string | null } | null;
 }
 interface Shipment {
@@ -144,6 +145,7 @@ interface DetailPayload {
   assigneeDisplay: string | null;
   isStaffView: boolean;
   canDelete: boolean;
+  viewerId: string;
 }
 
 export default function WorkflowDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -351,6 +353,7 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
             assignments={data.assignments}
             assigneeDisplay={data.assigneeDisplay}
             currentUserId={w.assigned_user_id}
+            viewerId={data.viewerId}
             team={w.primary_team}
             staffView={data.isStaffView}
             workflowId={id}
@@ -797,6 +800,7 @@ function AssigneesTile({
   assignments,
   assigneeDisplay,
   currentUserId,
+  viewerId,
   team,
   staffView,
   workflowId,
@@ -805,6 +809,7 @@ function AssigneesTile({
   assignments: Assignment[];
   assigneeDisplay: string | null;
   currentUserId: string | null;
+  viewerId: string;
   team: string | null;
   staffView: boolean;
   workflowId: string;
@@ -878,6 +883,24 @@ function AssigneesTile({
     }
   }
 
+  async function acceptAssignment(assignmentId: string) {
+    setBusy(assignmentId);
+    const res = await withAuth((token) =>
+      fetch(`/api/workflows/${workflowId}/assign/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ assignmentId }),
+      }),
+    );
+    setBusy(null);
+    if (res && res.ok) {
+      await onChanged();
+    } else if (res) {
+      const err = await res.json().catch(() => ({}));
+      alert(`Failed: ${err.error ?? "Unknown"}`);
+    }
+  }
+
   // Show only active rows. Sort primary_owner first so the tile has a
   // clear header person.
   const active = [...assignments]
@@ -904,29 +927,64 @@ function AssigneesTile({
         </div>
       ) : (
         <div className="mt-1 space-y-1">
-          {active.map((a) => (
-            <div key={a.id} className="flex items-center justify-between gap-2 text-sm">
-              <div className="min-w-0">
-                <div className="font-medium text-gray-900 truncate">
-                  {a.user_profile?.full_name ?? a.user_profile?.email ?? a.user_id.slice(0, 8)}
+          {active.map((a) => {
+            const isViewer = a.user_id === viewerId;
+            const isPending = !a.accepted_at;
+            return (
+              <div key={a.id} className="flex items-center justify-between gap-2 text-sm">
+                <div className="min-w-0">
+                  <div className="font-medium text-gray-900 truncate">
+                    {a.user_profile?.full_name ?? a.user_profile?.email ?? a.user_id.slice(0, 8)}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] uppercase tracking-wide text-gray-500">
+                      {a.role.replace(/_/g, " ")}
+                    </span>
+                    {isPending ? (
+                      <span
+                        className="inline-flex items-center rounded-full bg-amber-50 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium"
+                        title="Assignee has not yet accepted this workflow"
+                      >
+                        Pending
+                      </span>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-[10px] font-medium"
+                        title={`Accepted ${new Date(a.accepted_at!).toLocaleString()}`}
+                      >
+                        <CheckCircle2 className="h-2.5 w-2.5" />
+                        Accepted
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-[10px] uppercase tracking-wide text-gray-500">
-                  {a.role.replace(/_/g, " ")}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {isViewer && isPending && (
+                    <button
+                      type="button"
+                      onClick={() => acceptAssignment(a.id)}
+                      disabled={busy === a.id}
+                      className="inline-flex items-center gap-1 rounded-md bg-emerald-600 text-white px-2 py-0.5 text-[11px] font-medium hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {busy === a.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                      Accept
+                    </button>
+                  )}
+                  {staffView && (
+                    <button
+                      type="button"
+                      onClick={() => removeAssignment(a.id)}
+                      disabled={busy === a.id}
+                      className="text-gray-400 hover:text-red-600 disabled:opacity-40"
+                      title="Remove this assignment"
+                    >
+                      {busy === a.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                    </button>
+                  )}
                 </div>
               </div>
-              {staffView && (
-                <button
-                  type="button"
-                  onClick={() => removeAssignment(a.id)}
-                  disabled={busy === a.id}
-                  className="text-gray-400 hover:text-red-600 disabled:opacity-40"
-                  title="Remove this assignment"
-                >
-                  {busy === a.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3.5 w-3.5" />}
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
