@@ -263,7 +263,10 @@ export async function GET(req: NextRequest) {
       .from("sales_orders")
       .select("deal_id, account_id, created_at, created_by")
       .in("created_by", staffIds)
-      .eq("payment_status", "paid")
+      // Accept payment_status='paid' OR either of the two status
+      // columns being 'completed' — matches Won Revenue's definition
+      // and matches the executive snapshot.
+      .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed")
       .eq("document_type", "order");
     const clauses: string[] = [];
     if (quoteDealIds.length > 0) clauses.push(`deal_id.in.(${quoteDealIds.join(",")})`);
