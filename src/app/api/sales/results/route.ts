@@ -333,12 +333,14 @@ export async function GET(req: NextRequest) {
         paidByAccount.set(k, v);
       }
     }
+    // No timestamp guard: repeat customers whose paid orders predate a
+    // new quote were being dropped, zeroing the rate out.
+    const paidAccountSet = new Set(paidByAccount.keys());
     const closedQuotes = quotesInPeriod.filter((q) => {
       if (q.deal_id && paidByDeal.has(q.deal_id)) return true;
       const accountId = (q as { account_id?: string | null }).account_id;
-      if (!accountId) return false;
-      const paidAts = paidByAccount.get(accountId);
-      return paidAts?.some((at) => at >= q.created_at) ?? false;
+      if (accountId && paidAccountSet.has(accountId)) return true;
+      return false;
     }).length;
     closeRate = closedQuotes / quotesInPeriod.length;
   }
