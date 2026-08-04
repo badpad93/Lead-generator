@@ -305,7 +305,10 @@ export async function GET(req: NextRequest) {
       let paidQuery = supabaseAdmin
         .from("sales_orders")
         .select("deal_id, account_id, created_at, created_by")
-        .eq("payment_status", "paid");
+        // "Closed" here = payment_status='paid' OR either status column
+        // = 'completed', matching the Won Revenue definition on this
+        // same page so the two numbers stay coherent.
+        .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed");
       if (targetUserId) paidQuery = paidQuery.eq("created_by", targetUserId);
       else if (allowedUserIds) paidQuery = paidQuery.in("created_by", allowedUserIds);
       const clauses: string[] = [];

@@ -211,20 +211,19 @@ export async function GET(req: NextRequest) {
   const quoteTotalValue = quoteRows.reduce((s, q) => s + Number(q.total_value ?? 0), 0);
   const ordersCompleted = orderRows.filter((o) => o.status === "completed").length;
 
-  // Close rate = quotes-in-period that turned into a paid order,
-  // divided by quotes sent in period. "Paid" is strictly
-  // payment_status='paid'.
+  // Close rate = quotes-in-period that turned into a closed order,
+  // divided by quotes sent in period. "Closed" here is
+  // payment_status='paid' OR status='completed' — this matches the
+  // Won Revenue definition on the Results tile so the two numbers
+  // stay coherent (many teams mark orders completed without
+  // literally touching payment_status='paid').
   //
   // Matching is permissive because real-world quotes often skip
   // deal-flow: a quote counts as closed if ANY of these hold —
-  //   (a) its deal_id matches a paid order's deal_id, OR
-  //   (b) its account_id matches a paid order's account_id and that
-  //       paid order was created at/after the quote (i.e. plausibly
-  //       resulted from it).
-  //
-  // Without (b), close rate reads 0% whenever the rep quoted the
-  // customer directly and then created the order without a deal
-  // record — which is the common case for many pipelines.
+  //   (a) its deal_id matches a closed order's deal_id, OR
+  //   (b) its account_id matches a closed order's account_id and
+  //       that closed order was created at/after the quote (i.e.
+  //       plausibly resulted from it).
   let quotesClosed = 0;
   const quoteAccountIds = Array.from(
     new Set(
@@ -234,13 +233,15 @@ export async function GET(req: NextRequest) {
     ),
   );
   if (quoteRows.length > 0) {
-    // Pull every paid order whose deal_id OR account_id overlaps our
-    // quotes' set. Scope to the same reps so a different rep's paid
-    // order doesn't credit this one.
+    // Pull every closed (paid OR completed) order whose deal_id OR
+    // account_id overlaps our quotes' set.
     let paidQuery = supabaseAdmin
       .from("sales_orders")
       .select("id, deal_id, account_id, created_at")
-      .eq("payment_status", "paid")
+      // sales_orders has BOTH `status` and `order_status`; different
+      // parts of the app write to each. Accept either being 'completed'
+      // as evidence the order closed, plus payment_status='paid'.
+      .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed")
       .eq("document_type", "order");
     paidQuery = scopeByCreator(paidQuery);
     if (quoteDealIds.length > 0 || quoteAccountIds.length > 0) {
