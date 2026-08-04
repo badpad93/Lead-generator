@@ -70,17 +70,20 @@ export async function POST(req: NextRequest) {
       crmLeadId = existingLead.id;
       crmAccountId = existingLead.account_id;
     } else {
-      const { data: account } = await supabaseAdmin
-        .from("sales_accounts")
-        .insert({
+      const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
+      let account: { id: string } | null = null;
+      try {
+        const resolved = await findOrCreateSalesAccount({
           business_name: financingBizName,
           contact_name: body.full_name,
           phone: body.phone,
           email: body.email,
           entity_type: "operator",
-        })
-        .select("id")
-        .single();
+        });
+        account = { id: resolved.id };
+      } catch {
+        account = null;
+      }
 
       if (account) {
         crmAccountId = account.id;

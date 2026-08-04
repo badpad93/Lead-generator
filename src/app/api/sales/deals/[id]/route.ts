@@ -93,22 +93,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.stage === "won" && deal.stage !== "won") {
     const lead = deal.sales_leads;
 
-    // Auto-create account if none exists
+    // Auto-attach account via dedup-guarded resolver.
     if (!deal.account_id) {
-      const { data: account } = await supabaseAdmin
-        .from("sales_accounts")
-        .insert({
+      const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
+      try {
+        const account = await findOrCreateSalesAccount({
           business_name: deal.business_name,
-          contact_name: lead?.contact_name || null,
-          phone: lead?.phone || null,
-          email: lead?.email || null,
-          address: lead?.address || null,
-        })
-        .select("id")
-        .single();
-
-      if (account) {
+          contact_name: lead?.contact_name ?? null,
+          phone: lead?.phone ?? null,
+          email: lead?.email ?? null,
+          address: lead?.address ?? null,
+        });
         updates.account_id = account.id;
+      } catch {
+        // Leave account_id null on failure — non-fatal.
       }
     }
 

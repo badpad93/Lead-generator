@@ -130,18 +130,21 @@ export async function POST(req: Request) {
     );
   }
 
-  const { error: accountError } = await supabaseAdmin.from("sales_accounts").insert({
-    business_name,
-    contact_name,
-    phone,
-    email,
-    address,
-    notes: `Auto-created from location services request — ${machine_count} machine(s), ZIP(s) ${zip_code}, ${state}`,
-    assigned_to: referringRep,
-    created_by: referringRep,
-  });
-
-  if (accountError) {
+  // Dedup-guarded — same customer requesting location services twice
+  // no longer forks a second account.
+  try {
+    const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
+    await findOrCreateSalesAccount({
+      business_name,
+      contact_name,
+      phone,
+      email,
+      address,
+      notes: `Auto-created from location services request — ${machine_count} machine(s), ZIP(s) ${zip_code}, ${state}`,
+      assigned_to: referringRep,
+      created_by: referringRep,
+    });
+  } catch (accountError) {
     console.error("[request-location] account creation error", accountError);
   }
 

@@ -35,30 +35,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Lead is already in a pipeline" }, { status: 400 });
   }
 
-  // Create or find account
+  // Route both the find and the create through the shared resolver
+  // so normalized email/name/phone matching applies uniformly.
   let accountId = lead.account_id;
   if (!accountId) {
-    const { data: existingAccount } = await supabaseAdmin
-      .from("sales_accounts")
-      .select("id")
-      .eq("email", lead.email)
-      .maybeSingle();
-
-    if (existingAccount) {
-      accountId = existingAccount.id;
-    } else {
-      const { data: newAccount } = await supabaseAdmin
-        .from("sales_accounts")
-        .insert({
-          business_name: lead.business_name,
-          contact_name: lead.contact_name,
-          email: lead.email,
-          phone: lead.phone,
-          address: lead.address,
-        })
-        .select("id")
-        .single();
-      accountId = newAccount?.id || null;
+    const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
+    try {
+      const resolved = await findOrCreateSalesAccount({
+        business_name: lead.business_name,
+        contact_name: lead.contact_name,
+        email: lead.email,
+        phone: lead.phone,
+        address: lead.address,
+      });
+      accountId = resolved.id;
+    } catch {
+      accountId = null;
     }
   }
 
