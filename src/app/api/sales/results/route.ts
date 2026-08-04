@@ -279,67 +279,91 @@ export async function GET(req: NextRequest) {
   );
   const completedOrders = (orders || []).filter((o) => o.status === "completed").length;
 
-  // Close rate = quotes-in-period that turned into a paid order /
-  // quotes-in-period. "Paid" is strictly payment_status='paid'.
+  // Close rate = quotes-in-period that turned into a closed order.
+  // Full logic docs live in /api/sales/executive-snapshot; the tl;dr
+  // is: sales_accounts has no dedup, quotes and paid orders come from
+  // different flows creating different account rows for the same
+  // customer, so we match through normalized identity (email,
+  // business_name) resolved via sales_accounts. Direct FK matches
+  // (deal_id, lead_id, account_id) short-circuit first so any cleanly
+  // linked pipeline still hits them.
   //
-  // Match permissively — a quote counts as closed if EITHER its
-  // deal_id matches a paid order's deal_id OR its account_id
-  // matches a paid order's account_id created at/after the quote.
-  // Deal-flow-less pipelines were previously reading 0% because
-  // deal_id is rarely populated on real quotes or orders.
+  // TODO(dedup): the real fix is a find-or-create dedup guard on all
+  // sales_accounts insert sites + a one-shot backfill merging existing
+  // duplicates. Until that ships this normalized-identity match
+  // approximates close rate for messy data.
   let closeRate = 0;
   if (quotesInPeriod.length > 0) {
-    const quoteDealIds = Array.from(
-      new Set(quotesInPeriod.map((q) => q.deal_id).filter(Boolean) as string[]),
-    );
-    const quoteAccountIds = Array.from(
+    const closedRowsQuery = supabaseAdmin
+      .from("sales_orders")
+      .select("deal_id, account_id, lead_id, recipient_email, created_at, created_by, document_type")
+      .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed");
+    let closedRowsScoped = closedRowsQuery;
+    if (targetUserId) closedRowsScoped = closedRowsScoped.eq("created_by", targetUserId);
+    else if (allowedUserIds) closedRowsScoped = closedRowsScoped.in("created_by", allowedUserIds);
+    const { data: closedRowsAll } = await closedRowsScoped;
+    const closed = ((closedRowsAll ?? []) as Array<{
+      deal_id: string | null;
+      account_id: string | null;
+      lead_id: string | null;
+      recipient_email: string | null;
+      created_at: string;
+      created_by: string;
+      document_type: string | null;
+    }>).filter((p) => p.document_type !== "quote");
+
+    const allAccountIds = Array.from(
       new Set(
-        quotesInPeriod
-          .map((q) => (q as { account_id?: string | null }).account_id)
-          .filter((v): v is string => !!v),
+        [
+          ...quotesInPeriod.map((q) => (q as { account_id?: string | null }).account_id),
+          ...closed.map((p) => p.account_id),
+        ].filter((v): v is string => !!v),
       ),
     );
-    const paidByDeal = new Set<string>();
-    const paidByAccount = new Map<string, string[]>();
-    if (quoteDealIds.length > 0 || quoteAccountIds.length > 0) {
-      let paidQuery = supabaseAdmin
-        .from("sales_orders")
-        .select("deal_id, account_id, created_at, created_by")
-        // "Closed" here = payment_status='paid' OR either status column
-        // = 'completed', matching the Won Revenue definition on this
-        // same page so the two numbers stay coherent.
-        .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed");
-      if (targetUserId) paidQuery = paidQuery.eq("created_by", targetUserId);
-      else if (allowedUserIds) paidQuery = paidQuery.in("created_by", allowedUserIds);
-      const clauses: string[] = [];
-      if (quoteDealIds.length > 0) clauses.push(`deal_id.in.(${quoteDealIds.join(",")})`);
-      if (quoteAccountIds.length > 0) clauses.push(`account_id.in.(${quoteAccountIds.join(",")})`);
-      paidQuery = paidQuery.or(clauses.join(","));
-      const { data: paidRows } = await paidQuery;
-      for (const p of (paidRows ?? []) as {
-        deal_id: string | null;
-        account_id: string | null;
-        created_at: string;
-      }[]) {
-        if (p.deal_id) paidByDeal.add(p.deal_id);
-        if (p.account_id) {
-          const list = paidByAccount.get(p.account_id) ?? [];
-          list.push(p.created_at);
-          paidByAccount.set(p.account_id, list);
-        }
-      }
-      for (const [k, v] of paidByAccount) {
-        v.sort();
-        paidByAccount.set(k, v);
+    const accountById = new Map<string, { email: string | null; business_name: string | null }>();
+    if (allAccountIds.length > 0) {
+      const { data: accts } = await supabaseAdmin
+        .from("sales_accounts")
+        .select("id, email, business_name")
+        .in("id", allAccountIds);
+      for (const a of accts ?? []) {
+        accountById.set(a.id, { email: a.email, business_name: a.business_name });
       }
     }
-    // No timestamp guard: repeat customers whose paid orders predate a
-    // new quote were being dropped, zeroing the rate out.
-    const paidAccountSet = new Set(paidByAccount.keys());
+
+    const normEmail = (s: string | null | undefined) =>
+      s ? s.trim().toLowerCase() || null : null;
+    const normName = (s: string | null | undefined) =>
+      s ? s.trim().toLowerCase().replace(/\s+/g, " ") || null : null;
+
+    const paidByDeal = new Set(closed.map((p) => p.deal_id).filter(Boolean) as string[]);
+    const paidByLead = new Set(closed.map((p) => p.lead_id).filter(Boolean) as string[]);
+    const paidByAccountId = new Set(closed.map((p) => p.account_id).filter((v): v is string => !!v));
+    const paidEmails = new Set<string>();
+    const paidNames = new Set<string>();
+    for (const p of closed) {
+      const acct = p.account_id ? accountById.get(p.account_id) : null;
+      const email = normEmail(acct?.email) ?? normEmail(p.recipient_email);
+      if (email) paidEmails.add(email);
+      const name = normName(acct?.business_name);
+      if (name) paidNames.add(name);
+    }
+
     const closedQuotes = quotesInPeriod.filter((q) => {
-      if (q.deal_id && paidByDeal.has(q.deal_id)) return true;
-      const accountId = (q as { account_id?: string | null }).account_id;
-      if (accountId && paidAccountSet.has(accountId)) return true;
+      const qq = q as {
+        deal_id: string | null;
+        account_id: string | null;
+        lead_id?: string | null;
+        recipient_email?: string | null;
+      };
+      if (qq.deal_id && paidByDeal.has(qq.deal_id)) return true;
+      if (qq.lead_id && paidByLead.has(qq.lead_id)) return true;
+      if (qq.account_id && paidByAccountId.has(qq.account_id)) return true;
+      const acct = qq.account_id ? accountById.get(qq.account_id) : null;
+      const qEmail = normEmail(acct?.email) ?? normEmail(qq.recipient_email);
+      if (qEmail && paidEmails.has(qEmail)) return true;
+      const qName = normName(acct?.business_name);
+      if (qName && paidNames.has(qName)) return true;
       return false;
     }).length;
     closeRate = closedQuotes / quotesInPeriod.length;
