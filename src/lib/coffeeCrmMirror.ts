@@ -12,6 +12,7 @@
 
 import { supabaseAdmin } from "./supabaseAdmin";
 import { writeAuditLog } from "./paymentLedger";
+import { findOrCreateSalesAccount } from "./salesAccountResolver";
 
 export interface MirrorResult {
   status: "created" | "already_mirrored" | "skipped_not_paid" | "not_found";
@@ -22,9 +23,10 @@ export interface MirrorResult {
 }
 
 /**
- * Find or create a sales_accounts row for a coffee-order buyer. Uses
- * profile.email as the natural key. If nothing matches, creates a minimal
- * account so the CRM link is preserved.
+ * Find or create a sales_accounts row for a coffee-order buyer via the
+ * shared findOrCreateSalesAccount helper — same normalization used
+ * everywhere else, so rep-created accounts and mirror-created accounts
+ * dedup on matching email or business_name.
  */
 async function ensureAccountForOperator(operatorId: string): Promise<string | null> {
   const { data: profile } = await supabaseAdmin
@@ -34,38 +36,18 @@ async function ensureAccountForOperator(operatorId: string): Promise<string | nu
     .maybeSingle();
   if (!profile) return null;
 
-  // Try existing account by email
-  if (profile.email) {
-    const { data: existing } = await supabaseAdmin
-      .from("sales_accounts")
-      .select("id")
-      .eq("email", profile.email.toLowerCase())
-      .maybeSingle();
-    if (existing) return existing.id;
-  }
-
-  // Fall back to name match
   const businessName = profile.company_name?.trim() || profile.full_name?.trim() || "Coffee Customer";
-  const { data: byName } = await supabaseAdmin
-    .from("sales_accounts")
-    .select("id")
-    .eq("business_name", businessName)
-    .maybeSingle();
-  if (byName) return byName.id;
-
-  // Create a new account. business_name is NOT NULL.
-  const { data: created, error } = await supabaseAdmin
-    .from("sales_accounts")
-    .insert({
+  try {
+    const { id } = await findOrCreateSalesAccount({
+      email: profile.email ?? null,
       business_name: businessName,
-      contact_name: profile.full_name || null,
-      email: profile.email?.toLowerCase() || null,
-      phone: profile.phone || null,
-    })
-    .select("id")
-    .single();
-  if (error || !created) return null;
-  return created.id;
+      contact_name: profile.full_name ?? null,
+      phone: profile.phone ?? null,
+    });
+    return id;
+  } catch {
+    return null;
+  }
 }
 
 export async function mirrorCoffeeOrderToCrm(coffeeOrderId: string): Promise<MirrorResult> {

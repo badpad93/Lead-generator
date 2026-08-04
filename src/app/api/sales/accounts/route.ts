@@ -63,22 +63,26 @@ export async function POST(req: NextRequest) {
   if (!email)
     return NextResponse.json({ error: "email required" }, { status: 400 });
 
-  const { data, error } = await supabaseAdmin
-    .from("sales_accounts")
-    .insert({
+  // Route through the shared resolver so the manual-create-account
+  // form no longer forks a fresh row for a customer that already has
+  // one under a different intake flow.
+  const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
+  try {
+    const { id, created } = await findOrCreateSalesAccount({
       business_name,
-      contact_name: contact_name || null,
-      phone: phone || null,
-      email: email || null,
-      address: address || null,
-      notes: notes || null,
-      entity_type: entity_type || null,
+      contact_name,
+      phone,
+      email,
+      address,
+      notes,
+      entity_type,
       assigned_to: user.id,
       created_by: user.id,
-    })
-    .select("*")
-    .single();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data, { status: 201 });
+    });
+    const { data } = await supabaseAdmin.from("sales_accounts").select("*").eq("id", id).single();
+    return NextResponse.json(data, { status: created ? 201 : 200 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Insert failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

@@ -94,23 +94,25 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { data: account, error: acctErr } = await supabaseAdmin
-    .from("sales_accounts")
-    .insert({
+  // Dedup guard — reuse an existing sales_accounts row for this
+  // customer instead of forking a new one.
+  const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
+  let account: { id: string };
+  try {
+    const resolved = await findOrCreateSalesAccount({
       business_name,
-      contact_name: contact_name || null,
-      phone: phone || null,
-      email: email || null,
-      address: address || null,
-      entity_type: entity_type || null,
+      contact_name,
+      phone,
+      email,
+      address,
+      entity_type,
       assigned_to: user.id,
       created_by: user.id,
-    })
-    .select("id")
-    .single();
-
-  if (acctErr) {
-    return NextResponse.json({ error: `Account create failed: ${acctErr.message}` }, { status: 500 });
+    });
+    account = { id: resolved.id };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "unknown";
+    return NextResponse.json({ error: `Account create failed: ${msg}` }, { status: 500 });
   }
 
   const { data, error } = await supabaseAdmin

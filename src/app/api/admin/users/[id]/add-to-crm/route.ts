@@ -46,9 +46,10 @@ export async function POST(
     return NextResponse.json({ error: "This user is already in the CRM" }, { status: 409 });
   }
 
-  const { data: account, error: acctErr } = await supabaseAdmin
-    .from("sales_accounts")
-    .insert({
+  const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
+  let account: { id: string };
+  try {
+    const resolved = await findOrCreateSalesAccount({
       business_name: businessName,
       contact_name: profile.full_name || null,
       phone: profile.phone || null,
@@ -57,13 +58,12 @@ export async function POST(
       entity_type: entityType,
       assigned_to: assignedTo,
       created_by: adminId,
-    })
-    .select("id")
-    .single();
-
-  if (acctErr) {
+    });
+    account = { id: resolved.id };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "unknown";
     return NextResponse.json(
-      { error: `Account create failed: ${acctErr.message}` },
+      { error: `Account create failed: ${msg}` },
       { status: 500 }
     );
   }

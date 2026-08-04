@@ -62,27 +62,24 @@ export async function POST(req: NextRequest) {
 
   const assigneeId = await getDefaultAssigneeId();
 
-  const { data: account, error: acctErr } = await supabaseAdmin
-    .from("sales_accounts")
-    .insert({
+  const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
+  let account: { id: string };
+  try {
+    const resolved = await findOrCreateSalesAccount({
       business_name,
-      contact_name: contact_name || null,
-      phone: phone || null,
+      contact_name,
+      phone,
       email: email || user.email || null,
-      address: address || null,
-      city: city || null,
-      state: state || null,
-      zip: zip || null,
-      entity_type: entity_type || null,
+      address,
+      entity_type,
       assigned_to: assigneeId,
       created_by: assigneeId,
-    })
-    .select("id")
-    .single();
-
-  if (acctErr) {
+    });
+    account = { id: resolved.id };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "unknown";
     return NextResponse.json(
-      { error: `Account create failed: ${acctErr.message}` },
+      { error: `Account create failed: ${msg}` },
       { status: 500 }
     );
   }

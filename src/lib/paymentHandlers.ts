@@ -396,18 +396,21 @@ export async function handleMachinePurchaseCompleted(params: {
         })
         .eq("id", purchaseId);
     } else {
-      const { data: account } = await supabaseAdmin
-        .from("sales_accounts")
-        .insert({
+      const { findOrCreateSalesAccount } = await import("./salesAccountResolver");
+      let account: { id: string } | null = null;
+      try {
+        const resolved = await findOrCreateSalesAccount({
           business_name: purchaseBizName,
           contact_name: purchase.full_name,
           phone: purchase.phone,
           email: purchase.email,
           address: purchase.location_address || null,
           entity_type: "operator",
-        })
-        .select("id")
-        .single();
+        });
+        account = { id: resolved.id };
+      } catch {
+        account = null;
+      }
 
       if (account) {
         const { data: lead } = await supabaseAdmin

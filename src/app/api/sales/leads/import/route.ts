@@ -65,20 +65,26 @@ export async function POST(req: NextRequest) {
     const immediateNeed = row.immediate_need && VALID_IMMEDIATE_NEEDS.includes(row.immediate_need)
       ? row.immediate_need : null;
 
-    const { data: account } = await supabaseAdmin
-      .from("sales_accounts")
-      .insert({
+    // Dedup-guarded: CSV imports historically forked accounts per
+    // row. Now a re-import with the same contact email/business
+    // reuses the existing row.
+    const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
+    let account: { id: string } | null = null;
+    try {
+      const resolved = await findOrCreateSalesAccount({
         business_name: row.business_name.trim(),
-        contact_name: row.contact_name?.trim() || null,
-        phone: row.phone?.trim() || null,
-        email: row.email?.trim() || null,
-        address: row.address?.trim() || null,
+        contact_name: row.contact_name?.trim(),
+        phone: row.phone?.trim(),
+        email: row.email?.trim(),
+        address: row.address?.trim(),
         entity_type: entityType,
         assigned_to: user.id,
         created_by: user.id,
-      })
-      .select("id")
-      .single();
+      });
+      account = { id: resolved.id };
+    } catch {
+      account = null;
+    }
 
     const { error } = await supabaseAdmin
       .from("sales_leads")

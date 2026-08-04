@@ -506,9 +506,12 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
           icon={<FileText className="h-4 w-4" />}
           label="Quotes"
           primary={`${q.sent} sent`}
-          numerator={q.closed}
-          denominator={q.sent}
-          progressLabel={`${q.closed} closed (${Math.round(q.close_rate * 100)}% close rate)`}
+          numerator={0}
+          denominator={0}
+          // Close-rate matching is unreliable until admin dedup finishes
+          // (see /admin/accounts/duplicates). Show a truthful placeholder
+          // instead of the misleading 0% we used to render.
+          progressLabel="Close rate: pending admin dedup"
           rows={[
             [`Converted to order`, `${q.converted}`],
             [`Outstanding`, `${q.outstanding}`],
@@ -522,9 +525,17 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
           label="Orders"
           primary={`${o.placed} placed`}
           numerator={o.completed}
-          denominator={Math.max(o.placed, o.completed)}
-          progressLabel={`${o.completed} completed`}
+          denominator={Math.max(o.placed, 1)}
+          // Interim honest headline: fulfillment rate = completed / placed.
+          // Doesn't depend on cross-flow customer linkage, so it's the
+          // one order/quote metric that works today.
+          progressLabel={
+            o.placed === 0
+              ? "—"
+              : `Fulfillment rate ${Math.round((o.completed / o.placed) * 100)}%`
+          }
           rows={[
+            [`Completed`, `${o.completed}`],
             [`Outstanding`, `${o.outstanding}`],
             [`Revenue`, `$${o.revenue.toLocaleString("en-US", { maximumFractionDigits: 0 })}`],
           ]}

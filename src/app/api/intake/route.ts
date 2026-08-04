@@ -53,31 +53,21 @@ export async function POST(req: NextRequest) {
     pain_points,
   });
 
-  // 2. Upsert account by email
-  const { data: existingAccount } = await supabaseAdmin
-    .from("sales_accounts")
-    .select("id")
-    .eq("email", email)
-    .maybeSingle();
-
+  // 2. Dedup-guarded resolve — this endpoint already did an
+  // email-based upsert manually. Route through the shared helper so
+  // matching is normalized (case/whitespace) instead of exact.
   let accountId: string;
-  if (existingAccount) {
-    accountId = existingAccount.id;
-  } else {
-    const { data: newAccount, error: accErr } = await supabaseAdmin
-      .from("sales_accounts")
-      .insert({
-        business_name: business_name || full_name,
-        contact_name: full_name,
-        email,
-        phone: phone || null,
-      })
-      .select("id")
-      .single();
-    if (accErr || !newAccount) {
-      return NextResponse.json({ error: "Failed to create account" }, { status: 500 });
-    }
-    accountId = newAccount.id;
+  try {
+    const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
+    const resolved = await findOrCreateSalesAccount({
+      business_name: business_name || full_name,
+      contact_name: full_name,
+      email,
+      phone: phone || null,
+    });
+    accountId = resolved.id;
+  } catch {
+    return NextResponse.json({ error: "Failed to create account" }, { status: 500 });
   }
 
   // 3. Upsert sales_lead by email
