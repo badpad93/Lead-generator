@@ -33,6 +33,7 @@ import {
   Pencil,
   Info,
   Warehouse,
+  Upload,
 } from "lucide-react";
 
 interface WarehouseRow {
@@ -131,6 +132,7 @@ export default function InventoryReplenishmentPage() {
   const [toast, setToast] = useState<{ tone: "success" | "error"; msg: string } | null>(null);
   const [countModal, setCountModal] = useState<Recommendation | null>(null);
   const [overrideModal, setOverrideModal] = useState<Recommendation | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   // Bump to trigger a re-fetch of the run + recommendations after an
   // action succeeds. Preferred over an imperative reload() function to
   // stay compatible with React 19's purity rules on effects.
@@ -353,6 +355,15 @@ export default function InventoryReplenishmentPage() {
             {creatingPos ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
             Create Draft POs ({approvedCount})
           </button>
+          <button
+            type="button"
+            onClick={() => setImportModalOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white text-gray-700 px-3 py-2 text-sm font-medium hover:bg-gray-50"
+            title="Bulk import physical counts from CSV"
+          >
+            <Upload className="h-4 w-4" />
+            Import Counts
+          </button>
         </div>
       </div>
 
@@ -558,6 +569,17 @@ export default function InventoryReplenishmentPage() {
           rec={countModal}
           onClose={() => setCountModal(null)}
           onSubmit={(qty, notes) => submitCount(countModal, qty, notes)}
+        />
+      )}
+      {importModalOpen && token && (
+        <ImportModal
+          token={token}
+          onClose={() => setImportModalOpen(false)}
+          onImported={() => {
+            setImportModalOpen(false);
+            reload();
+            showToast("success", "Import complete — ledger refreshed");
+          }}
         />
       )}
       {overrideModal && (
@@ -816,4 +838,191 @@ function fmt(n: number): string {
   const num = Number(n);
   if (!Number.isFinite(num)) return "—";
   return num.toFixed(num % 1 === 0 ? 0 : 2);
+}
+
+interface PreviewResp {
+  mode: "preview";
+  total_rows: number;
+  valid_count: number;
+  invalid_rows: Array<{ line_number: number; errors: string[]; raw: Record<string, string> }>;
+  valid_sample: Array<{ line_number: number; sku_code: string; warehouse_code: string; counted_qty: number }>;
+}
+
+interface CommitResp {
+  mode: "commit";
+  total_rows: number;
+  saved_count: number;
+  failed_rows: Array<{ line_number: number; errors: string[] }>;
+  invalid_rows: Array<{ line_number: number; errors: string[] }>;
+}
+
+function ImportModal({
+  token,
+  onClose,
+  onImported,
+}: {
+  token: string;
+  onClose: () => void;
+  onImported: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<PreviewResp | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function callApi(mode: "preview" | "commit"): Promise<PreviewResp | CommitResp | null> {
+    if (!file) return null;
+    setBusy(true);
+    setError(null);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("mode", mode);
+    const res = await fetch("/api/admin/inventory/import", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setError(err.error ?? `${mode} failed`);
+      return null;
+    }
+    return (await res.json()) as PreviewResp | CommitResp;
+  }
+
+  async function runPreview() {
+    const r = await callApi("preview");
+    if (r && r.mode === "preview") setPreview(r);
+  }
+  async function runCommit() {
+    const r = await callApi("commit");
+    if (r && r.mode === "commit") {
+      const bad = r.failed_rows.length + r.invalid_rows.length;
+      if (bad === 0) {
+        onImported();
+      } else {
+        setError(
+          `Saved ${r.saved_count}, ${bad} row(s) failed. Fix the CSV and re-import.`,
+        );
+      }
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto">
+      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl my-8">
+        <div className="p-5 border-b border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-900">Import physical counts (CSV)</h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Columns: <code>sku_code, warehouse_code, counted_qty, notes</code> (notes optional).
+            Excel users: File → Save As → CSV.
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(e) => {
+                setFile(e.target.files?.[0] ?? null);
+                setPreview(null);
+                setError(null);
+              }}
+              className="text-sm"
+            />
+          </div>
+          {error && (
+            <div className="rounded-md bg-red-50 border border-red-200 p-2 text-xs text-red-700">
+              {error}
+            </div>
+          )}
+          {preview && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs">
+              <div className="flex flex-wrap gap-3 mb-2">
+                <span>
+                  Total rows: <strong>{preview.total_rows}</strong>
+                </span>
+                <span className="text-emerald-700">
+                  Valid: <strong>{preview.valid_count}</strong>
+                </span>
+                <span className="text-red-700">
+                  Invalid: <strong>{preview.invalid_rows.length}</strong>
+                </span>
+              </div>
+              {preview.invalid_rows.length > 0 && (
+                <div className="mt-2 max-h-40 overflow-y-auto">
+                  <div className="font-medium text-red-700 mb-1">Invalid rows</div>
+                  <ul className="space-y-1">
+                    {preview.invalid_rows.slice(0, 20).map((r) => (
+                      <li key={r.line_number} className="text-red-700">
+                        Line {r.line_number}: {r.errors.join("; ")}
+                      </li>
+                    ))}
+                    {preview.invalid_rows.length > 20 && (
+                      <li className="text-gray-500">
+                        …and {preview.invalid_rows.length - 20} more
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
+              {preview.valid_sample.length > 0 && (
+                <div className="mt-3 max-h-40 overflow-y-auto">
+                  <div className="font-medium text-emerald-700 mb-1">
+                    Sample of valid rows ({preview.valid_sample.length})
+                  </div>
+                  <table className="w-full text-xs">
+                    <tbody>
+                      {preview.valid_sample.slice(0, 10).map((r) => (
+                        <tr key={r.line_number}>
+                          <td className="py-0.5 pr-2 text-gray-500">L{r.line_number}</td>
+                          <td className="py-0.5 pr-2 font-mono">{r.sku_code}</td>
+                          <td className="py-0.5 pr-2 font-mono">{r.warehouse_code}</td>
+                          <td className="py-0.5 text-right">{r.counted_qty}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-sm text-gray-500 hover:text-gray-800 px-3 py-2"
+              disabled={busy}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={runPreview}
+              disabled={!file || busy}
+              className="rounded-md border border-gray-200 bg-white text-gray-700 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Preview"}
+            </button>
+            <button
+              type="button"
+              onClick={runCommit}
+              disabled={!preview || preview.valid_count === 0 || busy}
+              className="rounded-md bg-emerald-600 text-white px-4 py-2 text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+              title={
+                !preview
+                  ? "Run preview first"
+                  : preview.valid_count === 0
+                    ? "No valid rows to import"
+                    : `Save ${preview.valid_count} counts`
+              }
+            >
+              Commit {preview ? `(${preview.valid_count})` : ""}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
