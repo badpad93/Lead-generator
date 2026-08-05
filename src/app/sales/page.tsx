@@ -574,11 +574,14 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
           denominator={w.active}
           progressLabel={w.active === 0 ? "—" : `${w.active - w.overdue - w.unassigned} on track`}
           rows={[
-            // Overdue row flips red when > 0 so the exec eye can catch
-            // it at a glance. The `deadline.overdue` cron simultaneously
-            // fires an email to every admin the first time each
-            // workflow crosses its deadline (send_once per admin).
-            [`Overdue`, `${w.overdue}`, w.overdue > 0 ? "danger" : undefined],
+            // Overdue row is ALWAYS red — even at 0. The visual weight
+            // is intentional: it's the metric the exec is scanning for,
+            // and the red label keeps the eye trained on it whether the
+            // count is currently non-zero or not. The daily
+            // deadline.overdue cron also emails every admin the first
+            // time each workflow crosses its deadline (send_once per
+            // admin).
+            [`Overdue`, `${w.overdue}`, "danger"],
             [`Unassigned`, `${w.unassigned}`],
             [`Due within 7d`, `${w.due_7d}`],
           ]}
