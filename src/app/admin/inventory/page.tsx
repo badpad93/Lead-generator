@@ -308,9 +308,17 @@ export default function InventoryReplenishmentPage() {
 
   return (
     <div className="max-w-7xl mx-auto p-6">
-      <Link href="/admin" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4">
-        <ChevronLeft className="h-4 w-4" /> Admin
-      </Link>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <Link href="/admin" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800">
+          <ChevronLeft className="h-4 w-4" /> Admin
+        </Link>
+        <Link
+          href="/admin/inventory/setup"
+          className="text-sm text-emerald-700 hover:underline"
+        >
+          Setup: warehouses, suppliers, SKUs, config →
+        </Link>
+      </div>
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>

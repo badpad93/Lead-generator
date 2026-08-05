@@ -48,6 +48,23 @@ export interface ReversalResult {
 }
 
 async function firstActiveWarehouseId(): Promise<string | null> {
+  // Prefer the admin-configured default warehouse when set. Only
+  // fall back to oldest-active when the config field is null, which
+  // preserves single-warehouse-era behavior.
+  const { data: config } = await supabaseAdmin
+    .from("inventory_configuration")
+    .select("default_warehouse_id")
+    .limit(1)
+    .maybeSingle();
+  if (config?.default_warehouse_id) {
+    // Verify the configured warehouse is still active before using it.
+    const { data: wh } = await supabaseAdmin
+      .from("warehouses")
+      .select("id, active")
+      .eq("id", config.default_warehouse_id)
+      .maybeSingle();
+    if (wh?.active) return wh.id;
+  }
   const { data } = await supabaseAdmin
     .from("warehouses")
     .select("id")
