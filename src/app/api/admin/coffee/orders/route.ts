@@ -73,6 +73,38 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
+    // Inventory ledger effects — Phase 2. Physical stock movement is
+    // tied to the shipped state:
+    //   entering shipped  → post consumption per line
+    //   shipped → cancelled → reverse the consumption
+    // Idempotent via reference_type='coffee_order'+reference_id
+    // dedup in the helper, so any subsequent PATCH that keeps status
+    // the same is a no-op on the ledger. All fire-and-forget with
+    // logging — never blocks the admin's status change.
+    if (status === "shipped" && !wasShipped) {
+      import("@/lib/inventory/coffeeOrderConsumption")
+        .then(({ postConsumptionForCoffeeOrder }) => postConsumptionForCoffeeOrder(id, adminId))
+        .then((result) => {
+          if (result.skippedNoSku.length > 0) {
+            console.warn(
+              "[admin.coffee.orders] some order lines had no inventory SKU:",
+              result.skippedNoSku,
+            );
+          }
+        })
+        .catch((err) => {
+          console.error("[admin.coffee.orders] consumption dispatch failed:", err);
+        });
+    } else if (status === "cancelled" && wasShipped) {
+      import("@/lib/inventory/coffeeOrderConsumption")
+        .then(({ reverseConsumptionForCoffeeOrder }) =>
+          reverseConsumptionForCoffeeOrder(id, adminId),
+        )
+        .catch((err) => {
+          console.error("[admin.coffee.orders] reversal dispatch failed:", err);
+        });
+    }
+
     return NextResponse.json({ order: data });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
