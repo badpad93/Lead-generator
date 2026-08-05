@@ -363,8 +363,16 @@ export default function SalesDashboard() {
                   </div>
                   <div className="rounded-lg bg-gray-50 p-4">
                     <p className="text-xs text-gray-500">Close Rate</p>
-                    <p className="text-xl font-bold text-green-600">
-                      {(results.metrics.conversion_rate * 100).toFixed(1)}%
+                    {/* Cross-flow customer linkage is unreliable until
+                        admin dedup finishes (see /admin/accounts/
+                        duplicates). Show a truthful placeholder here
+                        matching the Executive Snapshot's Quotes tile
+                        rather than a misleading 0.0%. */}
+                    <p className="text-sm font-medium text-gray-500 italic mt-1">
+                      Pending admin dedup
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      /admin/accounts/duplicates
                     </p>
                   </div>
                   <div className="rounded-lg bg-gray-50 p-4">
