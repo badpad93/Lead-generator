@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getWorkflowActor, hasPermission } from "@/lib/workflows/permissions";
+import { canOperationallyEditWorkflow, getWorkflowActor, hasPermission, isStaff } from "@/lib/workflows/permissions";
 import { updateStageSchema } from "@/lib/workflows/schemas";
 import { updateStage } from "@/lib/workflows/service";
 
@@ -35,34 +35,41 @@ export async function PATCH(
 
   const input = parsed.data;
 
-  // Permission checks by field.
-  if (input.completedQuantity !== undefined && !hasPermission(actor, "workflows.edit_quantity")) {
-    return NextResponse.json({ error: "Forbidden — cannot edit quantity" }, { status: 403 });
-  }
-  if (input.status !== undefined && !hasPermission(actor, "workflows.edit_status")) {
-    return NextResponse.json({ error: "Forbidden — cannot edit status" }, { status: 403 });
-  }
-  if (input.internalNotes !== undefined && !hasPermission(actor, "workflows.add_internal_notes")) {
-    return NextResponse.json({ error: "Forbidden — cannot add internal notes" }, { status: 403 });
-  }
-  if (input.customerMessage !== undefined && !hasPermission(actor, "workflows.publish_customer_updates")) {
-    return NextResponse.json({ error: "Forbidden — cannot publish customer updates" }, { status: 403 });
-  }
-  // Renaming a stage is a status-class edit — sales_manager and above.
-  if (input.stageName !== undefined && !hasPermission(actor, "workflows.edit_status")) {
-    return NextResponse.json({ error: "Forbidden — cannot rename stage" }, { status: 403 });
-  }
-  if (input.allowOverTarget && !hasPermission(actor, "workflows.override_validation")) {
-    return NextResponse.json({ error: "Forbidden — cannot override validation" }, { status: 403 });
-  }
-
-  // Workflow existence check for a clean 404 (service throws otherwise).
+  // Load the workflow up front — every permission below depends on
+  // whether the actor is assigned to THIS workflow, not just their
+  // role in the abstract.
   const { data: workflow } = await supabaseAdmin
     .from("workflows")
     .select("id, customer_id, assigned_user_id")
     .eq("id", id)
     .maybeSingle();
   if (!workflow) return NextResponse.json({ error: "Workflow not found" }, { status: 404 });
+
+  // Operational edits (status / quantity / stage rename) — sales
+  // reps assigned to THIS workflow can now do these, matching how
+  // elevated roles have always been able to. Customer-visible
+  // messages, override-target, and internal-notes stay on their
+  // original gates.
+  const canOperationallyEdit = await canOperationallyEditWorkflow(actor, workflow);
+
+  if (input.completedQuantity !== undefined && !canOperationallyEdit) {
+    return NextResponse.json({ error: "Forbidden — you must be assigned to edit this workflow" }, { status: 403 });
+  }
+  if (input.status !== undefined && !canOperationallyEdit) {
+    return NextResponse.json({ error: "Forbidden — you must be assigned to edit this workflow" }, { status: 403 });
+  }
+  if (input.stageName !== undefined && !canOperationallyEdit) {
+    return NextResponse.json({ error: "Forbidden — you must be assigned to edit this workflow" }, { status: 403 });
+  }
+  if (input.internalNotes !== undefined && !isStaff(actor)) {
+    return NextResponse.json({ error: "Forbidden — cannot add internal notes" }, { status: 403 });
+  }
+  if (input.customerMessage !== undefined && !hasPermission(actor, "workflows.publish_customer_updates")) {
+    return NextResponse.json({ error: "Forbidden — cannot publish customer updates" }, { status: 403 });
+  }
+  if (input.allowOverTarget && !hasPermission(actor, "workflows.override_validation")) {
+    return NextResponse.json({ error: "Forbidden — cannot override validation" }, { status: 403 });
+  }
 
   try {
     const result = await updateStage({
