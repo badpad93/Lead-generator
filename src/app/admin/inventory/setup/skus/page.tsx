@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
-import { Loader2, Package, ChevronLeft, Plus, Pencil, X, Search } from "lucide-react";
+import { Loader2, Package, ChevronLeft, Plus, Pencil, X, Search, Download } from "lucide-react";
 
 interface SKU {
   id: string;
@@ -37,7 +37,46 @@ export default function SkusPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [reloadKey, setReloadKey] = useState(0);
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<{
+    total_products: number;
+    created: number;
+    skipped_already_linked: number;
+    skipped_sku_conflict: number;
+    errors: Array<{ product_name: string; reason: string }>;
+  } | null>(null);
   const reload = () => setReloadKey((k) => k + 1);
+
+  async function runImport() {
+    if (!token) return;
+    if (
+      !window.confirm(
+        "Import every unlinked marketplace coffee product as an inventory SKU?\n\nSkips products that already have an inventory SKU linked.\nSkips codes that collide with an existing non-linked SKU (surfaced for manual review).",
+      )
+    )
+      return;
+    setImporting(true);
+    setImportSummary(null);
+    const res = await fetch("/api/admin/inventory/skus/import-from-coffee-products", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setImporting(false);
+    if (res.ok) {
+      const summary = await res.json();
+      setImportSummary(summary);
+      reload();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      setImportSummary({
+        total_products: 0,
+        created: 0,
+        skipped_already_linked: 0,
+        skipped_sku_conflict: 0,
+        errors: [{ product_name: "—", reason: err.error ?? "Import failed" }],
+      });
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -130,14 +169,55 @@ export default function SkusPage() {
             Everything countable. Link a marketplace coffee product so fulfillment consumption bridges into the ledger automatically.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 text-white px-3 py-2 text-sm font-medium hover:bg-emerald-700"
-        >
-          <Plus className="h-4 w-4" /> New SKU
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={runImport}
+            disabled={importing}
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white text-gray-700 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+            title="Create inventory SKUs from every marketplace coffee product that doesn't have one yet"
+          >
+            {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Import from Marketplace
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 text-white px-3 py-2 text-sm font-medium hover:bg-emerald-700"
+          >
+            <Plus className="h-4 w-4" /> New SKU
+          </button>
+        </div>
       </div>
+
+      {importSummary && (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <strong>Import complete.</strong> Created {importSummary.created} · already linked {importSummary.skipped_already_linked} · sku-code conflicts {importSummary.skipped_sku_conflict}
+              {importSummary.errors.length > 0 && (
+                <ul className="mt-2 text-xs text-red-700 list-disc list-inside">
+                  {importSummary.errors.slice(0, 10).map((e, i) => (
+                    <li key={i}>
+                      <strong>{e.product_name}</strong>: {e.reason}
+                    </li>
+                  ))}
+                  {importSummary.errors.length > 10 && (
+                    <li>…and {importSummary.errors.length - 10} more</li>
+                  )}
+                </ul>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setImportSummary(null)}
+              className="text-emerald-700 hover:text-emerald-900 text-xs"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {unlinkedCoffeeCount > 0 && (
         <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 p-3 text-sm">
