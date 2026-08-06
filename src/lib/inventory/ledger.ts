@@ -98,21 +98,27 @@ export async function postTransaction(
     await validateReversal(input);
   }
 
+  const row: Record<string, unknown> = {
+    sku_id: input.skuId,
+    warehouse_id: input.warehouseId,
+    transaction_type: input.transactionType,
+    qty_delta: input.qtyDelta,
+    reason: input.reason ?? null,
+    reference_type: input.referenceType ?? null,
+    reference_id: input.referenceId ?? null,
+    counterparty_warehouse_id: input.counterpartyWarehouseId ?? null,
+    reverses_transaction_id: input.reversesTransactionId ?? null,
+    notes: input.notes ?? null,
+    created_by: input.createdBy ?? null,
+  };
+  // Only set created_at when explicitly backfilling — otherwise let
+  // the DB default (now()) apply. Prevents accidental time-travel
+  // writes from the normal fulfillment path.
+  if (input.createdAt) row.created_at = input.createdAt;
+
   const { data, error } = await supabaseAdmin
     .from("inventory_transactions")
-    .insert({
-      sku_id: input.skuId,
-      warehouse_id: input.warehouseId,
-      transaction_type: input.transactionType,
-      qty_delta: input.qtyDelta,
-      reason: input.reason ?? null,
-      reference_type: input.referenceType ?? null,
-      reference_id: input.referenceId ?? null,
-      counterparty_warehouse_id: input.counterpartyWarehouseId ?? null,
-      reverses_transaction_id: input.reversesTransactionId ?? null,
-      notes: input.notes ?? null,
-      created_by: input.createdBy ?? null,
-    })
+    .insert(row)
     .select("*")
     .single();
 

@@ -34,6 +34,7 @@ import {
   Info,
   Warehouse,
   Upload,
+  History,
 } from "lucide-react";
 
 interface WarehouseRow {
@@ -133,6 +134,7 @@ export default function InventoryReplenishmentPage() {
   const [countModal, setCountModal] = useState<Recommendation | null>(null);
   const [overrideModal, setOverrideModal] = useState<Recommendation | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   // Bump to trigger a re-fetch of the run + recommendations after an
   // action succeeds. Preferred over an imperative reload() function to
   // stay compatible with React 19's purity rules on effects.
@@ -236,6 +238,35 @@ export default function InventoryReplenishmentPage() {
       showToast("error", err.error ?? "Calculate failed");
     }
     setCalculating(false);
+  }
+
+  async function backfillHistory() {
+    if (!token) return;
+    if (
+      !window.confirm(
+        "Backfill inventory ledger from every shipped/delivered coffee order?\n\n" +
+        "Writes historical consumption transactions stamped with each order's original date, so the forecast engine sees real weekly usage. Idempotent — safe to re-run.",
+      )
+    )
+      return;
+    setBackfilling(true);
+    const res = await fetch("/api/admin/inventory/backfill-coffee-consumption", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({}),
+    });
+    setBackfilling(false);
+    if (res.ok) {
+      const j = await res.json();
+      showToast(
+        "success",
+        `Backfilled ${j.ledger_rows_written} ledger row(s) from ${j.orders_processed}/${j.total_orders_scanned} orders${j.order_lines_without_inventory_sku > 0 ? ` — ${j.order_lines_without_inventory_sku} line(s) missing SKU link` : ""}`,
+      );
+      reload();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast("error", err.error ?? "Backfill failed");
+    }
   }
 
   async function createDraftPOs() {
@@ -371,6 +402,16 @@ export default function InventoryReplenishmentPage() {
           >
             <Upload className="h-4 w-4" />
             Import Counts
+          </button>
+          <button
+            type="button"
+            onClick={backfillHistory}
+            disabled={backfilling}
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white text-gray-700 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+            title="One-time: write consumption ledger rows for every historical shipped/delivered coffee order so the forecast engine has real weekly usage"
+          >
+            {backfilling ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
+            Backfill History
           </button>
         </div>
       </div>
