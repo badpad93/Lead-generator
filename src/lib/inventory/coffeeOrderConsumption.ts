@@ -99,6 +99,7 @@ async function existingConsumptionByProduct(
 export async function postConsumptionForCoffeeOrder(
   orderId: string,
   actorId?: string | null,
+  options?: { createdAt?: string | null; noteSuffix?: string | null },
 ): Promise<ConsumptionResult> {
   const warehouseId = await firstActiveWarehouseId();
   const result: ConsumptionResult = {
@@ -176,6 +177,10 @@ export async function postConsumptionForCoffeeOrder(
     }
 
     try {
+      const baseNote =
+        alreadyPosted > 0
+          ? `Coffee order fulfillment (top-up: prior ${alreadyPosted}, needed ${qty})`
+          : "Coffee order fulfillment";
       const row = await postTransaction({
         skuId,
         warehouseId,
@@ -183,11 +188,9 @@ export async function postConsumptionForCoffeeOrder(
         qtyDelta: -needed,
         referenceType: "coffee_order",
         referenceId: orderId,
-        notes:
-          alreadyPosted > 0
-            ? `Coffee order fulfillment (top-up: prior ${alreadyPosted}, needed ${qty})`
-            : "Coffee order fulfillment",
+        notes: options?.noteSuffix ? `${baseNote} — ${options.noteSuffix}` : baseNote,
         createdBy: actorId ?? null,
+        createdAt: options?.createdAt ?? null,
       });
       result.writtenTransactionIds.push(row.id);
     } catch (err) {

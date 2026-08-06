@@ -146,6 +146,11 @@ export interface PostTransactionInput {
   reversesTransactionId?: string | null;
   notes?: string | null;
   createdBy?: string | null;
+  // Optional ISO timestamp override — used by backfill flows to
+  // stamp historical events with their actual date so the weekly-
+  // usage bucketing in the forecast engine matches real demand.
+  // When omitted the DB default (now()) is used.
+  createdAt?: string | null;
 }
 
 export interface PostPhysicalCountInput {
