@@ -11,11 +11,27 @@ import { postPhysicalCount } from "@/lib/inventory/ledger";
  * ledger — the count-adjustment IS the correction.
  */
 
+// Preprocess helpers — the modal binds inputs to string state, and
+// the JSON boundary can turn NaN into null, blank fields into "",
+// numeric strings into "42" etc. Coerce here so the schema focuses
+// on shape not typing.
+const numericQty = z.preprocess((v) => {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}, z.number().min(0));
+
+const nullableStr = (max: number) =>
+  z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().max(max).nullable().optional(),
+  );
+
 const countSchema = z.object({
   sku_id: z.string().uuid(),
   warehouse_id: z.string().uuid(),
-  counted_qty: z.number().min(0),
-  notes: z.string().max(2000).nullable().optional(),
+  counted_qty: numericQty,
+  notes: nullableStr(2000),
 });
 
 export async function POST(req: NextRequest) {
@@ -24,7 +40,12 @@ export async function POST(req: NextRequest) {
 
   const parsed = countSchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input", details: parsed.error.format() }, { status: 400 });
+    const first = parsed.error.issues[0];
+    const path = first?.path?.join(".") || "unknown_field";
+    return NextResponse.json(
+      { error: `Invalid input on ${path}: ${first?.message ?? "validation failed"}`, details: parsed.error.format() },
+      { status: 400 },
+    );
   }
 
   try {
