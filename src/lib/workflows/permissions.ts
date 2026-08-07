@@ -18,10 +18,18 @@ export interface WorkflowActor {
   scope: "all" | "assigned" | "own";
 }
 
-const ROLES_VIEW_ALL = new Set(["admin", "director_of_sales", "market_leader"]);
-const ROLES_VIEW_ASSIGNED = new Set(["sales_manager", "sales"]);
+// Every staff role now views ALL workflows — visibility is not what
+// gates write access. Editing is gated per-workflow via
+// canOperationallyEditWorkflow() (elevated role OR active assignment).
+const ROLES_VIEW_ALL = new Set([
+  "admin",
+  "director_of_sales",
+  "market_leader",
+  "sales_manager",
+  "sales",
+]);
 
-// Every staff role can add internal notes and view assigned/all workflows.
+// Every staff role can add internal notes and view all workflows.
 const STAFF_ROLES = new Set([
   "admin",
   "director_of_sales",
@@ -31,8 +39,9 @@ const STAFF_ROLES = new Set([
 ]);
 
 // Roles allowed to edit stage state / assign / edit deadlines / publish
-// customer updates. Individual `sales` reps can view but not edit,
-// keeping accidental writes to a minimum.
+// customer updates unconditionally (no assignment check needed). Sales
+// reps get equivalent edit rights on workflows they're ASSIGNED to via
+// the canOperationallyEditWorkflow() helper below.
 const ROLES_EDIT = new Set(["admin", "director_of_sales", "market_leader", "sales_manager"]);
 const ROLES_PUBLISH_CUSTOMER_UPDATES = new Set(["admin", "director_of_sales", "market_leader"]);
 const ROLES_ADMIN_ONLY = new Set(["admin"]);
@@ -52,9 +61,7 @@ export async function getWorkflowActor(req: NextRequest): Promise<WorkflowActor 
   const role = profile.role ?? "";
   const scope: "all" | "assigned" | "own" = ROLES_VIEW_ALL.has(role)
     ? "all"
-    : ROLES_VIEW_ASSIGNED.has(role)
-      ? "assigned"
-      : "own";
+    : "own";
 
   return {
     id: profile.id,
@@ -129,4 +136,42 @@ export async function canViewWorkflow(
 
 export function isStaff(actor: WorkflowActor): boolean {
   return STAFF_ROLES.has(actor.role);
+}
+
+/**
+ * Check whether a staff actor is currently assigned to a workflow —
+ * either as primary owner or as an active collaborator. Used by the
+ * "sales rep can edit the workflows on their plate" path.
+ */
+export async function isAssignedToWorkflow(
+  actorId: string,
+  workflow: { id: string; assigned_user_id: string | null },
+): Promise<boolean> {
+  if (workflow.assigned_user_id === actorId) return true;
+  const { data } = await supabaseAdmin
+    .from("workflow_assignments")
+    .select("id")
+    .eq("workflow_id", workflow.id)
+    .eq("user_id", actorId)
+    .eq("active", true)
+    .maybeSingle();
+  return !!data;
+}
+
+/**
+ * The single gate for "day-to-day" workflow edits — stage status,
+ * completed quantity, stage rename, deadline nudge, internal notes.
+ * Returns true when the actor has an unconditional edit role (admin
+ * / DOS / market_leader / sales_manager) OR is assigned to this
+ * specific workflow. Elevated actions (cancel / reopen / delete /
+ * publish customer updates / payment override) stay strictly
+ * role-based via hasPermission.
+ */
+export async function canOperationallyEditWorkflow(
+  actor: WorkflowActor,
+  workflow: { id: string; assigned_user_id: string | null },
+): Promise<boolean> {
+  if (ROLES_EDIT.has(actor.role)) return true;
+  if (!isStaff(actor)) return false;
+  return isAssignedToWorkflow(actor.id, workflow);
 }
