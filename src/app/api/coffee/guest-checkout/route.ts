@@ -258,10 +258,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Order-placed emails fire immediately so the buyer and fulfillment
-    // mailbox both see the order. The confirmation email includes both
+    // mailbox both see the order. The buyer confirmation includes both
     // magic links — the buyer can claim their account or just track.
+    const siteUrlForEmail = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
+    const claimUrl = `${siteUrlForEmail}/coffee/claim/${passwordToken}`;
+    const trackingUrlForEmail = `${siteUrlForEmail}/coffee/track/${trackingToken}`;
     try {
-      const emailParams = {
+      const baseParams = {
         orderNumber,
         operatorName: trim(body.billing_contact_name) || "Customer",
         operatorEmail: billingEmail,
@@ -286,8 +289,12 @@ export async function POST(req: NextRequest) {
         billingZip: trim(body.billing_zip),
       };
       await Promise.all([
-        sendCoffeeOrderNotification(emailParams),
-        sendCoffeeOrderConfirmation(emailParams),
+        sendCoffeeOrderNotification(baseParams),
+        sendCoffeeOrderConfirmation({
+          ...baseParams,
+          claimUrl,
+          trackingUrl: trackingUrlForEmail,
+        }),
       ]);
     } catch (emailErr) {
       console.error("[guest-checkout] order email failed:", emailErr);

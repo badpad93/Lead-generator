@@ -47,6 +47,11 @@ interface OrderNotificationParams {
   billingCity?: string | null;
   billingState?: string | null;
   billingZip?: string | null;
+  // Guest checkout only — magic-link URLs the buyer can use to claim
+  // their auto-provisioned account or track the order without ever
+  // creating a password.
+  claimUrl?: string | null;
+  trackingUrl?: string | null;
 }
 
 function addressBlockHtml(label: string, business: string | null | undefined, contact: string | null | undefined, address: string | null | undefined, city: string | null | undefined, state: string | null | undefined, zip: string | null | undefined, phone: string | null | undefined, email: string | null | undefined): string {
@@ -252,6 +257,33 @@ export async function sendCoffeeOrderConfirmation(params: OrderNotificationParam
           </tr>
         </table>
       </div>
+
+      ${
+        params.claimUrl || params.trackingUrl
+          ? `
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin: 16px 0;">
+        <h3 style="margin: 0 0 12px; color: #166534; font-size: 16px;">Access your order</h3>
+        <p style="margin: 0 0 12px; font-size: 13px; color: #166534;">
+          We created an account for you so this order (and any future ones) live in one place. Choose one:
+        </p>
+        ${
+          params.claimUrl
+            ? `<p style="margin: 8px 0;">
+                <a href="${params.claimUrl}" style="display: inline-block; background: #16a34a; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px;">Set a password &amp; claim my account</a>
+              </p>
+              <p style="margin: 4px 0 12px; font-size: 11px; color: #166534;">Link expires in 7 days.</p>`
+            : ""
+        }
+        ${
+          params.trackingUrl
+            ? `<p style="margin: 8px 0;">
+                <a href="${params.trackingUrl}" style="color: #166534; text-decoration: underline; font-size: 13px;">Track this order without an account &rarr;</a>
+              </p>`
+            : ""
+        }
+      </div>`
+          : ""
+      }
 
       <p style="font-size: 13px; color: #6b7280; text-align: center;">
         Questions about your order? Contact us at
