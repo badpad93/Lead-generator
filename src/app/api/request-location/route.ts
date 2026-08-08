@@ -132,9 +132,10 @@ export async function POST(req: Request) {
 
   // Dedup-guarded — same customer requesting location services twice
   // no longer forks a second account.
+  let accountId: string | null = null;
   try {
     const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
-    await findOrCreateSalesAccount({
+    const account = await findOrCreateSalesAccount({
       business_name,
       contact_name,
       phone,
@@ -144,8 +145,63 @@ export async function POST(req: Request) {
       assigned_to: referringRep,
       created_by: referringRep,
     });
+    accountId = account?.id ?? null;
   } catch (accountError) {
     console.error("[request-location] account creation error", accountError);
+  }
+
+  // Create the sales_orders row NOW so the request lives in both
+  // Orders and Workflows. Order stays 'partial' payment until the
+  // remaining balance is collected via the customer Pay Balance flow.
+  // Deposit column is dollars (numeric), not cents.
+  if (accountId) {
+    const totalValueDollars = (DEPOSIT_CENTS + machine_count * 50000) / 100;
+    const depositDollars = DEPOSIT_CENTS / 100;
+    try {
+      const { data: order, error: orderErr } = await supabaseAdmin
+        .from("sales_orders")
+        .insert({
+          account_id: accountId,
+          lead_id: lead.id,
+          created_by: referringRep,
+          assigned_rep_id: referringRep,
+          document_type: "order",
+          order_type: "location_services",
+          order_status: "sent",
+          status: "sent",
+          total_value: totalValueDollars,
+          deposit_amount: depositDollars,
+          deposit_paid: false,
+          remaining_balance: totalValueDollars - depositDollars,
+          payment_status: "partial",
+          invoice_status: "sent",
+          agreement_status: "not_sent",
+          fulfillment_status: "pending",
+          next_required_action: "Awaiting deposit payment",
+          recipient_email: email,
+          notes: `Location services request — ${machine_count} location${machine_count > 1 ? "s" : ""} in ${state} (ZIP ${zip_code}). Address: ${address}.`,
+        })
+        .select("id")
+        .single();
+
+      if (orderErr) {
+        console.error("[request-location] sales_orders insert failed:", orderErr);
+      } else if (order) {
+        const { error: itemErr } = await supabaseAdmin
+          .from("order_items")
+          .insert({
+            order_id: order.id,
+            service_name: `Location Services — ${machine_count} location${machine_count > 1 ? "s" : ""}`,
+            price: totalValueDollars,
+            notes: `${machine_count} location(s) in ${state} (ZIP ${zip_code}). $100 deposit + $500/location placement fee.`,
+          });
+        if (itemErr) {
+          console.error("[request-location] order_items insert failed:", itemErr);
+        }
+      }
+    } catch (orderCatch) {
+      console.error("[request-location] order creation exception:", orderCatch);
+    }
   }
 
   // Create QB invoice for $100 deposit
