@@ -5,13 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
 import { Loader2, ShoppingCart, ArrowLeft, AlertCircle, CreditCard } from "lucide-react";
-
-const GUEST_CART_KEY = "coffee_guest_cart_v1";
-
-interface GuestCartLine {
-  product_id: string;
-  quantity: number;
-}
+import {
+  readGuestCart,
+  writeGuestCart,
+  clearGuestCart,
+  type GuestCartLine,
+} from "@/lib/guestCart";
 
 interface DisplayProduct {
   id: string;
@@ -22,35 +21,6 @@ interface DisplayProduct {
   image_url: string | null;
   active: boolean;
   stock_status: string;
-}
-
-function readGuestCart(): GuestCartLine[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(GUEST_CART_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((l: unknown) => {
-        const rec = l as Record<string, unknown>;
-        const id = typeof rec.product_id === "string" ? rec.product_id : "";
-        const qty = Math.floor(Number(rec.quantity));
-        return id && Number.isFinite(qty) && qty > 0 ? { product_id: id, quantity: qty } : null;
-      })
-      .filter((l): l is GuestCartLine => l !== null);
-  } catch {
-    return [];
-  }
-}
-
-function writeGuestCart(lines: GuestCartLine[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(GUEST_CART_KEY, JSON.stringify(lines));
-  } catch {
-    // localStorage full or blocked — ignore, cart is transient
-  }
 }
 
 export default function GuestCheckoutPage() {
@@ -199,7 +169,7 @@ function GuestCheckoutContent() {
         }
         return;
       }
-      writeGuestCart([]);
+      clearGuestCart();
       if (data.url) {
         window.location.href = data.url;
       } else if (data.tracking_url) {
