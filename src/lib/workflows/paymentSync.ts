@@ -15,6 +15,77 @@ import { supabaseAdmin } from "../supabaseAdmin";
 import { recordEvent } from "./service";
 
 /**
+ * Auto-complete the "payment lands" stage on a workflow. Runs after
+ * any payment sync — idempotent, so replayed webhooks don't double-
+ * advance. Looks for a stage keyed 'payment_confirmed' first
+ * (location_services template's canonical name), falls back to
+ * 'initial_order_placed' (coffee_service), then to the first
+ * status/milestone stage — this covers custom templates whose payment
+ * stage authors named something else.
+ *
+ * The stage is set to 'completed' and current_stage_key advances to
+ * the next stage in order_index — same shape the manual update path
+ * uses, so downstream notification rules (workflow.stage_completed
+ * for that key) fire the customer email exactly once.
+ */
+export async function advancePaymentStageForWorkflow(args: {
+  workflowId: string;
+  source: string;
+  changeKey?: string;
+}): Promise<boolean> {
+  const preferredKeys = ["payment_confirmed", "initial_order_placed", "deposit_received", "order_placed"];
+
+  const { data: stages } = await supabaseAdmin
+    .from("workflow_stages")
+    .select("id, stage_key, name, status, order_index, workflow_id")
+    .eq("workflow_id", args.workflowId)
+    .order("order_index", { ascending: true });
+
+  if (!stages || stages.length === 0) return false;
+
+  let target = stages.find((s) => preferredKeys.includes(s.stage_key));
+  if (!target) target = stages[0];
+  if (!target) return false;
+  if (target.status === "completed") return false;
+
+  const { error: stageErr } = await supabaseAdmin
+    .from("workflow_stages")
+    .update({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", target.id)
+    .neq("status", "completed");
+
+  if (stageErr) {
+    console.error("[advancePaymentStageForWorkflow] stage update failed:", stageErr);
+    return false;
+  }
+
+  const nextStage = stages
+    .filter((s) => s.order_index > target!.order_index)
+    .sort((a, b) => a.order_index - b.order_index)[0];
+
+  const patch: Record<string, unknown> = {};
+  if (nextStage) patch.current_stage_key = nextStage.stage_key;
+  if (Object.keys(patch).length > 0) {
+    await supabaseAdmin.from("workflows").update(patch).eq("id", args.workflowId);
+  }
+
+  await recordEvent({
+    workflowId: args.workflowId,
+    stageId: target.id,
+    eventType: "stage_completed",
+    newValue: { stage_key: target.stage_key, status: "completed", reason: "payment_received" },
+    actorType: "webhook",
+    source: args.source,
+    changeKey: args.changeKey ? `${args.changeKey}:stage` : undefined,
+  });
+
+  return true;
+}
+
+/**
  * Mark any workflow(s) linked to this sales_order as paid.
  */
 export async function syncWorkflowFromSalesOrderPaid(args: {
@@ -56,6 +127,11 @@ export async function syncWorkflowFromSalesOrderPaid(args: {
         source: args.source,
         changeKey: args.changeKey,
       });
+      await advancePaymentStageForWorkflow({
+        workflowId: w.id,
+        source: args.source,
+        changeKey: args.changeKey,
+      });
     }
   }
   return updated;
@@ -93,6 +169,11 @@ export async function syncCoffeeOrderPaid(args: {
         eventType: "order_item_paid",
         newValue: { coffee_order_id: args.coffeeOrderId, item_id: item.id },
         actorType: "webhook",
+        source: args.source,
+        changeKey: args.changeKey,
+      });
+      await advancePaymentStageForWorkflow({
+        workflowId: item.workflow_id,
         source: args.source,
         changeKey: args.changeKey,
       });
@@ -145,6 +226,11 @@ export async function syncWorkflowFromBalanceInvoicePaid(args: {
         source: args.source,
         changeKey: args.changeKey,
       });
+      await advancePaymentStageForWorkflow({
+        workflowId: w.id,
+        source: args.source,
+        changeKey: args.changeKey,
+      });
     }
   }
   return updated;
@@ -179,6 +265,11 @@ export async function syncWorkflowFromMachinePurchasePaid(args: {
         previousValue: { payment_status: w.payment_status },
         newValue: { payment_status: "paid", source_purchase_id: args.purchaseId },
         actorType: "webhook",
+        source: args.source,
+        changeKey: args.changeKey,
+      });
+      await advancePaymentStageForWorkflow({
+        workflowId: w.id,
         source: args.source,
         changeKey: args.changeKey,
       });
