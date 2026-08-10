@@ -5,6 +5,11 @@ import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { calculateFees, FEE_EXEMPT_ROLES } from "@/lib/checkoutFees";
 import { isQuickBooks } from "@/lib/paymentProvider";
 import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
+import {
+  provisionAccountForGuestCheckout,
+  generateGuestToken,
+  guestTokenExpiry,
+} from "@/lib/auth/provisionalAccount";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,9 +35,46 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const deliveryFeeCents = listing.includes_delivery && listing.delivery_fee_cents ? listing.delivery_fee_cents : 0;
   const subtotalCents = priceInCents + deliveryFeeCents;
 
-  // Require authentication
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) return NextResponse.json({ error: "You must be logged in to purchase" }, { status: 401 });
+  // Auto-provision a real account for anonymous buyers so they can shop
+  // without signing up first. Every purchase-record + workflow field
+  // downstream needs a userId — the provisioned profile keeps the same
+  // shape, so no schema changes and no downstream branches. When an
+  // authenticated user is present we skip provisioning entirely.
+  //
+  // Existing accounts short-circuit with a "please sign in" hint — we
+  // never silently attach a new order to a stranger's real login.
+  let userId = await getUserIdFromRequest(req);
+  let provisionedUserId: string | null = null;
+  if (!userId) {
+    try {
+      const provisionResult = await provisionAccountForGuestCheckout({
+        email: body.email,
+        business_name: body.business_name || body.full_name || body.email,
+        contact_name: body.full_name || "",
+        phone: body.phone,
+        address: body.business_address || "",
+        city: body.business_city ?? null,
+        state: body.business_state ?? null,
+        zip: body.business_zip ?? null,
+        marketing_consent: body.marketing_consent === false ? false : true,
+      });
+      if ("existing" in provisionResult && provisionResult.existing) {
+        return NextResponse.json(
+          {
+            error: "An account already exists for this email. Please sign in and try again.",
+            requires_sign_in: true,
+          },
+          { status: 409 },
+        );
+      }
+      userId = provisionResult.userId;
+      provisionedUserId = provisionResult.userId;
+    } catch (provErr) {
+      const msg = provErr instanceof Error ? provErr.message : "Failed to create account";
+      console.error("[machine-checkout] guest provision failed:", msg);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
 
   // Check if buyer is exempt from fees (sales team / admin)
   let feesExempt = false;
@@ -89,18 +131,75 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Spawn ai_machine_fulfillment workflow. Starts in pending_payment;
   // the payment webhook advances payment_confirmed later. Best-effort —
   // never blocks checkout.
+  let workflowId: string | null = null;
   try {
     const { spawnFromMachineListingPurchase } = await import("@/lib/workflows/hooks");
-    await spawnFromMachineListingPurchase(purchase.id, {
+    const wf = await spawnFromMachineListingPurchase(purchase.id, {
       customerId: userId,
       listingId: listing.id,
       machineTitle: listing.title,
     });
+    workflowId = wf?.id ?? null;
   } catch (workflowErr) {
     console.error("[machine-checkout] workflow spawn failed:", workflowErr);
   }
 
   const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
+
+  // Guest-only: mint the claim + tracking magic links, save a session
+  // row so the buyer can find their way back after payment.
+  let trackingUrl: string | null = null;
+  if (provisionedUserId) {
+    try {
+      const passwordToken = generateGuestToken();
+      const trackingToken = generateGuestToken();
+      await supabaseAdmin.from("guest_checkout_sessions").insert({
+        provisioned_user_id: provisionedUserId,
+        email: body.email,
+        business_name: body.business_name || null,
+        contact_name: body.full_name || null,
+        phone: body.phone || null,
+        address: body.business_address || null,
+        city: body.business_city || null,
+        state: body.business_state || null,
+        zip: body.business_zip || null,
+        workflow_id: workflowId,
+        password_token: passwordToken,
+        password_token_expires_at: guestTokenExpiry(7).toISOString(),
+        tracking_token: trackingToken,
+        tracking_token_expires_at: guestTokenExpiry(30).toISOString(),
+        marketing_consent: body.marketing_consent === false ? false : true,
+      });
+      trackingUrl = `${origin}/coffee/track/${trackingToken}`;
+      // Fire a quick confirmation email that includes the claim link so
+      // the buyer can set a password and reach their order later. The
+      // main purchase-confirmation flow runs on the payment webhook, so
+      // this "we captured your info" nudge fills the pre-payment gap.
+      try {
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const claimUrl = `${origin}/coffee/claim/${passwordToken}`;
+        await resend.emails.send({
+          from: process.env.FROM_EMAIL || "receipts@bytebitevending.com",
+          to: body.email,
+          subject: `Your Vending Connector account — complete payment to secure ${listing.title}`,
+          html: `
+            <div style="font-family: -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
+              <h2 style="color:#16a34a;">Thanks, ${body.full_name || "there"}!</h2>
+              <p>We've reserved <strong>${listing.title}</strong> and created a free Vending Connector account for you.</p>
+              <p>Set a password below so you can sign in later to track this order, view your invoice, and reorder supplies:</p>
+              <p><a href="${claimUrl}" style="display:inline-block; background:#16a34a; color:#fff; padding:12px 20px; border-radius:8px; text-decoration:none; font-weight:600;">Set my password</a></p>
+              <p style="font-size:12px; color:#6b7280;">Link expires in 7 days. Or track your order without an account: <a href="${trackingUrl}" style="color:#16a34a;">view order status</a></p>
+            </div>
+          `,
+        });
+      } catch (mailErr) {
+        console.error("[machine-checkout] guest claim email failed:", mailErr);
+      }
+    } catch (sessionErr) {
+      console.error("[machine-checkout] guest session insert failed:", sessionErr);
+    }
+  }
 
   if (isQuickBooks()) {
     try {

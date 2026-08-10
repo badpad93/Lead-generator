@@ -3,6 +3,11 @@ import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { sendFormConfirmationEmails } from "@/lib/confirmationEmail";
+import {
+  provisionAccountForGuestCheckout,
+  generateGuestToken,
+  guestTokenExpiry,
+} from "@/lib/auth/provisionalAccount";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "onboarding@bytebitevending.com";
 const NOTIFY_EMAIL = process.env.FINANCING_NOTIFY_EMAIL || "james@apexaivending.com";
@@ -12,9 +17,6 @@ function getResend() {
 }
 
 export async function POST(req: NextRequest) {
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) return NextResponse.json({ error: "You must be logged in" }, { status: 401 });
-
   const body = await req.json().catch(() => ({}));
 
   if (!body.full_name || !body.email || !body.phone) {
@@ -22,6 +24,41 @@ export async function POST(req: NextRequest) {
   }
   if (!body.agreed_provide_docs || !body.agreed_accurate_info) {
     return NextResponse.json({ error: "You must agree to both attestations" }, { status: 400 });
+  }
+
+  // Auto-provision an account for anonymous applicants so the financing
+  // pre-qual is a "shop without signing up" flow. The form already
+  // collects name/email/phone — that's enough to spin up a profile.
+  // Existing accounts return a friendly 409 so we never silently
+  // attach a financing application to a stranger's real login.
+  let userId = await getUserIdFromRequest(req);
+  let provisionedUserId: string | null = null;
+  if (!userId) {
+    try {
+      const provisionResult = await provisionAccountForGuestCheckout({
+        email: body.email,
+        business_name: body.full_name,
+        contact_name: body.full_name,
+        phone: body.phone,
+        address: "",
+        marketing_consent: body.marketing_consent === false ? false : true,
+      });
+      if ("existing" in provisionResult && provisionResult.existing) {
+        return NextResponse.json(
+          {
+            error: "An account already exists for this email. Please sign in and re-apply.",
+            requires_sign_in: true,
+          },
+          { status: 409 },
+        );
+      }
+      userId = provisionResult.userId;
+      provisionedUserId = provisionResult.userId;
+    } catch (provErr) {
+      const msg = provErr instanceof Error ? provErr.message : "Failed to create account";
+      console.error("[financing] guest provision failed:", msg);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
   }
 
   const { data: application, error: insertErr } = await supabaseAdmin
@@ -208,6 +245,46 @@ export async function POST(req: NextRequest) {
     });
   } catch (workflowErr) {
     console.error("[financing] workflow spawn failed:", workflowErr);
+  }
+
+  // Guest-only: email the applicant a claim link so they can set a
+  // password on the account we just auto-provisioned and check their
+  // application status later.
+  if (provisionedUserId) {
+    try {
+      const passwordToken = generateGuestToken();
+      const trackingToken = generateGuestToken();
+      const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
+      await supabaseAdmin.from("guest_checkout_sessions").insert({
+        provisioned_user_id: provisionedUserId,
+        email: body.email,
+        contact_name: body.full_name,
+        phone: body.phone,
+        password_token: passwordToken,
+        password_token_expires_at: guestTokenExpiry(7).toISOString(),
+        tracking_token: trackingToken,
+        tracking_token_expires_at: guestTokenExpiry(30).toISOString(),
+        marketing_consent: body.marketing_consent === false ? false : true,
+      });
+
+      const claimUrl = `${origin}/coffee/claim/${passwordToken}`;
+      const resend = getResend();
+      await resend.emails.send({
+        from: FROM_EMAIL,
+        to: body.email,
+        subject: "Your Vending Connector account is ready — set a password",
+        html: `
+          <div style="font-family: -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
+            <h2 style="color:#16a34a;">Thanks, ${body.full_name}!</h2>
+            <p>We received your SBA financing application. We also created a free Vending Connector account for you so you can sign in later to track your application, upload documents, and manage your business.</p>
+            <p><a href="${claimUrl}" style="display:inline-block; background:#16a34a; color:#fff; padding:12px 20px; border-radius:8px; text-decoration:none; font-weight:600;">Set my password</a></p>
+            <p style="font-size:12px; color:#6b7280;">Link expires in 7 days.</p>
+          </div>
+        `,
+      });
+    } catch (claimErr) {
+      console.error("[financing] guest claim email failed:", claimErr);
+    }
   }
 
   return NextResponse.json({ success: true, applicationId: application.id, crmAccountId, crmLeadId });

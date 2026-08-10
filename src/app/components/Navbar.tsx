@@ -20,13 +20,18 @@ interface NavLink {
   short?: string;
 }
 
+// Every browse/marketplace surface is public — visitors shop and then
+// sign up when they choose to buy/list. Auth conversions happen at the
+// action button, not the page boundary. navLinks and authNavLinks are
+// now identical; we keep both symbols to leave room for signed-in-only
+// items in the future without perturbing the browse experience.
 const navLinks: NavLink[] = [
-  { label: "Locations and Routes For Sale", short: "Locations & Routes", href: "/signup?redirect=/browse-requests" },
-  { label: "Sell a Location", href: "/signup?role=locator&redirect=/marketplace" },
-  { label: "Machines for Sale", short: "Machines", href: "/signup?redirect=/machines-for-sale" },
-  { label: "Placement Providers", short: "Placement", href: "/signup?redirect=/placement" },
-  { label: "Browse Operators", short: "Operators", href: "/signup?redirect=/browse-operators" },
-  { label: "Financing", href: "/signup?redirect=/financing" },
+  { label: "Locations and Routes For Sale", short: "Locations & Routes", href: "/browse-requests" },
+  { label: "Sell a Location", href: "/marketplace" },
+  { label: "Machines for Sale", short: "Machines", href: "/machines-for-sale" },
+  { label: "Placement Providers", short: "Placement", href: "/placement" },
+  { label: "Browse Operators", short: "Operators", href: "/browse-operators" },
+  { label: "Financing", href: "/financing" },
 ];
 
 // "Your Leads" and "Coffee" live in the account dropdown (Coffee is
@@ -420,7 +425,7 @@ export default function Navbar() {
                 </Tooltip>
                 <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
                   <Link
-                    href="/signup?redirect=/request-location"
+                    href="/request-location"
                     className="whitespace-nowrap rounded-lg bg-green-primary px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
                     aria-label={TOOLTIP_COPY["Request Location Services"]}
                     title={TOOLTIP_COPY["Request Location Services"]}
