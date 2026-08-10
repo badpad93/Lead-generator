@@ -331,6 +331,10 @@ export default function InventoryReplenishmentPage() {
         `Count saved. Ledger on-hand ${j.computedOnHandBefore} → ${j.computedOnHandAfter}.`,
       );
       setCountModal(null);
+      // Refetch so the on-hand column reflects the new count instead
+      // of the stale ledger value the recommendation was computed
+      // against. Every other action handler does this on success.
+      reload();
     } else {
       const err = await res.json().catch(() => ({}));
       showToast("error", err.error ?? "Count failed");
