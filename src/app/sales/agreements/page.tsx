@@ -43,6 +43,10 @@ interface AgreementRow {
   // "Sales Person" column for accountability tracking.
   rep_name: string | null;
   rep_email: string | null;
+  // Joined from the source sales_orders row (if any) — lets us show
+  // "Agreement from Order #147" or "…from Quote #147" rather than
+  // burying the origin behind an opaque order_id UUID.
+  sales_orders: { order_number: number | null; document_type: string | null } | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -311,6 +315,7 @@ export default function AgreementsListPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Term</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-500">Commission</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Created</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500">Source</th>
                 </tr>
               ) : (
                 <tr>
@@ -359,6 +364,23 @@ export default function AgreementsListPage() {
                       <td className="px-4 py-3 text-xs text-gray-500">
                         {new Date(ag.created_at).toLocaleDateString()}
                       </td>
+                      <td className="px-4 py-3">
+                        {ag.sales_orders?.order_number != null ? (
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+                              ag.sales_orders.document_type === "quote"
+                                ? "text-indigo-700 bg-indigo-50"
+                                : "text-blue-700 bg-blue-50"
+                            }`}
+                          >
+                            {ag.sales_orders.document_type === "quote" ? "Quote" : "Order"} #{ag.sales_orders.order_number}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                            Standalone
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   );
                 }
@@ -395,7 +417,17 @@ export default function AgreementsListPage() {
                       {new Date(ag.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
-                      {ag.order_id ? (
+                      {ag.sales_orders?.order_number != null ? (
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+                            ag.sales_orders.document_type === "quote"
+                              ? "text-indigo-700 bg-indigo-50"
+                              : "text-blue-700 bg-blue-50"
+                          }`}
+                        >
+                          {ag.sales_orders.document_type === "quote" ? "Quote" : "Order"} #{ag.sales_orders.order_number}
+                        </span>
+                      ) : ag.order_id ? (
                         <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
                           Order
                         </span>

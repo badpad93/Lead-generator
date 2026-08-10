@@ -13,9 +13,12 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status");
   const agreementType = searchParams.get("type");
 
+  // Join the source order (if any) so the list can display the
+  // originating order/quote number — "Agreement from Order #147" is
+  // what the sales team wants to see, not a bare UUID.
   let query = supabaseAdmin
     .from("purchase_agreements")
-    .select("*")
+    .select("*, sales_orders(order_number, document_type)")
     .order("created_at", { ascending: false });
 
   if (status && status !== "all") {

@@ -101,6 +101,8 @@ export default function OrdersPage() {
   const [token, setToken] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "owner_az" | "amount_desc" | "amount_asc">("newest");
   // Read ?doc=quote on first render so the Executive Snapshot's Quotes
   // card can deep-link straight into the quotes toggle without an extra
   // click. Undefined/other values keep the default (orders).
@@ -157,6 +159,44 @@ export default function OrdersPage() {
 
   const isQuote = docType === "quote";
   const docLabel = isQuote ? "Quote" : "Order";
+
+  // Distinct owners in the currently-loaded list — used to populate
+  // the owner filter dropdown. "Owner" here means the assigned rep
+  // (assigned_profile) since that's the person accountable day-to-day;
+  // created_by is a separate concept (e.g. an admin filing the order
+  // for a rep). Sort alphabetically so the dropdown is scannable.
+  const uniqueOwners = Array.from(
+    new Map(
+      orders
+        .filter((o) => o.assigned_profile?.full_name)
+        .map((o) => [o.assigned_profile!.full_name, o.assigned_profile!.full_name]),
+    ).values(),
+  ).sort((a, b) => a.localeCompare(b));
+
+  const displayOrders = orders
+    .filter((o) => {
+      if (ownerFilter === "all") return true;
+      if (ownerFilter === "unassigned") return !o.assigned_profile?.full_name;
+      return o.assigned_profile?.full_name === ownerFilter;
+    })
+    .slice()
+    .sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      switch (sortBy) {
+        case "oldest": return ta - tb;
+        case "owner_az": {
+          const na = a.assigned_profile?.full_name || "￿"; // unassigned last
+          const nb = b.assigned_profile?.full_name || "￿";
+          const c = na.localeCompare(nb);
+          return c !== 0 ? c : tb - ta;
+        }
+        case "amount_desc": return Number(b.total_value || 0) - Number(a.total_value || 0);
+        case "amount_asc": return Number(a.total_value || 0) - Number(b.total_value || 0);
+        case "newest":
+        default: return tb - ta;
+      }
+    });
 
   async function deleteOrder(orderId: string, orderNumber: number | string) {
     const label = `${docLabel} #${orderNumber || orderId.slice(0, 6).toUpperCase()}`;
@@ -296,6 +336,41 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {/* Owner filter + sort — client-side over the already-loaded
+          page. Owner options come from the assigned reps present in
+          the current result set, so managers see who's on the board
+          without having to remember names. */}
+      <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
+        <label className="flex items-center gap-2 text-gray-500">
+          <span>Owner:</span>
+          <select
+            value={ownerFilter}
+            onChange={(e) => setOwnerFilter(e.target.value)}
+            className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+          >
+            <option value="all">All</option>
+            <option value="unassigned">Unassigned</option>
+            {uniqueOwners.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-gray-500">
+          <span>Sort:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:border-green-500 focus:outline-none cursor-pointer"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="owner_az">Owner (A → Z)</option>
+            <option value="amount_desc">Amount (high → low)</option>
+            <option value="amount_asc">Amount (low → high)</option>
+          </select>
+        </label>
+      </div>
+
       {/* Orders List */}
       {loading ? (
         <div className="flex justify-center py-16">
@@ -307,16 +382,18 @@ export default function OrdersPage() {
           <p className="text-sm text-red-500">{fetchError}</p>
           <button onClick={fetchOrders} className="mt-3 text-sm text-green-600 hover:text-green-700 cursor-pointer">Try again</button>
         </div>
-      ) : orders.length === 0 ? (
+      ) : displayOrders.length === 0 ? (
         <div className="py-16 text-center">
           {isQuote ? <FileText className="mx-auto h-10 w-10 text-gray-300 mb-3" /> : <ClipboardList className="mx-auto h-10 w-10 text-gray-300 mb-3" />}
           <p className="text-sm text-gray-400">
-            {statusFilter !== "all" ? `No ${docLabel.toLowerCase()}s match this filter.` : `No ${docLabel.toLowerCase()}s yet. Create one to get started.`}
+            {statusFilter !== "all" || ownerFilter !== "all"
+              ? `No ${docLabel.toLowerCase()}s match these filters.`
+              : `No ${docLabel.toLowerCase()}s yet. Create one to get started.`}
           </p>
         </div>
       ) : (
         <div className="space-y-2">
-          {orders.map((order) => {
+          {displayOrders.map((order) => {
             const Icon = order.order_items?.[0]?.item_type
               ? ITEM_ICONS[order.order_items[0].item_type] || Wrench
               : isQuote ? FileText : ClipboardList;
