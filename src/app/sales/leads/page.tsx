@@ -1337,6 +1337,7 @@ export default function LeadsPage() {
                 <th className="px-4 py-3 font-medium text-gray-500">Phone</th>
                 <th className="px-4 py-3 font-medium text-gray-500">City</th>
                 <th className="px-4 py-3 font-medium text-gray-500">State</th>
+                <th className="px-4 py-3 font-medium text-gray-500">Added</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Status</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Assigned</th>
                 <th className="px-4 py-3 font-medium text-gray-500">Actions</th>
@@ -1415,6 +1416,12 @@ export default function LeadsPage() {
                     ) : (
                       "—"
                     )}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap"
+                    title={lead.created_at ? new Date(lead.created_at).toLocaleString() : ""}
+                  >
+                    {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : "—"}
                   </td>
                   <td className="px-4 py-3">
                     <select
