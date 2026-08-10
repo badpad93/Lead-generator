@@ -6,7 +6,10 @@ import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 
 const TO_EMAILS = ["james@apexaivending.com", "louis.cirino@apexaivending.com"];
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
-const DEPOSIT_CENTS = 10000; // $100.00
+// Deposit is $100 PER LOCATION requested — not a flat $100 total.
+// A 10-location request pays $1,000 up front; a single-location
+// request pays $100.
+const DEPOSIT_CENTS_PER_LOCATION = 10000;
 
 function clean(v: unknown): string {
   return typeof v === "string" ? v.trim().slice(0, 500) : "";
@@ -62,6 +65,9 @@ export async function POST(req: Request) {
     );
   }
 
+  const depositCents = machine_count * DEPOSIT_CENTS_PER_LOCATION;
+  const depositDollars = depositCents / 100;
+
   const ref = clean(body.ref);
   let referringRep: string | null = null;
   let referringRepName: string | null = null;
@@ -111,7 +117,7 @@ export async function POST(req: Request) {
   let { data: lead, error: dbError } = await supabaseAdmin.from("sales_leads").insert({
     ...leadRow,
     deposit_status: "pending",
-    deposit_amount_cents: DEPOSIT_CENTS,
+    deposit_amount_cents: depositCents,
   }).select("id").single();
 
   // Fallback if deposit columns don't exist yet
@@ -132,9 +138,10 @@ export async function POST(req: Request) {
 
   // Dedup-guarded — same customer requesting location services twice
   // no longer forks a second account.
+  let accountId: string | null = null;
   try {
     const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
-    await findOrCreateSalesAccount({
+    const account = await findOrCreateSalesAccount({
       business_name,
       contact_name,
       phone,
@@ -144,11 +151,68 @@ export async function POST(req: Request) {
       assigned_to: referringRep,
       created_by: referringRep,
     });
+    accountId = account?.id ?? null;
   } catch (accountError) {
     console.error("[request-location] account creation error", accountError);
   }
 
-  // Create QB invoice for $100 deposit
+  // Create the sales_orders row NOW so the request lives in both
+  // Orders and Workflows. Order stays 'partial' payment until the
+  // remaining balance is collected via the customer Pay Balance flow.
+  // $100 deposit per location + $500 placement fee per location — so
+  // total per location is $600 and totals scale linearly with count.
+  let orderId: string | null = null;
+  const totalValueDollars = (depositCents + machine_count * 50000) / 100;
+  if (accountId) {
+    try {
+      const { data: order, error: orderErr } = await supabaseAdmin
+        .from("sales_orders")
+        .insert({
+          account_id: accountId,
+          lead_id: lead.id,
+          created_by: referringRep,
+          assigned_rep_id: referringRep,
+          document_type: "order",
+          order_type: "location_services",
+          order_status: "sent",
+          status: "sent",
+          total_value: totalValueDollars,
+          deposit_amount: depositDollars,
+          deposit_paid: false,
+          remaining_balance: totalValueDollars - depositDollars,
+          payment_status: "partial",
+          invoice_status: "sent",
+          agreement_status: "not_sent",
+          fulfillment_status: "pending",
+          next_required_action: "Awaiting deposit payment",
+          recipient_email: email,
+          notes: `Location services request — ${machine_count} location${machine_count > 1 ? "s" : ""} in ${state} (ZIP ${zip_code}). Address: ${address}. $100 deposit + $500 placement fee per location.`,
+        })
+        .select("id")
+        .single();
+
+      if (orderErr) {
+        console.error("[request-location] sales_orders insert failed:", orderErr);
+      } else if (order) {
+        orderId = order.id;
+        const { error: itemErr } = await supabaseAdmin
+          .from("order_items")
+          .insert({
+            order_id: order.id,
+            service_name: `Location Services — ${machine_count} location${machine_count > 1 ? "s" : ""}`,
+            price: totalValueDollars,
+            notes: `${machine_count} location(s) in ${state} (ZIP ${zip_code}). $100 deposit + $500 placement fee per location.`,
+          });
+        if (itemErr) {
+          console.error("[request-location] order_items insert failed:", itemErr);
+        }
+      }
+    } catch (orderCatch) {
+      console.error("[request-location] order creation exception:", orderCatch);
+    }
+  }
+
+  // Create QB invoice for the deposit ($100 per location).
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
   try {
     const invoice = await createInvoice({
@@ -157,14 +221,15 @@ export async function POST(req: Request) {
       customerPhone: phone,
       lineItems: [
         {
-          description: `Location Services Deposit — ${business_name} (${machine_count} machine(s), ${state})`,
-          amount: DEPOSIT_CENTS / 100,
+          description: `Location Services Deposit — ${business_name} (${machine_count} location${machine_count > 1 ? "s" : ""} in ${state}, $100 per location)`,
+          amount: depositDollars,
         },
       ],
-      memo: `Location services deposit for ${business_name}`,
+      memo: `Location services deposit for ${business_name} — ${machine_count} location(s) at $100 each`,
       metadata: {
         type: "location_services_deposit",
         lead_id: lead.id,
+        order_id: orderId ?? "",
       },
     });
 
@@ -177,6 +242,20 @@ export async function POST(req: Request) {
       // column may not exist if migration 081 hasn't run
     }
 
+    // Stash the QB invoice id on the sales_orders row too, so when
+    // QB fires an invoice.paid webhook the sync path can match the
+    // order and roll payment status through to the workflow.
+    if (orderId) {
+      try {
+        await supabaseAdmin
+          .from("sales_orders")
+          .update({ qb_invoice_id: invoice.Id })
+          .eq("id", orderId);
+      } catch (invLinkErr) {
+        console.error("[request-location] sales_orders qb_invoice_id link failed:", invLinkErr);
+      }
+    }
+
     await sendInvoiceEmail(invoice.Id, email);
 
     const fullInvoice = await getInvoice(invoice.Id);
@@ -184,6 +263,7 @@ export async function POST(req: Request) {
     // Send admin notification email
     sendAdminNotification({
       business_name, contact_name, phone, email, address, state, zip_code, machine_count,
+      depositDollars,
     }).catch((e) => console.error("[request-location] email error", e));
 
     sendLocationRequestConfirmation({ to: email, name: contact_name })
@@ -204,10 +284,11 @@ export async function POST(req: Request) {
 
       if (existingProfile) {
         const { getOrCreateWorkflow } = await import("@/lib/workflows/service");
-        // Placement fee assumption: standard $500/location Apex Placement Fee.
-        // Adjust in the workflow's metadata if pricing differs; the
-        // customer's Pay Balance flow just reads workflow.total_due_cents.
-        const totalDueCents = DEPOSIT_CENTS + machine_count * 50000;
+        // Placement fee assumption: standard $500/location Apex Placement Fee
+        // stacked on top of the $100/location deposit. Adjust in the
+        // workflow's metadata if pricing differs; the customer's Pay
+        // Balance flow just reads workflow.total_due_cents.
+        const totalDueCents = depositCents + machine_count * 50000;
 
         await getOrCreateWorkflow({
           customerId: existingProfile.id,
@@ -215,6 +296,7 @@ export async function POST(req: Request) {
           sourceType: "location_request",
           sourceId: lead.id,
           locationRequestId: lead.id,
+          orderId: orderId ?? undefined,
           productKey: "location_services",
           productName: `Location Services — ${machine_count} location${machine_count > 1 ? "s" : ""}`,
           quantityPurchased: machine_count,
@@ -223,8 +305,9 @@ export async function POST(req: Request) {
           startDate: new Date().toISOString(),
           metadata: {
             source: "request-location-deposit",
-            deposit_amount_cents: DEPOSIT_CENTS,
-            deposit_paid_cents: DEPOSIT_CENTS,
+            deposit_amount_cents: depositCents,
+            deposit_paid_cents: depositCents,
+            deposit_per_location_cents: DEPOSIT_CENTS_PER_LOCATION,
             total_due_cents: totalDueCents,
             // source_intake = exactly what the customer submitted, so
             // whoever picks up the workflow sees the full request.
@@ -250,7 +333,7 @@ export async function POST(req: Request) {
         await supabaseAdmin
           .from("workflows")
           .update({
-            deposit_paid_cents: DEPOSIT_CENTS,
+            deposit_paid_cents: depositCents,
             total_due_cents: totalDueCents,
           })
           .eq("source_type", "location_request")
@@ -295,14 +378,15 @@ async function sendAdminNotification(params: {
   state: string;
   zip_code: string;
   machine_count: number;
+  depositDollars: number;
 }) {
-  const { business_name, contact_name, phone, email, address, state, zip_code, machine_count } = params;
+  const { business_name, contact_name, phone, email, address, state, zip_code, machine_count, depositDollars } = params;
   const resend = new Resend(process.env.RESEND_API_KEY);
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
       <h2 style="color:#16a34a;margin:0 0 16px;">New Location Services Request</h2>
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:16px;">
-        <p style="margin:0;color:#166534;font-size:14px;font-weight:600;">$100.00 Deposit Pending</p>
+        <p style="margin:0;color:#166534;font-size:14px;font-weight:600;">$${depositDollars.toFixed(2)} Deposit Pending (${machine_count} location${machine_count > 1 ? "s" : ""} × $100)</p>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:14px;">
         <tr><td style="padding:6px 0;color:#6b7280;">Business Name</td><td style="padding:6px 0;color:#111827;font-weight:600;">${business_name}</td></tr>
@@ -319,7 +403,7 @@ async function sendAdminNotification(params: {
   await resend.emails.send({
     from: FROM_EMAIL,
     to: TO_EMAILS,
-    subject: `New Location Services Request – ${business_name} ($100 Deposit)`,
+    subject: `New Location Services Request – ${business_name} ($${depositDollars.toFixed(2)} Deposit, ${machine_count} location${machine_count > 1 ? "s" : ""})`,
     html,
   });
 }

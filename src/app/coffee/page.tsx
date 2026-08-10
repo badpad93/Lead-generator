@@ -6,6 +6,7 @@ import { Search, ShoppingCart, Coffee, Lock, Loader2, X, AlertCircle, BookOpen, 
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import CoffeeCartDrawer from "@/app/components/CoffeeCartDrawer";
+import { addToGuestCart, guestCartCount } from "@/lib/guestCart";
 
 interface Category {
   id: string;
@@ -139,7 +140,10 @@ export default function CoffeeMarketplacePage() {
   }, []);
 
   const fetchCartCount = useCallback(async () => {
-    if (!token) return;
+    if (!token) {
+      setCartCount(guestCartCount());
+      return;
+    }
     try {
       const res = await fetch("/api/coffee/cart", {
         headers: { Authorization: `Bearer ${token}` },
@@ -155,16 +159,40 @@ export default function CoffeeMarketplacePage() {
     fetchCartCount();
   }, [fetchCartCount]);
 
+  useEffect(() => {
+    // Keep the badge in sync when addToGuestCart fires from any tab
+    // (writeGuestCart dispatches the "guest-cart-changed" event).
+    if (token) return;
+    const onChange = () => setCartCount(guestCartCount());
+    window.addEventListener("guest-cart-changed", onChange);
+    window.addEventListener("storage", onChange);
+    return () => {
+      window.removeEventListener("guest-cart-changed", onChange);
+      window.removeEventListener("storage", onChange);
+    };
+  }, [token]);
+
   function showToast(message: string, type: "success" | "error") {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   }
 
   async function addToCart(productId: string) {
-    if (!token || !profile?.coffee_access_enabled) return;
     setAdding(productId);
     try {
       const qty = quantities[productId] || 1;
+
+      // Guest path — no token, or authenticated but not yet coffee-approved.
+      // Both cases go through localStorage since the server-side cart
+      // requires coffee_access_enabled. Guest checkout auto-provisions
+      // the account; approved operators use the server cart.
+      if (!token || !profile?.coffee_access_enabled) {
+        addToGuestCart(productId, qty);
+        setCartCount(guestCartCount());
+        showToast("Added to cart", "success");
+        return;
+      }
+
       const res = await fetch("/api/coffee/cart", {
         method: "POST",
         headers: {
@@ -228,7 +256,7 @@ export default function CoffeeMarketplacePage() {
               <h1 className="text-3xl font-bold text-white sm:text-4xl">Coffee Marketplace</h1>
               <p className="mt-1 text-gray-400">Premium coffee products for your vending operations</p>
             </div>
-            {token && (
+            {token ? (
               <button
                 type="button"
                 onClick={() => setCartOpen(true)}
@@ -242,6 +270,19 @@ export default function CoffeeMarketplacePage() {
                   </span>
                 )}
               </button>
+            ) : (
+              <Link
+                href="/coffee/guest-checkout"
+                className="relative flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700 hover:shadow-md"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                Cart
+                {cartCount > 0 && (
+                  <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-green-600">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
             )}
           </div>
 
@@ -410,7 +451,7 @@ export default function CoffeeMarketplacePage() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((product) => {
               const isOutOfStock = product.stock_status === "out_of_stock";
-              const canAdd = coffeeEnabled && !isOutOfStock;
+              const canAdd = (!token || coffeeEnabled) && !isOutOfStock;
               const qty = quantities[product.id] || product.min_order_qty || 1;
               const isAdding = adding === product.id;
 
@@ -462,7 +503,7 @@ export default function CoffeeMarketplacePage() {
                       <button
                         type="button"
                         onClick={() => addToCart(product.id)}
-                        disabled={!canAdd || isAdding || !token}
+                        disabled={!canAdd || isAdding}
                         className="relative flex-1 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 cursor-pointer disabled:cursor-not-allowed"
                       >
                         {isAdding ? (
@@ -533,17 +574,29 @@ export default function CoffeeMarketplacePage() {
         </div>
       )}
 
-      {token && cartCount > 0 && (
-        <button
-          type="button"
-          onClick={() => setCartOpen(true)}
-          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-green-600 text-white shadow-lg transition-all hover:bg-green-700 hover:shadow-xl lg:hidden cursor-pointer"
-        >
-          <ShoppingCart className="h-6 w-6" />
-          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-green-600">
-            {cartCount}
-          </span>
-        </button>
+      {cartCount > 0 && (
+        token ? (
+          <button
+            type="button"
+            onClick={() => setCartOpen(true)}
+            className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-green-600 text-white shadow-lg transition-all hover:bg-green-700 hover:shadow-xl lg:hidden cursor-pointer"
+          >
+            <ShoppingCart className="h-6 w-6" />
+            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-green-600">
+              {cartCount}
+            </span>
+          </button>
+        ) : (
+          <Link
+            href="/coffee/guest-checkout"
+            className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-green-600 text-white shadow-lg transition-all hover:bg-green-700 hover:shadow-xl lg:hidden"
+          >
+            <ShoppingCart className="h-6 w-6" />
+            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-green-600">
+              {cartCount}
+            </span>
+          </Link>
+        )
       )}
 
       {selectedProduct && (() => {
@@ -634,7 +687,7 @@ export default function CoffeeMarketplacePage() {
                       onClick={() => {
                         addToCart(product.id);
                       }}
-                      disabled={!canAdd || isAdding || !token}
+                      disabled={!canAdd || isAdding}
                       className="flex-1 rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 cursor-pointer disabled:cursor-not-allowed"
                     >
                       {isAdding ? (

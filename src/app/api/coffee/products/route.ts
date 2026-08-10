@@ -19,12 +19,27 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const search = searchParams.get("search");
+    const idsParam = searchParams.get("ids");
 
     let query = supabaseAdmin
       .from("coffee_products")
       .select("*, coffee_categories(id, name, slug)")
       .eq("active", true)
       .order("sort_order", { ascending: true });
+
+    // Explicit id list (used by guest cart / checkout to display line
+    // items). Cap at 100 to bound the query and reject empty tokens.
+    if (idsParam) {
+      const ids = idsParam
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => /^[0-9a-f-]{36}$/i.test(s))
+        .slice(0, 100);
+      if (ids.length === 0) {
+        return NextResponse.json({ products: [] });
+      }
+      query = query.in("id", ids);
+    }
 
     if (category) {
       const { data: cat } = await supabaseAdmin
