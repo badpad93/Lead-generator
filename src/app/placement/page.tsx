@@ -37,13 +37,18 @@ export default function PlacementDashboardPage() {
     const supabase = createBrowserClient();
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) { router.push("/login?redirect=/placement"); return; }
-      const res = await fetch("/api/marketplace/partners", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPartner(data.partner);
+      // Anonymous visitors see the onboarding CTA below — they don't
+      // get bounced to /login. The partner dashboard content below
+      // renders only for signed-in partners; guests get the marketing
+      // landing that leads them to sign up when they're ready.
+      if (session?.access_token) {
+        const res = await fetch("/api/marketplace/partners", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPartner(data.partner);
+        }
       }
       setLoading(false);
     }
