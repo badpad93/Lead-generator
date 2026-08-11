@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: workflow } = await supabaseAdmin
     .from("workflows")
-    .select("*")
+    .select("*, sales_orders(order_number, document_type)")
     .eq("id", id)
     .maybeSingle();
 
