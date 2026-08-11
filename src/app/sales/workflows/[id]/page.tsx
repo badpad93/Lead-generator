@@ -132,6 +132,10 @@ interface DetailPayload {
     primary_team: string | null;
     show_assignee_to_customer: boolean;
     metadata: Record<string, unknown>;
+    order_id: string | null;
+    // Joined via the API's select("*, sales_orders(...)") so the header
+    // can label the workflow with its originating Order #147 / Quote #147.
+    sales_orders: { order_number: number | null; document_type: string | null } | null;
   };
   stages: Stage[];
   notes: Note[];
@@ -270,6 +274,19 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
               <div className="font-mono text-xs text-gray-500">{w.workflow_number}</div>
               <StatusBadge status={w.overall_status} />
               <PriorityBadge priority={w.priority} />
+              {w.sales_orders?.order_number != null && w.order_id && (
+                <Link
+                  href={`/sales/orders/${w.order_id}`}
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset font-mono hover:brightness-95 ${
+                    w.sales_orders.document_type === "quote"
+                      ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
+                      : "bg-blue-50 text-blue-700 ring-blue-200"
+                  }`}
+                  title={`View the source ${w.sales_orders.document_type === "quote" ? "quote" : "order"}`}
+                >
+                  {w.sales_orders.document_type === "quote" ? "Quote" : "Order"} #{w.sales_orders.order_number}
+                </Link>
+              )}
             </div>
             {/* Customer identity — always shown above title so staff see
                 who this workflow is for at a glance. */}
@@ -1369,13 +1386,32 @@ function AdminActions({
         <Calendar className="h-3.5 w-3.5" /> Change deadline
       </button>
       {status !== "cancelled" && status !== "completed" && (
-        <button
-          type="button"
-          onClick={() => submit("/cancel", "POST", {})}
-          className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white text-red-700 px-3 py-1.5 text-sm hover:bg-red-50"
-        >
-          <Ban className="h-3.5 w-3.5" /> Cancel workflow
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              const reason = window.prompt(
+                "Mark this workflow as completed?\n\nOptional note (e.g. 'All 10 locations placed', 'Customer accepted final delivery'):",
+                "Manually marked complete",
+              );
+              if (reason === null) return;
+              submit("/status", "PATCH", {
+                overallStatus: "completed",
+                reason: reason.trim() || "Manually marked complete",
+              });
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 px-3 py-1.5 text-sm hover:bg-emerald-100"
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" /> Mark complete
+          </button>
+          <button
+            type="button"
+            onClick={() => submit("/cancel", "POST", {})}
+            className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white text-red-700 px-3 py-1.5 text-sm hover:bg-red-50"
+          >
+            <Ban className="h-3.5 w-3.5" /> Cancel workflow
+          </button>
+        </>
       )}
       {(status === "cancelled" || status === "completed") && (
         <button
