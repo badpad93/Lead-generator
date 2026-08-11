@@ -5,6 +5,7 @@ import { isQuickBooks } from "@/lib/paymentProvider";
 import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 import { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } from "@/lib/coffeeEmail";
 import { resolveCoffeeProductsPricing } from "@/lib/coffeePricing";
+import { getCoffeeSettings } from "@/lib/coffeeSettings";
 import {
   provisionAccountForGuestCheckout,
   generateGuestToken,
@@ -171,6 +172,23 @@ export async function POST(req: NextRequest) {
     const subtotal = orderItems.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
     const shippingTotal = orderItems.reduce((sum, i) => sum + i.shipping_cost * i.quantity, 0);
     const total = subtotal + shippingTotal;
+
+    // Same minimum-order gate as the authenticated path. Runs after
+    // pricing resolution and stock check so the error message can
+    // quote the exact shortfall in dollars.
+    const settings = await getCoffeeSettings();
+    if (settings.minimum_order_enforced && subtotal * 100 < settings.minimum_order_cents) {
+      const minDollars = (settings.minimum_order_cents / 100).toFixed(2);
+      const shortDollars = ((settings.minimum_order_cents / 100) - subtotal).toFixed(2);
+      return NextResponse.json(
+        {
+          error: `Coffee orders have a $${minDollars} minimum. Add $${shortDollars} more to your cart to check out.`,
+          minimum_order_cents: settings.minimum_order_cents,
+          subtotal_cents: Math.round(subtotal * 100),
+        },
+        { status: 400 },
+      );
+    }
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from("coffee_orders")

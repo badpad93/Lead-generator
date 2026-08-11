@@ -40,6 +40,8 @@ function GuestCheckoutContent() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [canceled] = useState(searchParams.get("canceled") === "true");
+  const [minOrderCents, setMinOrderCents] = useState<number>(0);
+  const [minOrderEnforced, setMinOrderEnforced] = useState<boolean>(true);
 
   const [form, setForm] = useState({
     shipping_business_name: "",
@@ -64,6 +66,19 @@ function GuestCheckoutContent() {
   const [acceptTerms, setAcceptTerms] = useState(false);
 
   useEffect(() => {
+    // Fetch the org-wide minimum-order policy so we can render a
+    // banner and disable Place Order until the cart clears it —
+    // matches what /api/coffee/guest-checkout enforces server-side.
+    fetch("/api/coffee/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (s) {
+          setMinOrderCents(Number(s.minimum_order_cents) || 0);
+          setMinOrderEnforced(!!s.minimum_order_enforced);
+        }
+      })
+      .catch(() => {});
+
     const localCart = readGuestCart();
     setCart(localCart);
     if (localCart.length === 0) {
@@ -355,9 +370,33 @@ function GuestCheckoutContent() {
                   <span className="text-green-400">${total.toFixed(2)}</span>
                 </div>
               </div>
+              {(() => {
+                const minDollars = minOrderCents / 100;
+                const belowMin = minOrderEnforced && minOrderCents > 0 && subtotal < minDollars;
+                if (minOrderCents > 0 && minOrderEnforced) {
+                  return (
+                    <div
+                      className={`mt-4 rounded-lg border px-3 py-2 text-xs ${
+                        belowMin
+                          ? "border-yellow-500/40 bg-yellow-900/30 text-yellow-100"
+                          : "border-green-500/40 bg-green-900/20 text-green-100/90"
+                      }`}
+                    >
+                      {belowMin
+                        ? `Minimum coffee order is $${minDollars.toFixed(2)}. Add $${(minDollars - subtotal).toFixed(2)} more to check out.`
+                        : `Meets the $${minDollars.toFixed(2)} coffee order minimum.`}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               <button
                 type="submit"
-                disabled={submitting || !acceptTerms}
+                disabled={
+                  submitting
+                  || !acceptTerms
+                  || (minOrderEnforced && minOrderCents > 0 && subtotal < minOrderCents / 100)
+                }
                 className="mt-6 w-full inline-flex items-center justify-center gap-2 bg-green-500 text-black font-semibold px-6 py-3 rounded-lg hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? (

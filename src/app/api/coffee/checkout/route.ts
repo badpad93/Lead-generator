@@ -7,6 +7,7 @@ import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 import { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } from "@/lib/coffeeEmail";
 import { requireExecutedCoffeeSupplyAgreement } from "@/lib/placementAgreements";
 import { resolveCoffeeProductsPricing } from "@/lib/coffeePricing";
+import { getCoffeeSettings } from "@/lib/coffeeSettings";
 
 export async function POST(req: NextRequest) {
   try {
@@ -123,6 +124,24 @@ export async function POST(req: NextRequest) {
     const subtotal = orderItems.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
     const shippingTotal = orderItems.reduce((sum, i) => sum + i.shipping_cost * i.quantity, 0);
     const total = subtotal + shippingTotal;
+
+    // Enforce the org-wide minimum-order gate BEFORE we insert the
+    // order row or fire the QB/Stripe request. Shipping is excluded
+    // from the check — the minimum is about the operator committing
+    // to actual product volume, not an inflated shipping line.
+    const settings = await getCoffeeSettings();
+    if (settings.minimum_order_enforced && subtotal * 100 < settings.minimum_order_cents) {
+      const minDollars = (settings.minimum_order_cents / 100).toFixed(2);
+      const shortDollars = ((settings.minimum_order_cents / 100) - subtotal).toFixed(2);
+      return NextResponse.json(
+        {
+          error: `Coffee orders have a $${minDollars} minimum. Add $${shortDollars} more to your cart to check out.`,
+          minimum_order_cents: settings.minimum_order_cents,
+          subtotal_cents: Math.round(subtotal * 100),
+        },
+        { status: 400 },
+      );
+    }
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from("coffee_orders")
