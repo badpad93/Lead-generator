@@ -24,10 +24,11 @@ import {
   Play,
   RefreshCw,
   DollarSign,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
-type Tab = "products" | "orders" | "applications" | "guides" | "categories";
+type Tab = "products" | "orders" | "applications" | "guides" | "categories" | "settings";
 
 interface Category {
   id: string;
@@ -522,6 +523,29 @@ export default function AdminCoffeePage() {
     } catch {}
   }
 
+  async function handleStockStatusChange(product: Product, next: string) {
+    if (next === product.stock_status) return;
+    try {
+      const res = await fetch("/api/admin/coffee/products", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: product.id, stock_status: next }),
+      });
+      if (res.ok) {
+        fetchProducts();
+        setToast({ type: "success", message: `Stock marked "${next.replace("_", " ")}"` });
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setToast({ type: "error", message: err.error || "Failed to update stock" });
+      }
+    } catch (e) {
+      setToast({ type: "error", message: e instanceof Error ? e.message : "Failed to update stock" });
+    }
+  }
+
   async function handleUpdateOrderStatus(orderId: string, status: string) {
     setUpdatingOrder(orderId);
     try {
@@ -806,6 +830,7 @@ export default function AdminCoffeePage() {
     { key: "applications", label: "Applications", icon: <FileText className="h-4 w-4" />, count: applications.filter((a) => a.status === "pending").length },
     { key: "guides", label: "How-to Guides", icon: <BookOpen className="h-4 w-4" />, count: guides.length },
     { key: "categories", label: "Categories", icon: <Tag className="h-4 w-4" />, count: categories.length },
+    { key: "settings", label: "Settings", icon: <SettingsIcon className="h-4 w-4" />, count: 0 },
   ];
 
   return (
@@ -1106,13 +1131,24 @@ export default function AdminCoffeePage() {
                         <td className="px-5 py-3 text-right font-medium text-gray-900">${Number(product.price).toFixed(2)}</td>
                         <td className="px-5 py-3 text-right text-gray-600">{Number(product.shipping_cost) > 0 ? `$${Number(product.shipping_cost).toFixed(2)}` : "Free"}</td>
                         <td className="px-5 py-3">
-                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                            product.stock_status === "in_stock" ? "bg-green-100 text-green-700" :
-                            product.stock_status === "low_stock" ? "bg-yellow-100 text-yellow-700" :
-                            "bg-red-100 text-red-700"
-                          }`}>
-                            {product.stock_status.replace("_", " ")}
-                          </span>
+                          {/* Inline stock-status select — a one-click way for
+                              admins to block ordering of a specific SKU. The
+                              coffee checkout API already rejects lines whose
+                              product.stock_status === "out_of_stock", so
+                              flipping this dropdown is the whole enforcement. */}
+                          <select
+                            value={product.stock_status}
+                            onChange={(e) => handleStockStatusChange(product, e.target.value)}
+                            className={`cursor-pointer rounded-full px-2 py-0.5 text-xs font-medium border-0 focus:outline-none focus:ring-1 focus:ring-green-500 ${
+                              product.stock_status === "in_stock" ? "bg-green-100 text-green-700" :
+                              product.stock_status === "low_stock" ? "bg-yellow-100 text-yellow-700" :
+                              "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            <option value="in_stock">In Stock</option>
+                            <option value="low_stock">Low Stock</option>
+                            <option value="out_of_stock">Out of Stock</option>
+                          </select>
                         </td>
                         <td className="px-5 py-3 text-center">
                           <button
@@ -1779,7 +1815,157 @@ export default function AdminCoffeePage() {
         </div>
       )}
 
+      {activeTab === "settings" && (
+        <SettingsPanel token={token} showToast={(t, m) => setToast({ type: t, message: m })} />
+      )}
+
       {toast && <Toast message={toast.message} type={toast.type} />}
+    </div>
+  );
+}
+
+function SettingsPanel({
+  token,
+  showToast,
+}: {
+  token: string;
+  showToast: (type: "success" | "error", message: string) => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [minDollars, setMinDollars] = useState("500");
+  const [enforced, setEnforced] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/admin/coffee/settings", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setMinDollars(((data.minimum_order_cents || 0) / 100).toString());
+          setEnforced(!!data.minimum_order_enforced);
+          setUpdatedAt(data.updated_at ?? null);
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [token]);
+
+  async function save() {
+    const n = Number(minDollars);
+    if (!Number.isFinite(n) || n < 0) {
+      showToast("error", "Minimum must be a non-negative number");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/coffee/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          minimum_order_cents: Math.round(n * 100),
+          minimum_order_enforced: enforced,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMinDollars(((data.minimum_order_cents || 0) / 100).toString());
+        setEnforced(!!data.minimum_order_enforced);
+        setUpdatedAt(data.updated_at ?? null);
+        showToast("success", "Settings saved");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast("error", err.error || "Save failed");
+      }
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-xl">
+      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-gray-900 mb-1">Order Policies</h2>
+        <p className="text-sm text-gray-500 mb-6">
+          Applies to every coffee order — authenticated operators and guest checkouts alike.
+        </p>
+
+        <div className="space-y-6">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+              Minimum order (subtotal, USD)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={minDollars}
+                onChange={(e) => setMinDollars(e.target.value)}
+                className={`${inputClass} pl-7`}
+                placeholder="500"
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-gray-500">
+              Checkout blocks any order whose subtotal (line items, not counting shipping) is below this amount.
+              The buyer sees the exact shortfall in the error message.
+            </p>
+          </div>
+
+          <div>
+            <label className="flex items-start gap-3 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={enforced}
+                onChange={(e) => setEnforced(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              />
+              <span>
+                <span className="font-medium">Enforce minimum at checkout</span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  Uncheck to temporarily let smaller orders through (e.g. a one-off exception) without deploying a code change.
+                  The minimum stays configured; only enforcement pauses.
+                </span>
+              </span>
+            </label>
+          </div>
+
+          {updatedAt && (
+            <p className="text-xs text-gray-400">
+              Last updated {new Date(updatedAt).toLocaleString()}
+            </p>
+          )}
+
+          <div className="flex gap-2 pt-2 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save settings
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
