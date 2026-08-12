@@ -525,18 +525,30 @@ export default function AdminCoffeePage() {
 
   async function handleStockStatusChange(product: Product, next: string) {
     if (next === product.stock_status) return;
+    // Grab the current session so we send a freshly-refreshed token
+    // rather than the one we cached on page mount. Long-lived admin
+    // tabs are common here; a stale token returns 403 "Forbidden"
+    // and the flip silently fails.
+    const supabase = createBrowserClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const authToken = session?.access_token ?? token;
     try {
       const res = await fetch("/api/admin/coffee/products", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({ id: product.id, stock_status: next }),
       });
       if (res.ok) {
         fetchProducts();
         setToast({ type: "success", message: `Stock marked "${next.replace("_", " ")}"` });
+      } else if (res.status === 401 || res.status === 403) {
+        setToast({
+          type: "error",
+          message: "Your admin session expired — please refresh the page and sign in again.",
+        });
       } else {
         const err = await res.json().catch(() => ({}));
         setToast({ type: "error", message: err.error || "Failed to update stock" });
@@ -1865,9 +1877,13 @@ function SettingsPanel({
     }
     setSaving(true);
     try {
+      // Fresh session token — long-lived admin tabs otherwise hit 403.
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const authToken = session?.access_token ?? token;
       const res = await fetch("/api/admin/coffee/settings", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({
           minimum_order_cents: Math.round(n * 100),
           minimum_order_enforced: enforced,
@@ -1879,6 +1895,8 @@ function SettingsPanel({
         setEnforced(!!data.minimum_order_enforced);
         setUpdatedAt(data.updated_at ?? null);
         showToast("success", "Settings saved");
+      } else if (res.status === 401 || res.status === 403) {
+        showToast("error", "Your admin session expired — please refresh the page and sign in again.");
       } else {
         const err = await res.json().catch(() => ({}));
         showToast("error", err.error || "Save failed");
