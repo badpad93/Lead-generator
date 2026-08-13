@@ -19,7 +19,6 @@ import {
  * submission regardless, so borderline cases don't get lost.
  */
 const QUALIFYING_CREDIT_RANGES = new Set([
-  "650–699",
   "700–749",
   "750+",
 ]);
@@ -34,7 +33,7 @@ function evaluateSbaQualification(body: Record<string, unknown>): {
 } {
   const reasons: string[] = [];
   if (!QUALIFYING_CREDIT_RANGES.has(String(body.credit_score_range ?? ""))) {
-    reasons.push("credit score below 650");
+    reasons.push("credit score below 700");
   }
   if (!QUALIFYING_CITIZENSHIP.has(String(body.citizenship_status ?? ""))) {
     reasons.push("citizenship not eligible");
