@@ -242,7 +242,7 @@ export default function FinancingPage() {
                 Based on your responses, you meet our lender&apos;s baseline criteria for SBA financing.
               </p>
               <p className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-left">
-                We just emailed you the <strong>United Midwest Savings Bank SBA Financing Application</strong> as a PDF attachment. Complete it and reply back — our team will review and package your submission for lender consideration.
+                We just emailed you the <strong>United Midwest Savings Bank SBA Financing Application</strong> — or you can complete it right now using the button below.
               </p>
               <p className="text-xs text-gray-500">
                 Didn&apos;t get the email? Check your spam folder or contact james@apexaivending.com.
@@ -253,12 +253,26 @@ export default function FinancingPage() {
               Thank you for submitting your SBA financing pre-qualification form. Our team will review your information and reach out to you shortly with next steps.
             </p>
           )}
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
-          >
-            Back to Dashboard
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            {qualified && (
+              <Link
+                href="/financing/complete-application"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+              >
+                Complete Your Application →
+              </Link>
+            )}
+            <Link
+              href="/dashboard"
+              className={`inline-flex items-center justify-center gap-2 rounded-lg px-6 py-2.5 text-sm font-semibold transition-colors ${
+                qualified
+                  ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  : "bg-green-600 text-white hover:bg-green-700"
+              }`}
+            >
+              Back to Dashboard
+            </Link>
+          </div>
         </div>
       </div>
     );
