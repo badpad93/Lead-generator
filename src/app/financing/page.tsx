@@ -119,7 +119,9 @@ function YesNoField({
 export default function FinancingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [qualified, setQualified] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"sba" | "hearth">("sba");
 
   // Applicant
   const [fullName, setFullName] = useState("");
@@ -211,6 +213,8 @@ export default function FinancingPage() {
       });
 
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setQualified(!!data.qualified);
         setSubmitted(true);
       } else {
         const data = await res.json().catch(() => ({}));
@@ -225,14 +229,30 @@ export default function FinancingPage() {
   if (submitted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md text-center">
+        <div className="max-w-lg text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
             <CheckCircle2 className="h-8 w-8 text-green-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Application Submitted</h1>
-          <p className="text-sm text-gray-600 mb-6">
-            Thank you for submitting your SBA financing pre-qualification form. Our team will review your information and reach out to you shortly with next steps.
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            {qualified ? "You're pre-qualified!" : "Application Submitted"}
+          </h1>
+          {qualified ? (
+            <div className="text-sm text-gray-600 mb-6 space-y-3">
+              <p>
+                Based on your responses, you meet our lender&apos;s baseline criteria for SBA financing.
+              </p>
+              <p className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-left">
+                We just emailed you the <strong>United Midwest Savings Bank SBA Financing Application</strong> as a PDF attachment. Complete it and reply back — our team will review and package your submission for lender consideration.
+              </p>
+              <p className="text-xs text-gray-500">
+                Didn&apos;t get the email? Check your spam folder or contact james@apexaivending.com.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600 mb-6">
+              Thank you for submitting your SBA financing pre-qualification form. Our team will review your information and reach out to you shortly with next steps.
+            </p>
+          )}
           <Link
             href="/dashboard"
             className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
@@ -257,12 +277,78 @@ export default function FinancingPage() {
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Pre-Qualify for SBA Financing</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Financing Options</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Complete our quick screening form to see if you may qualify for SBA financing to fund your Apex AI Vending micro-market business.
+            Pick the path that fits your situation — SBA pre-qualification for larger equipment loans, or Hearth for a fast decision.
           </p>
         </div>
 
+        {/* Tab switcher */}
+        <div className="mb-6 border-b border-gray-200">
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("sba")}
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px ${
+                activeTab === "sba"
+                  ? "border-green-600 text-green-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              SBA Pre-Qualification
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("hearth")}
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px ${
+                activeTab === "hearth"
+                  ? "border-green-600 text-green-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Hearth Financing
+            </button>
+          </div>
+        </div>
+
+        {activeTab === "hearth" && (
+          <div>
+            <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-3">
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
+                <Clock className="mx-auto mb-2 h-5 w-5 text-green-600" />
+                <p className="text-xs font-semibold text-green-700">Fast Decision</p>
+                <p className="text-[10px] text-green-600 mt-0.5">See real rates in minutes</p>
+              </div>
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
+                <Percent className="mx-auto mb-2 h-5 w-5 text-green-600" />
+                <p className="text-xs font-semibold text-green-700">No Impact on Credit</p>
+                <p className="text-[10px] text-green-600 mt-0.5">Pre-qual is a soft pull</p>
+              </div>
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
+                <Handshake className="mx-auto mb-2 h-5 w-5 text-green-600" />
+                <p className="text-xs font-semibold text-green-700">Multiple Lenders</p>
+                <p className="text-[10px] text-green-600 mt-0.5">Compare offers in one place</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-green-600" />
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-900">Hearth Financing</h2>
+                    <p className="text-[11px] text-gray-400">Powered by Hearth — check rates without affecting your credit</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4">
+                <HearthWidget />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "sba" && (
+        <>
         {/* Benefits */}
         <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-3">
           <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
@@ -277,8 +363,8 @@ export default function FinancingPage() {
           </div>
           <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
             <Clock className="mx-auto mb-2 h-5 w-5 text-green-600" />
-            <p className="text-xs font-semibold text-green-700">Quick Screening</p>
-            <p className="text-[10px] text-green-600 mt-0.5">Get preliminary results in minutes, not days</p>
+            <p className="text-xs font-semibold text-green-700">Auto Application</p>
+            <p className="text-[10px] text-green-600 mt-0.5">Qualifying applicants receive the lender&apos;s PDF by email</p>
           </div>
         </div>
 
@@ -488,7 +574,10 @@ export default function FinancingPage() {
             </form>
           </div>
 
-          {/* Right column: Hearth Financing Calculator */}
+          {/* Right column: Hearth Financing Calculator — still shown
+              alongside the SBA form for quick payment estimates while
+              the applicant is filling things out. Their own Hearth tab
+              above handles the full application flow. */}
           <div className="lg:sticky lg:top-8 lg:self-start">
             <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
@@ -506,6 +595,8 @@ export default function FinancingPage() {
             </div>
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

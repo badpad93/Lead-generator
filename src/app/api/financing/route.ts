@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -8,6 +10,40 @@ import {
   generateGuestToken,
   guestTokenExpiry,
 } from "@/lib/auth/provisionalAccount";
+
+/**
+ * Prequalification thresholds — an applicant clears every check to
+ * receive the UMSB SBA financing application PDF automatically.
+ * Deliberately conservative so we only auto-send to applicants worth
+ * a lender's time. Admin (james@apexaivending.com) still sees the raw
+ * submission regardless, so borderline cases don't get lost.
+ */
+const QUALIFYING_CREDIT_RANGES = new Set([
+  "700–749",
+  "750+",
+]);
+const QUALIFYING_CITIZENSHIP = new Set([
+  "US Citizen",
+  "Permanent Resident",
+]);
+
+function evaluateSbaQualification(body: Record<string, unknown>): {
+  qualified: boolean;
+  reasons: string[];
+} {
+  const reasons: string[] = [];
+  if (!QUALIFYING_CREDIT_RANGES.has(String(body.credit_score_range ?? ""))) {
+    reasons.push("credit score below 700");
+  }
+  if (!QUALIFYING_CITIZENSHIP.has(String(body.citizenship_status ?? ""))) {
+    reasons.push("citizenship not eligible");
+  }
+  if (!body.has_verifiable_income) reasons.push("no verifiable income");
+  if (body.has_bankruptcy) reasons.push("bankruptcy in last 7 years");
+  if (body.has_tax_liens) reasons.push("outstanding tax liens");
+  if (body.has_federal_debt) reasons.push("delinquent federal debt");
+  return { qualified: reasons.length === 0, reasons };
+}
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "onboarding@bytebitevending.com";
 const NOTIFY_EMAIL = process.env.FINANCING_NOTIFY_EMAIL || "james@apexaivending.com";
@@ -236,6 +272,55 @@ export async function POST(req: NextRequest) {
     adminSubject: `Financing Application Copy: ${body.full_name}`,
   }).catch((e) => console.error("[financing] confirmation email error", e));
 
+  // Prequalification check — if all criteria pass, auto-email the
+  // United Midwest Savings Bank SBA application PDF to the applicant
+  // and CC the admin inbox. Non-blocking. Admin still sees the raw
+  // application email regardless of qualification.
+  const evaluation = evaluateSbaQualification(body);
+  if (evaluation.qualified) {
+    try {
+      const pdfPath = path.join(process.cwd(), "public", "financing", "umsb-sba-application.pdf");
+      const pdfBuffer = fs.readFileSync(pdfPath);
+
+      await getResend().emails.send({
+        from: FROM_EMAIL,
+        to: body.email,
+        cc: [NOTIFY_EMAIL],
+        subject: "You pre-qualified for SBA financing — next step: complete the application",
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#111">
+            <h2 style="color:#16a34a;margin:0 0 12px;">Great news, ${body.full_name.split(" ")[0]}!</h2>
+            <p>Based on your pre-qualification responses, you meet our lender's baseline criteria.</p>
+            <p>To move forward, please fill out the attached <strong>United Midwest Savings Bank SBA Financing Application</strong> and reply to this email with the completed PDF (or send it to <a href="mailto:${NOTIFY_EMAIL}" style="color:#16a34a">${NOTIFY_EMAIL}</a>).</p>
+            <p>Once received, our team will review and package your submission for lender consideration. Turnaround is typically 3–5 business days.</p>
+            <p style="margin-top:20px;padding:12px;background:#f0fdf4;border-left:3px solid #16a34a;font-size:13px;">
+              <strong>Reminder:</strong> pre-qualification is not final loan approval. Final approval is subject to lender review and full underwriting.
+            </p>
+            <p style="color:#666;font-size:12px;margin-top:24px;border-top:1px solid #eee;padding-top:12px">
+              Questions? Reply to this email or call (888) 851-1462.<br>
+              Application ID: ${application.id}
+            </p>
+          </div>
+        `,
+        attachments: [
+          {
+            filename: "UMSB-SBA-Financing-Application.pdf",
+            content: pdfBuffer,
+          },
+        ],
+      });
+    } catch (pdfEmailErr) {
+      console.error("[financing] Failed to send UMSB application PDF:", pdfEmailErr);
+    }
+  } else {
+    // Log to server console so admin can see why the auto-send didn't
+    // fire for this applicant. Doesn't affect the CRM record.
+    console.log(
+      `[financing] Applicant ${body.email} did not qualify for auto-send:`,
+      evaluation.reasons.join(", "),
+    );
+  }
+
   // Spawn financing workflow. Best-effort — never blocks the submission.
   try {
     const { spawnFromFinancingApplication } = await import("@/lib/workflows/hooks");
@@ -287,7 +372,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, applicationId: application.id, crmAccountId, crmLeadId });
+  return NextResponse.json({
+    success: true,
+    applicationId: application.id,
+    crmAccountId,
+    crmLeadId,
+    qualified: evaluation.qualified,
+    disqualifyReasons: evaluation.qualified ? [] : evaluation.reasons,
+  });
 }
 
 export async function GET(req: NextRequest) {
