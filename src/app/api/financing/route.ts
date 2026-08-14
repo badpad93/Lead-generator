@@ -297,7 +297,7 @@ export async function POST(req: NextRequest) {
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#111">
             <h2 style="color:#16a34a;margin:0 0 12px;">Great news, ${body.full_name.split(" ")[0]}!</h2>
             <p>Based on your pre-qualification responses, you meet our lender's baseline criteria for SBA financing.</p>
-            <p><strong>Next step:</strong> complete the United Midwest Savings Bank SBA Financing Application. Click the button below to open a page with the fillable PDF, step-by-step instructions, and a one-click way to email it back to us.</p>
+            <p><strong>Next step:</strong> complete the United Midwest Savings Bank SBA Financing Application. Click the button below to open a page with the fillable PDF, step-by-step instructions, and a one-click upload to send it right back to us — no email required.</p>
             <p style="text-align:center;margin:28px 0">
               <a href="${completionUrl}"
                  style="display:inline-block;background:#16a34a;color:#ffffff;padding:14px 28px;border-radius:8px;font-weight:600;text-decoration:none;font-size:15px">
@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
               </a>
             </p>
             <p style="font-size:13px;color:#555">
-              Prefer to skip the page and go straight to the PDF? <a href="${directPdfUrl}" style="color:#16a34a">Download it here</a>, or use the copy attached to this email. When you&apos;re done, reply to this email or send the completed PDF to <a href="mailto:${NOTIFY_EMAIL}" style="color:#16a34a">${NOTIFY_EMAIL}</a>.</p>
+              Prefer to skip the page and go straight to the PDF? <a href="${directPdfUrl}" style="color:#16a34a">Download it here</a>, or use the copy attached to this email. When you're done, upload it on the page above — or reply to this email / send the completed PDF to <a href="mailto:${NOTIFY_EMAIL}" style="color:#16a34a">${NOTIFY_EMAIL}</a> if uploading isn't convenient.</p>
             <p style="margin-top:20px;padding:12px;background:#f0fdf4;border-left:3px solid #16a34a;font-size:13px;">
               <strong>Reminder:</strong> pre-qualification is not final loan approval. Final approval is subject to lender review and full underwriting. Typical turnaround after we receive your completed application is 3–5 business days.
             </p>

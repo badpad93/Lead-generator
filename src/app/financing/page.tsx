@@ -120,6 +120,7 @@ export default function FinancingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [qualified, setQualified] = useState(false);
+  const [applicationId, setApplicationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"sba" | "hearth">("sba");
 
@@ -215,6 +216,7 @@ export default function FinancingPage() {
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         setQualified(!!data.qualified);
+        setApplicationId(data.applicationId || null);
         setSubmitted(true);
       } else {
         const data = await res.json().catch(() => ({}));
@@ -256,7 +258,11 @@ export default function FinancingPage() {
           <div className="flex flex-col sm:flex-row gap-2 justify-center">
             {qualified && (
               <Link
-                href="/financing/complete-application"
+                href={
+                  applicationId
+                    ? `/financing/complete-application?ref=${encodeURIComponent(applicationId)}`
+                    : "/financing/complete-application"
+                }
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
               >
                 Complete Your Application →
