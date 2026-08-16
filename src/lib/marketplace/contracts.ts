@@ -1,0 +1,130 @@
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getMarketplaceSettings } from "./settings";
+
+/**
+ * Auto-bridge a location_services workflow to a placement_contracts
+ * row so placement providers see the job in the marketplace.
+ *
+ * Called by paymentSync once the operator's $100/location deposit
+ * clears — that gate ensures we don't expose speculative requests to
+ * PPs. Idempotent: safe to call repeatedly, only ever inserts one
+ * contract per workflow. Backfills workflow.placement_contract_id if
+ * the FK on the workflow side was missed.
+ *
+ * Pricing:
+ *   operator_price   = $500 / location (standard tier-1 placement fee
+ *                      the operator already committed to via the
+ *                      $500-per-location balance in
+ *                      /api/request-location)
+ *   platform_fee     = marketplace settings platform_take_cents
+ *                      (admin-editable via /admin/marketplace/settings)
+ *   partner_payout   = operator_price - platform_fee
+ *
+ * Admin can override any of those per-contract afterwards; the
+ * defaults just get the bridge out of the way.
+ */
+
+const OPERATOR_PRICE_CENTS = 50000; // $500 — matches /api/request-location assumption
+
+export async function ensureContractForLocationServicesWorkflow(
+  workflowId: string,
+): Promise<{ contractId: string | null; created: boolean }> {
+  const { data: workflow, error: fetchErr } = await supabaseAdmin
+    .from("workflows")
+    .select(
+      "id, customer_id, order_id, quantity_purchased, workflow_type, placement_contract_id, metadata",
+    )
+    .eq("id", workflowId)
+    .maybeSingle();
+
+  if (fetchErr) {
+    console.error("[marketplace/bridge] workflow fetch failed:", fetchErr);
+    return { contractId: null, created: false };
+  }
+  if (!workflow) return { contractId: null, created: false };
+  if (workflow.workflow_type !== "location_services") {
+    return { contractId: null, created: false };
+  }
+  if (workflow.placement_contract_id) {
+    return { contractId: workflow.placement_contract_id as string, created: false };
+  }
+
+  // Idempotency guard — contract may already exist keyed by workflow_id
+  // even if the reverse FK on workflows wasn't stamped. Backfill it.
+  const { data: existing } = await supabaseAdmin
+    .from("placement_contracts")
+    .select("id")
+    .eq("workflow_id", workflowId)
+    .maybeSingle();
+  if (existing) {
+    await supabaseAdmin
+      .from("workflows")
+      .update({ placement_contract_id: existing.id })
+      .eq("id", workflowId)
+      .is("placement_contract_id", null);
+    return { contractId: existing.id as string, created: false };
+  }
+
+  const metadata =
+    (workflow.metadata as Record<string, unknown> | null) ?? {};
+  const intake =
+    (metadata.source_intake as Record<string, unknown> | undefined) ?? {};
+
+  const marketState =
+    typeof intake.state === "string" ? intake.state.trim() : "";
+  const businessName =
+    typeof intake.business_name === "string"
+      ? intake.business_name.trim()
+      : "";
+
+  const settings = await getMarketplaceSettings();
+  const platformFeeCents = Math.min(
+    settings.platformTakeCents,
+    OPERATOR_PRICE_CENTS,
+  );
+  const partnerPayoutCents = OPERATOR_PRICE_CENTS - platformFeeCents;
+
+  const locationsNeeded =
+    Number(workflow.quantity_purchased) ||
+    Number(intake.machine_count) ||
+    1;
+
+  const title = `Location Services — ${businessName || "Operator"} (${locationsNeeded} location${locationsNeeded > 1 ? "s" : ""})`;
+
+  const { data: inserted, error: contractErr } = await supabaseAdmin
+    .from("placement_contracts")
+    .insert({
+      title,
+      tier: 1,
+      operator_price: OPERATOR_PRICE_CENTS / 100,
+      partner_payout: partnerPayoutCents / 100,
+      platform_fee: platformFeeCents / 100,
+      market_state: marketState || null,
+      market_city: null,
+      contract_type: locationsNeeded > 1 ? "multi" : "single",
+      locations_needed: locationsNeeded,
+      locations_filled: 0,
+      source_order_id: workflow.order_id ?? null,
+      operator_profile_id: workflow.customer_id ?? null,
+      operator_business_name: businessName || null,
+      status: "open",
+      workflow_id: workflowId,
+    })
+    .select("id")
+    .single();
+
+  if (contractErr || !inserted) {
+    console.error("[marketplace/bridge] contract insert failed:", contractErr);
+    return { contractId: null, created: false };
+  }
+
+  const { error: linkErr } = await supabaseAdmin
+    .from("workflows")
+    .update({ placement_contract_id: inserted.id })
+    .eq("id", workflowId);
+  if (linkErr) {
+    console.error("[marketplace/bridge] workflow link update failed:", linkErr);
+  }
+
+  return { contractId: inserted.id as string, created: true };
+}

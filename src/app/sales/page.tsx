@@ -633,6 +633,125 @@ function ExecutiveSnapshot({ data }: { data: SnapshotResponse }) {
       {(data.scope.is_company_wide || data.scope.viewer_role === "market_leader") && (
         <TeamWorkloadRow periodLabel={data.period.label} />
       )}
+
+      {/* Placement Demand row — surfaces open PP contracts + queued
+          payouts so CRM sees what's flowing through the marketplace. */}
+      {(data.scope.is_company_wide || data.scope.viewer_role === "market_leader") && (
+        <PlacementDemandRow />
+      )}
+    </div>
+  );
+}
+
+interface PlacementDemandPayload {
+  contracts: { open: number; in_progress: number; fulfilled: number; open_locations_remaining: number };
+  regions: { state: string; open: number; in_progress: number; locations: number }[];
+  payouts: {
+    awaiting_collection: { count: number; dollars: number };
+    queued: { count: number; dollars: number };
+    sent_to_qb: { count: number; dollars: number };
+    stripe_paid: { count: number; dollars: number };
+    paid: { count: number; dollars: number };
+  };
+}
+
+function PlacementDemandRow() {
+  const [data, setData] = useState<PlacementDemandPayload | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/sales/placement-demand", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) setData(await res.json());
+    })();
+  }, []);
+
+  if (!data) return null;
+  const anyActivity =
+    data.contracts.open + data.contracts.in_progress + data.contracts.fulfilled > 0;
+  if (!anyActivity) return null;
+
+  const dollars = (n: number) =>
+    `$${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+  return (
+    <div className="mt-6 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">Placement Demand</h2>
+          <p className="text-[11px] text-gray-400">Open PP contracts, top regions, and payout status.</p>
+        </div>
+        <Link
+          href="/admin/marketplace/contracts"
+          className="text-xs font-medium text-green-primary hover:underline"
+        >
+          Open marketplace →
+        </Link>
+      </div>
+      <div className="p-6 space-y-5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="rounded-lg border border-gray-200 p-3">
+            <p className="text-[11px] text-gray-500 uppercase tracking-wide">Open contracts</p>
+            <p className="text-xl font-bold text-gray-900 mt-1">{data.contracts.open}</p>
+          </div>
+          <div className="rounded-lg border border-gray-200 p-3">
+            <p className="text-[11px] text-gray-500 uppercase tracking-wide">In progress</p>
+            <p className="text-xl font-bold text-gray-900 mt-1">{data.contracts.in_progress}</p>
+          </div>
+          <div className="rounded-lg border border-gray-200 p-3">
+            <p className="text-[11px] text-gray-500 uppercase tracking-wide">Fulfilled</p>
+            <p className="text-xl font-bold text-gray-900 mt-1">{data.contracts.fulfilled}</p>
+          </div>
+          <div className="rounded-lg border border-gray-200 p-3">
+            <p className="text-[11px] text-gray-500 uppercase tracking-wide">Locations still needed</p>
+            <p className="text-xl font-bold text-gray-900 mt-1">{data.contracts.open_locations_remaining}</p>
+          </div>
+        </div>
+
+        {data.regions.length > 0 && (
+          <div>
+            <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-2">Top regions</p>
+            <div className="flex flex-wrap gap-2">
+              {data.regions.map((r) => (
+                <div key={r.state} className="rounded-lg border border-gray-200 px-3 py-2 text-xs">
+                  <span className="font-semibold text-gray-900">{r.state}</span>
+                  <span className="text-gray-500 ml-2">{r.locations} location{r.locations === 1 ? "" : "s"} — {r.open} open, {r.in_progress} in progress</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-2">Payout pipeline</p>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+            <div className="rounded-lg border border-orange-200 bg-orange-50 p-2">
+              <p className="text-orange-700 font-medium">Awaiting balance</p>
+              <p className="text-orange-900 font-bold">{data.payouts.awaiting_collection.count} · {dollars(data.payouts.awaiting_collection.dollars)}</p>
+            </div>
+            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-2">
+              <p className="text-yellow-700 font-medium">Queued</p>
+              <p className="text-yellow-900 font-bold">{data.payouts.queued.count} · {dollars(data.payouts.queued.dollars)}</p>
+            </div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-2">
+              <p className="text-blue-700 font-medium">Sent to QB</p>
+              <p className="text-blue-900 font-bold">{data.payouts.sent_to_qb.count} · {dollars(data.payouts.sent_to_qb.dollars)}</p>
+            </div>
+            <div className="rounded-lg border border-green-200 bg-green-50 p-2">
+              <p className="text-green-700 font-medium">Paid via Stripe</p>
+              <p className="text-green-900 font-bold">{data.payouts.stripe_paid.count} · {dollars(data.payouts.stripe_paid.dollars)}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+              <p className="text-gray-600 font-medium">Paid (QB)</p>
+              <p className="text-gray-900 font-bold">{data.payouts.paid.count} · {dollars(data.payouts.paid.dollars)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

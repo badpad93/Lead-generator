@@ -132,6 +132,18 @@ export async function syncWorkflowFromSalesOrderPaid(args: {
         source: args.source,
         changeKey: args.changeKey,
       });
+      // Marketplace bridge: expose location_services requests to the
+      // PP marketplace as soon as their deposit clears. Idempotent —
+      // helper no-ops on non-location_services workflows or workflows
+      // already bridged.
+      try {
+        const { ensureContractForLocationServicesWorkflow } = await import(
+          "@/lib/marketplace/contracts"
+        );
+        await ensureContractForLocationServicesWorkflow(w.id);
+      } catch (bridgeErr) {
+        console.error("[paymentSync] marketplace bridge failed:", bridgeErr);
+      }
     }
   }
   return updated;
@@ -231,6 +243,40 @@ export async function syncWorkflowFromBalanceInvoicePaid(args: {
         source: args.source,
         changeKey: args.changeKey,
       });
+
+      // Release any PP payouts that have been sitting in
+      // awaiting_collection for this workflow's contract. Once the
+      // operator's balance invoice clears, PPs get paid via Stripe
+      // Connect automatically — with QB Bill fallback if the partner
+      // isn't onboarded.
+      try {
+        const { data: contract } = await supabaseAdmin
+          .from("placement_contracts")
+          .select("id")
+          .eq("workflow_id", w.id)
+          .maybeSingle();
+        if (contract) {
+          const nowIso = new Date().toISOString();
+          const { data: pending } = await supabaseAdmin
+            .from("marketplace_payouts")
+            .update({ status: "queued", updated_at: nowIso })
+            .eq("contract_id", contract.id)
+            .eq("status", "awaiting_collection")
+            .select("id");
+          if (pending?.length) {
+            const { releasePayoutViaStripe } = await import("@/lib/marketplaceStripe");
+            const { pushPayoutToQb } = await import("@/lib/marketplaceQb");
+            for (const p of pending) {
+              const result = await releasePayoutViaStripe(p.id as string);
+              if (!result.ok) {
+                pushPayoutToQb(p.id as string).catch(() => undefined);
+              }
+            }
+          }
+        }
+      } catch (releaseErr) {
+        console.error("[paymentSync] payout release on balance-paid failed:", releaseErr);
+      }
     }
   }
   return updated;
