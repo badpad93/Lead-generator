@@ -131,14 +131,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const { pushPayoutToQb, pushOperatorInvoiceToQb } = await import("@/lib/marketplaceQb");
       if (newInvoice) pushOperatorInvoiceToQb(newInvoice.id).catch(() => undefined);
       if (newPayout && newPayout.status === "queued") {
-        // Prepaid contract → payout is already in 'queued' state, so
-        // fire the Stripe transfer right away. Fallback to QB Bill if
-        // Stripe path fails or partner isn't onboarded.
-        const { releasePayoutViaStripe } = await import("@/lib/marketplaceStripe");
-        const result = await releasePayoutViaStripe(newPayout.id);
-        if (!result.ok) {
-          pushPayoutToQb(newPayout.id).catch(() => undefined);
-        }
+        pushPayoutToQb(newPayout.id).catch(() => undefined);
       }
     } catch {
       // Non-critical — decision already recorded

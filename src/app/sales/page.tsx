@@ -650,7 +650,6 @@ interface PlacementDemandPayload {
     awaiting_collection: { count: number; dollars: number };
     queued: { count: number; dollars: number };
     sent_to_qb: { count: number; dollars: number };
-    stripe_paid: { count: number; dollars: number };
     paid: { count: number; dollars: number };
   };
 }
@@ -728,7 +727,7 @@ function PlacementDemandRow() {
 
         <div>
           <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-2">Payout pipeline</p>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
             <div className="rounded-lg border border-orange-200 bg-orange-50 p-2">
               <p className="text-orange-700 font-medium">Awaiting balance</p>
               <p className="text-orange-900 font-bold">{data.payouts.awaiting_collection.count} · {dollars(data.payouts.awaiting_collection.dollars)}</p>
@@ -742,12 +741,8 @@ function PlacementDemandRow() {
               <p className="text-blue-900 font-bold">{data.payouts.sent_to_qb.count} · {dollars(data.payouts.sent_to_qb.dollars)}</p>
             </div>
             <div className="rounded-lg border border-green-200 bg-green-50 p-2">
-              <p className="text-green-700 font-medium">Paid via Stripe</p>
-              <p className="text-green-900 font-bold">{data.payouts.stripe_paid.count} · {dollars(data.payouts.stripe_paid.dollars)}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
-              <p className="text-gray-600 font-medium">Paid (QB)</p>
-              <p className="text-gray-900 font-bold">{data.payouts.paid.count} · {dollars(data.payouts.paid.dollars)}</p>
+              <p className="text-green-700 font-medium">Paid</p>
+              <p className="text-green-900 font-bold">{data.payouts.paid.count} · {dollars(data.payouts.paid.dollars)}</p>
             </div>
           </div>
         </div>

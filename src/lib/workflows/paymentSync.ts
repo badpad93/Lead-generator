@@ -244,11 +244,10 @@ export async function syncWorkflowFromBalanceInvoicePaid(args: {
         changeKey: args.changeKey,
       });
 
-      // Release any PP payouts that have been sitting in
-      // awaiting_collection for this workflow's contract. Once the
-      // operator's balance invoice clears, PPs get paid via Stripe
-      // Connect automatically — with QB Bill fallback if the partner
-      // isn't onboarded.
+      // Release any PP payouts that were parked in awaiting_collection
+      // for this workflow's contract. Once the operator's balance
+      // invoice clears, drop them to 'queued' and hand off to the QB
+      // Bill drain so admin can process them.
       try {
         const { data: contract } = await supabaseAdmin
           .from("placement_contracts")
@@ -264,13 +263,9 @@ export async function syncWorkflowFromBalanceInvoicePaid(args: {
             .eq("status", "awaiting_collection")
             .select("id");
           if (pending?.length) {
-            const { releasePayoutViaStripe } = await import("@/lib/marketplaceStripe");
             const { pushPayoutToQb } = await import("@/lib/marketplaceQb");
             for (const p of pending) {
-              const result = await releasePayoutViaStripe(p.id as string);
-              if (!result.ok) {
-                pushPayoutToQb(p.id as string).catch(() => undefined);
-              }
+              pushPayoutToQb(p.id as string).catch(() => undefined);
             }
           }
         }

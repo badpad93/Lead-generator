@@ -84,11 +84,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq("submission_id", invoice.submission_id)
     .eq("status", "awaiting_collection");
 
-  // Release the payout to the PP. Prefer Stripe Connect — fires
-  // automatically the moment the operator balance clears. If the
-  // partner has no connected Stripe account, or Stripe rejects, fall
-  // back to the QB Bill drain so admin can still process manually.
-  // Fire-and-forget; failures surface on /admin/marketplace/payouts.
+  // Trigger the payout QB Bill immediately. Fire-and-forget — errors get
+  // surfaced on /admin/marketplace/payouts.
   try {
     const { data: payout } = await supabaseAdmin
       .from("marketplace_payouts")
@@ -96,12 +93,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .eq("submission_id", invoice.submission_id)
       .maybeSingle();
     if (payout && payout.status === "queued") {
-      const { releasePayoutViaStripe } = await import("@/lib/marketplaceStripe");
-      const result = await releasePayoutViaStripe(payout.id);
-      if (!result.ok) {
-        const { pushPayoutToQb } = await import("@/lib/marketplaceQb");
-        pushPayoutToQb(payout.id).catch(() => undefined);
-      }
+      const { pushPayoutToQb } = await import("@/lib/marketplaceQb");
+      pushPayoutToQb(payout.id).catch(() => undefined);
     }
   } catch { /* non-critical */ }
 
