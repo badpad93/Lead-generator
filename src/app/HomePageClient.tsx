@@ -41,7 +41,7 @@ const PATH_CARDS = [
     icon: User,
     title: "I'm an Operator",
     description: "Find equipment, locations, financing and services to grow your vending business.",
-    href: "/browse-operators",
+    href: "/signup",
     eventName: HomepageEvents.operator,
   },
   {
@@ -69,14 +69,14 @@ const PATH_CARDS = [
     icon: Coffee,
     title: "I Want Free Coffee",
     description: "Add a commercial coffee program to your route with qualifying free brewer opportunities.",
-    href: "/coffee/apply",
+    href: "/coffee",
     eventName: HomepageEvents.coffee,
   },
   {
     icon: Globe,
     title: "I Need a Website",
     description: "Get a professional vending website designed to increase credibility and generate opportunities.",
-    href: "/website-builder",
+    href: "/website-services",
     eventName: HomepageEvents.website,
   },
   {
@@ -101,7 +101,7 @@ const SERVICE_CARDS = [
     icon: Coffee,
     title: "Free Coffee Program",
     description: "Add another revenue stream with commercial coffee solutions and qualifying free brewer programs.",
-    href: "/coffee/apply",
+    href: "/coffee",
     ctaLabel: "Learn About Coffee",
     eventName: HomepageEvents.coffee,
   },
@@ -117,7 +117,7 @@ const SERVICE_CARDS = [
     icon: Globe,
     title: "Website Services",
     description: "Build credibility and generate more opportunities with a professional website designed for your vending business.",
-    href: "/website-builder",
+    href: "/website-services",
     ctaLabel: "View Website Services",
     eventName: HomepageEvents.website,
   },
@@ -148,7 +148,7 @@ const AUDIENCE_CARDS = [
     icon: TrendingUp,
     title: "Operators",
     description: "Grow faster with machines, locations, financing, coffee, websites and marketplace resources.",
-    href: "/browse-operators",
+    href: "/signup",
     ctaLabel: "Explore Operator Solutions",
     eventName: HomepageEvents.operator,
   },
@@ -181,11 +181,11 @@ const AUDIENCE_CARDS = [
 const GROWTH_SOLUTIONS = [
   { icon: Package, label: "Machines", href: "/machines-for-sale" },
   { icon: Banknote, label: "Machine Financing", href: "/financing" },
-  { icon: Coffee, label: "Free Coffee Program", href: "/coffee/apply" },
+  { icon: Coffee, label: "Free Coffee Program", href: "/coffee" },
   { icon: MapPin, label: "Location Services", href: "/request-location" },
-  { icon: Globe, label: "Website Services", href: "/website-builder" },
+  { icon: Globe, label: "Website Services", href: "/website-services" },
   { icon: Briefcase, label: "Placement Marketplace", href: "/placement" },
-  { icon: Users, label: "Operator Support", href: "/browse-operators" },
+  { icon: Users, label: "Operator Support", href: "/signup" },
 ];
 
 const HOW_STEPS = [

@@ -37,7 +37,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Marketplace",
     items: [
-      { label: "Locations & Routes for Sale", href: "/browse-requests", description: "Browse locations and routes listed by owners" },
+      { label: "Available Locations", href: "/browse-requests", description: "Open location requests waiting for operators" },
       { label: "Sell a Location", href: "/marketplace", description: "List a location or route for sale" },
       { label: "Machines for Sale", href: "/machines-for-sale", description: "Vending equipment and AI-powered solutions" },
     ],
@@ -46,8 +46,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Services",
     items: [
       { label: "Financing", href: "/financing", description: "Up to 10-year equipment financing options" },
-      { label: "Coffee Program", href: "/coffee/apply", description: "Commercial coffee with qualifying free brewer" },
-      { label: "Website Services", href: "/website-builder", description: "Professional site for your vending business" },
+      { label: "Coffee Program", href: "/coffee", description: "Commercial coffee with qualifying free brewer" },
+      { label: "Website Services", href: "/website-services", description: "Professional site for your vending business" },
       { label: "Location Services", href: "/request-location", description: "Get help placing your machines" },
     ],
   },
