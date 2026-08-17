@@ -69,13 +69,14 @@ export async function GET(req: NextRequest) {
   const { data: payouts } = await supabaseAdmin
     .from("marketplace_payouts")
     .select("status, amount")
-    .in("status", ["awaiting_collection", "queued", "sent_to_qb", "paid"])
+    .in("status", ["awaiting_collection", "queued", "sent_to_qb", "sent_to_dwolla", "paid"])
     .limit(2000);
 
   const payoutSummary = {
     awaiting_collection: { count: 0, dollars: 0 },
     queued: { count: 0, dollars: 0 },
     sent_to_qb: { count: 0, dollars: 0 },
+    sent_to_dwolla: { count: 0, dollars: 0 },
     paid: { count: 0, dollars: 0 },
   };
   for (const p of payouts ?? []) {
@@ -83,6 +84,7 @@ export async function GET(req: NextRequest) {
     if (p.status === "awaiting_collection") { payoutSummary.awaiting_collection.count++; payoutSummary.awaiting_collection.dollars += amt; }
     else if (p.status === "queued") { payoutSummary.queued.count++; payoutSummary.queued.dollars += amt; }
     else if (p.status === "sent_to_qb") { payoutSummary.sent_to_qb.count++; payoutSummary.sent_to_qb.dollars += amt; }
+    else if (p.status === "sent_to_dwolla") { payoutSummary.sent_to_dwolla.count++; payoutSummary.sent_to_dwolla.dollars += amt; }
     else if (p.status === "paid") { payoutSummary.paid.count++; payoutSummary.paid.dollars += amt; }
   }
 

@@ -246,8 +246,9 @@ export async function syncWorkflowFromBalanceInvoicePaid(args: {
 
       // Release any PP payouts that were parked in awaiting_collection
       // for this workflow's contract. Once the operator's balance
-      // invoice clears, drop them to 'queued' and hand off to the QB
-      // Bill drain so admin can process them.
+      // invoice clears, drop them to 'queued' and try Dwolla ACH
+      // first — if the partner isn't Dwolla-onboarded (or Dwolla
+      // rejects), fall back to the QB Bill drain.
       try {
         const { data: contract } = await supabaseAdmin
           .from("placement_contracts")
@@ -263,9 +264,13 @@ export async function syncWorkflowFromBalanceInvoicePaid(args: {
             .eq("status", "awaiting_collection")
             .select("id");
           if (pending?.length) {
+            const { releasePayoutViaDwolla } = await import("@/lib/marketplaceDwolla");
             const { pushPayoutToQb } = await import("@/lib/marketplaceQb");
             for (const p of pending) {
-              pushPayoutToQb(p.id as string).catch(() => undefined);
+              const result = await releasePayoutViaDwolla(p.id as string);
+              if (!result.ok) {
+                pushPayoutToQb(p.id as string).catch(() => undefined);
+              }
             }
           }
         }

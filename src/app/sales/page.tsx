@@ -650,6 +650,7 @@ interface PlacementDemandPayload {
     awaiting_collection: { count: number; dollars: number };
     queued: { count: number; dollars: number };
     sent_to_qb: { count: number; dollars: number };
+    sent_to_dwolla: { count: number; dollars: number };
     paid: { count: number; dollars: number };
   };
 }
@@ -727,7 +728,7 @@ function PlacementDemandRow() {
 
         <div>
           <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-2">Payout pipeline</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
             <div className="rounded-lg border border-orange-200 bg-orange-50 p-2">
               <p className="text-orange-700 font-medium">Awaiting balance</p>
               <p className="text-orange-900 font-bold">{data.payouts.awaiting_collection.count} · {dollars(data.payouts.awaiting_collection.dollars)}</p>
@@ -739,6 +740,10 @@ function PlacementDemandRow() {
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-2">
               <p className="text-blue-700 font-medium">Sent to QB</p>
               <p className="text-blue-900 font-bold">{data.payouts.sent_to_qb.count} · {dollars(data.payouts.sent_to_qb.dollars)}</p>
+            </div>
+            <div className="rounded-lg border border-purple-200 bg-purple-50 p-2">
+              <p className="text-purple-700 font-medium">In Dwolla ACH</p>
+              <p className="text-purple-900 font-bold">{data.payouts.sent_to_dwolla.count} · {dollars(data.payouts.sent_to_dwolla.dollars)}</p>
             </div>
             <div className="rounded-lg border border-green-200 bg-green-50 p-2">
               <p className="text-green-700 font-medium">Paid</p>
