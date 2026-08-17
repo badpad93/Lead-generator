@@ -12,6 +12,7 @@ import {
   Globe,
   Package,
   Landmark,
+  LogIn,
   ArrowRight,
   Check,
   ClipboardList,
@@ -295,6 +296,38 @@ export default function HomePageClient() {
             {PATH_CARDS.map((card) => (
               <PathCard key={card.title} {...card} />
             ))}
+            {/* 8th tile — rounds out the xl:grid-cols-4 row.
+                Not itself clickable so the two sub-CTAs can each own
+                their intent (login vs. signup). Styled to match
+                PathCard from the outside. */}
+            <div className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary">
+                <LogIn className="h-5 w-5" strokeWidth={2} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-semibold text-black-primary sm:text-base">
+                  Log In or Sign Up
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-gray-500 sm:text-[13px]">
+                  Already have an account? Log in. New to Vending Connector? Create one in seconds.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <Link
+                    href="/login"
+                    className="inline-flex flex-1 items-center justify-center rounded-lg border border-green-primary/40 bg-white px-3 py-1.5 text-xs font-semibold text-green-primary transition-colors hover:border-green-primary hover:bg-green-50"
+                  >
+                    Log In
+                  </Link>
+                  <Link
+                    href="/signup"
+                    onClick={() => trackEvent(HomepageEvents.getStarted, { source: "path_card" })}
+                    className="inline-flex flex-1 items-center justify-center rounded-lg bg-green-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+                  >
+                    Sign Up
+                  </Link>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
