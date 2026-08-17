@@ -131,7 +131,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const { pushPayoutToQb, pushOperatorInvoiceToQb } = await import("@/lib/marketplaceQb");
       if (newInvoice) pushOperatorInvoiceToQb(newInvoice.id).catch(() => undefined);
       if (newPayout && newPayout.status === "queued") {
-        pushPayoutToQb(newPayout.id).catch(() => undefined);
+        // Prepaid contract → the payout is already in 'queued' at
+        // accept time. Fire the Dwolla ACH transfer immediately;
+        // fallback to QB Bill drain if the partner isn't Dwolla-
+        // onboarded or Dwolla rejects.
+        const { releasePayoutViaDwolla } = await import("@/lib/marketplaceDwolla");
+        const result = await releasePayoutViaDwolla(newPayout.id);
+        if (!result.ok) {
+          pushPayoutToQb(newPayout.id).catch(() => undefined);
+        }
       }
     } catch {
       // Non-critical — decision already recorded

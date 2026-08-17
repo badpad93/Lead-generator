@@ -84,8 +84,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq("submission_id", invoice.submission_id)
     .eq("status", "awaiting_collection");
 
-  // Trigger the payout QB Bill immediately. Fire-and-forget — errors get
-  // surfaced on /admin/marketplace/payouts.
+  // Release the payout. Prefer Dwolla ACH (fires the moment the
+  // operator balance clears — no admin action required) and fall back
+  // to the QB Bill drain if the partner isn't Dwolla-onboarded or the
+  // Dwolla API rejects. Fire-and-forget; failures surface on
+  // /admin/marketplace/payouts.
   try {
     const { data: payout } = await supabaseAdmin
       .from("marketplace_payouts")
@@ -93,8 +96,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .eq("submission_id", invoice.submission_id)
       .maybeSingle();
     if (payout && payout.status === "queued") {
-      const { pushPayoutToQb } = await import("@/lib/marketplaceQb");
-      pushPayoutToQb(payout.id).catch(() => undefined);
+      const { releasePayoutViaDwolla } = await import("@/lib/marketplaceDwolla");
+      const result = await releasePayoutViaDwolla(payout.id);
+      if (!result.ok) {
+        const { pushPayoutToQb } = await import("@/lib/marketplaceQb");
+        pushPayoutToQb(payout.id).catch(() => undefined);
+      }
     }
   } catch { /* non-critical */ }
 

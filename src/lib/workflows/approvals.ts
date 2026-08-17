@@ -287,6 +287,30 @@ export async function recordCustomerDecision(args: RecordDecisionArgs): Promise<
     } catch (err) {
       console.error("[approvals] secured stage advance failed:", err);
     }
+
+    // Parity with the /operator/marketplace/submissions/[id]/decide path:
+    // queue the partner payout + operator invoice so the PP has a
+    // marketplace_payouts row that the balance-paid webhook can later
+    // release via Stripe Connect. Idempotent — each helper unique-keys
+    // on submission_id. Non-blocking.
+    if (approval.placement_submission_id) {
+      try {
+        const {
+          queuePartnerPayoutForSubmission,
+          queueOperatorInvoiceForSubmission,
+        } = await import("@/lib/marketplaceHandoff");
+        await queuePartnerPayoutForSubmission({
+          submissionId: approval.placement_submission_id,
+          triggeredBy: args.actorUserId,
+        });
+        await queueOperatorInvoiceForSubmission({
+          submissionId: approval.placement_submission_id,
+          triggeredBy: args.actorUserId,
+        });
+      } catch (queueErr) {
+        console.error("[approvals] payout/invoice queue failed:", queueErr);
+      }
+    }
   } else {
     // Decline: bump decline_budget_used with optimistic-concurrency
     // re-read (no RPC required; the workflow.version check makes this
