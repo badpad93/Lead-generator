@@ -6,12 +6,18 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
  * /request-location deposit flow reads this default; per-contract
  * overrides still live on placement_contracts.platform_fee /
  * partner_payout for bespoke deals.
+ *
+ * Units: platform_take is stored as numeric dollars (not cents) to
+ * stay unit-consistent with placement_contracts.platform_fee /
+ * partner_payout / operator_price. Every money field on that path
+ * is dollars, so a bespoke contract override reads cleanly against
+ * the default without a 100× conversion trap.
  */
 
-const DEFAULT_TAKE_CENTS = 10000; // $100 — matches original tier seed
+const DEFAULT_TAKE_DOLLARS = 100; // $100 — matches original tier seed
 
 export interface MarketplaceSettings {
-  platformTakeCents: number;
+  platformTakeDollars: number;
   updatedAt: string | null;
   updatedBy: string | null;
 }
@@ -19,27 +25,33 @@ export interface MarketplaceSettings {
 export async function getMarketplaceSettings(): Promise<MarketplaceSettings> {
   const { data } = await supabaseAdmin
     .from("placement_marketplace_settings")
-    .select("platform_take_cents, updated_at, updated_by")
+    .select("platform_take, updated_at, updated_by")
     .limit(1)
     .maybeSingle();
   if (!data) {
-    return { platformTakeCents: DEFAULT_TAKE_CENTS, updatedAt: null, updatedBy: null };
+    return {
+      platformTakeDollars: DEFAULT_TAKE_DOLLARS,
+      updatedAt: null,
+      updatedBy: null,
+    };
   }
   return {
-    platformTakeCents: Number(data.platform_take_cents ?? DEFAULT_TAKE_CENTS),
+    platformTakeDollars: Number(data.platform_take ?? DEFAULT_TAKE_DOLLARS),
     updatedAt: data.updated_at ?? null,
     updatedBy: data.updated_by ?? null,
   };
 }
 
-export async function setPlatformTakeCents(
-  cents: number,
+export async function setPlatformTakeDollars(
+  dollars: number,
   updatedBy: string | null,
 ): Promise<MarketplaceSettings> {
-  if (!Number.isFinite(cents) || cents < 0) {
-    throw new Error("platform_take_cents must be a non-negative integer");
+  if (!Number.isFinite(dollars) || dollars < 0) {
+    throw new Error("platform_take must be a non-negative dollar amount");
   }
-  const takeCents = Math.round(cents);
+  // Round to two decimals so we don't drift sub-cent — DB CHECK
+  // allows any non-negative numeric but we keep pennies clean.
+  const takeDollars = Math.round(dollars * 100) / 100;
 
   const { data: existing } = await supabaseAdmin
     .from("placement_marketplace_settings")
@@ -51,16 +63,16 @@ export async function setPlatformTakeCents(
     const { data, error } = await supabaseAdmin
       .from("placement_marketplace_settings")
       .update({
-        platform_take_cents: takeCents,
+        platform_take: takeDollars,
         updated_at: new Date().toISOString(),
         updated_by: updatedBy,
       })
       .eq("id", existing.id)
-      .select("platform_take_cents, updated_at, updated_by")
+      .select("platform_take, updated_at, updated_by")
       .single();
     if (error) throw error;
     return {
-      platformTakeCents: Number(data.platform_take_cents),
+      platformTakeDollars: Number(data.platform_take),
       updatedAt: data.updated_at,
       updatedBy: data.updated_by,
     };
@@ -68,12 +80,12 @@ export async function setPlatformTakeCents(
 
   const { data, error } = await supabaseAdmin
     .from("placement_marketplace_settings")
-    .insert({ platform_take_cents: takeCents, updated_by: updatedBy })
-    .select("platform_take_cents, updated_at, updated_by")
+    .insert({ platform_take: takeDollars, updated_by: updatedBy })
+    .select("platform_take, updated_at, updated_by")
     .single();
   if (error) throw error;
   return {
-    platformTakeCents: Number(data.platform_take_cents),
+    platformTakeDollars: Number(data.platform_take),
     updatedAt: data.updated_at,
     updatedBy: data.updated_by,
   };

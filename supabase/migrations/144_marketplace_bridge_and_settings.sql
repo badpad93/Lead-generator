@@ -13,8 +13,13 @@
 --      Marketplace-wide policy knobs. Right now that's just the default
 --      platform take VC keeps per completed location — admin-editable
 --      via the settings UI. Per-contract overrides still live on
---      placement_contracts.partner_payout/platform_fee, so a bespoke
---      contract can diverge from the default without a migration.
+--      placement_contracts.platform_fee / partner_payout for bespoke
+--      deals, so this default only seeds the auto-created contracts.
+--
+--      Column is numeric DOLLARS (not cents) to stay unit-consistent
+--      with placement_contracts.platform_fee / partner_payout /
+--      operator_price — every money field on that path is dollars,
+--      so a bespoke override reads cleanly against the default.
 -- ═════════════════════════════════════════════════════════════════════
 
 ALTER TABLE public.placement_contracts
@@ -25,16 +30,16 @@ CREATE INDEX IF NOT EXISTS idx_contracts_workflow
 
 CREATE TABLE IF NOT EXISTS public.placement_marketplace_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  -- Cents VC keeps per completed location by default. Original
-  -- tier 1/2/3 seeds all set platform_fee = 100 dollars = 10000 cents.
-  platform_take_cents integer NOT NULL DEFAULT 10000
-    CHECK (platform_take_cents >= 0),
+  -- Dollars VC keeps per completed location by default. Matches the
+  -- original tier 1/2/3 platform_fee constant of $100.
+  platform_take numeric(10,2) NOT NULL DEFAULT 100
+    CHECK (platform_take >= 0),
   updated_at timestamptz NOT NULL DEFAULT now(),
   updated_by uuid REFERENCES auth.users(id)
 );
 
-INSERT INTO public.placement_marketplace_settings (platform_take_cents)
-SELECT 10000
+INSERT INTO public.placement_marketplace_settings (platform_take)
+SELECT 100
 WHERE NOT EXISTS (SELECT 1 FROM public.placement_marketplace_settings);
 
 ALTER TABLE public.placement_marketplace_settings ENABLE ROW LEVEL SECURITY;

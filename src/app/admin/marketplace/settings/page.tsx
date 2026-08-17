@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { Loader2, Save, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface Settings {
-  platformTakeCents: number;
+  platformTakeDollars: number;
   updatedAt: string | null;
   updatedBy: string | null;
 }
 
-function centsToDollars(c: number): string {
-  return (c / 100).toFixed(2);
+function formatDollars(d: number): string {
+  return d.toFixed(2);
 }
 
 export default function AdminMarketplaceSettingsPage() {
@@ -28,7 +28,7 @@ export default function AdminMarketplaceSettingsPage() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setSettings(data.settings);
-        setInputDollars(centsToDollars(data.settings.platformTakeCents));
+        setInputDollars(formatDollars(data.settings.platformTakeDollars));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load settings");
       }
@@ -50,14 +50,14 @@ export default function AdminMarketplaceSettingsPage() {
       const res = await fetch("/api/admin/marketplace/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform_take_cents: Math.round(dollars * 100) }),
+        body: JSON.stringify({ platform_take: dollars }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || `Save failed (HTTP ${res.status})`);
       } else {
         setSettings(data.settings);
-        setInputDollars(centsToDollars(data.settings.platformTakeCents));
+        setInputDollars(formatDollars(data.settings.platformTakeDollars));
         setSaved(true);
       }
     } catch (err) {

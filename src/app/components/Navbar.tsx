@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Menu, X, ChevronRight, LogOut, LayoutDashboard, User, Shield, ShoppingBag, ScrollText, Heart, Briefcase, Zap, Coffee, Globe } from "lucide-react";
+import { Menu, X, ChevronRight, ChevronDown, LogOut, LayoutDashboard, User, Shield, ShoppingBag, ScrollText, Heart, Briefcase, Zap, Coffee, Globe } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import Tooltip from "@/app/components/Tooltip";
@@ -20,32 +20,49 @@ interface NavLink {
   short?: string;
 }
 
-// Every browse/marketplace surface is public — visitors shop and then
-// sign up when they choose to buy/list. Auth conversions happen at the
-// action button, not the page boundary. navLinks and authNavLinks are
-// now identical; we keep both symbols to leave room for signed-in-only
-// items in the future without perturbing the browse experience.
-const navLinks: NavLink[] = [
-  { label: "Locations and Routes For Sale", short: "Locations & Routes", href: "/browse-requests" },
-  { label: "Sell a Location", href: "/marketplace" },
-  { label: "Machines for Sale", short: "Machines", href: "/machines-for-sale" },
-  { label: "Placement Providers", short: "Placement", href: "/placement" },
-  { label: "Browse Operators", short: "Operators", href: "/browse-operators" },
-  { label: "Financing", href: "/financing" },
+interface NavGroup {
+  label: string;
+  items: Array<{ label: string; href: string; description?: string }>;
+}
+
+/**
+ * Top-nav is grouped so the breadth of Vending Connector reads at a
+ * glance without cramming every route into a flat bar. Desktop renders
+ * each group as a hover/focus dropdown; mobile drawer flattens the
+ * same items into labelled sections. Every historical route from the
+ * pre-redesign flat nav is preserved somewhere in this structure so
+ * bookmarks + inbound links keep working.
+ */
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Marketplace",
+    items: [
+      { label: "Available Locations", href: "/browse-requests", description: "Open location requests waiting for operators" },
+      { label: "Sell a Location", href: "/marketplace", description: "List a location or route for sale" },
+      { label: "Machines for Sale", href: "/machines-for-sale", description: "Vending equipment and AI-powered solutions" },
+    ],
+  },
+  {
+    label: "Services",
+    items: [
+      { label: "Financing", href: "/financing", description: "Up to 10-year equipment financing options" },
+      { label: "Coffee Program", href: "/coffee", description: "Commercial coffee with qualifying free brewer" },
+      { label: "Website Services", href: "/website-services", description: "Professional site for your vending business" },
+      { label: "Location Services", href: "/request-location", description: "Get help placing your machines" },
+    ],
+  },
+  {
+    label: "Community",
+    items: [
+      { label: "Placement Providers", href: "/placement", description: "List placements, keep 100% of your commission" },
+      { label: "Operators", href: "/browse-operators", description: "Directory of vending operators" },
+    ],
+  },
 ];
 
-// "Your Leads" and "Coffee" live in the account dropdown (Coffee is
-// access-gated there), so they stay out of the top bar.
-const authNavLinks: NavLink[] = [
-  { label: "Locations and Routes For Sale", short: "Locations & Routes", href: "/browse-requests" },
-  { label: "Sell a Location", href: "/marketplace" },
-  { label: "Machines for Sale", short: "Machines", href: "/machines-for-sale" },
-  { label: "Placement Providers", short: "Placement", href: "/placement" },
-  { label: "Browse Operators", short: "Operators", href: "/browse-operators" },
-  { label: "Financing", href: "/financing" },
-];
-
-const sidebarExtraLinks = [
+// Mobile-drawer extras — items that don't belong to a top-nav group
+// but should still be reachable from the drawer.
+const drawerExtraLinks: NavLink[] = [
   { label: "How It Works", href: "/how-it-works" },
 ];
 
@@ -241,19 +258,34 @@ export default function Navbar() {
             <span className="whitespace-nowrap text-lg font-bold text-gray-900">Vending Connector</span>
           </Link>
 
-          {/* Desktop Navigation */}
+          {/* Desktop Navigation — grouped dropdowns */}
           <ul className="hidden items-center gap-0.5 xl:flex">
-            {(isLoggedIn ? authNavLinks : navLinks).map((link) => (
-              <li key={link.href}>
-                <Tooltip content={TOOLTIP_COPY[link.label] ?? link.label}>
-                  <Link
-                    href={link.href}
-                    className="nav-link-animated whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary"
-                    aria-label={TOOLTIP_COPY[link.label] ?? undefined}
-                  >
-                    {link.short ?? link.label}
-                  </Link>
-                </Tooltip>
+            {NAV_GROUPS.map((group) => (
+              <li key={group.label} className="relative group">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary group-focus-within:bg-green-50 group-focus-within:text-green-primary"
+                  aria-haspopup="true"
+                >
+                  {group.label}
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-hover:rotate-180 group-focus-within:rotate-180" />
+                </button>
+                <div className="pointer-events-none invisible absolute left-0 top-full z-40 mt-1 w-72 rounded-2xl border border-gray-100 bg-white p-2 opacity-0 shadow-xl transition-all group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100">
+                  {group.items.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="block rounded-lg px-3 py-2 transition-colors hover:bg-green-50"
+                    >
+                      <div className="text-sm font-semibold text-black-primary">{item.label}</div>
+                      {item.description && (
+                        <div className="mt-0.5 text-[11px] leading-snug text-gray-500">
+                          {item.description}
+                        </div>
+                      )}
+                    </Link>
+                  ))}
+                </div>
               </li>
             ))}
           </ul>
@@ -500,21 +532,26 @@ export default function Navbar() {
           )}
 
           <ul className="space-y-1">
-            {(isLoggedIn ? authNavLinks : navLinks).map((link) => (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
-                  aria-label={TOOLTIP_COPY[link.label] ?? undefined}
-                >
-                  {link.label}
-                  <ChevronRight className="h-4 w-4 text-white/40" />
-                </Link>
+            {NAV_GROUPS.map((group) => (
+              <li key={group.label} className="pt-2 first:pt-0">
+                <div className="mb-1 px-4 text-[11px] font-semibold uppercase tracking-wider text-white/50">
+                  {group.label}
+                </div>
+                {group.items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium text-white transition-colors hover:bg-white/15"
+                  >
+                    {item.label}
+                    <ChevronRight className="h-4 w-4 text-white/40" />
+                  </Link>
+                ))}
               </li>
             ))}
 
-            {sidebarExtraLinks.map((link) => (
+            {drawerExtraLinks.map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}

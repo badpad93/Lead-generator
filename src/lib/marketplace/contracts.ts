@@ -11,12 +11,12 @@ import { getMarketplaceSettings } from "./settings";
  * contract per workflow. Backfills workflow.placement_contract_id if
  * the FK on the workflow side was missed.
  *
- * Pricing:
+ * Pricing (all dollars, matching the placement_contracts schema):
  *   operator_price   = $500 / location (standard tier-1 placement fee
  *                      the operator already committed to via the
  *                      $500-per-location balance in
  *                      /api/request-location)
- *   platform_fee     = marketplace settings platform_take_cents
+ *   platform_fee     = marketplace settings platform_take
  *                      (admin-editable via /admin/marketplace/settings)
  *   partner_payout   = operator_price - platform_fee
  *
@@ -24,7 +24,7 @@ import { getMarketplaceSettings } from "./settings";
  * defaults just get the bridge out of the way.
  */
 
-const OPERATOR_PRICE_CENTS = 50000; // $500 — matches /api/request-location assumption
+const OPERATOR_PRICE_DOLLARS = 500; // $500 — matches /api/request-location assumption
 
 export async function ensureContractForLocationServicesWorkflow(
   workflowId: string,
@@ -78,11 +78,11 @@ export async function ensureContractForLocationServicesWorkflow(
       : "";
 
   const settings = await getMarketplaceSettings();
-  const platformFeeCents = Math.min(
-    settings.platformTakeCents,
-    OPERATOR_PRICE_CENTS,
+  const platformFeeDollars = Math.min(
+    settings.platformTakeDollars,
+    OPERATOR_PRICE_DOLLARS,
   );
-  const partnerPayoutCents = OPERATOR_PRICE_CENTS - platformFeeCents;
+  const partnerPayoutDollars = OPERATOR_PRICE_DOLLARS - platformFeeDollars;
 
   const locationsNeeded =
     Number(workflow.quantity_purchased) ||
@@ -96,9 +96,9 @@ export async function ensureContractForLocationServicesWorkflow(
     .insert({
       title,
       tier: 1,
-      operator_price: OPERATOR_PRICE_CENTS / 100,
-      partner_payout: partnerPayoutCents / 100,
-      platform_fee: platformFeeCents / 100,
+      operator_price: OPERATOR_PRICE_DOLLARS,
+      partner_payout: partnerPayoutDollars,
+      platform_fee: platformFeeDollars,
       market_state: marketState || null,
       market_city: null,
       contract_type: locationsNeeded > 1 ? "multi" : "single",
