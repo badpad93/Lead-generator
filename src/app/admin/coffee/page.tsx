@@ -969,6 +969,9 @@ export default function AdminCoffeePage() {
                     onChange={(e) => setProductForm((p) => ({ ...p, price: e.target.value }))}
                     className={inputClass}
                   />
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Sets Tier 1 (standard operator) pricing — what most shoppers see. Manage Tier 2 / Tier 3 pricing separately from the <span className="font-medium">Tier Prices</span> button above.
+                  </p>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">Shipping Cost</label>
