@@ -98,6 +98,41 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Propagate base price + shipping to the Tier 1 tier-price row.
+    // Marketplace resolver (src/lib/coffeePricing.ts) reads from
+    // coffee_product_tier_prices, not from coffee_products.price, so
+    // without this write the admin's edit is invisible to shoppers.
+    // Tier-specific pricing (Tier 2 / Tier 3) is still managed at
+    // /admin/coffee/tier-prices and is not touched here.
+    const priceChanged = "price" in fields;
+    const shippingChanged = "shipping_cost" in fields;
+    if (priceChanged || shippingChanged) {
+      try {
+        const { data: tier1 } = await supabaseAdmin
+          .from("coffee_pricing_tiers")
+          .select("id")
+          .eq("tier_key", "tier_1")
+          .maybeSingle();
+        if (tier1) {
+          const tierPatch: Record<string, unknown> = {
+            product_id: id,
+            pricing_tier_id: tier1.id,
+            updated_by: adminId,
+            updated_at: new Date().toISOString(),
+          };
+          if (priceChanged) tierPatch.price = fields.price;
+          if (shippingChanged) tierPatch.shipping_cost = fields.shipping_cost;
+          await supabaseAdmin
+            .from("coffee_product_tier_prices")
+            .upsert(tierPatch, { onConflict: "product_id,pricing_tier_id" });
+        }
+      } catch (tierErr) {
+        // Non-fatal — base price is already saved. Admin can still
+        // edit the tier price directly at /admin/coffee/tier-prices.
+        console.error("[admin/coffee/products] tier-1 propagation failed:", tierErr);
+      }
+    }
+
     return NextResponse.json({ product: data });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
