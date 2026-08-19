@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus, Trash2 } from "lucide-react";
+import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus, Trash2, Send, FileSignature } from "lucide-react";
 
 interface TeamMember {
   id: string;
@@ -114,6 +114,43 @@ export default function TeamPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Latest onboarding status per team member, refreshed on tab
+  // focus + after a Send action. Keyed by member id + lowercase
+  // email so the status pill lights up whether the invite carried
+  // team_member_id or was created email-only.
+  const loadOnboardingStatuses = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/admin/contractor-onboarding", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const rows = (data.onboardings ?? []) as Array<{
+        id: string;
+        team_member_id: string | null;
+        contractor_email: string;
+        status: string;
+        completed_at: string | null;
+        sent_at: string | null;
+      }>;
+      // Newest first per API contract; walk once and keep the first
+      // (i.e. latest) row per key.
+      const next: typeof onboardingByKey = {};
+      for (const r of rows) {
+        const record = { id: r.id, status: r.status, completed_at: r.completed_at, sent_at: r.sent_at };
+        if (r.team_member_id && !next[r.team_member_id]) next[r.team_member_id] = record;
+        const emailKey = `email:${r.contractor_email.toLowerCase()}`;
+        if (!next[emailKey]) next[emailKey] = record;
+      }
+      setOnboardingByKey(next);
+    } catch {
+      // Non-fatal — Team page still renders without the status column.
+    }
+  }, [token]);
+
+  useEffect(() => { void loadOnboardingStatuses(); }, [loadOnboardingStatuses]);
+
   async function handleAddMember() {
     if (!addForm.full_name || !addForm.email || !addForm.password) return;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -147,6 +184,73 @@ export default function TeamPage() {
   }
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Latest contractor onboarding record per team member — keyed by
+  // both team_member_id and (lowercase) email so we can match no
+  // matter which was stamped at invite time. Fed by
+  // /api/admin/contractor-onboarding on mount.
+  const [onboardingByKey, setOnboardingByKey] = useState<Record<string, {
+    id: string;
+    status: string;
+    completed_at: string | null;
+    sent_at: string | null;
+  }>>({});
+
+  // Contractor onboarding modal state — a distinct flow from the
+  // candidate pipeline. Sends the VP contractor packet to a signed
+  // team member post-hire. Prefills email + name from the row when
+  // the admin clicks "Onboard Contractor" on a specific member.
+  const [showOnboard, setShowOnboard] = useState(false);
+  const [onboardForm, setOnboardForm] = useState({
+    contractor_name: "",
+    email: "",
+    start_date: "",
+    team_member_id: null as string | null,
+  });
+  const [onboardSaving, setOnboardSaving] = useState(false);
+  const [onboardError, setOnboardError] = useState<string | null>(null);
+  const [onboardSuccess, setOnboardSuccess] = useState<string | null>(null);
+
+  function openOnboardForMember(m: TeamMember | null) {
+    setOnboardError(null);
+    setOnboardSuccess(null);
+    setOnboardForm({
+      contractor_name: m?.full_name ?? "",
+      email: m?.email ?? "",
+      start_date: "",
+      team_member_id: m?.id ?? null,
+    });
+    setShowOnboard(true);
+  }
+
+  async function handleSendOnboardingPacket() {
+    setOnboardError(null);
+    setOnboardSuccess(null);
+    setOnboardSaving(true);
+    try {
+      const res = await fetch("/api/admin/contractor-onboarding", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(onboardForm),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOnboardError(data.error ?? `Failed (HTTP ${res.status})`);
+      } else {
+        setOnboardSuccess(
+          `Onboarding packet sent to ${onboardForm.email}. Link expires ${new Date(data.expires_at).toLocaleDateString()}.`,
+        );
+        void loadOnboardingStatuses();
+        setTimeout(() => setShowOnboard(false), 2200);
+      }
+    } catch (err) {
+      setOnboardError(err instanceof Error ? err.message : "Network error");
+    }
+    setOnboardSaving(false);
+  }
 
   async function handleDelete(userId: string, userName: string, userEmail: string) {
     if (!window.confirm(
@@ -228,8 +332,15 @@ export default function TeamPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { setShowAddMember(true); setAddError(null); setAddSuccess(null); }}
+            onClick={() => openOnboardForMember(null)}
             className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer"
+            title="Send a contractor onboarding packet"
+          >
+            <FileSignature className="h-4 w-4" /> Onboard
+          </button>
+          <button
+            onClick={() => { setShowAddMember(true); setAddError(null); setAddSuccess(null); }}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
           >
             <UserPlus className="h-4 w-4" /> Add Team Member
           </button>
@@ -296,6 +407,7 @@ export default function TeamPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Name</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Email</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Role</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-500">Onboarding</th>
                 {currentUserRole === "admin" && (
                   <th className="text-right px-4 py-3 font-medium text-gray-500 w-20">Actions</th>
                 )}
@@ -328,30 +440,51 @@ export default function TeamPage() {
                       </span>
                     )}
                   </td>
+                  <td className="px-4 py-3">
+                    <OnboardingCell
+                      member={m}
+                      record={
+                        onboardingByKey[m.id] ??
+                        onboardingByKey[`email:${m.email.toLowerCase()}`] ??
+                        null
+                      }
+                    />
+                  </td>
                   {currentUserRole === "admin" && (
                     <td className="px-4 py-3 text-right">
-                      {m.id !== currentUserId && (
+                      <div className="inline-flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => handleDelete(m.id, m.full_name, m.email)}
-                          disabled={deletingId === m.id}
-                          className="inline-flex items-center gap-1 rounded-md p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
-                          title={`Delete ${m.full_name || m.email}`}
-                          aria-label={`Delete ${m.full_name || m.email}`}
+                          onClick={() => openOnboardForMember(m)}
+                          className="inline-flex items-center gap-1 rounded-md p-1.5 text-gray-300 hover:bg-green-50 hover:text-green-600 transition-colors"
+                          title={`Send contractor onboarding packet to ${m.full_name || m.email}`}
+                          aria-label={`Onboard ${m.full_name || m.email}`}
                         >
-                          {deletingId === m.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
+                          <FileSignature className="h-4 w-4" />
                         </button>
-                      )}
+                        {m.id !== currentUserId && (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(m.id, m.full_name, m.email)}
+                            disabled={deletingId === m.id}
+                            className="inline-flex items-center gap-1 rounded-md p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
+                            title={`Delete ${m.full_name || m.email}`}
+                            aria-label={`Delete ${m.full_name || m.email}`}
+                          >
+                            {deletingId === m.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>
               ))}
               {filteredTeam.length === 0 && (
-                <tr><td colSpan={currentUserRole === "admin" ? 4 : 3} className="px-4 py-8 text-center text-gray-400">No team members found.</td></tr>
+                <tr><td colSpan={currentUserRole === "admin" ? 5 : 4} className="px-4 py-8 text-center text-gray-400">No team members found.</td></tr>
               )}
             </tbody>
           </table>
@@ -499,6 +632,156 @@ export default function TeamPage() {
           </div>
         </div>
       )}
+
+      {/* Contractor Onboarding Modal — separate from Add Team Member.
+          Sends the signed VP contractor legal packet to a hired
+          contractor via a secure hashed-token link. */}
+      {showOnboard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <FileSignature className="h-5 w-5 text-green-600" />
+                Start Contractor Onboarding
+              </h2>
+              <button
+                onClick={() => setShowOnboard(false)}
+                className="text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Send the Vending Connector / Apex AI Vending Vice President contractor packet.
+              The contractor receives a secure link to complete their information, agreements, tax
+              form, and payment setup — no login required.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Contractor Name <span className="text-gray-400">(optional)</span>
+                </label>
+                <input
+                  value={onboardForm.contractor_name}
+                  onChange={(e) => setOnboardForm((f) => ({ ...f, contractor_name: e.target.value }))}
+                  placeholder="e.g. Zach Seymour"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Email Address <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={onboardForm.email}
+                  onChange={(e) => setOnboardForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="contractor@example.com"
+                  type="email"
+                  required
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Start Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={onboardForm.start_date}
+                  onChange={(e) => setOnboardForm((f) => ({ ...f, start_date: e.target.value }))}
+                  type="date"
+                  required
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {onboardError && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">
+                {onboardError}
+              </div>
+            )}
+            {onboardSuccess && (
+              <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+                {onboardSuccess}
+              </div>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={handleSendOnboardingPacket}
+                disabled={
+                  onboardSaving ||
+                  !onboardForm.email ||
+                  !onboardForm.start_date ||
+                  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(onboardForm.email)
+                }
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+              >
+                {onboardSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {onboardSaving ? "Sending..." : "Send Onboarding Packet"}
+              </button>
+              <button
+                onClick={() => setShowOnboard(false)}
+                className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// OnboardingCell — pill + click-through per team member row.
+// Colors mirror the admin detail page's StatusPill so admins get
+// a consistent visual vocabulary across the two surfaces.
+// ─────────────────────────────────────────────────────────────
+function OnboardingCell({
+  member,
+  record,
+}: {
+  member: TeamMember;
+  record: { id: string; status: string; completed_at: string | null; sent_at: string | null } | null;
+}) {
+  if (!record) {
+    return <span className="text-xs text-gray-400">Not started</span>;
+  }
+  const map: Record<string, string> = {
+    not_started: "bg-gray-100 text-gray-700",
+    sent: "bg-blue-50 text-blue-700",
+    opened: "bg-yellow-50 text-yellow-700",
+    in_progress: "bg-orange-50 text-orange-700",
+    completed: "bg-green-50 text-green-700",
+    needs_attention: "bg-red-50 text-red-700",
+    revoked: "bg-gray-100 text-gray-500 line-through",
+    expired: "bg-gray-100 text-gray-500",
+  };
+  const label = {
+    not_started: "Not Started",
+    sent: "Sent",
+    opened: "Opened",
+    in_progress: "In Progress",
+    completed: "Completed",
+    needs_attention: "Needs Attention",
+    revoked: "Revoked",
+    expired: "Expired",
+  }[record.status] ?? record.status;
+  const dateStr =
+    record.completed_at
+      ? ` ${new Date(record.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+      : "";
+  return (
+    <Link
+      href={`/sales/team/contractor-onboarding/${record.id}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium hover:opacity-80 transition-opacity ${map[record.status] ?? map.not_started}`}
+      title={`View onboarding for ${member.full_name || member.email}`}
+    >
+      {label}
+      {dateStr}
+    </Link>
   );
 }
