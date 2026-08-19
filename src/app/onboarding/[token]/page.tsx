@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { useParams } from "next/navigation";
 import {
   Loader2,
@@ -11,8 +11,17 @@ import {
   FileSignature,
   Cloud,
   CloudOff,
+  Upload,
+  FileText,
+  ShieldCheck,
+  ClipboardCheck,
 } from "lucide-react";
 import { useDebouncedAutosave, type SaveState } from "@/hooks/useDebouncedAutosave";
+import {
+  INDEPENDENT_CONTRACTOR_AGREEMENT,
+  CONFIDENTIALITY_AGREEMENT,
+  SALES_POLICY_ACKNOWLEDGMENTS,
+} from "@/lib/contractorOnboarding/legal";
 
 /**
  * Public contractor onboarding portal.
@@ -39,6 +48,7 @@ const STEPS = [
 ] as const;
 
 interface StepData {
+  // Step 1 — Contractor Information
   full_legal_name?: string;
   preferred_name?: string;
   business_name?: string;
@@ -48,6 +58,10 @@ interface StepData {
   mailing_zip?: string;
   phone_number?: string;
   state_of_residence?: string;
+  // Step 3–5 — agreement acknowledgments (real signatures happen at step 8)
+  ica_accepted?: boolean;
+  confidentiality_accepted?: boolean;
+  sales_policy_acknowledgments?: Record<string, boolean>;
 }
 
 interface OnboardingState {
@@ -62,6 +76,7 @@ interface OnboardingState {
   completed_at: string | null;
   locked: boolean;
   w9_received: boolean;
+  w9_original_filename?: string | null;
   payment_verified: boolean;
 }
 
@@ -205,10 +220,22 @@ export default function ContractorOnboardingPage() {
             {state.current_step === 1 && (
               <ContractorInfoStep state={state} updateField={updateField} />
             )}
-            {state.current_step >= 2 && (
+            {state.current_step === 2 && (
+              <W9UploadStep state={state} token={token} onUploaded={setState} />
+            )}
+            {state.current_step === 3 && (
+              <ContractorAgreementStep state={state} updateField={updateField} />
+            )}
+            {state.current_step === 4 && (
+              <ConfidentialityStep state={state} updateField={updateField} />
+            )}
+            {state.current_step === 5 && (
+              <SalesPolicyStep state={state} updateField={updateField} />
+            )}
+            {state.current_step >= 6 && (
               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-                This step ships in a follow-up commit. Your progress on Step 1 is
-                autosaved — use the Back button to review or edit it any time.
+                This step ships in a follow-up commit. Your progress on earlier steps is
+                autosaved — use the Back button to review or edit any time.
               </div>
             )}
           </div>
@@ -492,6 +519,363 @@ function Field({
         {label} {required && <span className="text-red-500">*</span>}
       </span>
       {children}
+    </label>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 2 — Tax Information (W-9 upload)
+// ─────────────────────────────────────────────────────────────
+
+function W9UploadStep({
+  state,
+  token,
+  onUploaded,
+}: {
+  state: OnboardingState;
+  token: string;
+  onUploaded: (updater: (prev: OnboardingState | null) => OnboardingState | null) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    setError(null);
+    if (file.type !== "application/pdf") {
+      setError("Please upload a PDF.");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setError("File exceeds 15 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/onboarding/contractor/${token}/w9`, {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? `Upload failed (HTTP ${res.status})`);
+      } else {
+        onUploaded((prev) =>
+          prev
+            ? {
+                ...prev,
+                w9_received: true,
+                w9_original_filename: data.w9_original_filename,
+              }
+            : prev,
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    }
+    setUploading(false);
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-600 leading-relaxed">
+        We need a completed IRS Form W-9 on file for tax reporting. Download the
+        current form from{" "}
+        <a
+          href="https://www.irs.gov/pub/irs-pdf/fw9.pdf"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-green-600 hover:underline font-medium"
+        >
+          IRS.gov
+        </a>
+        , fill it out and sign it, then upload the completed PDF below.
+      </p>
+      <p className="text-xs text-gray-500 leading-relaxed">
+        Your W-9 is uploaded to a secure, private location and is not visible in
+        our team views or notification emails. Only authorized finance staff can
+        access it.
+      </p>
+
+      {state.w9_received ? (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-5">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900">W-9 received</p>
+              <p className="text-xs text-gray-600 mt-1 truncate">
+                {state.w9_original_filename ?? "Uploaded"}
+              </p>
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                Replace W-9
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <label
+          htmlFor="w9-file"
+          className={`flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors cursor-pointer ${
+            uploading
+              ? "border-gray-200 bg-gray-50"
+              : "border-green-300 bg-green-50/40 hover:bg-green-50"
+          }`}
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+              <p className="text-sm text-gray-600">Uploading…</p>
+            </>
+          ) : (
+            <>
+              <Upload className="h-6 w-6 text-green-600" />
+              <p className="text-sm font-medium text-gray-900">
+                Click to upload your completed W-9
+              </p>
+              <p className="text-[11px] text-gray-500">PDF only, max 15 MB</p>
+            </>
+          )}
+        </label>
+      )}
+      <input
+        ref={inputRef}
+        id="w9-file"
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleFile(f);
+          e.target.value = "";
+        }}
+      />
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 3 — Independent Contractor Agreement
+// ─────────────────────────────────────────────────────────────
+
+function ContractorAgreementStep({
+  state,
+  updateField,
+}: {
+  state: OnboardingState;
+  updateField: <K extends keyof StepData>(key: K, value: StepData[K]) => void;
+}) {
+  const a = INDEPENDENT_CONTRACTOR_AGREEMENT;
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-gray-600">
+        Please review the Independent Contractor Agreement below. You&apos;ll be
+        asked to sign it electronically at the end of onboarding — this step
+        confirms you&apos;ve read and agree with the terms.
+      </p>
+
+      <div className="rounded-xl border border-gray-200 bg-white max-h-[420px] overflow-y-auto p-5 text-sm text-gray-700 space-y-4">
+        <Section title="Services">
+          <BulletList items={a.scopeOfServices} />
+        </Section>
+        <Section title="Authorized Representations — Contractor may communicate:">
+          <BulletList items={a.authorizedRepresentations.may} />
+        </Section>
+        <Section title="Contractor may NOT:">
+          <BulletList items={a.authorizedRepresentations.mayNot} />
+        </Section>
+        <Section title="Independent Contractor Status (1099)">
+          <BulletList items={a.independentContractorStatus} />
+        </Section>
+        <Section title="No Non-Compete">
+          <p className="leading-relaxed">{a.noNonCompete}</p>
+        </Section>
+        <Section title="CRM Requirements">
+          <BulletList items={a.crmRequirements} />
+        </Section>
+      </div>
+
+      <CheckboxRow
+        label="I have read and agree to the Independent Contractor Agreement above."
+        checked={!!state.step_data.ica_accepted}
+        onChange={(v) => updateField("ica_accepted", v)}
+        icon={FileText}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 4 — Confidentiality & Customer Data
+// ─────────────────────────────────────────────────────────────
+
+function ConfidentialityStep({
+  state,
+  updateField,
+}: {
+  state: OnboardingState;
+  updateField: <K extends keyof StepData>(key: K, value: StepData[K]) => void;
+}) {
+  const c = CONFIDENTIALITY_AGREEMENT;
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-gray-600">
+        This agreement covers how you use and protect Vending Connector /
+        Apex AI Vending customer and company information — during your
+        engagement and after it ends.
+      </p>
+
+      <div className="rounded-xl border border-gray-200 bg-white max-h-[420px] overflow-y-auto p-5 text-sm text-gray-700 space-y-4">
+        <Section title="What you agree to">
+          <BulletList items={c.restrictions} />
+        </Section>
+        <Section title="Prohibited storage locations for customer data">
+          <BulletList items={c.prohibitedStorageLocations} />
+        </Section>
+        <Section title="Data deletion upon termination or Company request">
+          <BulletList items={c.dataDeletionOnTermination} />
+        </Section>
+        <Section title="Acknowledgment">
+          <p className="italic text-gray-700 leading-relaxed">{c.acknowledgment}</p>
+        </Section>
+      </div>
+
+      <CheckboxRow
+        label="I have read and agree to the Confidentiality & Customer Data Agreement above."
+        checked={!!state.step_data.confidentiality_accepted}
+        onChange={(v) => updateField("confidentiality_accepted", v)}
+        icon={ShieldCheck}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 5 — Sales / CRM Policy — individual acknowledgments
+// ─────────────────────────────────────────────────────────────
+
+function SalesPolicyStep({
+  state,
+  updateField,
+}: {
+  state: OnboardingState;
+  updateField: <K extends keyof StepData>(key: K, value: StepData[K]) => void;
+}) {
+  const acks = state.step_data.sales_policy_acknowledgments ?? {};
+  const remaining = SALES_POLICY_ACKNOWLEDGMENTS.filter((a) => !acks[a]).length;
+
+  function toggle(item: string, next: boolean) {
+    updateField("sales_policy_acknowledgments", { ...acks, [item]: next });
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-600">
+        Please check each acknowledgment. Every item must be checked before you
+        can continue — this is the sales, customer support, and CRM policy you
+        agree to operate under.
+      </p>
+
+      <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+        {SALES_POLICY_ACKNOWLEDGMENTS.map((item) => {
+          const checked = !!acks[item];
+          return (
+            <label
+              key={item}
+              className={`flex items-start gap-3 p-4 cursor-pointer transition-colors ${
+                checked ? "bg-green-50/60" : "hover:bg-gray-50"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => toggle(item, e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+              />
+              <span className={`text-sm ${checked ? "text-gray-700" : "text-gray-900"}`}>
+                {item}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-gray-500">
+        <ClipboardCheck className="h-3.5 w-3.5" />
+        {remaining === 0
+          ? "All acknowledgments complete."
+          : `${remaining} of ${SALES_POLICY_ACKNOWLEDGMENTS.length} remaining.`}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Small shared UI helpers used by the legal steps
+// ─────────────────────────────────────────────────────────────
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">{title}</h4>
+      {children}
+    </div>
+  );
+}
+
+function BulletList({ items }: { items: readonly string[] }) {
+  return (
+    <ul className="space-y-1.5 pl-4 list-disc marker:text-green-500">
+      {items.map((i) => (
+        <li key={i} className="leading-relaxed">{i}</li>
+      ))}
+    </ul>
+  );
+}
+
+function CheckboxRow({
+  label,
+  checked,
+  onChange,
+  icon: Icon,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  icon: ComponentType<{ className?: string }>;
+}) {
+  return (
+    <label
+      className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${
+        checked
+          ? "border-green-300 bg-green-50/60"
+          : "border-gray-200 bg-white hover:border-green-200 hover:bg-green-50/30"
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-1 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+      />
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-green-600" />
+          <span className="text-sm font-medium text-gray-900">{label}</span>
+        </div>
+      </div>
     </label>
   );
 }

@@ -132,6 +132,7 @@ interface OnboardingRow {
   completed_at: string | null;
   locked: boolean;
   w9_uploaded_at: string | null;
+  w9_original_filename: string | null;
   dwolla_verified_at: string | null;
 }
 
@@ -140,7 +141,7 @@ async function lookupByToken(rawToken: string): Promise<OnboardingRow | null> {
   const { data } = await supabaseAdmin
     .from("contractor_onboarding")
     .select(
-      "id, contractor_email, contractor_name, start_date, status, token_hash, token_expires_at, step_data, current_step, agreement_version, first_opened_at, started_at, completed_at, locked, w9_uploaded_at, dwolla_verified_at",
+      "id, contractor_email, contractor_name, start_date, status, token_hash, token_expires_at, step_data, current_step, agreement_version, first_opened_at, started_at, completed_at, locked, w9_uploaded_at, w9_original_filename, dwolla_verified_at",
     )
     .eq("token_hash", hash)
     .maybeSingle();
@@ -150,7 +151,8 @@ async function lookupByToken(rawToken: string): Promise<OnboardingRow | null> {
 function sanitizeForContractor(row: OnboardingRow) {
   // Fields the contractor's own browser can see. Deliberately no
   // token_hash, no admin-only fields, no dwolla_customer_id (just
-  // the "verified" boolean).
+  // the "verified" boolean), no W-9 storage path (just the filename
+  // + "received" flag).
   return {
     id: row.id,
     contractor_email: row.contractor_email,
@@ -163,6 +165,7 @@ function sanitizeForContractor(row: OnboardingRow) {
     completed_at: row.completed_at,
     locked: row.locked,
     w9_received: !!row.w9_uploaded_at,
+    w9_original_filename: row.w9_original_filename,
     payment_verified: !!row.dwolla_verified_at,
   };
 }
