@@ -1,9 +1,10 @@
 -- ═════════════════════════════════════════════════════════════════════
 -- 148 — Contractor onboarding (post-hire 1099 packet flow)
 -- ─────────────────────────────────────────────────────────────────────
--- Distinct from the existing candidate_tokens / onboarding_candidates
--- pipeline (which is pre-hire recruiting). This one takes a signed
--- Vice President contractor through their legal packet: contractor
+-- Distinct from the existing candidate_tokens pipeline + its
+-- /api/onboarding/candidates surface (which is pre-hire recruiting).
+-- This one takes a signed Vice President contractor through their
+-- legal packet: contractor
 -- info, tax form (W-9 upload), Independent Contractor Agreement,
 -- Confidentiality, Sales/CRM Policy, Compensation acknowledgment,
 -- Payment setup (via existing Plaid/Dwolla rails), and e-signature.
