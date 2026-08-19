@@ -26,6 +26,7 @@ import {
   SALES_POLICY_ACKNOWLEDGMENTS,
   COMMISSION_SCHEDULE,
 } from "@/lib/contractorOnboarding/legal";
+import SignatureCanvas from "@/app/components/SignatureCanvas";
 
 /**
  * Public contractor onboarding portal.
@@ -249,33 +250,51 @@ export default function ContractorOnboardingPage() {
               <PaymentStep state={state} token={token} updateField={updateField} onVerified={setState} />
             )}
             {state.current_step === 8 && (
-              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-                Review & Sign ships in the next commit. Your progress on earlier steps is
-                autosaved — use the Back button to review or edit any time.
-              </div>
+              <ReviewAndSignStep
+                state={state}
+                token={token}
+                onCompleted={() =>
+                  setState((prev) =>
+                    prev ? { ...prev, locked: true, status: "completed", completed_at: new Date().toISOString() } : prev,
+                  )
+                }
+              />
             )}
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between rounded-b-2xl">
-            <button
-              type="button"
-              onClick={() => goToStep(state.current_step - 1)}
-              disabled={state.current_step === 1}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={() => goToStep(state.current_step + 1)}
-              disabled={state.current_step >= STEPS.length}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Continue
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
+          {state.current_step < 8 && (
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between rounded-b-2xl">
+              <button
+                type="button"
+                onClick={() => goToStep(state.current_step - 1)}
+                disabled={state.current_step === 1}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => goToStep(state.current_step + 1)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+              >
+                Continue
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+          {state.current_step === 8 && (
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-start rounded-b-2xl">
+              <button
+                type="button"
+                onClick={() => goToStep(7)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </button>
+            </div>
+          )}
         </div>
       </main>
     </div>
@@ -1116,6 +1135,265 @@ function PaymentStep({
       </p>
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 8 — Review & Sign — capture typed name + optional drawn
+// signature + audit checkbox + POST to /finish.
+// ─────────────────────────────────────────────────────────────
+
+function ReviewAndSignStep({
+  state,
+  token,
+  onCompleted,
+}: {
+  state: OnboardingState;
+  token: string;
+  onCompleted: () => void;
+}) {
+  const [typedName, setTypedName] = useState(
+    state.step_data.payee_legal_name ?? state.step_data.full_legal_name ?? "",
+  );
+  const [drawnSignature, setDrawnSignature] = useState<string>("");
+  const [reviewed, setReviewed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [missing, setMissing] = useState<string[] | null>(null);
+
+  // Missing-required summary computed client-side so the "Finish"
+  // button is disabled with a helpful message. Server re-checks.
+  const clientMissing = computeClientMissing(state);
+
+  const s = state.step_data;
+  const canFinish =
+    reviewed &&
+    typedName.trim().length >= 2 &&
+    clientMissing.length === 0 &&
+    !submitting;
+
+  async function handleFinish() {
+    setError(null);
+    setMissing(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/onboarding/contractor/${token}/finish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          typed_name: typedName.trim(),
+          signature_type: drawnSignature ? "drawn" : "typed",
+          signature_data: drawnSignature || null,
+          reviewed: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? `Failed (HTTP ${res.status})`);
+        if (Array.isArray(data.missing)) setMissing(data.missing);
+      } else {
+        onCompleted();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    }
+    setSubmitting(false);
+  }
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-gray-600">
+        Review your submission below, then type your legal name (and optionally
+        sign) to complete onboarding.
+      </p>
+
+      {/* Review summary — non-sensitive values only. Bank info is
+          shown as "Verified via Plaid" — no account digits render. */}
+      <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 bg-white">
+        <ReviewRow
+          label="Contractor Information"
+          value={
+            [s.full_legal_name, s.mailing_address, s.mailing_city, s.mailing_state, s.mailing_zip]
+              .filter(Boolean)
+              .join(" · ") || "—"
+          }
+        />
+        <ReviewRow label="Email" value={state.contractor_email} />
+        <ReviewRow
+          label="Start Date"
+          value={new Date(state.start_date + "T00:00:00").toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })}
+        />
+        <ReviewRow
+          label="W-9"
+          value={state.w9_received ? `Received (${state.w9_original_filename ?? "PDF uploaded"})` : "Not received"}
+          ok={state.w9_received}
+        />
+        <ReviewRow
+          label="Independent Contractor Agreement"
+          value={s.ica_accepted ? "Read and agreed" : "Not agreed"}
+          ok={!!s.ica_accepted}
+        />
+        <ReviewRow
+          label="Confidentiality Agreement"
+          value={s.confidentiality_accepted ? "Read and agreed" : "Not agreed"}
+          ok={!!s.confidentiality_accepted}
+        />
+        <ReviewRow
+          label="Sales / CRM Policy"
+          value={
+            SALES_POLICY_ACKNOWLEDGMENTS.every((a) => s.sales_policy_acknowledgments?.[a])
+              ? "All 16 items acknowledged"
+              : `Incomplete (${
+                  SALES_POLICY_ACKNOWLEDGMENTS.filter((a) => !s.sales_policy_acknowledgments?.[a]).length
+                } remaining)`
+          }
+          ok={SALES_POLICY_ACKNOWLEDGMENTS.every((a) => s.sales_policy_acknowledgments?.[a])}
+        />
+        <ReviewRow
+          label="Commission Schedule"
+          value={s.commission_acknowledged ? "Acknowledged" : "Not acknowledged"}
+          ok={!!s.commission_acknowledged}
+        />
+        <ReviewRow
+          label="Payment Setup"
+          value={
+            state.payment_verified
+              ? `Bank verified via Plaid — payouts via ACH (Dwolla)`
+              : "Bank not linked"
+          }
+          ok={state.payment_verified}
+        />
+      </div>
+
+      {clientMissing.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold flex items-center gap-1.5">
+            <AlertTriangle className="h-4 w-4" />
+            You still need to complete:
+          </p>
+          <ul className="mt-2 ml-5 list-disc space-y-0.5 text-xs">
+            {clientMissing.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-gray-900">Electronic Signature</h3>
+        <p className="text-xs text-gray-500 leading-relaxed">
+          By typing your legal name and (optionally) drawing your signature below, you are
+          electronically signing the Independent Contractor Agreement, Commission Agreement,
+          Confidentiality Agreement, Sales / CRM Policy, and Payment Authorization for
+          Vending Connector / Apex AI Vending LLP. The date, time, IP address, and browser
+          are recorded in your signature audit trail.
+        </p>
+
+        <Field label="Typed Legal Name" required>
+          <input
+            type="text"
+            value={typedName}
+            onChange={(e) => setTypedName(e.target.value)}
+            className={inputClass}
+            placeholder="Type your full legal name"
+          />
+        </Field>
+
+        <div>
+          <span className="mb-1.5 block text-xs font-medium text-gray-600">
+            Draw Signature <span className="text-gray-400">(optional)</span>
+          </span>
+          <SignatureCanvas onSignature={setDrawnSignature} />
+        </div>
+
+        <CheckboxRow
+          label="I have reviewed and agree to the documents above."
+          checked={reviewed}
+          onChange={setReviewed}
+          icon={FileSignature}
+        />
+      </div>
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            <p>{error}</p>
+            {missing && missing.length > 0 && (
+              <ul className="mt-1 ml-4 list-disc text-xs">
+                {missing.map((m) => (
+                  <li key={m}>{m}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={handleFinish}
+        disabled={!canFinish}
+        className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto"
+      >
+        {submitting ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Finishing…
+          </>
+        ) : (
+          <>
+            <FileSignature className="h-4 w-4" />
+            Finish Onboarding
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
+function ReviewRow({
+  label,
+  value,
+  ok,
+}: {
+  label: string;
+  value: string;
+  ok?: boolean;
+}) {
+  return (
+    <div className="px-4 py-3 flex items-start justify-between gap-4 text-sm">
+      <span className="text-gray-500 shrink-0 w-40 sm:w-56">{label}</span>
+      <span className={`text-right ${ok === false ? "text-amber-700 font-medium" : "text-gray-900"}`}>
+        {ok === true && (
+          <CheckCircle2 className="inline h-3.5 w-3.5 text-green-600 mr-1 -mt-0.5" />
+        )}
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function computeClientMissing(state: OnboardingState): string[] {
+  const s = state.step_data;
+  const missing: string[] = [];
+  if (!s.full_legal_name?.trim()) missing.push("Full legal name (Step 1)");
+  if (!s.mailing_address?.trim()) missing.push("Mailing address (Step 1)");
+  if (!s.mailing_state?.trim()) missing.push("State (Step 1)");
+  if (!s.mailing_zip?.trim()) missing.push("ZIP (Step 1)");
+  if (!s.phone_number?.trim()) missing.push("Phone number (Step 1)");
+  if (!state.w9_received) missing.push("W-9 upload (Step 2)");
+  if (!s.ica_accepted) missing.push("Independent Contractor Agreement (Step 3)");
+  if (!s.confidentiality_accepted) missing.push("Confidentiality Agreement (Step 4)");
+  const acks = s.sales_policy_acknowledgments ?? {};
+  const missingAcks = SALES_POLICY_ACKNOWLEDGMENTS.filter((a) => !acks[a]);
+  if (missingAcks.length > 0) missing.push(`Sales / CRM Policy — ${missingAcks.length} item(s) (Step 5)`);
+  if (!s.commission_acknowledged) missing.push("Commission Schedule acknowledgment (Step 6)");
+  if (!state.payment_verified) missing.push("Bank / payment setup (Step 7)");
+  return missing;
 }
 
 // ─────────────────────────────────────────────────────────────
