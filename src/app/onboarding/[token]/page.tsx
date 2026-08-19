@@ -1,333 +1,531 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, CheckCircle2, FileText, Upload, Download, AlertCircle } from "lucide-react";
-import FormRenderer, { FormField } from "@/components/onboarding/FormRenderer";
+import {
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
+  ArrowLeft,
+  ArrowRight,
+  FileSignature,
+  Cloud,
+  CloudOff,
+} from "lucide-react";
+import { useDebouncedAutosave, type SaveState } from "@/hooks/useDebouncedAutosave";
 
-interface RequiredDoc {
-  assignment_id: string;
-  template_id: string;
-  name: string;
-  description: string | null;
-  file_name: string;
-  file_path: string;
-  required: boolean;
-  form_enabled: boolean;
-  form_fields: FormField[] | null;
-  uploaded: boolean;
-  uploaded_doc: {
-    id: string;
-    file_name: string;
-    file_url: string;
-    form_data: Record<string, unknown> | null;
-    created_at: string;
-  } | null;
+/**
+ * Public contractor onboarding portal.
+ *
+ * Authorized by knowledge of the raw token in the URL — server
+ * verifies via SHA-256 hash + constant-time comparison and stamps
+ * status transitions (opened → in_progress → completed).
+ *
+ * Step 1 is fully wired in this commit; steps 2–7 render as
+ * placeholder stubs so the shell + navigation + autosave loop can
+ * be smoke-tested end-to-end. Legal + signature steps land in
+ * commits 4–6.
+ */
+
+const STEPS = [
+  "Contractor Information",
+  "Tax Information",
+  "Contractor Agreement",
+  "Confidentiality",
+  "Sales Policies",
+  "Compensation",
+  "Payment",
+  "Review & Sign",
+] as const;
+
+interface StepData {
+  full_legal_name?: string;
+  preferred_name?: string;
+  business_name?: string;
+  mailing_address?: string;
+  mailing_city?: string;
+  mailing_state?: string;
+  mailing_zip?: string;
+  phone_number?: string;
+  state_of_residence?: string;
 }
 
-interface PortalData {
-  token: string;
+interface OnboardingState {
+  id: string;
+  contractor_email: string;
+  contractor_name: string | null;
+  start_date: string;
   status: string;
-  step_key: string;
-  candidate_name: string;
-  candidate_email: string;
-  required_documents: RequiredDoc[];
-  submitted: boolean;
+  step_data: StepData;
+  current_step: number;
+  agreement_version: string;
+  completed_at: string | null;
+  locked: boolean;
+  w9_received: boolean;
+  payment_verified: boolean;
 }
 
-const STEP_TITLES: Record<string, string> = {
-  interview: "Interview Documents",
-  welcome_docs: "Welcome & Onboarding Documents",
-};
+export default function ContractorOnboardingPage() {
+  const params = useParams<{ token: string }>();
+  const token = params?.token ?? "";
 
-const STEP_DESCRIPTIONS: Record<string, string> = {
-  interview: "Please review and sign each of the following documents to proceed with your interview process.",
-  welcome_docs: "Congratulations on moving forward! Please complete and sign these documents to finalize your onboarding.",
-};
-
-function PortalContent() {
-  const { token } = useParams<{ token: string }>();
-  const [data, setData] = useState<PortalData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ message: string; expired?: boolean } | null>(null);
+  const [state, setState] = useState<OnboardingState | null>(null);
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/onboarding/candidate-portal/${token}`);
-    if (res.ok) {
-      setData(await res.json());
-    } else {
-      const err = await res.json().catch(() => ({}));
-      setError(err.error || "Portal not found");
-    }
-    setLoading(false);
-  }, [token]);
+  const apiUrl = useMemo(() => `/api/onboarding/contractor/${token}`, [token]);
 
-  useEffect(() => { load(); }, [load]);
-
-  async function handleUpload(templateId: string, file: File) {
-    setUploading(templateId);
-    setUploadError(null);
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("document_template_id", templateId);
-
-    try {
-      const res = await fetch(`/api/onboarding/candidate-portal/${token}/upload`, {
-        method: "POST",
-        body: formData,
+  const { queue, flush, saveState } = useDebouncedAutosave<{
+    step_data?: StepData;
+    current_step?: number;
+  }>({
+    save: async (patch) => {
+      const res = await fetch(apiUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.onboarding) setState(data.onboarding);
+    },
+  });
 
-      if (res.ok) {
-        const result = await res.json();
-        if (result.advanced) {
-          setData((prev) => prev ? { ...prev, submitted: true } : prev);
+  // Initial fetch — also transitions status server-side.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(apiUrl);
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (!cancelled) {
+            setLoadError({
+              message: data.error ?? `Unable to load onboarding (HTTP ${res.status}).`,
+              expired: !!data.expired,
+            });
+          }
+          setLoading(false);
+          return;
         }
-        await load();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        setUploadError(err.error || "Upload failed");
+        const data = await res.json();
+        if (!cancelled) {
+          setState(data.onboarding);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError({
+            message: err instanceof Error ? err.message : "Network error",
+          });
+          setLoading(false);
+        }
       }
-    } catch {
-      setUploadError("Network error — please try again");
-    } finally {
-      setUploading(null);
-    }
-  }
-
-  async function handleDownloadTemplate(filePath: string, fileName: string) {
-    const res = await fetch(`/api/onboarding/candidate-portal/${token}/download?file_path=${encodeURIComponent(filePath)}`);
-    if (res.ok) {
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-  }
-
-  function handleFormComplete(advanced: boolean) {
-    if (advanced) {
-      setData((prev) => prev ? { ...prev, submitted: true } : prev);
-    } else {
-      load();
-    }
-  }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="text-center">
-          <FileText className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-          <h1 className="text-lg font-semibold text-gray-900 mb-2">Link Not Found</h1>
-          <p className="text-sm text-gray-500">{error}</p>
+      <div className="min-h-screen flex items-center justify-center bg-light">
+        <div className="text-center text-gray-500 text-sm">
+          <Loader2 className="h-6 w-6 animate-spin mx-auto mb-3 text-green-600" />
+          Loading your onboarding…
         </div>
       </div>
     );
   }
 
-  if (data.submitted) {
+  if (loadError) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8 px-4">
-        <div className="mx-auto max-w-2xl text-center">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-green-600 mb-1">Vending Connector</h1>
-            <p className="text-sm text-gray-500">Onboarding Portal</p>
-          </div>
-          <div className="rounded-2xl border border-green-200 bg-green-50 p-8">
-            <CheckCircle2 className="mx-auto h-12 w-12 text-green-600 mb-4" />
-            <h2 className="text-xl font-bold text-gray-900 mb-2">All Documents Completed</h2>
-            <p className="text-sm text-gray-600">
-              Thank you, {data.candidate_name}! All required documents have been signed and submitted.
-              {data.step_key === "interview"
-                ? " Your assigned representative will review your documents and send you the next steps when ready."
-                : " Your onboarding is now complete."}
-            </p>
-          </div>
-          <p className="mt-8 text-xs text-gray-400">Vending Connector — vendingconnector.com</p>
+      <div className="min-h-screen flex items-center justify-center bg-light px-4">
+        <div className="max-w-md w-full rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+          <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-gray-900 mb-2">
+            {loadError.expired ? "Onboarding Link Expired" : "Onboarding Not Available"}
+          </h1>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            {loadError.expired
+              ? "This onboarding link has expired. Please contact Apex AI Vending for a new invitation."
+              : loadError.message}
+          </p>
+          <p className="mt-6 text-xs text-gray-400">
+            Contact <a href="mailto:anthony.heidal@apexaivending.com" className="text-green-600 hover:underline">anthony.heidal@apexaivending.com</a>
+          </p>
         </div>
       </div>
     );
   }
 
-  const formDocs = data.required_documents.filter((d) => d.form_enabled && d.form_fields);
-  const uploadDocs = data.required_documents.filter((d) => !d.form_enabled || !d.form_fields);
-  const completedCount = data.required_documents.filter((d) => d.uploaded).length;
-  const totalCount = data.required_documents.length;
-  const allComplete = data.required_documents.filter((d) => d.required).every((d) => d.uploaded);
+  if (!state) return null;
+
+  // Completed / locked view — no editable content.
+  if (state.locked || state.status === "completed") {
+    return <CompletedView state={state} />;
+  }
+
+  const stepIndex = Math.min(Math.max(state.current_step - 1, 0), STEPS.length - 1);
+
+  function updateField<K extends keyof StepData>(key: K, value: StepData[K]) {
+    setState((prev) =>
+      prev ? { ...prev, step_data: { ...prev.step_data, [key]: value } } : prev,
+    );
+    queue({ step_data: { [key]: value } as Partial<StepData> });
+  }
+
+  async function goToStep(next: number) {
+    await flush();
+    const clamped = Math.min(Math.max(next, 1), STEPS.length);
+    setState((prev) => (prev ? { ...prev, current_step: clamped } : prev));
+    queue({ current_step: clamped });
+    // Scroll to top for the new step.
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="mx-auto max-w-2xl">
-        {/* Header */}
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-green-600 mb-1">Vending Connector</h1>
-          <p className="text-sm text-gray-500">Onboarding Portal</p>
-        </div>
+    <div className="min-h-screen bg-light">
+      <Header state={state} saveState={saveState} />
 
-        {/* Welcome & Progress Card */}
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-6">
-          <div className="px-6 py-5 border-b border-gray-100">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Welcome</p>
-            <p className="text-lg font-bold text-gray-900">{data.candidate_name}</p>
-          </div>
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8">
+        <ProgressBar currentStep={state.current_step} />
 
+        <div className="mt-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="px-6 py-5 border-b border-gray-100">
-            <h2 className="text-base font-semibold text-gray-900 mb-1">
-              {STEP_TITLES[data.step_key] || data.step_key}
-            </h2>
-            <p className="text-sm text-gray-500">
-              {STEP_DESCRIPTIONS[data.step_key] || "Please complete the following documents."}
+            <p className="text-xs font-semibold uppercase tracking-wider text-green-600">
+              Step {state.current_step} of {STEPS.length}
             </p>
+            <h2 className="mt-1 text-xl font-bold text-gray-900">
+              {STEPS[stepIndex]}
+            </h2>
           </div>
 
-          <div className="px-6 py-4 bg-gray-50/50">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-gray-500">Progress</span>
-              <span className="text-xs font-medium text-gray-700">{completedCount} of {totalCount} signed</span>
-            </div>
-            <div className="h-2 w-full rounded-full bg-gray-200">
-              <div
-                className="h-2 rounded-full bg-green-500 transition-all"
-                style={{ width: totalCount > 0 ? `${(completedCount / totalCount) * 100}%` : "0%" }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Form Documents — primary experience */}
-        {formDocs.length > 0 && (
-          <div className="space-y-4 mb-6">
-            {formDocs.map((doc) => (
-              <FormRenderer
-                key={doc.template_id}
-                templateId={doc.template_id}
-                templateName={doc.name}
-                description={doc.description}
-                fields={doc.form_fields!}
-                token={token}
-                onComplete={handleFormComplete}
-                prefill={{
-                  full_name: data.candidate_name,
-                  email: data.candidate_email,
-                }}
-                alreadyCompleted={doc.uploaded}
-                existingData={doc.uploaded_doc?.form_data}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* File Upload Section — only for non-form documents added via doc mapping */}
-        {uploadDocs.length > 0 && (
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-6">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-              <h3 className="text-sm font-semibold text-gray-700">Additional Documents</h3>
-              <p className="text-xs text-gray-500">Download, complete, and upload these documents.</p>
-            </div>
-
-            {uploadError && (
-              <div className="mx-6 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {uploadError}
+          <div className="px-6 py-6">
+            {state.current_step === 1 && (
+              <ContractorInfoStep state={state} updateField={updateField} />
+            )}
+            {state.current_step >= 2 && (
+              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
+                This step ships in a follow-up commit. Your progress on Step 1 is
+                autosaved — use the Back button to review or edit it any time.
               </div>
             )}
-
-            <div className="divide-y divide-gray-100">
-              {uploadDocs.map((doc) => (
-                <div key={doc.template_id} className="px-6 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        {doc.uploaded ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
-                        ) : (
-                          <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                        )}
-                        <p className="text-sm font-medium text-gray-900">{doc.name}</p>
-                        {doc.required && !doc.uploaded && (
-                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">Required</span>
-                        )}
-                      </div>
-                      {doc.uploaded && doc.uploaded_doc && (
-                        <p className="mt-1 ml-6 text-xs text-green-600">
-                          Uploaded: {doc.uploaded_doc.file_name}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => handleDownloadTemplate(doc.file_path, doc.file_name)}
-                        className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 cursor-pointer"
-                      >
-                        <Download className="h-3 w-3" />
-                        Template
-                      </button>
-                      <label className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium cursor-pointer ${
-                          doc.uploaded
-                            ? "border border-green-200 text-green-700 hover:bg-green-50"
-                            : "bg-green-600 text-white hover:bg-green-700"
-                        }`}
-                      >
-                        <input
-                          type="file"
-                          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,.webp"
-                          className="absolute w-px h-px opacity-0"
-                          onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUpload(doc.template_id, file); e.target.value = ""; }}
-                        />
-                        {uploading === doc.template_id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Upload className="h-3 w-3" />
-                        )}
-                        {doc.uploaded ? "Replace" : "Upload"}
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
-        )}
 
-        {/* Completion Banner */}
-        {allComplete && (
-          <div className="rounded-2xl border border-green-200 bg-green-50 p-6 text-center mb-6">
-            <CheckCircle2 className="mx-auto h-8 w-8 text-green-600 mb-2" />
-            <p className="text-sm font-medium text-green-800">
-              All documents signed — your application is moving forward!
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => goToStep(state.current_step - 1)}
+              disabled={state.current_step === 1}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={() => goToStep(state.current_step + 1)}
+              disabled={state.current_step >= STEPS.length}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Continue
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Header — branded shell with autosave indicator
+// ─────────────────────────────────────────────────────────────
+
+function Header({ state, saveState }: { state: OnboardingState; saveState: SaveState }) {
+  const startDate = new Date(state.start_date + "T00:00:00").toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  return (
+    <header className="bg-white border-b border-gray-100">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-6">
+        <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-green-600">
+          Vending Connector · Apex AI Vending
+        </p>
+        <div className="mt-2 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-extrabold text-gray-900 sm:text-3xl">
+              Welcome to the Team
+            </h1>
+            <p className="mt-1 text-sm text-gray-600">
+              Congratulations! You&apos;ve been selected as a <strong>Vice President</strong> with Vending Connector / Apex AI Vending LLP.
+            </p>
+            <p className="mt-2 text-sm text-gray-800">
+              <span className="font-semibold">Start Date:</span> {startDate}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              Please complete the required onboarding documents below before your start date.
             </p>
           </div>
-        )}
-
-        <div className="text-center">
-          <p className="text-xs text-gray-400">Vending Connector — vendingconnector.com</p>
+          <SaveIndicator state={saveState} />
         </div>
+      </div>
+    </header>
+  );
+}
+
+function SaveIndicator({ state }: { state: SaveState }) {
+  if (state === "saved") {
+    return (
+      <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-medium text-green-700">
+        <CheckCircle2 className="h-3.5 w-3.5" /> Saved
+      </span>
+    );
+  }
+  if (state === "saving") {
+    return (
+      <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700">
+        <Cloud className="h-3.5 w-3.5" /> Saving…
+      </span>
+    );
+  }
+  if (state === "error") {
+    return (
+      <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-700">
+        <CloudOff className="h-3.5 w-3.5" /> Not saved
+      </span>
+    );
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Progress bar
+// ─────────────────────────────────────────────────────────────
+
+function ProgressBar({ currentStep }: { currentStep: number }) {
+  const pct = Math.min(100, Math.round((currentStep / STEPS.length) * 100));
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2 text-xs text-gray-500">
+        <span className="font-medium">{STEPS[Math.min(currentStep - 1, STEPS.length - 1)]}</span>
+        <span>{currentStep} of {STEPS.length}</span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-gray-200 overflow-hidden">
+        <div
+          className="h-full bg-green-600 transition-all duration-300"
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );
 }
 
-export default function OnboardingPortalPage() {
+// ─────────────────────────────────────────────────────────────
+// Step 1 — Contractor Information
+// ─────────────────────────────────────────────────────────────
+
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC",
+];
+
+function ContractorInfoStep({
+  state,
+  updateField,
+}: {
+  state: OnboardingState;
+  updateField: <K extends keyof StepData>(key: K, value: StepData[K]) => void;
+}) {
+  const s = state.step_data;
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">
+        Tell us how to identify you on tax forms, agreements, and CRM records. Fields
+        marked <span className="text-red-500">*</span> are required.
+      </p>
+
+      <Field label="Full Legal Name" required>
+        <input
+          type="text"
+          value={s.full_legal_name ?? ""}
+          onChange={(e) => updateField("full_legal_name", e.target.value)}
+          className={inputClass}
+          placeholder="Legal name as it appears on your ID"
+        />
+      </Field>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Preferred Name">
+          <input
+            type="text"
+            value={s.preferred_name ?? ""}
+            onChange={(e) => updateField("preferred_name", e.target.value)}
+            className={inputClass}
+            placeholder="If different from legal name"
+          />
+        </Field>
+        <Field label="Business / LLC Name">
+          <input
+            type="text"
+            value={s.business_name ?? ""}
+            onChange={(e) => updateField("business_name", e.target.value)}
+            className={inputClass}
+            placeholder="Optional"
+          />
+        </Field>
       </div>
-    }>
-      <PortalContent />
-    </Suspense>
+
+      <Field label="Mailing Address" required>
+        <input
+          type="text"
+          value={s.mailing_address ?? ""}
+          onChange={(e) => updateField("mailing_address", e.target.value)}
+          className={inputClass}
+          placeholder="Street address"
+        />
+      </Field>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Field label="City" required>
+          <input
+            type="text"
+            value={s.mailing_city ?? ""}
+            onChange={(e) => updateField("mailing_city", e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="State" required>
+          <select
+            value={s.mailing_state ?? ""}
+            onChange={(e) => updateField("mailing_state", e.target.value)}
+            className={inputClass}
+          >
+            <option value="">Select…</option>
+            {US_STATES.map((st) => (
+              <option key={st} value={st}>{st}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="ZIP" required>
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="\d{5}(-\d{4})?"
+            value={s.mailing_zip ?? ""}
+            onChange={(e) => updateField("mailing_zip", e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Primary Email">
+          <input
+            type="email"
+            value={state.contractor_email}
+            disabled
+            className={`${inputClass} bg-gray-50 text-gray-500`}
+          />
+          <p className="mt-1 text-[11px] text-gray-400">
+            Prefilled from your invitation. Contact your admin to change it.
+          </p>
+        </Field>
+        <Field label="Phone Number" required>
+          <input
+            type="tel"
+            value={s.phone_number ?? ""}
+            onChange={(e) => updateField("phone_number", e.target.value)}
+            className={inputClass}
+            placeholder="(555) 555-5555"
+          />
+        </Field>
+      </div>
+
+      <Field label="State of Residence" required>
+        <select
+          value={s.state_of_residence ?? ""}
+          onChange={(e) => updateField("state_of_residence", e.target.value)}
+          className={inputClass}
+        >
+          <option value="">Select…</option>
+          {US_STATES.map((st) => (
+            <option key={st} value={st}>{st}</option>
+          ))}
+        </select>
+      </Field>
+
+      <Field label="Start Date">
+        <input
+          type="date"
+          value={state.start_date}
+          disabled
+          className={`${inputClass} bg-gray-50 text-gray-500`}
+        />
+      </Field>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Field + input shared classes
+// ─────────────────────────────────────────────────────────────
+
+const inputClass =
+  "w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
+
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-medium text-gray-600">
+        {label} {required && <span className="text-red-500">*</span>}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Completed view
+// ─────────────────────────────────────────────────────────────
+
+function CompletedView({ state }: { state: OnboardingState }) {
+  const firstName = state.contractor_name?.split(" ")[0] ?? "there";
+  const startDate = new Date(state.start_date + "T00:00:00").toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-light px-4">
+      <div className="max-w-lg w-full rounded-2xl border border-green-200 bg-white p-10 text-center shadow-sm">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+          <FileSignature className="h-8 w-8 text-green-600" />
+        </div>
+        <h1 className="text-2xl font-extrabold text-gray-900">You&apos;re All Set!</h1>
+        <p className="mt-3 text-sm text-gray-600">
+          Thank you, <strong>{firstName}</strong>. Your onboarding documents have been successfully submitted.
+        </p>
+        <p className="mt-2 text-sm text-gray-800">
+          <span className="font-semibold">Start Date:</span> {startDate}
+        </p>
+        <p className="mt-4 text-sm text-gray-600">
+          The Apex AI Vending / Vending Connector leadership team has been notified. We look
+          forward to working with you.
+        </p>
+      </div>
+    </div>
   );
 }
