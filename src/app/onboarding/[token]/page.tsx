@@ -15,12 +15,16 @@ import {
   FileText,
   ShieldCheck,
   ClipboardCheck,
+  DollarSign,
+  Landmark,
+  AlertCircle,
 } from "lucide-react";
 import { useDebouncedAutosave, type SaveState } from "@/hooks/useDebouncedAutosave";
 import {
   INDEPENDENT_CONTRACTOR_AGREEMENT,
   CONFIDENTIALITY_AGREEMENT,
   SALES_POLICY_ACKNOWLEDGMENTS,
+  COMMISSION_SCHEDULE,
 } from "@/lib/contractorOnboarding/legal";
 
 /**
@@ -62,6 +66,12 @@ interface StepData {
   ica_accepted?: boolean;
   confidentiality_accepted?: boolean;
   sales_policy_acknowledgments?: Record<string, boolean>;
+  // Step 6 — compensation acknowledgment
+  commission_acknowledged?: boolean;
+  // Step 7 — payment info (non-sensitive metadata only; the actual
+  // bank credentials live server-side as a Dwolla funding source URL)
+  payee_legal_name?: string;
+  contractor_business_name?: string;
 }
 
 interface OnboardingState {
@@ -232,9 +242,15 @@ export default function ContractorOnboardingPage() {
             {state.current_step === 5 && (
               <SalesPolicyStep state={state} updateField={updateField} />
             )}
-            {state.current_step >= 6 && (
+            {state.current_step === 6 && (
+              <CompensationStep state={state} updateField={updateField} />
+            )}
+            {state.current_step === 7 && (
+              <PaymentStep state={state} token={token} updateField={updateField} onVerified={setState} />
+            )}
+            {state.current_step === 8 && (
               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-                This step ships in a follow-up commit. Your progress on earlier steps is
+                Review & Sign ships in the next commit. Your progress on earlier steps is
                 autosaved — use the Back button to review or edit any time.
               </div>
             )}
@@ -818,6 +834,286 @@ function SalesPolicyStep({
           ? "All acknowledgments complete."
           : `${remaining} of ${SALES_POLICY_ACKNOWLEDGMENTS.length} remaining.`}
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 6 — Compensation (Commission Schedule display + acknowledgment)
+// ─────────────────────────────────────────────────────────────
+
+function CompensationStep({
+  state,
+  updateField,
+}: {
+  state: OnboardingState;
+  updateField: <K extends keyof StepData>(key: K, value: StepData[K]) => void;
+}) {
+  const cs = COMMISSION_SCHEDULE;
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-gray-600">
+        This is the commission schedule you&apos;ll be paid under. Review it
+        carefully — the terms below are what governs how commissions are earned,
+        the Friday payment cycle, and how refunds are reconciled.
+      </p>
+
+      {/* Commission tiles */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {cs.items.map((item) => (
+          <div
+            key={item.key}
+            className="rounded-xl border border-green-200 bg-gradient-to-br from-green-50/60 to-white p-4 shadow-sm"
+          >
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-green-600 shrink-0" />
+              <h4 className="text-sm font-bold text-gray-900">{item.label}</h4>
+            </div>
+            <p className="mt-2 text-sm font-semibold text-green-700 leading-snug">
+              {item.amount}
+            </p>
+            <p className="mt-2 text-xs text-gray-600 leading-relaxed">{item.description}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white max-h-[280px] overflow-y-auto p-5 text-sm text-gray-700 space-y-4">
+        <Section title="When commissions are earned">
+          <BulletList items={cs.earnedRule} />
+        </Section>
+        <Section title="Payment schedule">
+          <BulletList items={cs.paymentSchedule} />
+        </Section>
+        <Section title="Refunds &amp; chargebacks">
+          <BulletList items={cs.refundsAndChargebacks} />
+        </Section>
+        <Section title="Post-termination commissions">
+          <BulletList items={cs.postTerminationCommissions} />
+        </Section>
+      </div>
+
+      <CheckboxRow
+        label="I have read and understand the Commission Schedule above."
+        checked={!!state.step_data.commission_acknowledged}
+        onChange={(v) => updateField("commission_acknowledged", v)}
+        icon={DollarSign}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 7 — Payment Info (Plaid Link → Dwolla funding source)
+// ─────────────────────────────────────────────────────────────
+
+const PLAID_SCRIPT = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+
+declare global {
+  interface Window {
+    Plaid?: {
+      create: (config: {
+        token: string;
+        onSuccess: (
+          publicToken: string,
+          metadata: {
+            institution?: { name?: string };
+            accounts?: Array<{ id: string; name?: string }>;
+          },
+        ) => void;
+        onExit?: (err: unknown) => void;
+      }) => { open: () => void };
+    };
+  }
+}
+
+function loadPlaidScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") return reject(new Error("no window"));
+    if (window.Plaid) return resolve();
+    const existing = document.getElementById("plaid-link-sdk") as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("Plaid script failed to load")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "plaid-link-sdk";
+    script.src = PLAID_SCRIPT;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Plaid script failed to load"));
+    document.body.appendChild(script);
+  });
+}
+
+function PaymentStep({
+  state,
+  token,
+  updateField,
+  onVerified,
+}: {
+  state: OnboardingState;
+  token: string;
+  updateField: <K extends keyof StepData>(key: K, value: StepData[K]) => void;
+  onVerified: (updater: (prev: OnboardingState | null) => OnboardingState | null) => void;
+}) {
+  const [linking, setLinking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const payeeLegalName = state.step_data.payee_legal_name ?? state.step_data.full_legal_name ?? "";
+  const businessName = state.step_data.contractor_business_name ?? state.step_data.business_name ?? "";
+
+  async function handleLinkBank() {
+    setError(null);
+    if (!payeeLegalName.trim()) {
+      setError("Enter your payee legal name before linking your bank.");
+      return;
+    }
+    setLinking(true);
+    try {
+      await loadPlaidScript();
+      const linkRes = await fetch(`/api/onboarding/contractor/${token}/dwolla/link-token`, {
+        method: "POST",
+      });
+      const linkData = await linkRes.json();
+      if (!linkRes.ok) throw new Error(linkData.error ?? "Failed to create Plaid link token");
+      if (!window.Plaid) throw new Error("Plaid SDK unavailable");
+
+      const handler = window.Plaid.create({
+        token: linkData.link_token,
+        onSuccess: async (publicToken, metadata) => {
+          setSaving(true);
+          try {
+            const accountId = metadata.accounts?.[0]?.id;
+            if (!accountId) throw new Error("Plaid returned no account");
+            const exchangeRes = await fetch(
+              `/api/onboarding/contractor/${token}/dwolla/exchange`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  public_token: publicToken,
+                  account_id: accountId,
+                  institution_name: metadata.institution?.name,
+                  payee_legal_name: payeeLegalName,
+                  business_name: businessName,
+                }),
+              },
+            );
+            const data = await exchangeRes.json();
+            if (!exchangeRes.ok) {
+              setError(data.error ?? "Failed to complete bank verification");
+            } else {
+              onVerified((prev) => (prev ? { ...prev, payment_verified: true } : prev));
+            }
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Unexpected error");
+          }
+          setSaving(false);
+          setLinking(false);
+        },
+        onExit: () => setLinking(false),
+      });
+      handler.open();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error");
+      setLinking(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-gray-600">
+        Set up secure ACH payouts. Bank verification is powered by{" "}
+        <strong>Plaid</strong>; money movement runs through{" "}
+        <strong>Dwolla</strong>. Vending Connector never sees or stores your
+        routing / account numbers.
+      </p>
+
+      <Field label="Payee Legal Name" required>
+        <input
+          type="text"
+          value={payeeLegalName}
+          onChange={(e) => updateField("payee_legal_name", e.target.value)}
+          className={inputClass}
+          placeholder="Name on the receiving account"
+        />
+      </Field>
+
+      <Field label="Business Name">
+        <input
+          type="text"
+          value={businessName}
+          onChange={(e) => updateField("contractor_business_name", e.target.value)}
+          className={inputClass}
+          placeholder="Optional — leave blank if payouts go to your personal name"
+        />
+      </Field>
+
+      {state.payment_verified ? (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-5">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="h-5 w-5 shrink-0 text-green-600 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900">
+                Bank linked and verified
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Your commissions will be deposited on the normal Friday cycle
+                after each transaction settles.
+              </p>
+              <button
+                type="button"
+                onClick={handleLinkBank}
+                disabled={linking || saving}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
+              >
+                {linking || saving ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Working…
+                  </>
+                ) : (
+                  "Change Bank Account"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={handleLinkBank}
+          disabled={linking || saving || !payeeLegalName.trim()}
+          className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
+        >
+          {linking || saving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {saving ? "Verifying…" : "Opening Plaid…"}
+            </>
+          ) : (
+            <>
+              <Landmark className="h-4 w-4" />
+              Link Bank Account
+            </>
+          )}
+        </button>
+      )}
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          {error}
+        </div>
+      )}
+
+      <p className="text-[11px] text-gray-400 leading-relaxed">
+        By linking your bank, you authorize Apex AI Vending / Vending Connector
+        to remit earned commissions via ACH to this account. You can update this
+        information at any time.
+      </p>
     </div>
   );
 }
