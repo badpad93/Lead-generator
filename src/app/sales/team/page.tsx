@@ -114,6 +114,43 @@ export default function TeamPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Latest onboarding status per team member, refreshed on tab
+  // focus + after a Send action. Keyed by member id + lowercase
+  // email so the status pill lights up whether the invite carried
+  // team_member_id or was created email-only.
+  const loadOnboardingStatuses = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/admin/contractor-onboarding", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const rows = (data.onboardings ?? []) as Array<{
+        id: string;
+        team_member_id: string | null;
+        contractor_email: string;
+        status: string;
+        completed_at: string | null;
+        sent_at: string | null;
+      }>;
+      // Newest first per API contract; walk once and keep the first
+      // (i.e. latest) row per key.
+      const next: typeof onboardingByKey = {};
+      for (const r of rows) {
+        const record = { id: r.id, status: r.status, completed_at: r.completed_at, sent_at: r.sent_at };
+        if (r.team_member_id && !next[r.team_member_id]) next[r.team_member_id] = record;
+        const emailKey = `email:${r.contractor_email.toLowerCase()}`;
+        if (!next[emailKey]) next[emailKey] = record;
+      }
+      setOnboardingByKey(next);
+    } catch {
+      // Non-fatal — Team page still renders without the status column.
+    }
+  }, [token]);
+
+  useEffect(() => { void loadOnboardingStatuses(); }, [loadOnboardingStatuses]);
+
   async function handleAddMember() {
     if (!addForm.full_name || !addForm.email || !addForm.password) return;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -147,6 +184,17 @@ export default function TeamPage() {
   }
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Latest contractor onboarding record per team member — keyed by
+  // both team_member_id and (lowercase) email so we can match no
+  // matter which was stamped at invite time. Fed by
+  // /api/admin/contractor-onboarding on mount.
+  const [onboardingByKey, setOnboardingByKey] = useState<Record<string, {
+    id: string;
+    status: string;
+    completed_at: string | null;
+    sent_at: string | null;
+  }>>({});
 
   // Contractor onboarding modal state — a distinct flow from the
   // candidate pipeline. Sends the VP contractor packet to a signed
@@ -195,6 +243,7 @@ export default function TeamPage() {
         setOnboardSuccess(
           `Onboarding packet sent to ${onboardForm.email}. Link expires ${new Date(data.expires_at).toLocaleDateString()}.`,
         );
+        void loadOnboardingStatuses();
         setTimeout(() => setShowOnboard(false), 2200);
       }
     } catch (err) {
@@ -358,6 +407,7 @@ export default function TeamPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Name</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Email</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Role</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-500">Onboarding</th>
                 {currentUserRole === "admin" && (
                   <th className="text-right px-4 py-3 font-medium text-gray-500 w-20">Actions</th>
                 )}
@@ -389,6 +439,16 @@ export default function TeamPage() {
                         {ROLE_LABELS[m.role] || m.role}
                       </span>
                     )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <OnboardingCell
+                      member={m}
+                      record={
+                        onboardingByKey[m.id] ??
+                        onboardingByKey[`email:${m.email.toLowerCase()}`] ??
+                        null
+                      }
+                    />
                   </td>
                   {currentUserRole === "admin" && (
                     <td className="px-4 py-3 text-right">
@@ -424,7 +484,7 @@ export default function TeamPage() {
                 </tr>
               ))}
               {filteredTeam.length === 0 && (
-                <tr><td colSpan={currentUserRole === "admin" ? 4 : 3} className="px-4 py-8 text-center text-gray-400">No team members found.</td></tr>
+                <tr><td colSpan={currentUserRole === "admin" ? 5 : 4} className="px-4 py-8 text-center text-gray-400">No team members found.</td></tr>
               )}
             </tbody>
           </table>
@@ -672,5 +732,56 @@ export default function TeamPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// OnboardingCell — pill + click-through per team member row.
+// Colors mirror the admin detail page's StatusPill so admins get
+// a consistent visual vocabulary across the two surfaces.
+// ─────────────────────────────────────────────────────────────
+function OnboardingCell({
+  member,
+  record,
+}: {
+  member: TeamMember;
+  record: { id: string; status: string; completed_at: string | null; sent_at: string | null } | null;
+}) {
+  if (!record) {
+    return <span className="text-xs text-gray-400">Not started</span>;
+  }
+  const map: Record<string, string> = {
+    not_started: "bg-gray-100 text-gray-700",
+    sent: "bg-blue-50 text-blue-700",
+    opened: "bg-yellow-50 text-yellow-700",
+    in_progress: "bg-orange-50 text-orange-700",
+    completed: "bg-green-50 text-green-700",
+    needs_attention: "bg-red-50 text-red-700",
+    revoked: "bg-gray-100 text-gray-500 line-through",
+    expired: "bg-gray-100 text-gray-500",
+  };
+  const label = {
+    not_started: "Not Started",
+    sent: "Sent",
+    opened: "Opened",
+    in_progress: "In Progress",
+    completed: "Completed",
+    needs_attention: "Needs Attention",
+    revoked: "Revoked",
+    expired: "Expired",
+  }[record.status] ?? record.status;
+  const dateStr =
+    record.completed_at
+      ? ` ${new Date(record.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+      : "";
+  return (
+    <Link
+      href={`/sales/team/contractor-onboarding/${record.id}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium hover:opacity-80 transition-opacity ${map[record.status] ?? map.not_started}`}
+      title={`View onboarding for ${member.full_name || member.email}`}
+    >
+      {label}
+      {dateStr}
+    </Link>
   );
 }
