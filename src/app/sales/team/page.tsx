@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus, Trash2 } from "lucide-react";
+import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus, Trash2, Send, FileSignature } from "lucide-react";
 
 interface TeamMember {
   id: string;
@@ -148,6 +148,61 @@ export default function TeamPage() {
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Contractor onboarding modal state — a distinct flow from the
+  // candidate pipeline. Sends the VP contractor packet to a signed
+  // team member post-hire. Prefills email + name from the row when
+  // the admin clicks "Onboard Contractor" on a specific member.
+  const [showOnboard, setShowOnboard] = useState(false);
+  const [onboardForm, setOnboardForm] = useState({
+    contractor_name: "",
+    email: "",
+    start_date: "",
+    team_member_id: null as string | null,
+  });
+  const [onboardSaving, setOnboardSaving] = useState(false);
+  const [onboardError, setOnboardError] = useState<string | null>(null);
+  const [onboardSuccess, setOnboardSuccess] = useState<string | null>(null);
+
+  function openOnboardForMember(m: TeamMember | null) {
+    setOnboardError(null);
+    setOnboardSuccess(null);
+    setOnboardForm({
+      contractor_name: m?.full_name ?? "",
+      email: m?.email ?? "",
+      start_date: "",
+      team_member_id: m?.id ?? null,
+    });
+    setShowOnboard(true);
+  }
+
+  async function handleSendOnboardingPacket() {
+    setOnboardError(null);
+    setOnboardSuccess(null);
+    setOnboardSaving(true);
+    try {
+      const res = await fetch("/api/admin/contractor-onboarding", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(onboardForm),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOnboardError(data.error ?? `Failed (HTTP ${res.status})`);
+      } else {
+        setOnboardSuccess(
+          `Onboarding packet sent to ${onboardForm.email}. Link expires ${new Date(data.expires_at).toLocaleDateString()}.`,
+        );
+        setTimeout(() => setShowOnboard(false), 2200);
+      }
+    } catch (err) {
+      setOnboardError(err instanceof Error ? err.message : "Network error");
+    }
+    setOnboardSaving(false);
+  }
+
   async function handleDelete(userId: string, userName: string, userEmail: string) {
     if (!window.confirm(
       `Delete ${userName || userEmail}?\n\nThis removes their sales account, unassigns them from every workflow/lead/order (records stay), and cannot be undone.`,
@@ -228,8 +283,15 @@ export default function TeamPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { setShowAddMember(true); setAddError(null); setAddSuccess(null); }}
+            onClick={() => openOnboardForMember(null)}
             className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 cursor-pointer"
+            title="Send a contractor onboarding packet"
+          >
+            <FileSignature className="h-4 w-4" /> Onboard
+          </button>
+          <button
+            onClick={() => { setShowAddMember(true); setAddError(null); setAddSuccess(null); }}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
           >
             <UserPlus className="h-4 w-4" /> Add Team Member
           </button>
@@ -330,22 +392,33 @@ export default function TeamPage() {
                   </td>
                   {currentUserRole === "admin" && (
                     <td className="px-4 py-3 text-right">
-                      {m.id !== currentUserId && (
+                      <div className="inline-flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => handleDelete(m.id, m.full_name, m.email)}
-                          disabled={deletingId === m.id}
-                          className="inline-flex items-center gap-1 rounded-md p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
-                          title={`Delete ${m.full_name || m.email}`}
-                          aria-label={`Delete ${m.full_name || m.email}`}
+                          onClick={() => openOnboardForMember(m)}
+                          className="inline-flex items-center gap-1 rounded-md p-1.5 text-gray-300 hover:bg-green-50 hover:text-green-600 transition-colors"
+                          title={`Send contractor onboarding packet to ${m.full_name || m.email}`}
+                          aria-label={`Onboard ${m.full_name || m.email}`}
                         >
-                          {deletingId === m.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
+                          <FileSignature className="h-4 w-4" />
                         </button>
-                      )}
+                        {m.id !== currentUserId && (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(m.id, m.full_name, m.email)}
+                            disabled={deletingId === m.id}
+                            className="inline-flex items-center gap-1 rounded-md p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
+                            title={`Delete ${m.full_name || m.email}`}
+                            aria-label={`Delete ${m.full_name || m.email}`}
+                          >
+                            {deletingId === m.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -491,6 +564,105 @@ export default function TeamPage() {
               </button>
               <button
                 onClick={() => setShowAddMember(false)}
+                className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contractor Onboarding Modal — separate from Add Team Member.
+          Sends the signed VP contractor legal packet to a hired
+          contractor via a secure hashed-token link. */}
+      {showOnboard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <FileSignature className="h-5 w-5 text-green-600" />
+                Start Contractor Onboarding
+              </h2>
+              <button
+                onClick={() => setShowOnboard(false)}
+                className="text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Send the Vending Connector / Apex AI Vending Vice President contractor packet.
+              The contractor receives a secure link to complete their information, agreements, tax
+              form, and payment setup — no login required.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Contractor Name <span className="text-gray-400">(optional)</span>
+                </label>
+                <input
+                  value={onboardForm.contractor_name}
+                  onChange={(e) => setOnboardForm((f) => ({ ...f, contractor_name: e.target.value }))}
+                  placeholder="e.g. Zach Seymour"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Email Address <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={onboardForm.email}
+                  onChange={(e) => setOnboardForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="contractor@example.com"
+                  type="email"
+                  required
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Start Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={onboardForm.start_date}
+                  onChange={(e) => setOnboardForm((f) => ({ ...f, start_date: e.target.value }))}
+                  type="date"
+                  required
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {onboardError && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">
+                {onboardError}
+              </div>
+            )}
+            {onboardSuccess && (
+              <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+                {onboardSuccess}
+              </div>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={handleSendOnboardingPacket}
+                disabled={
+                  onboardSaving ||
+                  !onboardForm.email ||
+                  !onboardForm.start_date ||
+                  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(onboardForm.email)
+                }
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+              >
+                {onboardSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {onboardSaving ? "Sending..." : "Send Onboarding Packet"}
+              </button>
+              <button
+                onClick={() => setShowOnboard(false)}
                 className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
               >
                 Cancel
