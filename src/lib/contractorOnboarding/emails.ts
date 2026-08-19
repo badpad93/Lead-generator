@@ -97,13 +97,24 @@ export async function sendContractorInvitationEmail(args: {
     </p>
   `);
 
-  await getResend().emails.send({
+  // Resend's SDK returns { data, error } on non-2xx instead of
+  // throwing. Silently ignoring `error` was the reason the admin UI
+  // showed "sent" while nothing left Resend. Explicit inspection +
+  // throw ensures the caller flips status to needs_attention.
+  const result = await getResend().emails.send({
     from: FROM,
     to: args.toEmail,
     replyTo: REPLY_TO,
     subject: "Congratulations & Welcome to Vending Connector / Apex AI Vending",
     html,
   });
+  if (result.error) {
+    const msg =
+      typeof result.error === "object" && result.error && "message" in result.error
+        ? String((result.error as { message?: unknown }).message ?? JSON.stringify(result.error))
+        : String(result.error);
+    throw new Error(`Resend rejected invitation email: ${msg}`);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -154,20 +165,31 @@ export async function sendContractorCompletionNotification(args: {
     </p>
   `);
 
+  // Send in parallel. Each promise inspects Resend's { error } so a
+  // rejection is logged (not swallowed) — same silent-failure bug
+  // that hit the invitation email. One recipient failing does not
+  // block the other two.
   await Promise.all(
-    CONTRACTOR_ONBOARDING_NOTIFY.map((to) =>
-      getResend()
-        .emails.send({
+    CONTRACTOR_ONBOARDING_NOTIFY.map(async (to) => {
+      try {
+        const result = await getResend().emails.send({
           from: FROM,
           to,
           replyTo: REPLY_TO,
           subject: `Contractor Onboarding Complete — ${args.contractorName}`,
           html,
-        })
-        .catch((err) => {
-          console.error(`[contractor-onboarding] completion notify to ${to} failed:`, err);
-        }),
-    ),
+        });
+        if (result.error) {
+          const msg =
+            typeof result.error === "object" && result.error && "message" in result.error
+              ? String((result.error as { message?: unknown }).message ?? JSON.stringify(result.error))
+              : String(result.error);
+          console.error(`[contractor-onboarding] completion notify to ${to} rejected:`, msg);
+        }
+      } catch (err) {
+        console.error(`[contractor-onboarding] completion notify to ${to} threw:`, err);
+      }
+    }),
   );
 }
 
