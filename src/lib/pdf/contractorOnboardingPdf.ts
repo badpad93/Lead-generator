@@ -141,7 +141,7 @@ export async function generateContractorPacketPdf(
   drawSectionHeading(ctx, "Commission Schedule", { newPage: true });
   for (const item of COMMISSION_SCHEDULE.items) {
     ensureRoom(ctx, LINE_H * 3);
-    ctx.page.drawText(item.label, { x: LEFT, y: ctx.y, size: 11, font: ctx.helvBold, color: DARK });
+    ctx.page.drawText(safeText(item.label), { x: LEFT, y: ctx.y, size: 11, font: ctx.helvBold, color: DARK });
     ctx.y -= LINE_H;
     drawWrappedText(ctx, item.amount, { color: GREEN });
     drawWrappedText(ctx, item.description);
@@ -164,7 +164,7 @@ export async function generateContractorPacketPdf(
   ctx.y -= LINE_H / 2;
   for (const sig of input.signatures) {
     ensureRoom(ctx, LINE_H * 6);
-    ctx.page.drawText(labelForDocumentKey(sig.document_key), {
+    ctx.page.drawText(safeText(labelForDocumentKey(sig.document_key)), {
       x: LEFT, y: ctx.y, size: 11, font: ctx.helvBold, color: DARK,
     });
     ctx.y -= LINE_H;
@@ -211,7 +211,7 @@ function drawCover(ctx: RenderCtx, input: ContractorPdfInput) {
   ctx.page.drawText("Contractor Onboarding Packet", {
     x: LEFT, y: TOP - 80, size: 22, font: ctx.helvBold, color: DARK,
   });
-  ctx.page.drawText(input.contractorName, {
+  ctx.page.drawText(safeText(input.contractorName), {
     x: LEFT, y: TOP - 110, size: 16, font: ctx.helv, color: DARK,
   });
   ctx.page.drawText(`Start Date: ${formatDate(input.startDate)}`, {
@@ -248,7 +248,7 @@ function drawCover(ctx: RenderCtx, input: ContractorPdfInput) {
 function drawSectionHeading(ctx: RenderCtx, title: string, opts?: { newPage?: boolean }) {
   if (opts?.newPage) newPage(ctx);
   ensureRoom(ctx, LINE_H * 3);
-  ctx.page.drawText(title, { x: LEFT, y: ctx.y, size: 16, font: ctx.helvBold, color: DARK });
+  ctx.page.drawText(safeText(title), { x: LEFT, y: ctx.y, size: 16, font: ctx.helvBold, color: DARK });
   ctx.y -= 8;
   ctx.page.drawLine({
     start: { x: LEFT, y: ctx.y },
@@ -262,7 +262,7 @@ function drawSectionHeading(ctx: RenderCtx, title: string, opts?: { newPage?: bo
 function drawSubsection(ctx: RenderCtx, title: string) {
   ensureRoom(ctx, LINE_H * 2);
   ctx.y -= 4;
-  ctx.page.drawText(title, { x: LEFT, y: ctx.y, size: 11, font: ctx.helvBold, color: DARK });
+  ctx.page.drawText(safeText(title), { x: LEFT, y: ctx.y, size: 11, font: ctx.helvBold, color: DARK });
   ctx.y -= LINE_H;
 }
 
@@ -275,7 +275,7 @@ function drawKeyValueTable(
   const size = opts?.small ? 9 : 10;
   for (const [k, v] of rows) {
     ensureRoom(ctx, LINE_H);
-    ctx.page.drawText(k, { x: LEFT, y: ctx.y, size, font: ctx.helvBold, color: DARK });
+    ctx.page.drawText(safeText(k), { x: LEFT, y: ctx.y, size, font: ctx.helvBold, color: DARK });
     drawWrappedText(ctx, v, { indent: keyWidth, size, alreadyAllocatedFirstLine: true });
   }
 }
@@ -283,7 +283,10 @@ function drawKeyValueTable(
 function drawBulletList(ctx: RenderCtx, items: readonly string[]) {
   for (const item of items) {
     ensureRoom(ctx, LINE_H);
-    ctx.page.drawText("•", { x: LEFT, y: ctx.y, size: 10, font: ctx.helvBold, color: GREEN });
+    // ASCII bullet (*) instead of U+2022 — Helvetica's WinAnsi
+    // encoding does include it, but some subsets fault. Belt +
+    // suspenders: use * for zero-risk render across environments.
+    ctx.page.drawText("*", { x: LEFT, y: ctx.y, size: 10, font: ctx.helvBold, color: GREEN });
     drawWrappedText(ctx, item, { indent: 14 });
   }
 }
@@ -297,12 +300,38 @@ function drawWrappedText(
   const size = opts?.size ?? 10;
   const color = opts?.color ?? DARK;
   const maxWidth = RIGHT - LEFT - indent;
-  const lines = wrap(text, maxWidth, ctx.helv, size);
+  const clean = safeText(text);
+  const lines = wrap(clean, maxWidth, ctx.helv, size);
   for (let i = 0; i < lines.length; i++) {
     if (!(i === 0 && opts?.alreadyAllocatedFirstLine)) ensureRoom(ctx, LINE_H);
     ctx.page.drawText(lines[i], { x: LEFT + indent, y: ctx.y, size, font: ctx.helv, color });
     ctx.y -= LINE_H;
   }
+}
+
+/**
+ * pdf-lib's StandardFonts.Helvetica uses WinAnsi (CP1252) encoding.
+ * Anything outside that range throws at render time and — when that
+ * error bubbles up through a Next.js API route — becomes an HTML
+ * 500 page. The client's JSON.parse then fails, and Safari surfaces
+ * "The string did not match the expected pattern", which is the
+ * user-facing symptom of a Unicode collision here.
+ *
+ * Normalize the common offenders to ASCII, then strip anything else
+ * outside Latin-1 as a final backstop. Keeps the packet legible in
+ * every environment and lets the PDF gen never throw on content.
+ */
+function safeText(s: string): string {
+  return s
+    .replace(/[‘’‚‛]/g, "'")           // curly single quotes
+    .replace(/[“”„‟]/g, '"')           // curly double quotes
+    .replace(/[–—―]/g, "-")                 // en/em dash → hyphen
+    .replace(/…/g, "...")                             // ellipsis
+    .replace(/•/g, "*")                               // bullet
+    .replace(/ /g, " ")                               // non-breaking space
+    .replace(/‑/g, "-")                               // non-breaking hyphen
+    .replace(/[→←↑↓]/g, "->")          // arrows
+    .replace(/[^\x00-\xFF]/g, "?");                        // anything else outside Latin-1
 }
 
 function wrap(text: string, maxWidth: number, font: PDFFont, size: number): string[] {

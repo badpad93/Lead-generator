@@ -39,6 +39,26 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
+  try {
+    return await handleFinish(req, params);
+  } catch (err) {
+    // Belt-and-suspenders: any unhandled throw (PDF encoder blowup,
+    // Supabase network glitch, Resend init failure) becomes a
+    // JSON response so the contractor's browser doesn't get an
+    // HTML 500 page and Safari's "the string did not match the
+    // expected pattern" JSON-parse error.
+    console.error("[contractor-onboarding/finish] unhandled:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleFinish(
+  req: NextRequest,
+  params: Promise<{ token: string }>,
+) {
   const { token } = await params;
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
 
