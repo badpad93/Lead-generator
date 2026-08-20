@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -41,6 +41,13 @@ const STEPS = [
   "Submit for Review",
 ] as const;
 
+interface Warehouse {
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
 interface Partner {
   id: string;
   legal_company_name: string;
@@ -59,6 +66,31 @@ interface Partner {
   business_state: string | null;
   business_zip: string | null;
   business_country: string;
+
+  // Step 2 — Fulfillment
+  shipping_origin_address: string | null;
+  shipping_origin_city: string | null;
+  shipping_origin_state: string | null;
+  shipping_origin_zip: string | null;
+  additional_warehouses: Warehouse[];
+  order_acknowledgment_time_hours: number | null;
+  shipment_lead_time_days: number | null;
+  freight_process: string | null;
+  liftgate_available: boolean;
+  inside_delivery_available: boolean;
+  installation_available: boolean;
+  return_policy: string | null;
+  warranty_summary: string | null;
+  warranty_doc_received: boolean;
+  technical_contact_name: string | null;
+  technical_contact_email: string | null;
+  technical_contact_phone: string | null;
+  escalation_contact_name: string | null;
+  escalation_contact_email: string | null;
+  escalation_contact_phone: string | null;
+  inventory_update_method: "manual" | "csv" | "api" | "other";
+  inventory_update_notes: string | null;
+
   current_step: number;
   status: string;
 }
@@ -220,9 +252,12 @@ function WizardShell({ initialPartner }: { initialPartner: Partner }) {
             {currentStep === 1 && (
               <CompanyInfoStep partner={partner} updateField={updateField} />
             )}
-            {currentStep >= 2 && (
+            {currentStep === 2 && (
+              <FulfillmentStep partner={partner} updateField={updateField} setPartner={setPartner} />
+            )}
+            {currentStep >= 3 && (
               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-                This step ships in a follow-up commit. Your progress on Step 1 is
+                This step ships in a follow-up commit. Your progress on earlier steps is
                 autosaved — use Back to review or edit any time.
               </div>
             )}
@@ -449,6 +484,467 @@ function CompanyInfoStep({
           className={inputClass}
         />
       </Field>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 2 — Fulfillment
+// ─────────────────────────────────────────────────────────────
+
+function FulfillmentStep({
+  partner,
+  updateField,
+  setPartner,
+}: {
+  partner: Partner;
+  updateField: <K extends keyof Partner>(key: K, value: Partner[K]) => void;
+  setPartner: (updater: (prev: Partner) => Partner) => void;
+}) {
+  const warehouses = Array.isArray(partner.additional_warehouses)
+    ? partner.additional_warehouses
+    : [];
+
+  function updateWarehouses(next: Warehouse[]) {
+    updateField("additional_warehouses", next);
+  }
+
+  function addWarehouse() {
+    updateWarehouses([...warehouses, { address: "", city: "", state: "", zip: "" }]);
+  }
+
+  function removeWarehouse(i: number) {
+    updateWarehouses(warehouses.filter((_, idx) => idx !== i));
+  }
+
+  function updateWarehouse(i: number, key: keyof Warehouse, val: string) {
+    updateWarehouses(
+      warehouses.map((w, idx) => (idx === i ? { ...w, [key]: val } : w)),
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-gray-500">
+        How you ship, warranty, and support the equipment. This helps buyers set
+        the right expectations at checkout.
+      </p>
+
+      {/* Shipping origin */}
+      <section>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Primary shipping origin</h3>
+        <Field label="Street" required>
+          <input
+            type="text"
+            value={partner.shipping_origin_address ?? ""}
+            onChange={(e) => updateField("shipping_origin_address", e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="sm:col-span-2">
+            <Field label="City" required>
+              <input
+                type="text"
+                value={partner.shipping_origin_city ?? ""}
+                onChange={(e) => updateField("shipping_origin_city", e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+          <Field label="State" required>
+            <select
+              value={partner.shipping_origin_state ?? ""}
+              onChange={(e) => updateField("shipping_origin_state", e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Select…</option>
+              {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <Field label="ZIP" required>
+            <input
+              type="text"
+              value={partner.shipping_origin_zip ?? ""}
+              onChange={(e) => updateField("shipping_origin_zip", e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+        </div>
+      </section>
+
+      {/* Additional warehouses */}
+      <section>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-gray-700">Additional warehouses</h3>
+          <button
+            type="button"
+            onClick={addWarehouse}
+            className="text-xs font-medium text-green-600 hover:underline"
+          >
+            + Add warehouse
+          </button>
+        </div>
+        {warehouses.length === 0 && (
+          <p className="text-xs text-gray-400">
+            Optional — add if you ship from more than one location.
+          </p>
+        )}
+        <div className="space-y-3">
+          {warehouses.map((w, i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 relative"
+            >
+              <button
+                type="button"
+                onClick={() => removeWarehouse(i)}
+                className="absolute top-2 right-2 text-xs text-gray-400 hover:text-red-600"
+                aria-label={`Remove warehouse ${i + 1}`}
+              >
+                Remove
+              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="sm:col-span-4">
+                  <input
+                    type="text"
+                    value={w.address}
+                    onChange={(e) => updateWarehouse(i, "address", e.target.value)}
+                    placeholder="Street address"
+                    className={inputClass}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <input
+                    type="text"
+                    value={w.city}
+                    onChange={(e) => updateWarehouse(i, "city", e.target.value)}
+                    placeholder="City"
+                    className={inputClass}
+                  />
+                </div>
+                <select
+                  value={w.state}
+                  onChange={(e) => updateWarehouse(i, "state", e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">State</option>
+                  {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <input
+                  type="text"
+                  value={w.zip}
+                  onChange={(e) => updateWarehouse(i, "zip", e.target.value)}
+                  placeholder="ZIP"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Timing */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Order acknowledgment time (hours)" required>
+          <input
+            type="number"
+            min="0"
+            value={partner.order_acknowledgment_time_hours ?? ""}
+            onChange={(e) =>
+              updateField(
+                "order_acknowledgment_time_hours",
+                e.target.value ? Number(e.target.value) : null,
+              )
+            }
+            className={inputClass}
+            placeholder="e.g. 24"
+          />
+        </Field>
+        <Field label="Shipment lead time (business days)" required>
+          <input
+            type="number"
+            min="0"
+            value={partner.shipment_lead_time_days ?? ""}
+            onChange={(e) =>
+              updateField(
+                "shipment_lead_time_days",
+                e.target.value ? Number(e.target.value) : null,
+              )
+            }
+            className={inputClass}
+            placeholder="e.g. 7"
+          />
+        </Field>
+      </section>
+
+      {/* Freight process + delivery services */}
+      <Field label="Freight / shipping process">
+        <textarea
+          rows={3}
+          value={partner.freight_process ?? ""}
+          onChange={(e) => updateField("freight_process", e.target.value)}
+          className={`${inputClass} resize-none`}
+          placeholder="How machines ship — LTL freight carrier(s), packaging, palletization, etc."
+        />
+      </Field>
+
+      <section>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Delivery services offered</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <ToggleTile
+            label="Liftgate available"
+            checked={partner.liftgate_available}
+            onChange={(v) => updateField("liftgate_available", v)}
+          />
+          <ToggleTile
+            label="Inside delivery available"
+            checked={partner.inside_delivery_available}
+            onChange={(v) => updateField("inside_delivery_available", v)}
+          />
+          <ToggleTile
+            label="Installation available"
+            checked={partner.installation_available}
+            onChange={(v) => updateField("installation_available", v)}
+          />
+        </div>
+      </section>
+
+      {/* Return + warranty */}
+      <Field label="Return / cancellation policy" required>
+        <textarea
+          rows={3}
+          value={partner.return_policy ?? ""}
+          onChange={(e) => updateField("return_policy", e.target.value)}
+          className={`${inputClass} resize-none`}
+          placeholder="Timeframes, restocking fees, condition requirements."
+        />
+      </Field>
+
+      <Field label="Warranty summary" required>
+        <textarea
+          rows={3}
+          value={partner.warranty_summary ?? ""}
+          onChange={(e) => updateField("warranty_summary", e.target.value)}
+          className={`${inputClass} resize-none`}
+          placeholder="Coverage period, what's included/excluded, claim process."
+        />
+      </Field>
+
+      <WarrantyDocUpload partner={partner} setPartner={setPartner} />
+
+      {/* Contacts */}
+      <section>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Technical contact</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Field label="Name" required>
+            <input
+              type="text"
+              value={partner.technical_contact_name ?? ""}
+              onChange={(e) => updateField("technical_contact_name", e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Email" required>
+            <input
+              type="email"
+              value={partner.technical_contact_email ?? ""}
+              onChange={(e) => updateField("technical_contact_email", e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Phone">
+            <input
+              type="tel"
+              value={partner.technical_contact_phone ?? ""}
+              onChange={(e) => updateField("technical_contact_phone", e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Escalation contact</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Field label="Name" required>
+            <input
+              type="text"
+              value={partner.escalation_contact_name ?? ""}
+              onChange={(e) => updateField("escalation_contact_name", e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Email" required>
+            <input
+              type="email"
+              value={partner.escalation_contact_email ?? ""}
+              onChange={(e) => updateField("escalation_contact_email", e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Phone">
+            <input
+              type="tel"
+              value={partner.escalation_contact_phone ?? ""}
+              onChange={(e) => updateField("escalation_contact_phone", e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+        </div>
+      </section>
+
+      {/* Inventory update method */}
+      <Field label="Inventory update method" required>
+        <select
+          value={partner.inventory_update_method}
+          onChange={(e) =>
+            updateField("inventory_update_method", e.target.value as Partner["inventory_update_method"])
+          }
+          className={inputClass}
+        >
+          <option value="manual">Manual — update through the Vending Connector portal</option>
+          <option value="csv">CSV — periodic bulk file upload</option>
+          <option value="api">API — programmatic feed from your ERP/inventory system</option>
+          <option value="other">Other — describe below</option>
+        </select>
+      </Field>
+
+      {partner.inventory_update_method === "other" && (
+        <Field label="Inventory update notes">
+          <textarea
+            rows={2}
+            value={partner.inventory_update_notes ?? ""}
+            onChange={(e) => updateField("inventory_update_notes", e.target.value)}
+            className={`${inputClass} resize-none`}
+            placeholder="How your inventory data will reach Vending Connector."
+          />
+        </Field>
+      )}
+    </div>
+  );
+}
+
+function ToggleTile({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label
+      className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${
+        checked
+          ? "border-green-300 bg-green-50/60"
+          : "border-gray-200 bg-white hover:border-green-200 hover:bg-green-50/30"
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+      />
+      <span className="text-sm font-medium text-gray-900">{label}</span>
+    </label>
+  );
+}
+
+function WarrantyDocUpload({
+  partner,
+  setPartner,
+}: {
+  partner: Partner;
+  setPartner: (updater: (prev: Partner) => Partner) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFile(file: File) {
+    setError(null);
+    setUploading(true);
+    try {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/manufacturer/me/warranty-doc", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? `Upload failed (HTTP ${res.status})`);
+      } else {
+        setPartner((prev) => ({ ...prev, warranty_doc_received: true }));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    }
+    setUploading(false);
+  }
+
+  return (
+    <div>
+      <span className="mb-1.5 block text-xs font-medium text-gray-600">
+        Warranty documentation
+      </span>
+      {partner.warranty_doc_received ? (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+          <span className="text-sm text-gray-900 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            Document uploaded — private to Vending Connector reviewers
+          </span>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="text-xs font-medium text-green-700 hover:underline"
+          >
+            Replace
+          </button>
+        </div>
+      ) : (
+        <label
+          className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-6 text-center cursor-pointer hover:border-green-300 hover:bg-green-50/30"
+          onClick={() => inputRef.current?.click()}
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin text-green-600" />
+              <span className="text-sm text-gray-500">Uploading…</span>
+            </>
+          ) : (
+            <>
+              <span className="text-sm font-medium text-gray-900">
+                Click to upload warranty document
+              </span>
+              <span className="text-[11px] text-gray-500">PDF, JPEG, or PNG (max 15 MB)</span>
+            </>
+          )}
+        </label>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,image/jpeg,image/png"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleFile(f);
+          e.target.value = "";
+        }}
+        className="hidden"
+      />
+      {error && (
+        <div className="mt-2 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          {error}
+        </div>
+      )}
     </div>
   );
 }

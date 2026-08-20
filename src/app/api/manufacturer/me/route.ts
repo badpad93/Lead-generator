@@ -200,7 +200,7 @@ function sanitizeForPartner(row: Record<string, unknown>) {
     installation_available: row.installation_available,
     return_policy: row.return_policy,
     warranty_summary: row.warranty_summary,
-    warranty_doc_storage_path: row.warranty_doc_storage_path,
+    warranty_doc_received: !!row.warranty_doc_storage_path,
     technical_contact_name: row.technical_contact_name,
     technical_contact_email: row.technical_contact_email,
     technical_contact_phone: row.technical_contact_phone,
