@@ -256,7 +256,6 @@ function requiredMissing(row: RowLike, stepData: Record<string, unknown>): strin
   if (!stringField("mailing_zip")) missing.push("mailing_zip");
   if (!stringField("phone_number")) missing.push("phone_number");
   if (!stringField("state_of_residence")) missing.push("state_of_residence");
-  if (!row.w9_uploaded_at) missing.push("w9");
   if (!stepData.ica_accepted) missing.push("independent_contractor_agreement_acceptance");
   if (!stepData.confidentiality_accepted) missing.push("confidentiality_acceptance");
 
@@ -265,7 +264,10 @@ function requiredMissing(row: RowLike, stepData: Record<string, unknown>): strin
   if (missingAcks.length > 0) missing.push("sales_policy_acknowledgments");
 
   if (!stepData.commission_acknowledged) missing.push("commission_acknowledged");
-  if (!row.dwolla_verified_at) missing.push("payment_verified");
+  // W-9 upload + bank/payment setup are collected outside the packet
+  // flow now — see 2026-01-v1: the digital packet only carries the
+  // agreements + acknowledgments. Do NOT gate finish on w9_uploaded_at
+  // or dwolla_verified_at.
 
   return missing;
 }

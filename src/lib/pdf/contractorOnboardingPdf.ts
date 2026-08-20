@@ -96,13 +96,9 @@ export async function generateContractorPacketPdf(
     ["Packet Completed", formatDateTime(input.completedAt)],
     ["Agreement Version", input.agreementVersion],
   ]);
-  ensureRoom(ctx, LINE_H * 2);
-  drawKeyValueTable(ctx, [
-    ["W-9", "Uploaded (see restricted W-9 document)"],
-    ["Bank / ACH", input.paymentVerifiedAt
-      ? `Verified via Plaid on ${formatDate(input.paymentVerifiedAt)} (funding source held by Dwolla)`
-      : "Not verified"],
-  ]);
+  // Note: W-9 + banking details are intentionally NOT part of this
+  // packet in the current 2026-01-v1 flow. They are handled outside
+  // the digital onboarding surface.
 
   drawSectionHeading(ctx, "Independent Contractor Agreement", { newPage: true });
   const ica = INDEPENDENT_CONTRACTOR_AGREEMENT;
