@@ -112,8 +112,13 @@ export default function ContractorOnboardingPage() {
         body: JSON.stringify(patch),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data.onboarding) setState(data.onboarding);
+      // Deliberately DO NOT setState from the response. The client's
+      // local state is always at least as fresh as what the server
+      // just persisted, and the server PATCH does a JSONB merge — so
+      // there's nothing to sync back. Overwriting here caused
+      // in-flight typed characters to disappear when a save from a
+      // moment ago landed. Field updates flow one-way: keystroke →
+      // client setState → queued PATCH → server merge → drop.
     },
   });
 
