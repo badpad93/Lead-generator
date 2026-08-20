@@ -288,7 +288,17 @@ export default function MachinesForSalePage() {
                 <Plus className="h-4 w-4" />
                 Post a Machine for Sale
               </Link>
+              <Link
+                href="/manufacturer/apply"
+                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-green-primary/40 bg-white px-5 py-2.5 text-sm font-semibold text-green-primary shadow-sm transition-colors hover:border-green-primary hover:bg-green-50"
+              >
+                Sell Equipment on Vending Connector
+              </Link>
             </div>
+            <p className="mx-auto mt-3 max-w-2xl text-xs text-gray-500">
+              Manufacturers and wholesalers can apply to list equipment, sell directly to
+              customers, and fulfill orders from their own inventory.
+            </p>
           </div>
 
           {/* Search */}
