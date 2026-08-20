@@ -823,7 +823,22 @@ function ReviewAndSignStep({
           reviewed: true,
         }),
       });
-      const data = await res.json();
+      // Read the body as text first so we can fall back to it when
+      // the server returned HTML (e.g. a 500 error page): Safari
+      // surfaces JSON.parse failure as "the string did not match
+      // the expected pattern", which is unhelpful. Prefer a real
+      // error string.
+      const rawBody = await res.text();
+      let data: { error?: string; missing?: string[] } = {};
+      try {
+        data = rawBody ? JSON.parse(rawBody) : {};
+      } catch {
+        data = {
+          error:
+            rawBody.slice(0, 300).trim() ||
+            `Server returned a non-JSON response (HTTP ${res.status}).`,
+        };
+      }
       if (!res.ok) {
         setError(data.error ?? `Failed (HTTP ${res.status})`);
         if (Array.isArray(data.missing)) setMissing(data.missing);
