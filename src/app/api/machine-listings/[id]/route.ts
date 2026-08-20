@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { pickPublicMachineListing } from "@/lib/machineListings/publicShape";
 
 /** GET /api/machine-listings/[id] — fetch a single machine listing by ID */
 export async function GET(
@@ -22,19 +23,8 @@ export async function GET(
     return NextResponse.json({ error: "Listing not found" }, { status: 404 });
   }
 
-  // Strip sensitive seller information — never expose contact_email/phone
-  // or the created_by user ID to the public
-  const {
-    contact_email: _email,
-    contact_phone: _phone,
-    created_by: _createdBy,
-    admin_notes: _notes,
-    ...publicData
-  } = data;
-  void _email;
-  void _phone;
-  void _createdBy;
-  void _notes;
-
-  return NextResponse.json(publicData);
+  // Allowlist sanitizer — see src/lib/machineListings/publicShape.ts.
+  // Never exposes wholesale_price_cents, admin_notes, contact_*,
+  // created_by, or any future admin field.
+  return NextResponse.json(pickPublicMachineListing(data));
 }

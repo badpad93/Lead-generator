@@ -136,19 +136,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Strip sensitive contact info from list view
-  const sanitized = (data || []).map((row) => {
-    const {
-      contact_email: _e,
-      contact_phone: _p,
-      created_by: _c,
-      ...rest
-    } = row as Record<string, unknown>;
-    void _e;
-    void _p;
-    void _c;
-    return rest;
-  });
+  // Allowlist sanitizer — see src/lib/machineListings/publicShape.ts
+  // for the exhaustive list of columns that may reach the public.
+  // Any column not on the allowlist (wholesale_price_cents,
+  // admin_notes, contact_*, created_by, and every future admin field)
+  // is dropped automatically.
+  const { pickPublicMachineListing } = await import("@/lib/machineListings/publicShape");
+  const sanitized = (data || []).map((row) =>
+    pickPublicMachineListing(row as Record<string, unknown>),
+  );
 
   return NextResponse.json({ listings: sanitized, total: count || 0 });
 }
