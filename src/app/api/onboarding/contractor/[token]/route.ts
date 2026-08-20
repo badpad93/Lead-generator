@@ -76,8 +76,18 @@ export async function PATCH(
   }
 
   const body = await req.json().catch(() => ({}));
-  const stepDataPatch = body.step_data && typeof body.step_data === "object" ? body.step_data : null;
+  const rawStepDataPatch =
+    body.step_data && typeof body.step_data === "object" ? body.step_data : null;
   const currentStepRaw = body.current_step;
+
+  // Allowlist step_data keys. This is the PRIMARY guard against
+  // clients (well-meaning or otherwise) writing PII / bank / SSN
+  // fields into the autosave JSONB. The DB CHECK constraints
+  // (148b + 148c) are defense-in-depth; server-side filtering here
+  // is what actually stops unknown keys from ever landing.
+  const stepDataPatch = rawStepDataPatch
+    ? filterStepDataKeys(rawStepDataPatch as Record<string, unknown>)
+    : null;
 
   const nextStepData = stepDataPatch
     ? { ...(row.step_data as Record<string, unknown>), ...stepDataPatch }
@@ -168,4 +178,39 @@ function sanitizeForContractor(row: OnboardingRow) {
     w9_original_filename: row.w9_original_filename,
     payment_verified: !!row.dwolla_verified_at,
   };
+}
+
+// Explicit allowlist of keys the contractor may write into
+// step_data via autosave. Anything not on this list is dropped
+// silently — see the migration 148b/148c CHECK constraints as
+// belt-and-suspenders against a bypass. Add new form fields here
+// deliberately; each addition is a step_data schema change.
+const ALLOWED_STEP_DATA_KEYS = new Set<string>([
+  // Step 1 — Contractor Information
+  "full_legal_name",
+  "preferred_name",
+  "business_name",
+  "mailing_address",
+  "mailing_city",
+  "mailing_state",
+  "mailing_zip",
+  "phone_number",
+  "state_of_residence",
+  // Steps 2–4 — agreement acknowledgments
+  "ica_accepted",
+  "confidentiality_accepted",
+  "sales_policy_acknowledgments",
+  // Step 5 — compensation
+  "commission_acknowledged",
+  // Legacy — no longer collected but kept so old rows deserialize
+  "payee_legal_name",
+  "contractor_business_name",
+]);
+
+function filterStepDataKeys(patch: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(patch)) {
+    if (ALLOWED_STEP_DATA_KEYS.has(key)) out[key] = patch[key];
+  }
+  return out;
 }
