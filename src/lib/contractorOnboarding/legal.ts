@@ -13,7 +13,7 @@
  * or legal terms here; treat every edit as a compliance change.
  */
 
-export const AGREEMENT_VERSION = "2026-01-v1";
+export const AGREEMENT_VERSION = "2026-01-v2";
 
 // Documents the contractor signs. document_key values must exactly
 // match the CHECK constraint on contractor_onboarding_signatures.
@@ -179,6 +179,12 @@ export const COMMISSION_SCHEDULE = {
       label: "10/10/10 Deal",
       amount: "$1,750 per funded 10/10/10 deal",
       description: "Paid on each qualifying 10/10/10 deal once the customer payment or lender proceeds have settled to Apex.",
+    },
+    {
+      key: "non_10_10_10_deal",
+      label: "Non 10/10/10 Deal",
+      amount: "$200 per machine",
+      description: "Paid on each funded machine sale that does not meet the 10/10/10 structure, once the customer payment or lender proceeds have settled to Apex.",
     },
     {
       key: "location_sale",
