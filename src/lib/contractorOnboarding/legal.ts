@@ -17,12 +17,15 @@ export const AGREEMENT_VERSION = "2026-01-v1";
 
 // Documents the contractor signs. document_key values must exactly
 // match the CHECK constraint on contractor_onboarding_signatures.
+// (The DB CHECK still allows 'payment_authorization' as a legal value
+// so historical rows keep working; we just don't sign one in the
+// current 2026-01-v1 flow because payment info is collected outside
+// the packet.)
 export const SIGNED_DOCUMENTS = [
   "independent_contractor_agreement",
   "commission_agreement",
   "confidentiality_agreement",
   "sales_policy",
-  "payment_authorization",
 ] as const;
 export type SignedDocumentKey = (typeof SIGNED_DOCUMENTS)[number];
 

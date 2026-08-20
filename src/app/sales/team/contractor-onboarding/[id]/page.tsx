@@ -301,16 +301,6 @@ export default function ContractorOnboardingDetailPage() {
         <DocRow label="Commission Agreement" complete={!!detail.completed_at} note={detail.completed_at ? "Signed" : "Not signed"} />
         <DocRow label="Confidentiality Agreement" complete={!!detail.completed_at} note={detail.completed_at ? "Signed" : "Not signed"} />
         <DocRow label="Sales Policy" complete={!!detail.completed_at} note={detail.completed_at ? "Signed" : "Not signed"} />
-        <DocRow
-          label="W-9"
-          complete={detail.w9_received}
-          note={detail.w9_received ? `Received ${fmtDateTime(detail.w9_uploaded_at)}` : "Not received"}
-        />
-        <DocRow
-          label="Payment Setup"
-          complete={detail.payment_verified}
-          note={detail.payment_verified ? `Verified via Plaid ${fmtDate(detail.payment_verified_at ?? "")}` : "Not verified"}
-        />
       </Card>
 
       {/* Actions */}
@@ -326,17 +316,8 @@ export default function ContractorOnboardingDetailPage() {
             View Signed Packet
           </button>
         )}
-        {detail.w9_received && canRestricted && (
-          <button
-            type="button"
-            onClick={() => handleDownload("w9")}
-            disabled={busy === "w9"}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            {busy === "w9" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-            Download W-9
-          </button>
-        )}
+        {/* Download W-9 removed with the packet-flow simplification —
+            W-9s are handled outside the digital onboarding surface. */}
         {detail.status !== "completed" && detail.status !== "revoked" && (
           <>
             <button

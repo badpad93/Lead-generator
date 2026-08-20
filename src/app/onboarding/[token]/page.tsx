@@ -11,12 +11,10 @@ import {
   FileSignature,
   Cloud,
   CloudOff,
-  Upload,
   FileText,
   ShieldCheck,
   ClipboardCheck,
   DollarSign,
-  Landmark,
   AlertCircle,
 } from "lucide-react";
 import { useDebouncedAutosave, type SaveState } from "@/hooks/useDebouncedAutosave";
@@ -43,12 +41,10 @@ import SignatureCanvas from "@/app/components/SignatureCanvas";
 
 const STEPS = [
   "Contractor Information",
-  "Tax Information",
   "Contractor Agreement",
   "Confidentiality",
   "Sales Policies",
   "Compensation",
-  "Payment",
   "Review & Sign",
 ] as const;
 
@@ -67,10 +63,10 @@ interface StepData {
   ica_accepted?: boolean;
   confidentiality_accepted?: boolean;
   sales_policy_acknowledgments?: Record<string, boolean>;
-  // Step 6 — compensation acknowledgment
+  // Step 5 — compensation acknowledgment
   commission_acknowledged?: boolean;
-  // Step 7 — payment info (non-sensitive metadata only; the actual
-  // bank credentials live server-side as a Dwolla funding source URL)
+  // Legacy fields — no longer collected in the packet flow but kept
+  // in the type so existing rows with these keys still deserialize.
   payee_legal_name?: string;
   contractor_business_name?: string;
 }
@@ -112,8 +108,13 @@ export default function ContractorOnboardingPage() {
         body: JSON.stringify(patch),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data.onboarding) setState(data.onboarding);
+      // Deliberately DO NOT setState from the response. The client's
+      // local state is always at least as fresh as what the server
+      // just persisted, and the server PATCH does a JSONB merge — so
+      // there's nothing to sync back. Overwriting here caused
+      // in-flight typed characters to disappear when a save from a
+      // moment ago landed. Field updates flow one-way: keystroke →
+      // client setState → queued PATCH → server merge → drop.
     },
   });
 
@@ -192,7 +193,11 @@ export default function ContractorOnboardingPage() {
     return <CompletedView state={state} />;
   }
 
-  const stepIndex = Math.min(Math.max(state.current_step - 1, 0), STEPS.length - 1);
+  // Clamp — a legacy row saved on the old 8-step flow may have
+  // current_step=7 (Payment) or =8 (Review). Those steps no longer
+  // exist; land the contractor on the closest valid step.
+  const currentStep = Math.min(Math.max(state.current_step, 1), STEPS.length);
+  const stepIndex = currentStep - 1;
 
   function updateField<K extends keyof StepData>(key: K, value: StepData[K]) {
     setState((prev) =>
@@ -215,12 +220,12 @@ export default function ContractorOnboardingPage() {
       <Header state={state} saveState={saveState} />
 
       <main className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8">
-        <ProgressBar currentStep={state.current_step} />
+        <ProgressBar currentStep={currentStep} />
 
         <div className="mt-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="px-6 py-5 border-b border-gray-100">
             <p className="text-xs font-semibold uppercase tracking-wider text-green-600">
-              Step {state.current_step} of {STEPS.length}
+              Step {currentStep} of {STEPS.length}
             </p>
             <h2 className="mt-1 text-xl font-bold text-gray-900">
               {STEPS[stepIndex]}
@@ -228,28 +233,22 @@ export default function ContractorOnboardingPage() {
           </div>
 
           <div className="px-6 py-6">
-            {state.current_step === 1 && (
+            {currentStep === 1 && (
               <ContractorInfoStep state={state} updateField={updateField} />
             )}
-            {state.current_step === 2 && (
-              <W9UploadStep state={state} token={token} onUploaded={setState} />
-            )}
-            {state.current_step === 3 && (
+            {currentStep === 2 && (
               <ContractorAgreementStep state={state} updateField={updateField} />
             )}
-            {state.current_step === 4 && (
+            {currentStep === 3 && (
               <ConfidentialityStep state={state} updateField={updateField} />
             )}
-            {state.current_step === 5 && (
+            {currentStep === 4 && (
               <SalesPolicyStep state={state} updateField={updateField} />
             )}
-            {state.current_step === 6 && (
+            {currentStep === 5 && (
               <CompensationStep state={state} updateField={updateField} />
             )}
-            {state.current_step === 7 && (
-              <PaymentStep state={state} token={token} updateField={updateField} onVerified={setState} />
-            )}
-            {state.current_step === 8 && (
+            {currentStep === 6 && (
               <ReviewAndSignStep
                 state={state}
                 token={token}
@@ -262,12 +261,12 @@ export default function ContractorOnboardingPage() {
             )}
           </div>
 
-          {state.current_step < 8 && (
+          {currentStep < STEPS.length && (
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between rounded-b-2xl">
               <button
                 type="button"
-                onClick={() => goToStep(state.current_step - 1)}
-                disabled={state.current_step === 1}
+                onClick={() => goToStep(currentStep - 1)}
+                disabled={currentStep === 1}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -275,7 +274,7 @@ export default function ContractorOnboardingPage() {
               </button>
               <button
                 type="button"
-                onClick={() => goToStep(state.current_step + 1)}
+                onClick={() => goToStep(currentStep + 1)}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
               >
                 Continue
@@ -283,11 +282,11 @@ export default function ContractorOnboardingPage() {
               </button>
             </div>
           )}
-          {state.current_step === 8 && (
+          {currentStep === STEPS.length && (
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-start rounded-b-2xl">
               <button
                 type="button"
-                onClick={() => goToStep(7)}
+                onClick={() => goToStep(STEPS.length - 1)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -559,149 +558,6 @@ function Field({
 }
 
 // ─────────────────────────────────────────────────────────────
-// Step 2 — Tax Information (W-9 upload)
-// ─────────────────────────────────────────────────────────────
-
-function W9UploadStep({
-  state,
-  token,
-  onUploaded,
-}: {
-  state: OnboardingState;
-  token: string;
-  onUploaded: (updater: (prev: OnboardingState | null) => OnboardingState | null) => void;
-}) {
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  async function handleFile(file: File) {
-    setError(null);
-    if (file.type !== "application/pdf") {
-      setError("Please upload a PDF.");
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      setError("File exceeds 15 MB.");
-      return;
-    }
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch(`/api/onboarding/contractor/${token}/w9`, {
-        method: "POST",
-        body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? `Upload failed (HTTP ${res.status})`);
-      } else {
-        onUploaded((prev) =>
-          prev
-            ? {
-                ...prev,
-                w9_received: true,
-                w9_original_filename: data.w9_original_filename,
-              }
-            : prev,
-        );
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error");
-    }
-    setUploading(false);
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-600 leading-relaxed">
-        We need a completed IRS Form W-9 on file for tax reporting. Download the
-        current form from{" "}
-        <a
-          href="https://www.irs.gov/pub/irs-pdf/fw9.pdf"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-green-600 hover:underline font-medium"
-        >
-          IRS.gov
-        </a>
-        , fill it out and sign it, then upload the completed PDF below.
-      </p>
-      <p className="text-xs text-gray-500 leading-relaxed">
-        Your W-9 is uploaded to a secure, private location and is not visible in
-        our team views or notification emails. Only authorized finance staff can
-        access it.
-      </p>
-
-      {state.w9_received ? (
-        <div className="rounded-xl border border-green-200 bg-green-50 p-5">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600 mt-0.5" />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900">W-9 received</p>
-              <p className="text-xs text-gray-600 mt-1 truncate">
-                {state.w9_original_filename ?? "Uploaded"}
-              </p>
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50"
-              >
-                <Upload className="h-3.5 w-3.5" />
-                Replace W-9
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <label
-          htmlFor="w9-file"
-          className={`flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors cursor-pointer ${
-            uploading
-              ? "border-gray-200 bg-gray-50"
-              : "border-green-300 bg-green-50/40 hover:bg-green-50"
-          }`}
-        >
-          {uploading ? (
-            <>
-              <Loader2 className="h-6 w-6 animate-spin text-green-600" />
-              <p className="text-sm text-gray-600">Uploading…</p>
-            </>
-          ) : (
-            <>
-              <Upload className="h-6 w-6 text-green-600" />
-              <p className="text-sm font-medium text-gray-900">
-                Click to upload your completed W-9
-              </p>
-              <p className="text-[11px] text-gray-500">PDF only, max 15 MB</p>
-            </>
-          )}
-        </label>
-      )}
-      <input
-        ref={inputRef}
-        id="w9-file"
-        type="file"
-        accept="application/pdf,.pdf"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void handleFile(f);
-          e.target.value = "";
-        }}
-      />
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-          {error}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
 // Step 3 — Independent Contractor Agreement
 // ─────────────────────────────────────────────────────────────
 
@@ -922,225 +778,6 @@ function CompensationStep({
 }
 
 // ─────────────────────────────────────────────────────────────
-// Step 7 — Payment Info (Plaid Link → Dwolla funding source)
-// ─────────────────────────────────────────────────────────────
-
-const PLAID_SCRIPT = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
-
-declare global {
-  interface Window {
-    Plaid?: {
-      create: (config: {
-        token: string;
-        onSuccess: (
-          publicToken: string,
-          metadata: {
-            institution?: { name?: string };
-            accounts?: Array<{ id: string; name?: string }>;
-          },
-        ) => void;
-        onExit?: (err: unknown) => void;
-      }) => { open: () => void };
-    };
-  }
-}
-
-function loadPlaidScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === "undefined") return reject(new Error("no window"));
-    if (window.Plaid) return resolve();
-    const existing = document.getElementById("plaid-link-sdk") as HTMLScriptElement | null;
-    if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Plaid script failed to load")));
-      return;
-    }
-    const script = document.createElement("script");
-    script.id = "plaid-link-sdk";
-    script.src = PLAID_SCRIPT;
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Plaid script failed to load"));
-    document.body.appendChild(script);
-  });
-}
-
-function PaymentStep({
-  state,
-  token,
-  updateField,
-  onVerified,
-}: {
-  state: OnboardingState;
-  token: string;
-  updateField: <K extends keyof StepData>(key: K, value: StepData[K]) => void;
-  onVerified: (updater: (prev: OnboardingState | null) => OnboardingState | null) => void;
-}) {
-  const [linking, setLinking] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const payeeLegalName = state.step_data.payee_legal_name ?? state.step_data.full_legal_name ?? "";
-  const businessName = state.step_data.contractor_business_name ?? state.step_data.business_name ?? "";
-
-  async function handleLinkBank() {
-    setError(null);
-    if (!payeeLegalName.trim()) {
-      setError("Enter your payee legal name before linking your bank.");
-      return;
-    }
-    setLinking(true);
-    try {
-      await loadPlaidScript();
-      const linkRes = await fetch(`/api/onboarding/contractor/${token}/dwolla/link-token`, {
-        method: "POST",
-      });
-      const linkData = await linkRes.json();
-      if (!linkRes.ok) throw new Error(linkData.error ?? "Failed to create Plaid link token");
-      if (!window.Plaid) throw new Error("Plaid SDK unavailable");
-
-      const handler = window.Plaid.create({
-        token: linkData.link_token,
-        onSuccess: async (publicToken, metadata) => {
-          setSaving(true);
-          try {
-            const accountId = metadata.accounts?.[0]?.id;
-            if (!accountId) throw new Error("Plaid returned no account");
-            const exchangeRes = await fetch(
-              `/api/onboarding/contractor/${token}/dwolla/exchange`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  public_token: publicToken,
-                  account_id: accountId,
-                  institution_name: metadata.institution?.name,
-                  payee_legal_name: payeeLegalName,
-                  business_name: businessName,
-                }),
-              },
-            );
-            const data = await exchangeRes.json();
-            if (!exchangeRes.ok) {
-              setError(data.error ?? "Failed to complete bank verification");
-            } else {
-              onVerified((prev) => (prev ? { ...prev, payment_verified: true } : prev));
-            }
-          } catch (err) {
-            setError(err instanceof Error ? err.message : "Unexpected error");
-          }
-          setSaving(false);
-          setLinking(false);
-        },
-        onExit: () => setLinking(false),
-      });
-      handler.open();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error");
-      setLinking(false);
-    }
-  }
-
-  return (
-    <div className="space-y-5">
-      <p className="text-sm text-gray-600">
-        Set up secure ACH payouts. Bank verification is powered by{" "}
-        <strong>Plaid</strong>; money movement runs through{" "}
-        <strong>Dwolla</strong>. Vending Connector never sees or stores your
-        routing / account numbers.
-      </p>
-
-      <Field label="Payee Legal Name" required>
-        <input
-          type="text"
-          value={payeeLegalName}
-          onChange={(e) => updateField("payee_legal_name", e.target.value)}
-          className={inputClass}
-          placeholder="Name on the receiving account"
-        />
-      </Field>
-
-      <Field label="Business Name">
-        <input
-          type="text"
-          value={businessName}
-          onChange={(e) => updateField("contractor_business_name", e.target.value)}
-          className={inputClass}
-          placeholder="Optional — leave blank if payouts go to your personal name"
-        />
-      </Field>
-
-      {state.payment_verified ? (
-        <div className="rounded-xl border border-green-200 bg-green-50 p-5">
-          <div className="flex items-start gap-3">
-            <ShieldCheck className="h-5 w-5 shrink-0 text-green-600 mt-0.5" />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900">
-                Bank linked and verified
-              </p>
-              <p className="text-xs text-gray-600 mt-1">
-                Your commissions will be deposited on the normal Friday cycle
-                after each transaction settles.
-              </p>
-              <button
-                type="button"
-                onClick={handleLinkBank}
-                disabled={linking || saving}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
-              >
-                {linking || saving ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Working…
-                  </>
-                ) : (
-                  "Change Bank Account"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={handleLinkBank}
-          disabled={linking || saving || !payeeLegalName.trim()}
-          className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
-        >
-          {linking || saving ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {saving ? "Verifying…" : "Opening Plaid…"}
-            </>
-          ) : (
-            <>
-              <Landmark className="h-4 w-4" />
-              Link Bank Account
-            </>
-          )}
-        </button>
-      )}
-
-      {error && (
-        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-          {error}
-        </div>
-      )}
-
-      <p className="text-[11px] text-gray-400 leading-relaxed">
-        By linking your bank, you authorize Apex AI Vending / Vending Connector
-        to remit earned commissions via ACH to this account. You can update this
-        information at any time.
-      </p>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Step 8 — Review & Sign — capture typed name + optional drawn
-// signature + audit checkbox + POST to /finish.
-// ─────────────────────────────────────────────────────────────
 
 function ReviewAndSignStep({
   state,
@@ -1227,11 +864,6 @@ function ReviewAndSignStep({
           })}
         />
         <ReviewRow
-          label="W-9"
-          value={state.w9_received ? `Received (${state.w9_original_filename ?? "PDF uploaded"})` : "Not received"}
-          ok={state.w9_received}
-        />
-        <ReviewRow
           label="Independent Contractor Agreement"
           value={s.ica_accepted ? "Read and agreed" : "Not agreed"}
           ok={!!s.ica_accepted}
@@ -1256,15 +888,6 @@ function ReviewAndSignStep({
           label="Commission Schedule"
           value={s.commission_acknowledged ? "Acknowledged" : "Not acknowledged"}
           ok={!!s.commission_acknowledged}
-        />
-        <ReviewRow
-          label="Payment Setup"
-          value={
-            state.payment_verified
-              ? `Bank verified via Plaid — payouts via ACH (Dwolla)`
-              : "Bank not linked"
-          }
-          ok={state.payment_verified}
         />
       </div>
 
@@ -1385,16 +1008,17 @@ function computeClientMissing(state: OnboardingState): string[] {
   if (!s.mailing_state?.trim()) missing.push("State (Step 1)");
   if (!s.mailing_zip?.trim()) missing.push("ZIP (Step 1)");
   if (!s.phone_number?.trim()) missing.push("Phone number (Step 1)");
-  if (!state.w9_received) missing.push("W-9 upload (Step 2)");
-  if (!s.ica_accepted) missing.push("Independent Contractor Agreement (Step 3)");
-  if (!s.confidentiality_accepted) missing.push("Confidentiality Agreement (Step 4)");
+  if (!s.ica_accepted) missing.push("Independent Contractor Agreement (Step 2)");
+  if (!s.confidentiality_accepted) missing.push("Confidentiality Agreement (Step 3)");
   const acks = s.sales_policy_acknowledgments ?? {};
   const missingAcks = SALES_POLICY_ACKNOWLEDGMENTS.filter((a) => !acks[a]);
-  if (missingAcks.length > 0) missing.push(`Sales / CRM Policy — ${missingAcks.length} item(s) (Step 5)`);
-  if (!s.commission_acknowledged) missing.push("Commission Schedule acknowledgment (Step 6)");
-  if (!state.payment_verified) missing.push("Bank / payment setup (Step 7)");
+  if (missingAcks.length > 0) missing.push(`Sales / CRM Policy — ${missingAcks.length} item(s) (Step 4)`);
+  if (!s.commission_acknowledged) missing.push("Commission Schedule acknowledgment (Step 5)");
   return missing;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Small shared UI helpers used by the legal steps
 
 // ─────────────────────────────────────────────────────────────
 // Small shared UI helpers used by the legal steps
