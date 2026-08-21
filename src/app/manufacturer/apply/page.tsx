@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import { useDebouncedAutosave, type SaveState } from "@/hooks/useDebouncedAutosave";
+import SignatureCanvas from "@/app/components/SignatureCanvas";
+import { AGREEMENT_SECTIONS, PREAMBLE, GOVERNING_LAW } from "@/lib/manufacturerOnboarding/legal";
 
 /**
  * Manufacturer / Wholesaler enrollment wizard.
@@ -90,6 +92,9 @@ interface Partner {
   escalation_contact_phone: string | null;
   inventory_update_method: "manual" | "csv" | "api" | "other";
   inventory_update_notes: string | null;
+
+  // Step 3 — Agreement metadata
+  current_agreement_version: string | null;
 
   current_step: number;
   status: string;
@@ -255,7 +260,15 @@ function WizardShell({ initialPartner }: { initialPartner: Partner }) {
             {currentStep === 2 && (
               <FulfillmentStep partner={partner} updateField={updateField} setPartner={setPartner} />
             )}
-            {currentStep >= 3 && (
+            {currentStep === 3 && (
+              <AgreementStep
+                partner={partner}
+                onAccepted={(version) =>
+                  setPartner((prev) => ({ ...prev, current_agreement_version: version }))
+                }
+              />
+            )}
+            {currentStep >= 4 && (
               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
                 This step ships in a follow-up commit. Your progress on earlier steps is
                 autosaved — use Back to review or edit any time.
@@ -945,6 +958,347 @@ function WarrantyDocUpload({
           {error}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 3 — Marketplace Partner Agreement
+// ─────────────────────────────────────────────────────────────
+
+interface AgreementForm {
+  shipping_charges_method: string;
+  returns_cancellation_terms: string;
+  liability_cap_modification: string;
+  exclusivity_terms: string;
+  integration_notes: string;
+  order_acknowledgment_target: string;
+  shipment_target: string;
+  manufacturer_escalation_contact: string;
+  manufacturer_technical_contact: string;
+  signer_printed_name: string;
+  signer_title: string;
+  reviewed: boolean;
+}
+
+function AgreementStep({
+  partner,
+  onAccepted,
+}: {
+  partner: Partner;
+  onAccepted: (version: string) => void;
+}) {
+  const alreadyAccepted = !!partner.current_agreement_version;
+  const [form, setForm] = useState<AgreementForm>({
+    shipping_charges_method: "",
+    returns_cancellation_terms: partner.return_policy ?? "",
+    liability_cap_modification: "",
+    exclusivity_terms: "",
+    integration_notes: partner.inventory_update_notes ?? "",
+    order_acknowledgment_target:
+      partner.order_acknowledgment_time_hours != null
+        ? `${partner.order_acknowledgment_time_hours} hours`
+        : "",
+    shipment_target:
+      partner.shipment_lead_time_days != null
+        ? `${partner.shipment_lead_time_days} business days`
+        : "",
+    manufacturer_escalation_contact:
+      [partner.escalation_contact_name, partner.escalation_contact_email, partner.escalation_contact_phone]
+        .filter(Boolean)
+        .join(" · "),
+    manufacturer_technical_contact:
+      [partner.technical_contact_name, partner.technical_contact_email, partner.technical_contact_phone]
+        .filter(Boolean)
+        .join(" · "),
+    signer_printed_name: partner.primary_contact_name ?? "",
+    signer_title: partner.primary_contact_title ?? "",
+    reviewed: false,
+  });
+  const [drawnSignature, setDrawnSignature] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [missing, setMissing] = useState<string[] | null>(null);
+
+  function updateForm<K extends keyof AgreementForm>(key: K, value: AgreementForm[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleAccept() {
+    setError(null);
+    setMissing(null);
+    if (!form.reviewed) {
+      setError("Please confirm you have reviewed the agreement before signing.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/manufacturer/me/agreement", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({
+          ...form,
+          signature_type: drawnSignature ? "drawn" : "typed",
+          signature_data: drawnSignature || null,
+        }),
+      });
+      const rawBody = await res.text();
+      let data: { error?: string; missing?: string[]; agreement_version?: string } = {};
+      try {
+        data = rawBody ? JSON.parse(rawBody) : {};
+      } catch {
+        data = { error: rawBody.slice(0, 300).trim() || `Failed (HTTP ${res.status})` };
+      }
+      if (!res.ok) {
+        setError(data.error ?? `Failed (HTTP ${res.status})`);
+        if (Array.isArray(data.missing)) setMissing(data.missing);
+      } else if (data.agreement_version) {
+        onAccepted(data.agreement_version);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    }
+    setSubmitting(false);
+  }
+
+  if (alreadyAccepted) {
+    return (
+      <div className="rounded-xl border border-green-200 bg-green-50 p-6">
+        <div className="flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-gray-900">
+              Marketplace Partner Agreement accepted
+            </p>
+            <p className="mt-1 text-xs text-gray-600">
+              Version <span className="font-mono">{partner.current_agreement_version}</span>.
+              You can download the executed copy from your admin detail page after your
+              application is approved.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-gray-600">
+        Review the Marketplace Partner Agreement below. Then fill in the commercial
+        variables that will appear on your executed copy, sign, and submit.
+        Governing law: <span className="font-medium">{GOVERNING_LAW}</span>.
+      </p>
+
+      {/* Preamble + full agreement in a scrollable panel */}
+      <div className="rounded-xl border border-gray-200 bg-white max-h-[420px] overflow-y-auto p-5 text-sm text-gray-700 space-y-4">
+        <p className="whitespace-pre-line leading-relaxed">{PREAMBLE}</p>
+        {AGREEMENT_SECTIONS.map((section) => (
+          <div key={section.number}>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+              {section.number}. {section.title}
+            </h4>
+            <div className="space-y-2">
+              {section.clauses.map((clause) => (
+                <p key={clause} className="leading-relaxed">
+                  {clause}
+                </p>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Exhibit A commercial terms */}
+      <section>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">
+          Exhibit A — Commercial terms
+        </h3>
+        <div className="space-y-4">
+          <Field label="Shipping charges / method" required>
+            <textarea
+              rows={2}
+              value={form.shipping_charges_method}
+              onChange={(e) => updateForm("shipping_charges_method", e.target.value)}
+              className={`${inputClass} resize-none`}
+              placeholder="How shipping is priced and billed on orders."
+            />
+          </Field>
+          <Field label="Returns / cancellation terms" required>
+            <textarea
+              rows={2}
+              value={form.returns_cancellation_terms}
+              onChange={(e) => updateForm("returns_cancellation_terms", e.target.value)}
+              className={`${inputClass} resize-none`}
+              placeholder="Prefilled from Step 2 — edit if agreement-specific terms differ."
+            />
+          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Liability cap modification (optional)">
+              <input
+                type="text"
+                value={form.liability_cap_modification}
+                onChange={(e) => updateForm("liability_cap_modification", e.target.value)}
+                className={inputClass}
+                placeholder="Leave blank to use the default $25,000 cap"
+              />
+            </Field>
+            <Field label="Exclusivity (optional)">
+              <input
+                type="text"
+                value={form.exclusivity_terms}
+                onChange={(e) => updateForm("exclusivity_terms", e.target.value)}
+                className={inputClass}
+                placeholder="e.g. Exclusive to VC in South Carolina"
+              />
+            </Field>
+          </div>
+        </div>
+      </section>
+
+      {/* Exhibit B integration + service levels */}
+      <section>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">
+          Exhibit B — Integration and service levels
+        </h3>
+        <div className="space-y-4">
+          <Field label="Integration method / notes" required>
+            <textarea
+              rows={2}
+              value={form.integration_notes}
+              onChange={(e) => updateForm("integration_notes", e.target.value)}
+              className={`${inputClass} resize-none`}
+              placeholder="Manual portal / CSV feed / API — how catalog + inventory sync works."
+            />
+          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Order acknowledgment target" required>
+              <input
+                type="text"
+                value={form.order_acknowledgment_target}
+                onChange={(e) => updateForm("order_acknowledgment_target", e.target.value)}
+                className={inputClass}
+                placeholder="e.g. 24 business hours"
+              />
+            </Field>
+            <Field label="Shipment target" required>
+              <input
+                type="text"
+                value={form.shipment_target}
+                onChange={(e) => updateForm("shipment_target", e.target.value)}
+                className={inputClass}
+                placeholder="e.g. 5 business days"
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Manufacturer escalation contact" required>
+              <input
+                type="text"
+                value={form.manufacturer_escalation_contact}
+                onChange={(e) => updateForm("manufacturer_escalation_contact", e.target.value)}
+                className={inputClass}
+                placeholder="Name · Email · Phone"
+              />
+            </Field>
+            <Field label="Manufacturer technical contact" required>
+              <input
+                type="text"
+                value={form.manufacturer_technical_contact}
+                onChange={(e) => updateForm("manufacturer_technical_contact", e.target.value)}
+                className={inputClass}
+                placeholder="Name · Email · Phone"
+              />
+            </Field>
+          </div>
+        </div>
+      </section>
+
+      {/* Signature block */}
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-gray-900">Electronic signature</h3>
+        <p className="text-xs text-gray-500 leading-relaxed">
+          By typing your printed name and (optionally) drawing your signature below, you are
+          electronically signing the Marketplace Partner Agreement above on behalf of
+          <span className="font-medium"> {partner.legal_company_name}</span>. The date,
+          time, IP address, and user agent are recorded in the agreement audit trail.
+          Electronic signatures are permitted per Section 18.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Printed Name" required>
+            <input
+              type="text"
+              value={form.signer_printed_name}
+              onChange={(e) => updateForm("signer_printed_name", e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Title" required>
+            <input
+              type="text"
+              value={form.signer_title}
+              onChange={(e) => updateForm("signer_title", e.target.value)}
+              className={inputClass}
+              placeholder="e.g. CEO"
+            />
+          </Field>
+        </div>
+
+        <div>
+          <span className="mb-1.5 block text-xs font-medium text-gray-600">
+            Draw signature (optional)
+          </span>
+          <SignatureCanvas onSignature={setDrawnSignature} />
+        </div>
+
+        <label className="flex items-start gap-3 rounded-lg border border-gray-200 p-3 cursor-pointer hover:bg-gray-50">
+          <input
+            type="checkbox"
+            checked={form.reviewed}
+            onChange={(e) => updateForm("reviewed", e.target.checked)}
+            className="mt-1 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+          />
+          <span className="text-sm text-gray-900">
+            I have read and agree to the Marketplace Partner Agreement, its exhibits, and
+            the commercial terms above on behalf of <span className="font-medium">{partner.legal_company_name}</span>.
+          </span>
+        </label>
+      </section>
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            <p>{error}</p>
+            {missing && missing.length > 0 && (
+              <ul className="mt-1 ml-4 list-disc text-xs">
+                {missing.map((m) => <li key={m}>{m}</li>)}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={handleAccept}
+        disabled={submitting || !form.reviewed}
+        className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {submitting ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Accepting…
+          </>
+        ) : (
+          "Accept and Sign Agreement"
+        )}
+      </button>
     </div>
   );
 }
