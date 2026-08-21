@@ -57,6 +57,23 @@ export const PUBLIC_MACHINE_LISTING_COLUMNS = [
   // (it's an opaque identifier used by the UI to fetch the "Sold by"
   // label). The associated wholesale_price_cents is NOT on this list.
   "manufacturer_partner_id",
+
+  // Manufacturer product data (migration 150) — customer-facing
+  "sku",
+  "msrp_cents",
+  "lead_time_days",
+  "listing_warranty_summary",
+  "spec_sheet_url",
+  "brochure_url",
+  "video_url",
+  "dimensions_text",
+  "weight_lbs",
+  "electrical_requirements",
+  "temperature_zone",
+  "payment_system_compatibility",
+  "software_compatibility",
+  "certifications",
+  "manufacturer_shipping_notes",
 ] as const;
 
 const PUBLIC_SET = new Set<string>(PUBLIC_MACHINE_LISTING_COLUMNS);

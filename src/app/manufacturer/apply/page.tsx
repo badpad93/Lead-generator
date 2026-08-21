@@ -268,7 +268,8 @@ function WizardShell({ initialPartner }: { initialPartner: Partner }) {
                 }
               />
             )}
-            {currentStep >= 4 && (
+            {currentStep === 4 && <EquipmentStep partner={partner} />}
+            {currentStep >= 5 && (
               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
                 This step ships in a follow-up commit. Your progress on earlier steps is
                 autosaved — use Back to review or edit any time.
@@ -1300,6 +1301,733 @@ function AgreementStep({
         )}
       </button>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 4 — Equipment (CRUD + margin cap + pricing exception)
+// ─────────────────────────────────────────────────────────────
+
+interface EquipmentRow {
+  id: string;
+  title: string | null;
+  sku: string | null;
+  machine_make: string | null;
+  machine_model: string | null;
+  machine_type: string | null;
+  condition: string | null;
+  quantity: number | null;
+  wholesale_price_cents: number | null;
+  buy_now_price: number | null;
+  lead_time_days: number | null;
+  status: string;
+  description: string | null;
+  temperature_zone: string | null;
+  dimensions_text: string | null;
+  weight_lbs: number | null;
+  electrical_requirements: string | null;
+  payment_system_compatibility: string | null;
+  software_compatibility: string | null;
+  certifications: string | null;
+  spec_sheet_url: string | null;
+  brochure_url: string | null;
+  video_url: string | null;
+  listing_warranty_summary: string | null;
+  manufacturer_shipping_notes: string | null;
+  msrp_cents: number | null;
+  city: string | null;
+  state: string | null;
+  updated_at: string;
+}
+
+interface EquipmentForm {
+  title: string;
+  sku: string;
+  machine_make: string;
+  machine_model: string;
+  machine_year: string;
+  machine_type: string;
+  condition: string;
+  quantity: string;
+  description: string;
+  wholesale_price_dollars: string;
+  final_price_dollars: string;
+  msrp_dollars: string;
+  lead_time_days: string;
+  manufacturer_shipping_notes: string;
+  listing_warranty_summary: string;
+  spec_sheet_url: string;
+  brochure_url: string;
+  video_url: string;
+  dimensions_text: string;
+  weight_lbs: string;
+  electrical_requirements: string;
+  temperature_zone: string;
+  payment_system_compatibility: string;
+  software_compatibility: string;
+  certifications: string;
+  city: string;
+  state: string;
+}
+
+const EMPTY_EQUIPMENT_FORM: EquipmentForm = {
+  title: "", sku: "", machine_make: "", machine_model: "", machine_year: "",
+  machine_type: "", condition: "new", quantity: "1", description: "",
+  wholesale_price_dollars: "", final_price_dollars: "", msrp_dollars: "",
+  lead_time_days: "", manufacturer_shipping_notes: "", listing_warranty_summary: "",
+  spec_sheet_url: "", brochure_url: "", video_url: "",
+  dimensions_text: "", weight_lbs: "", electrical_requirements: "",
+  temperature_zone: "", payment_system_compatibility: "",
+  software_compatibility: "", certifications: "",
+  city: "", state: "",
+};
+
+function EquipmentStep({ partner }: { partner: Partner }) {
+  const [equipment, setEquipment] = useState<EquipmentRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<EquipmentForm>({
+    ...EMPTY_EQUIPMENT_FORM,
+    city: partner.shipping_origin_city ?? "",
+    state: partner.shipping_origin_state ?? "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [marginOverCapListingId, setMarginOverCapListingId] = useState<string | null>(null);
+
+  const authFetch = useCallback(
+    async (input: string, init: RequestInit = {}) => {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = new Headers(init.headers);
+      if (session?.access_token) headers.set("Authorization", `Bearer ${session.access_token}`);
+      return fetch(input, { ...init, headers });
+    },
+    [],
+  );
+
+  const load = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const res = await authFetch("/api/manufacturer/me/equipment");
+      const data = await res.json();
+      if (!res.ok) setLoadError(data.error ?? `Failed (HTTP ${res.status})`);
+      else setEquipment(data.equipment ?? []);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Network error");
+    }
+    setLoading(false);
+  }, [authFetch]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  function startNew() {
+    setEditingId(null);
+    setForm({
+      ...EMPTY_EQUIPMENT_FORM,
+      city: partner.shipping_origin_city ?? "",
+      state: partner.shipping_origin_state ?? "",
+    });
+    setSaveError(null);
+    setMarginOverCapListingId(null);
+    setShowForm(true);
+  }
+
+  function startEdit(row: EquipmentRow) {
+    setEditingId(row.id);
+    setForm({
+      title: row.title ?? "",
+      sku: row.sku ?? "",
+      machine_make: row.machine_make ?? "",
+      machine_model: row.machine_model ?? "",
+      machine_year: "",
+      machine_type: row.machine_type ?? "",
+      condition: row.condition ?? "new",
+      quantity: String(row.quantity ?? 1),
+      description: row.description ?? "",
+      wholesale_price_dollars: row.wholesale_price_cents != null ? (row.wholesale_price_cents / 100).toFixed(2) : "",
+      final_price_dollars: row.buy_now_price != null ? Number(row.buy_now_price).toFixed(2) : "",
+      msrp_dollars: row.msrp_cents != null ? (row.msrp_cents / 100).toFixed(2) : "",
+      lead_time_days: row.lead_time_days != null ? String(row.lead_time_days) : "",
+      manufacturer_shipping_notes: row.manufacturer_shipping_notes ?? "",
+      listing_warranty_summary: row.listing_warranty_summary ?? "",
+      spec_sheet_url: row.spec_sheet_url ?? "",
+      brochure_url: row.brochure_url ?? "",
+      video_url: row.video_url ?? "",
+      dimensions_text: row.dimensions_text ?? "",
+      weight_lbs: row.weight_lbs != null ? String(row.weight_lbs) : "",
+      electrical_requirements: row.electrical_requirements ?? "",
+      temperature_zone: row.temperature_zone ?? "",
+      payment_system_compatibility: row.payment_system_compatibility ?? "",
+      software_compatibility: row.software_compatibility ?? "",
+      certifications: row.certifications ?? "",
+      city: row.city ?? partner.shipping_origin_city ?? "",
+      state: row.state ?? partner.shipping_origin_state ?? "",
+    });
+    setSaveError(null);
+    setMarginOverCapListingId(null);
+    setShowForm(true);
+  }
+
+  async function handleSave() {
+    setSaveError(null);
+    setMarginOverCapListingId(null);
+    if (!form.title.trim()) {
+      setSaveError("Equipment name is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const url = editingId
+        ? `/api/manufacturer/me/equipment/${editingId}`
+        : "/api/manufacturer/me/equipment";
+      const res = await authFetch(url, {
+        method: editingId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const raw = await res.text();
+      let data: { error?: string; code?: string; equipment?: EquipmentRow } = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { error: raw.slice(0, 300) };
+      }
+      if (!res.ok) {
+        setSaveError(data.error ?? `Failed (HTTP ${res.status})`);
+        if (data.code === "margin_over_cap_needs_exception" && editingId) {
+          setMarginOverCapListingId(editingId);
+        }
+      } else {
+        setShowForm(false);
+        setEditingId(null);
+        void load();
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Network error");
+    }
+    setSaving(false);
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("Remove this equipment listing?")) return;
+    try {
+      const res = await authFetch(`/api/manufacturer/me/equipment/${id}`, { method: "DELETE" });
+      if (res.ok) void load();
+    } catch { /* ignore */ }
+  }
+
+  async function handleSubmitForReview(id: string) {
+    try {
+      const res = await authFetch(`/api/manufacturer/me/equipment/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "pending_review" }),
+      });
+      if (res.ok) void load();
+    } catch { /* ignore */ }
+  }
+
+  async function handleRequestException() {
+    if (!marginOverCapListingId) return;
+    const requested = Number(form.final_price_dollars);
+    if (!Number.isFinite(requested) || requested <= 0) return;
+    const reason = window.prompt(
+      "Briefly explain why this equipment needs margin above $300 (visible to VC reviewers):",
+      "",
+    );
+    if (reason === null) return;
+    try {
+      const res = await authFetch(
+        `/api/manufacturer/me/equipment/${marginOverCapListingId}/pricing-exception`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            requested_final_price_dollars: requested,
+            request_reason: reason,
+          }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        window.alert(data.error ?? "Failed to submit exception request.");
+      } else {
+        setSaveError(null);
+        window.alert("Pricing exception submitted. VC will review and get back to you.");
+      }
+    } catch { /* ignore */ }
+  }
+
+  const marginPreviewCents = (() => {
+    const w = Number(form.wholesale_price_dollars);
+    const f = Number(form.final_price_dollars);
+    if (!Number.isFinite(w) || !Number.isFinite(f)) return null;
+    return Math.round((f - w) * 100);
+  })();
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Your equipment listings</h3>
+          <p className="mt-1 text-xs text-gray-500">
+            Add each machine you want to sell through Vending Connector. Final VC price
+            must be at least the manufacturer sale price; margin above{" "}
+            <span className="font-medium">$300</span> requires an admin-approved pricing
+            exception.
+          </p>
+        </div>
+        {!showForm && (
+          <button
+            type="button"
+            onClick={startNew}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700"
+          >
+            + Add Equipment
+          </button>
+        )}
+      </div>
+
+      {loadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
+
+      {!showForm && (
+        <>
+          {loading && (
+            <div className="text-sm text-gray-400 flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading equipment…
+            </div>
+          )}
+          {equipment && equipment.length === 0 && !loading && (
+            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
+              No equipment yet. Click <strong>Add Equipment</strong> to create your first
+              listing.
+            </div>
+          )}
+          {equipment && equipment.length > 0 && (
+            <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">Equipment</th>
+                    <th className="text-left px-3 py-2 font-medium">SKU</th>
+                    <th className="text-right px-3 py-2 font-medium">Wholesale</th>
+                    <th className="text-right px-3 py-2 font-medium">Final</th>
+                    <th className="text-right px-3 py-2 font-medium">Margin</th>
+                    <th className="text-left px-3 py-2 font-medium">Status</th>
+                    <th className="text-right px-3 py-2 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {equipment.map((row) => {
+                    const wholesaleD = row.wholesale_price_cents != null ? row.wholesale_price_cents / 100 : null;
+                    const finalD = row.buy_now_price != null ? Number(row.buy_now_price) : null;
+                    const marginD = wholesaleD != null && finalD != null ? finalD - wholesaleD : null;
+                    return (
+                      <tr key={row.id} className="hover:bg-gray-50/50">
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-gray-900">{row.title || "(untitled)"}</div>
+                          <div className="text-xs text-gray-500">
+                            {[row.machine_make, row.machine_model].filter(Boolean).join(" · ")}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">{row.sku || "—"}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">
+                          {wholesaleD != null ? `$${wholesaleD.toFixed(2)}` : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right text-gray-600">
+                          {finalD != null ? `$${finalD.toFixed(2)}` : "—"}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-medium ${marginD != null && marginD > 300 ? "text-amber-700" : "text-green-700"}`}>
+                          {marginD != null ? `$${marginD.toFixed(2)}` : "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <EquipmentStatusPill status={row.status} />
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <div className="inline-flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => startEdit(row)}
+                              className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                            >
+                              Edit
+                            </button>
+                            {row.status === "draft" && (
+                              <button
+                                type="button"
+                                onClick={() => handleSubmitForReview(row.id)}
+                                className="rounded px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
+                              >
+                                Submit for review
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(row.id)}
+                              className="rounded px-2 py-1 text-xs text-gray-500 hover:bg-red-50 hover:text-red-600"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {showForm && (
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">
+              {editingId ? "Edit equipment" : "Add equipment"}
+            </h3>
+            <button
+              type="button"
+              onClick={() => { setShowForm(false); setEditingId(null); }}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
+          </div>
+
+          {/* Core */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Equipment name" required>
+              <input
+                type="text"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="SKU">
+              <input
+                type="text"
+                value={form.sku}
+                onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Make">
+              <input
+                type="text"
+                value={form.machine_make}
+                onChange={(e) => setForm({ ...form, machine_make: e.target.value })}
+                className={inputClass}
+                placeholder="Manufacturer brand name"
+              />
+            </Field>
+            <Field label="Model">
+              <input
+                type="text"
+                value={form.machine_model}
+                onChange={(e) => setForm({ ...form, machine_model: e.target.value })}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Category">
+              <input
+                type="text"
+                value={form.machine_type}
+                onChange={(e) => setForm({ ...form, machine_type: e.target.value })}
+                className={inputClass}
+                placeholder="Snack, beverage, combo, etc."
+              />
+            </Field>
+            <Field label="Condition">
+              <select
+                value={form.condition}
+                onChange={(e) => setForm({ ...form, condition: e.target.value })}
+                className={inputClass}
+              >
+                <option value="new">New</option>
+                <option value="refurbished">Refurbished</option>
+                <option value="used">Used</option>
+              </select>
+            </Field>
+            <Field label="Quantity in inventory">
+              <input
+                type="number"
+                min="0"
+                value={form.quantity}
+                onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Lead time (business days)">
+              <input
+                type="number"
+                min="0"
+                value={form.lead_time_days}
+                onChange={(e) => setForm({ ...form, lead_time_days: e.target.value })}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <Field label="Description">
+            <textarea
+              rows={3}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className={`${inputClass} resize-none`}
+            />
+          </Field>
+
+          {/* Pricing — the money block */}
+          <div className="rounded-xl border border-green-200 bg-green-50/40 p-4 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">Pricing</h4>
+            <p className="text-[11px] text-gray-500">
+              Manufacturer sale price is what VC pays you; final Vending Connector price is
+              what the customer pays. Wholesale price is <strong>never</strong> shown to
+              customers.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Field label="Manufacturer Sale Price (USD)" required>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.wholesale_price_dollars}
+                  onChange={(e) => setForm({ ...form, wholesale_price_dollars: e.target.value })}
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Final Vending Connector Price (USD)" required>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.final_price_dollars}
+                  onChange={(e) => setForm({ ...form, final_price_dollars: e.target.value })}
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="MSRP (optional)">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.msrp_dollars}
+                  onChange={(e) => setForm({ ...form, msrp_dollars: e.target.value })}
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+            {marginPreviewCents != null && (
+              <div
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium ${
+                  marginPreviewCents < 0
+                    ? "bg-red-50 text-red-700"
+                    : marginPreviewCents > 30000
+                    ? "bg-amber-50 text-amber-800"
+                    : "bg-green-50 text-green-700"
+                }`}
+              >
+                VC margin preview: ${(marginPreviewCents / 100).toFixed(2)}
+                {marginPreviewCents > 30000 && " — exceeds $300 cap, needs approved exception"}
+              </div>
+            )}
+          </div>
+
+          {/* Product specs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Dimensions">
+              <input
+                type="text"
+                value={form.dimensions_text}
+                onChange={(e) => setForm({ ...form, dimensions_text: e.target.value })}
+                className={inputClass}
+                placeholder="H x W x D"
+              />
+            </Field>
+            <Field label="Weight (lbs)">
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                value={form.weight_lbs}
+                onChange={(e) => setForm({ ...form, weight_lbs: e.target.value })}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Electrical requirements">
+              <input
+                type="text"
+                value={form.electrical_requirements}
+                onChange={(e) => setForm({ ...form, electrical_requirements: e.target.value })}
+                className={inputClass}
+                placeholder="e.g. 120V / 15A dedicated circuit"
+              />
+            </Field>
+            <Field label="Temperature zone">
+              <select
+                value={form.temperature_zone}
+                onChange={(e) => setForm({ ...form, temperature_zone: e.target.value })}
+                className={inputClass}
+              >
+                <option value="">Not applicable</option>
+                <option value="ambient">Ambient</option>
+                <option value="refrigerated">Refrigerated</option>
+                <option value="frozen">Frozen</option>
+                <option value="combo">Combo (multi-zone)</option>
+              </select>
+            </Field>
+            <Field label="Payment system compatibility">
+              <input
+                type="text"
+                value={form.payment_system_compatibility}
+                onChange={(e) => setForm({ ...form, payment_system_compatibility: e.target.value })}
+                className={inputClass}
+                placeholder="e.g. Nayax, Cantaloupe, USA Tech"
+              />
+            </Field>
+            <Field label="Software / VMS compatibility">
+              <input
+                type="text"
+                value={form.software_compatibility}
+                onChange={(e) => setForm({ ...form, software_compatibility: e.target.value })}
+                className={inputClass}
+                placeholder="Compatible VMS platforms"
+              />
+            </Field>
+            <Field label="Certifications">
+              <input
+                type="text"
+                value={form.certifications}
+                onChange={(e) => setForm({ ...form, certifications: e.target.value })}
+                className={inputClass}
+                placeholder="UL, NSF, Energy Star, etc."
+              />
+            </Field>
+            <Field label="Warranty summary (this listing)">
+              <input
+                type="text"
+                value={form.listing_warranty_summary}
+                onChange={(e) => setForm({ ...form, listing_warranty_summary: e.target.value })}
+                className={inputClass}
+                placeholder="Overrides your default warranty for this item"
+              />
+            </Field>
+          </div>
+
+          {/* Media links (upload UI ships in a follow-up) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Field label="Spec sheet URL">
+              <input
+                type="url"
+                value={form.spec_sheet_url}
+                onChange={(e) => setForm({ ...form, spec_sheet_url: e.target.value })}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Brochure URL">
+              <input
+                type="url"
+                value={form.brochure_url}
+                onChange={(e) => setForm({ ...form, brochure_url: e.target.value })}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Video URL">
+              <input
+                type="url"
+                value={form.video_url}
+                onChange={(e) => setForm({ ...form, video_url: e.target.value })}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <Field label="Shipping notes">
+            <textarea
+              rows={2}
+              value={form.manufacturer_shipping_notes}
+              onChange={(e) => setForm({ ...form, manufacturer_shipping_notes: e.target.value })}
+              className={`${inputClass} resize-none`}
+              placeholder="Ships from origin, freight class, special handling."
+            />
+          </Field>
+
+          {saveError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 space-y-2">
+              <p>{saveError}</p>
+              {marginOverCapListingId && (
+                <button
+                  type="button"
+                  onClick={handleRequestException}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+                >
+                  Request pricing exception
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {editingId ? "Save changes" : "Add equipment"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowForm(false); setEditingId(null); }}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EquipmentStatusPill({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    draft: "bg-gray-100 text-gray-700",
+    pending: "bg-yellow-50 text-yellow-800",
+    pending_review: "bg-yellow-50 text-yellow-800",
+    approved: "bg-green-50 text-green-700",
+    active: "bg-green-50 text-green-700",
+    changes_requested: "bg-orange-50 text-orange-800",
+    rejected: "bg-red-50 text-red-700",
+    inactive: "bg-gray-100 text-gray-500",
+    sold: "bg-blue-50 text-blue-700",
+  };
+  const label = {
+    draft: "Draft",
+    pending: "Pending Review",
+    pending_review: "Pending Review",
+    approved: "Approved",
+    active: "Active",
+    changes_requested: "Changes Requested",
+    rejected: "Rejected",
+    inactive: "Inactive",
+    sold: "Sold",
+  }[status] ?? status;
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${map[status] ?? map.draft}`}>
+      {label}
+    </span>
   );
 }
 
