@@ -30,6 +30,7 @@ import {
   DollarSign,
   UserPlus,
   Coffee,
+  Image as ImageIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
@@ -4715,6 +4716,14 @@ export default function AdminPage() {
                 <DollarSign className="h-4 w-4" />
                 <span className="hidden sm:inline">Financial Center</span>
                 <span className="sm:hidden">$</span>
+              </Link>
+              <Link
+                href="/admin/marketing/gondola"
+                className="inline-flex items-center gap-2 rounded-xl border border-green-primary px-4 py-2.5 text-sm font-medium text-green-primary shadow-sm transition-colors hover:bg-green-50"
+              >
+                <ImageIcon className="h-4 w-4" />
+                <span className="hidden sm:inline">Gondola Images</span>
+                <span className="sm:hidden">Gondola</span>
               </Link>
               <Link
                 href="/sales"
