@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import ScrollProgress from "@/app/components/ScrollProgress";
+import MarketingGondola from "@/app/components/marketing/MarketingGondola";
 import PathCard from "@/app/components/homepage/PathCard";
 import ServiceCard from "@/app/components/homepage/ServiceCard";
 import AudienceCard from "@/app/components/homepage/AudienceCard";
@@ -236,6 +237,15 @@ export default function HomePageClient() {
   return (
     <div className="overflow-hidden">
       <ScrollProgress />
+
+      {/* ============================================================ */}
+      {/*  0. MARKETING GONDOLA — sits directly under the header.      */}
+      {/*     Rotating promo carousel shared with the logged-in        */}
+      {/*     dashboard so both surfaces show the same "what we do"    */}
+      {/*     showcase. Existing homepage sections below are           */}
+      {/*     unchanged.                                               */}
+      {/* ============================================================ */}
+      <MarketingGondola />
 
       {/* ============================================================ */}
       {/*  1. HERO                                                     */}
