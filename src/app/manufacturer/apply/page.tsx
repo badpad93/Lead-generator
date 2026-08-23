@@ -281,11 +281,13 @@ function WizardShell({ initialPartner }: { initialPartner: Partner }) {
                 }
               />
             )}
-            {currentStep >= 6 && (
-              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-                This step ships in a follow-up commit. Your progress on earlier steps is
-                autosaved — use Back to review or edit any time.
-              </div>
+            {currentStep === 6 && (
+              <SubmitStep
+                partner={partner}
+                onSubmitted={() =>
+                  setPartner((prev) => ({ ...prev, status: "submitted" }))
+                }
+              />
             )}
           </div>
           <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between rounded-b-2xl">
@@ -2215,6 +2217,162 @@ function PaymentStep({
         remit marketplace proceeds via ACH to this account after customer payments
         settle. You can update this bank at any time before or after approval.
       </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 6 — Submit for Vending Connector approval
+// ─────────────────────────────────────────────────────────────
+
+function SubmitStep({
+  partner,
+  onSubmitted,
+}: {
+  partner: Partner;
+  onSubmitted: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [missing, setMissing] = useState<string[] | null>(null);
+
+  const alreadySubmitted =
+    partner.status !== "draft" && partner.status !== "changes_requested";
+
+  async function handleSubmit() {
+    setError(null);
+    setMissing(null);
+    setSubmitting(true);
+    try {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/manufacturer/me/submit", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+      });
+      const raw = await res.text();
+      let data: { error?: string; missing?: string[]; status?: string } = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { error: raw.slice(0, 300) || `Failed (HTTP ${res.status})` };
+      }
+      if (!res.ok) {
+        setError(data.error ?? `Failed (HTTP ${res.status})`);
+        if (Array.isArray(data.missing)) setMissing(data.missing);
+      } else if (data.status === "submitted") {
+        onSubmitted();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    }
+    setSubmitting(false);
+  }
+
+  if (alreadySubmitted) {
+    return (
+      <div className="space-y-3">
+        <div className="rounded-xl border border-green-200 bg-green-50 p-5 flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-gray-900">
+              Application submitted — status:{" "}
+              <span className="capitalize">{partner.status.replaceAll("_", " ")}</span>
+            </p>
+            <p className="mt-1 text-xs text-gray-600">
+              Vending Connector is reviewing your application. You&apos;ll receive updates by
+              email as your account, agreement, and equipment are approved. You can revisit
+              this page at any time to check status.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-gray-600">
+        Last step. Review the summary below and submit your application for Vending
+        Connector approval. Our team will review your agreement, equipment, and payment
+        setup and reply by email.
+      </p>
+
+      <div className="rounded-2xl border border-gray-200 bg-white divide-y divide-gray-100">
+        <SummaryRow label="Company" value={partner.legal_company_name} ok />
+        <SummaryRow
+          label="Contact"
+          value={
+            partner.primary_contact_email
+              ? `${partner.primary_contact_name ?? "—"} · ${partner.primary_contact_email}`
+              : "—"
+          }
+          ok={!!partner.primary_contact_email}
+        />
+        <SummaryRow
+          label="Fulfillment"
+          value={
+            partner.order_acknowledgment_time_hours != null && partner.shipment_lead_time_days != null
+              ? `Ack in ${partner.order_acknowledgment_time_hours}h · Ships in ${partner.shipment_lead_time_days}d`
+              : "Incomplete"
+          }
+          ok={partner.order_acknowledgment_time_hours != null && partner.shipment_lead_time_days != null}
+        />
+        <SummaryRow
+          label="Marketplace Agreement"
+          value={partner.current_agreement_version ? `v${partner.current_agreement_version}` : "Not signed"}
+          ok={!!partner.current_agreement_version}
+        />
+        <SummaryRow
+          label="Payment setup"
+          value={partner.payment_verified ? "Bank linked and verified" : "Not verified"}
+          ok={partner.payment_verified}
+        />
+      </div>
+
+      {missing && missing.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold">Please complete these before submitting:</p>
+          <ul className="mt-2 ml-5 list-disc space-y-0.5 text-xs">
+            {missing.map((m) => <li key={m}>{m}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {error && !missing && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          {error}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={handleSubmit}
+        disabled={submitting}
+        className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {submitting ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Submitting…
+          </>
+        ) : (
+          "Submit for Vending Connector Approval"
+        )}
+      </button>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, ok }: { label: string; value: string; ok: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
+      <span className="text-gray-500 shrink-0 w-40 sm:w-56">{label}</span>
+      <span className={`text-right ${ok ? "text-gray-900" : "text-amber-700 font-medium"}`}>
+        {ok && <CheckCircle2 className="inline h-3.5 w-3.5 text-green-600 mr-1 -mt-0.5" />}
+        {value}
+      </span>
     </div>
   );
 }
