@@ -13,6 +13,7 @@ interface FormState {
   state: string;
   zip_codes: string[];
   machine_count: string;
+  machine_type: string;
 }
 
 const initial: FormState = {
@@ -24,7 +25,13 @@ const initial: FormState = {
   state: "",
   zip_codes: [""],
   machine_count: "",
+  machine_type: "",
 };
+
+// The five product lines the operator can request a location for.
+// Kept in one place so the label rendered in the receipt matches the
+// select value byte-for-byte (the API validates against this list).
+const MACHINE_TYPES = ["Combo", "AI", "Water", "Coffee", "ATM"] as const;
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
@@ -104,6 +111,7 @@ function RequestLocationInner() {
     const validZips = form.zip_codes.map((z) => z.trim()).filter(Boolean);
     if (validZips.length === 0) { setError("Please enter at least one ZIP code."); return; }
     if (!form.machine_count.trim()) { setError("Please fill in number of machines."); return; }
+    if (!form.machine_type) { setError("Please select a machine type."); return; }
 
     setSubmitting(true);
     try {
@@ -121,6 +129,7 @@ function RequestLocationInner() {
           state: form.state,
           zip_codes: validZips,
           machine_count: Number(form.machine_count),
+          machine_type: form.machine_type,
           ref: ref || undefined,
         }),
       });
@@ -174,6 +183,9 @@ function RequestLocationInner() {
                     <tr><td className="py-1.5 pr-4 text-gray-500">State</td><td className="py-1.5 text-gray-900">{receiptData.state}</td></tr>
                     <tr><td className="py-1.5 pr-4 text-gray-500">ZIP Code(s)</td><td className="py-1.5 text-gray-900">{receiptData.zip_codes.filter(Boolean).join(", ")}</td></tr>
                     <tr><td className="py-1.5 pr-4 text-gray-500">Machines Requested</td><td className="py-1.5 font-medium text-gray-900">{receiptData.machine_count}</td></tr>
+                    {receiptData.machine_type && (
+                      <tr><td className="py-1.5 pr-4 text-gray-500">Machine Type</td><td className="py-1.5 text-gray-900">{receiptData.machine_type}</td></tr>
+                    )}
                     <tr className="border-t border-gray-200">
                       <td className="pt-3 pr-4 text-gray-500 font-medium">Deposit Paid</td>
                       <td className="pt-3 font-bold text-green-700 text-lg">$100.00</td>
@@ -256,6 +268,21 @@ function RequestLocationInner() {
               </label>
               <Field label="Number of Machines Needed" type="number" value={form.machine_count} onChange={(v) => update("machine_count", v)} />
             </div>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-black-primary">Machine Type</span>
+              <select
+                value={form.machine_type}
+                onChange={(e) => update("machine_type", e.target.value)}
+                required
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black-primary outline-none transition-colors focus:border-green-primary focus:ring-2 focus:ring-green-100 cursor-pointer"
+              >
+                <option value="">Select Machine Type</option>
+                {MACHINE_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </label>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">

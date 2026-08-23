@@ -76,6 +76,14 @@ export async function ensureContractForLocationServicesWorkflow(
     typeof intake.business_name === "string"
       ? intake.business_name.trim()
       : "";
+  // machine_type came from the /request-location selector (Combo / AI
+  // / Water / Coffee / ATM). placement_contracts.machine_type is free
+  // text — the marketplace card renders whatever we stamp here, so
+  // pass it through verbatim when present.
+  const machineType =
+    typeof intake.machine_type === "string" && intake.machine_type.trim()
+      ? intake.machine_type.trim()
+      : null;
 
   const settings = await getMarketplaceSettings();
   const platformFeeDollars = Math.min(
@@ -101,6 +109,7 @@ export async function ensureContractForLocationServicesWorkflow(
       platform_fee: platformFeeDollars,
       market_state: marketState || null,
       market_city: null,
+      machine_type: machineType,
       contract_type: locationsNeeded > 1 ? "multi" : "single",
       locations_needed: locationsNeeded,
       locations_filled: 0,
