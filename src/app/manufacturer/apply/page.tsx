@@ -96,6 +96,10 @@ interface Partner {
   // Step 3 — Agreement metadata
   current_agreement_version: string | null;
 
+  // Step 5 — Payment / payout
+  payment_verified: boolean;
+  payout_status: "pending" | "submitted" | "verified" | "restricted" | "complete";
+
   current_step: number;
   status: string;
 }
@@ -269,7 +273,15 @@ function WizardShell({ initialPartner }: { initialPartner: Partner }) {
               />
             )}
             {currentStep === 4 && <EquipmentStep partner={partner} />}
-            {currentStep >= 5 && (
+            {currentStep === 5 && (
+              <PaymentStep
+                partner={partner}
+                onVerified={() =>
+                  setPartner((prev) => ({ ...prev, payment_verified: true, payout_status: "verified" }))
+                }
+              />
+            )}
+            {currentStep >= 6 && (
               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
                 This step ships in a follow-up commit. Your progress on earlier steps is
                 autosaved — use Back to review or edit any time.
@@ -2028,6 +2040,182 @@ function EquipmentStatusPill({ status }: { status: string }) {
     <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${map[status] ?? map.draft}`}>
       {label}
     </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 5 — Payment Setup (Plaid Link → Dwolla funding source)
+// ─────────────────────────────────────────────────────────────
+
+const PLAID_SCRIPT_URL = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+
+declare global {
+  interface Window {
+    Plaid?: {
+      create: (config: {
+        token: string;
+        onSuccess: (
+          publicToken: string,
+          metadata: {
+            institution?: { name?: string };
+            accounts?: Array<{ id: string; name?: string }>;
+          },
+        ) => void;
+        onExit?: (err: unknown) => void;
+      }) => { open: () => void };
+    };
+  }
+}
+
+function ensurePlaidScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") return reject(new Error("no window"));
+    if (window.Plaid) return resolve();
+    const existing = document.getElementById("plaid-link-sdk") as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("Plaid script failed to load")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "plaid-link-sdk";
+    script.src = PLAID_SCRIPT_URL;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Plaid script failed to load"));
+    document.body.appendChild(script);
+  });
+}
+
+function PaymentStep({
+  partner,
+  onVerified,
+}: {
+  partner: Partner;
+  onVerified: () => void;
+}) {
+  const [linking, setLinking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleLinkBank() {
+    setError(null);
+    setLinking(true);
+    try {
+      await ensurePlaidScript();
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const linkRes = await fetch("/api/manufacturer/me/dwolla/link-token", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+      });
+      const linkData = await linkRes.json();
+      if (!linkRes.ok) throw new Error(linkData.error ?? "Failed to create Plaid link token");
+      if (!window.Plaid) throw new Error("Plaid SDK unavailable");
+
+      const handler = window.Plaid.create({
+        token: linkData.link_token,
+        onSuccess: async (publicToken, metadata) => {
+          setSaving(true);
+          try {
+            const accountId = metadata.accounts?.[0]?.id;
+            if (!accountId) throw new Error("Plaid returned no account");
+            const bearer = (await createBrowserClient().auth.getSession()).data.session?.access_token ?? "";
+            const exchangeRes = await fetch("/api/manufacturer/me/dwolla/exchange", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${bearer}`,
+              },
+              body: JSON.stringify({
+                public_token: publicToken,
+                account_id: accountId,
+                institution_name: metadata.institution?.name,
+              }),
+            });
+            const data = await exchangeRes.json();
+            if (!exchangeRes.ok) {
+              setError(data.error ?? "Failed to complete bank verification");
+            } else {
+              onVerified();
+            }
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Unexpected error");
+          }
+          setSaving(false);
+          setLinking(false);
+        },
+        onExit: () => setLinking(false),
+      });
+      handler.open();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error");
+      setLinking(false);
+    }
+  }
+
+  const isVerified = partner.payment_verified;
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-gray-600">
+        Set up secure ACH payouts. Bank verification is powered by{" "}
+        <strong>Plaid</strong>; money movement runs through{" "}
+        <strong>Dwolla</strong>. Vending Connector never sees or stores your
+        routing / account numbers — Plaid holds them, Dwolla holds the funding
+        source URL.
+      </p>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-gray-500">Payout account</p>
+            {isVerified ? (
+              <p className="mt-1 text-sm font-semibold text-gray-900">
+                Bank linked and verified · Payout status:{" "}
+                <span className="text-green-700">{partner.payout_status}</span>
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-gray-700">Not linked yet.</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleLinkBank}
+            disabled={linking || saving}
+            className={`inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold shadow-sm ${
+              isVerified
+                ? "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                : "bg-green-600 text-white hover:bg-green-700"
+            } disabled:opacity-50`}
+          >
+            {linking || saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {saving ? "Verifying…" : "Opening Plaid…"}
+              </>
+            ) : isVerified ? (
+              "Change bank account"
+            ) : (
+              "Link Bank Account"
+            )}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          {error}
+        </div>
+      )}
+
+      <p className="text-[11px] text-gray-400 leading-relaxed">
+        By linking your bank you authorize Apex AI Vending / Vending Connector to
+        remit marketplace proceeds via ACH to this account after customer payments
+        settle. You can update this bank at any time before or after approval.
+      </p>
+    </div>
   );
 }
 
