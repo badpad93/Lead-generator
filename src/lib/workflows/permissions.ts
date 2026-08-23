@@ -18,18 +18,16 @@ export interface WorkflowActor {
   scope: "all" | "assigned" | "own";
 }
 
-// Every staff role now views ALL workflows — visibility is not what
-// gates write access. Editing is gated per-workflow via
-// canOperationallyEditWorkflow() (elevated role OR active assignment).
-const ROLES_VIEW_ALL = new Set([
-  "admin",
-  "director_of_sales",
-  "market_leader",
-  "sales_manager",
-  "sales",
-]);
+// Only admins may view every workflow across the org. Every other
+// staff role — including director_of_sales, market_leader, and
+// sales_manager — is scoped to workflows they are personally assigned
+// to (primary_owner or active collaborator via workflow_assignments).
+// Managers who need visibility across their reports get it by being
+// added as a collaborator on those workflows.
+const ROLES_VIEW_ALL = new Set(["admin"]);
 
-// Every staff role can add internal notes and view all workflows.
+// Staff roles — the population that can act inside the CRM at all.
+// This is unchanged; visibility scoping happens separately below.
 const STAFF_ROLES = new Set([
   "admin",
   "director_of_sales",
@@ -59,9 +57,14 @@ export async function getWorkflowActor(req: NextRequest): Promise<WorkflowActor 
   if (!profile) return null;
 
   const role = profile.role ?? "";
+  // admin → "all"; every other staff role → "assigned" (own +
+  // collaborator); anyone else (customer, PP, manufacturer_partner)
+  // → "own" (only workflows where they ARE the customer).
   const scope: "all" | "assigned" | "own" = ROLES_VIEW_ALL.has(role)
     ? "all"
-    : "own";
+    : STAFF_ROLES.has(role)
+      ? "assigned"
+      : "own";
 
   return {
     id: profile.id,

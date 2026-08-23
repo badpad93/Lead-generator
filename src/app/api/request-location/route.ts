@@ -11,6 +11,15 @@ const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 // request pays $100.
 const DEPOSIT_CENTS_PER_LOCATION = 10000;
 
+// Allowlist for machine_type. Kept in sync with the /request-location
+// page selector and with the sales_leads_machine_type_check CHECK
+// constraint (migration 152).
+const MACHINE_TYPES = ["Combo", "AI", "Water", "Coffee", "ATM"] as const;
+type MachineType = (typeof MACHINE_TYPES)[number];
+function isMachineType(v: unknown): v is MachineType {
+  return typeof v === "string" && (MACHINE_TYPES as readonly string[]).includes(v);
+}
+
 function clean(v: unknown): string {
   return typeof v === "string" ? v.trim().slice(0, 500) : "";
 }
@@ -30,6 +39,7 @@ export async function POST(req: Request) {
   const address = clean(body.address);
   const state = clean(body.state);
   const machine_count_raw = body.machine_count;
+  const machine_type_raw = body.machine_type;
 
   const rawZips = Array.isArray(body.zip_codes) ? body.zip_codes : body.zip_code ? [body.zip_code] : [];
   const zip_codes: string[] = rawZips.map((z: unknown) => (typeof z === "string" ? z.trim() : "")).filter(Boolean);
@@ -64,6 +74,14 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+
+  if (!isMachineType(machine_type_raw)) {
+    return NextResponse.json(
+      { error: `Machine type must be one of: ${MACHINE_TYPES.join(", ")}` },
+      { status: 400 }
+    );
+  }
+  const machine_type: MachineType = machine_type_raw;
 
   const depositCents = machine_count * DEPOSIT_CENTS_PER_LOCATION;
   const depositDollars = depositCents / 100;
@@ -108,17 +126,33 @@ export async function POST(req: Request) {
     machine_count,
     status: "new",
     source: referringRep ? "request-location-referral" : "request-location",
-    notes: `Location services request — ${machine_count} machine(s) requested for ZIP(s) ${zip_code} in ${state}${referringRepName ? ` (referred by ${referringRepName})` : ""}`,
+    notes: `Location services request — ${machine_count} ${machine_type} machine(s) requested for ZIP(s) ${zip_code} in ${state}${referringRepName ? ` (referred by ${referringRepName})` : ""}`,
     created_by: referringRep,
     assigned_to: referringRep,
   };
 
-  // Try with deposit columns (requires migration 081)
+  // Try with deposit + machine_type columns (deposit_* needs migration
+  // 081, machine_type needs migration 152). Failures on either column
+  // fall back to smaller insert shapes so an old DB still accepts the
+  // request instead of a hard 500.
   let { data: lead, error: dbError } = await supabaseAdmin.from("sales_leads").insert({
     ...leadRow,
     deposit_status: "pending",
     deposit_amount_cents: depositCents,
+    machine_type,
   }).select("id").single();
+
+  // Fallback: machine_type column missing (migration 152 not run).
+  if (dbError && dbError.message?.includes("machine_type")) {
+    console.warn("[request-location] machine_type column missing, inserting without it");
+    const retry = await supabaseAdmin.from("sales_leads").insert({
+      ...leadRow,
+      deposit_status: "pending",
+      deposit_amount_cents: depositCents,
+    }).select("id").single();
+    lead = retry.data;
+    dbError = retry.error;
+  }
 
   // Fallback if deposit columns don't exist yet
   if (dbError && dbError.message?.includes("deposit_")) {
@@ -186,7 +220,7 @@ export async function POST(req: Request) {
           fulfillment_status: "pending",
           next_required_action: "Awaiting deposit payment",
           recipient_email: email,
-          notes: `Location services request — ${machine_count} location${machine_count > 1 ? "s" : ""} in ${state} (ZIP ${zip_code}). Address: ${address}. $100 deposit + $500 placement fee per location.`,
+          notes: `Location services request — ${machine_count} ${machine_type} location${machine_count > 1 ? "s" : ""} in ${state} (ZIP ${zip_code}). Address: ${address}. $100 deposit + $500 placement fee per location.`,
         })
         .select("id")
         .single();
@@ -199,9 +233,9 @@ export async function POST(req: Request) {
           .from("order_items")
           .insert({
             order_id: order.id,
-            service_name: `Location Services — ${machine_count} location${machine_count > 1 ? "s" : ""}`,
+            service_name: `Location Services — ${machine_count} ${machine_type} location${machine_count > 1 ? "s" : ""}`,
             price: totalValueDollars,
-            notes: `${machine_count} location(s) in ${state} (ZIP ${zip_code}). $100 deposit + $500 placement fee per location.`,
+            notes: `${machine_count} ${machine_type} location(s) in ${state} (ZIP ${zip_code}). $100 deposit + $500 placement fee per location.`,
           });
         if (itemErr) {
           console.error("[request-location] order_items insert failed:", itemErr);
@@ -221,11 +255,11 @@ export async function POST(req: Request) {
       customerPhone: phone,
       lineItems: [
         {
-          description: `Location Services Deposit — ${business_name} (${machine_count} location${machine_count > 1 ? "s" : ""} in ${state}, $100 per location)`,
+          description: `Location Services Deposit — ${business_name} (${machine_count} ${machine_type} location${machine_count > 1 ? "s" : ""} in ${state}, $100 per location)`,
           amount: depositDollars,
         },
       ],
-      memo: `Location services deposit for ${business_name} — ${machine_count} location(s) at $100 each`,
+      memo: `Location services deposit for ${business_name} — ${machine_count} ${machine_type} location(s) at $100 each`,
       metadata: {
         type: "location_services_deposit",
         lead_id: lead.id,
@@ -262,7 +296,7 @@ export async function POST(req: Request) {
 
     // Send admin notification email
     sendAdminNotification({
-      business_name, contact_name, phone, email, address, state, zip_code, machine_count,
+      business_name, contact_name, phone, email, address, state, zip_code, machine_count, machine_type,
       depositDollars,
     }).catch((e) => console.error("[request-location] email error", e));
 
@@ -321,6 +355,7 @@ export async function POST(req: Request) {
               zip_codes,
               zip_code,
               machine_count,
+              machine_type,
               referring_sales_rep_name: referringRepName,
             },
           },
@@ -378,9 +413,10 @@ async function sendAdminNotification(params: {
   state: string;
   zip_code: string;
   machine_count: number;
+  machine_type: string;
   depositDollars: number;
 }) {
-  const { business_name, contact_name, phone, email, address, state, zip_code, machine_count, depositDollars } = params;
+  const { business_name, contact_name, phone, email, address, state, zip_code, machine_count, machine_type, depositDollars } = params;
   const resend = new Resend(process.env.RESEND_API_KEY);
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
@@ -397,6 +433,7 @@ async function sendAdminNotification(params: {
         <tr><td style="padding:6px 0;color:#6b7280;">State</td><td style="padding:6px 0;color:#111827;">${state}</td></tr>
         <tr><td style="padding:6px 0;color:#6b7280;">ZIP Code(s)</td><td style="padding:6px 0;color:#111827;">${zip_code}</td></tr>
         <tr><td style="padding:6px 0;color:#6b7280;">Machines Requested</td><td style="padding:6px 0;color:#111827;font-weight:600;">${machine_count}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Machine Type</td><td style="padding:6px 0;color:#111827;font-weight:600;">${machine_type}</td></tr>
       </table>
     </div>
   `;
