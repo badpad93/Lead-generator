@@ -52,7 +52,7 @@ import {
 } from "react";
 import type { GondolaSlot } from "@/lib/marketingGondola";
 
-const AUTO_ADVANCE_MS = 12_000;
+const AUTO_ADVANCE_MS = 5_000;
 // Any horizontal swipe wider than this (in pixels) counts as a slide
 // change. Below the threshold we ignore it so vertical scrolls on
 // mobile don't accidentally trigger navigation.
