@@ -193,6 +193,24 @@ export interface MachineListing {
   buy_now_enabled: boolean;
   buy_now_price: number | null;
   delivery_fee_cents: number | null;
+  // Manufacturer marketplace flow (all nullable on legacy user-posted listings)
+  manufacturer_partner_id?: string | null;
+  manufacturer_display_name?: string | null;
+  sku?: string | null;
+  msrp_cents?: number | null;
+  lead_time_days?: number | null;
+  listing_warranty_summary?: string | null;
+  spec_sheet_url?: string | null;
+  brochure_url?: string | null;
+  video_url?: string | null;
+  dimensions_text?: string | null;
+  weight_lbs?: number | null;
+  electrical_requirements?: string | null;
+  temperature_zone?: "ambient" | "refrigerated" | "frozen" | "combo" | null;
+  payment_system_compatibility?: string | null;
+  software_compatibility?: string | null;
+  certifications?: string | null;
+  manufacturer_shipping_notes?: string | null;
   created_at: string;
   updated_at: string;
   // Joined

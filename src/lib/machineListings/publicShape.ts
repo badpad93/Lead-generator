@@ -57,6 +57,10 @@ export const PUBLIC_MACHINE_LISTING_COLUMNS = [
   // (it's an opaque identifier used by the UI to fetch the "Sold by"
   // label). The associated wholesale_price_cents is NOT on this list.
   "manufacturer_partner_id",
+  // Hydrated by the detail endpoint from
+  // manufacturer_partners.(dba_or_brand ?? legal_company_name).
+  // Public-safe: it's what customers should see on the storefront.
+  "manufacturer_display_name",
 
   // Manufacturer product data (migration 150) — customer-facing
   "sku",

@@ -377,6 +377,11 @@ export default function MachineDetailPage() {
                   <h1 className="text-xl font-bold text-black-primary sm:text-2xl leading-tight">
                     {listing.title}
                   </h1>
+                  {listing.manufacturer_display_name && (
+                    <p className="mt-1 text-xs font-medium uppercase tracking-wider text-green-700">
+                      Sold by {listing.manufacturer_display_name} through Vending Connector
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 text-xs font-semibold rounded-full ring-1 ring-inset ${statusConfig.bg} ${statusConfig.text} ${statusConfig.ring}`}
@@ -406,6 +411,96 @@ export default function MachineDetailPage() {
                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
                     {listing.description}
                   </p>
+                </div>
+              )}
+
+              {/* Manufacturer-provided specifications (only on manufacturer
+                  marketplace listings — hidden entirely for legacy user
+                  posts so nothing looks out of place). */}
+              {listing.manufacturer_partner_id && (
+                <div className="mt-6 rounded-lg bg-white border border-gray-200 p-4">
+                  <h3 className="text-sm font-semibold text-black-primary mb-3">
+                    Specifications
+                  </h3>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <MfrSpec label="SKU" value={listing.sku} />
+                    <MfrSpec
+                      label="Lead time"
+                      value={listing.lead_time_days != null ? `${listing.lead_time_days} business days` : null}
+                    />
+                    <MfrSpec label="Dimensions" value={listing.dimensions_text} />
+                    <MfrSpec
+                      label="Weight"
+                      value={listing.weight_lbs != null ? `${listing.weight_lbs} lbs` : null}
+                    />
+                    <MfrSpec label="Electrical" value={listing.electrical_requirements} />
+                    <MfrSpec
+                      label="Temperature zone"
+                      value={
+                        listing.temperature_zone
+                          ? listing.temperature_zone.charAt(0).toUpperCase() + listing.temperature_zone.slice(1)
+                          : null
+                      }
+                    />
+                    <MfrSpec label="Payment systems" value={listing.payment_system_compatibility} />
+                    <MfrSpec label="Software compatibility" value={listing.software_compatibility} />
+                    <MfrSpec label="Certifications" value={listing.certifications} />
+                    <MfrSpec
+                      label="MSRP"
+                      value={
+                        listing.msrp_cents != null
+                          ? `$${(listing.msrp_cents / 100).toLocaleString()}`
+                          : null
+                      }
+                    />
+                  </div>
+                  {listing.listing_warranty_summary && (
+                    <div className="mt-4 rounded-md border border-green-100 bg-green-50 p-3">
+                      <p className="text-xs font-semibold text-green-800 uppercase tracking-wide">Warranty</p>
+                      <p className="mt-1 text-sm text-gray-700 leading-relaxed">
+                        {listing.listing_warranty_summary}
+                      </p>
+                    </div>
+                  )}
+                  {listing.manufacturer_shipping_notes && (
+                    <p className="mt-3 text-xs text-gray-500 italic">
+                      {listing.manufacturer_shipping_notes}
+                    </p>
+                  )}
+                  {(listing.spec_sheet_url || listing.brochure_url || listing.video_url) && (
+                    <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                      {listing.spec_sheet_url && (
+                        <a
+                          href={listing.spec_sheet_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-green-primary hover:underline"
+                        >
+                          Spec sheet ↗
+                        </a>
+                      )}
+                      {listing.brochure_url && (
+                        <a
+                          href={listing.brochure_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-green-primary hover:underline"
+                        >
+                          Brochure ↗
+                        </a>
+                      )}
+                      {listing.video_url && (
+                        <a
+                          href={listing.video_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-green-primary hover:underline"
+                        >
+                          Video ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -703,6 +798,16 @@ export default function MachineDetailPage() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function MfrSpec({ label, value }: { label: string; value: string | number | null | undefined }) {
+  if (value == null || value === "") return null;
+  return (
+    <div>
+      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">{label}</p>
+      <p className="text-sm font-medium text-black-primary mt-0.5">{value}</p>
     </div>
   );
 }

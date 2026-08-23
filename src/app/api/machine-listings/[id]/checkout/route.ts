@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: listing } = await supabaseAdmin
     .from("machine_listings")
-    .select("id, title, buy_now_enabled, buy_now_price, asking_price, delivery_fee_cents, includes_delivery, status")
+    .select("id, title, buy_now_enabled, buy_now_price, asking_price, delivery_fee_cents, includes_delivery, status, manufacturer_partner_id, wholesale_price_cents")
     .eq("id", id)
     .single();
 
@@ -84,11 +84,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const fees = feesExempt ? { brokerFeeCents: 0, processingFeeCents: 0, totalFeeCents: 0 } : calculateFees(subtotalCents);
   const totalCents = subtotalCents + fees.totalFeeCents;
 
+  // Commercial snapshot for marketplace-partner listings.
+  // Snapshotted at checkout so later price / margin changes on the
+  // listing never rewrite historical order economics — matches the
+  // brief's "preserve the commercial split" rule. Legacy user-
+  // posted listings (manufacturer_partner_id is null) skip this
+  // entirely; all snapshot columns stay null on that row.
+  const mfrPartnerId = listing.manufacturer_partner_id as string | null;
+  const wholesaleCents = listing.wholesale_price_cents as number | null;
+  const commercialSnapshot: Record<string, unknown> = {};
+  if (mfrPartnerId && wholesaleCents != null) {
+    // Manufacturer receives their wholesale price on each unit sold.
+    // VC keeps the difference between the customer-paid equipment
+    // price (excluding fees) and the wholesale price.
+    const equipmentCentsPaid = priceInCents;
+    const marginCents = Math.max(0, equipmentCentsPaid - wholesaleCents);
+    commercialSnapshot.manufacturer_partner_id = mfrPartnerId;
+    commercialSnapshot.wholesale_price_cents_at_purchase = wholesaleCents;
+    commercialSnapshot.manufacturer_proceeds_cents = wholesaleCents;
+    commercialSnapshot.vc_margin_cents = marginCents;
+    commercialSnapshot.shipping_cents_at_purchase = deliveryFeeCents || null;
+    commercialSnapshot.tax_cents_at_purchase = null;
+    commercialSnapshot.financing_proceeds_cents = null;
+    commercialSnapshot.commercial_snapshotted_at = new Date().toISOString();
+  }
+
   const { data: purchase, error: purchaseErr } = await supabaseAdmin
     .from("machine_listing_purchases")
     .insert({
       machine_listing_id: listing.id,
       amount_cents: totalCents,
+      ...commercialSnapshot,
       full_name: body.full_name,
       email: body.email,
       phone: body.phone,
