@@ -49,6 +49,7 @@ import {
   useCallback,
   useSyncExternalStore,
 } from "react";
+import type { GondolaSlot } from "@/lib/marketingGondola";
 
 const AUTO_ADVANCE_MS = 12_000;
 // Any horizontal swipe wider than this (in pixels) counts as a slide
@@ -184,6 +185,25 @@ export default function MarketingGondola() {
   const reducedMotion = useReducedMotion();
   const touchStartX = useRef<number | null>(null);
   const regionRef = useRef<HTMLElement>(null);
+  // Admin-uploaded overrides. When a slot is null we render the
+  // shipped placeholder SVG from SLIDES[i].image.src. The API is
+  // public so we can fetch on the logged-out homepage too.
+  const [overrides, setOverrides] = useState<
+    Partial<Record<GondolaSlot, { url: string; uploaded_at: string } | null>>
+  >({});
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/marketing/gondola", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (cancelled || !json?.images) return;
+        setOverrides(json.images);
+      })
+      .catch(() => { /* placeholders keep rendering — non-fatal */ });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const slideCount = SLIDES.length;
   const activeSlide = SLIDES[index];
@@ -297,18 +317,29 @@ export default function MarketingGondola() {
             only; the rest lazy load. */}
         <div className="order-1 md:order-2">
           <div className="relative mx-auto aspect-[4/5] w-full max-w-md overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm md:aspect-[4/5]">
-            {SLIDES.map((s, i) => (
-              <Image
-                key={s.id}
-                src={s.image.src}
-                alt={s.image.alt}
-                fill
-                sizes="(min-width: 1024px) 480px, (min-width: 768px) 40vw, 90vw"
-                priority={i === 0}
-                loading={i === 0 ? undefined : "lazy"}
-                className={`object-cover transition-opacity duration-500 ${i === index ? "opacity-100" : "opacity-0"}`}
-              />
-            ))}
+            {SLIDES.map((s, i) => {
+              // Prefer the admin-uploaded override when present; fall
+              // back to the shipped placeholder SVG. Uploaded URLs
+              // point at Supabase Storage — bypass next/image
+              // optimization for them (unoptimized) so the ?v=<epoch>
+              // cache-buster reaches the browser unmangled.
+              const override = overrides[s.id as GondolaSlot];
+              const src = override?.url ?? s.image.src;
+              const isRemote = !!override;
+              return (
+                <Image
+                  key={s.id}
+                  src={src}
+                  alt={s.image.alt}
+                  fill
+                  sizes="(min-width: 1024px) 480px, (min-width: 768px) 40vw, 90vw"
+                  priority={i === 0}
+                  loading={i === 0 ? undefined : "lazy"}
+                  unoptimized={isRemote}
+                  className={`object-cover transition-opacity duration-500 ${i === index ? "opacity-100" : "opacity-0"}`}
+                />
+              );
+            })}
           </div>
         </div>
       </div>
