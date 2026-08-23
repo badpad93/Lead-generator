@@ -330,9 +330,13 @@ export default function MarketingGondola() {
               const override = overrides[s.id as GondolaSlot];
               const src = override?.url ?? s.image.src;
               const isRemote = !!override;
+              // Key includes the src so <Image> hard-remounts when
+              // an override arrives or is swapped — otherwise React
+              // reuses the same <img> node and the browser's HTTP
+              // cache serves the old bitmap.
               return (
                 <Image
-                  key={s.id}
+                  key={`${s.id}:${src}`}
                   src={src}
                   alt={s.image.alt}
                   fill

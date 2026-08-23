@@ -63,8 +63,13 @@ export async function GET() {
     };
   }
 
+  // No CDN caching on the JSON — uploads need to propagate to every
+  // viewer on their next page load without waiting for a 60s CDN
+  // window to expire. The response is tiny (5 rows) and the cost is
+  // negligible. Cache-busting still happens per-image via the
+  // ?v=<epoch> suffix on each URL.
   return NextResponse.json(
     { images: bySlot },
-    { headers: { "Cache-Control": "public, max-age=60, s-maxage=60" } },
+    { headers: { "Cache-Control": "no-store, must-revalidate" } },
   );
 }
