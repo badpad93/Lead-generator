@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getAdminUserId } from "@/lib/adminAuth";
+import { getSalesUser } from "@/lib/salesAuth";
 import { isValidHttpUrl } from "@/lib/teamCredentials/emails";
 
 /**
@@ -14,8 +14,11 @@ import { isValidHttpUrl } from "@/lib/teamCredentials/emails";
  * always entered fresh.
  */
 export async function GET(req: NextRequest) {
-  const adminId = await getAdminUserId(req);
-  if (!adminId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const actor = await getSalesUser(req);
+  if (!actor || actor.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const adminId = actor.id;
 
   const { data, error } = await supabaseAdmin
     .from("team_credential_presets")
@@ -27,8 +30,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const adminId = await getAdminUserId(req);
-  if (!adminId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const actor = await getSalesUser(req);
+  if (!actor || actor.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const adminId = actor.id;
 
   const body = await req.json().catch(() => ({}));
   const name = typeof body?.name === "string" ? body.name.trim() : "";
