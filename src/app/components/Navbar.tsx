@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
-import { Menu, X, ChevronRight, ChevronDown, LogOut, LayoutDashboard, User, Shield, ShoppingBag, ScrollText, Heart, Briefcase, Zap, Coffee, Globe } from "lucide-react";
+import { Menu, X, ChevronRight, ChevronDown, LogOut, LayoutDashboard, User, Shield, ShoppingBag, ScrollText, Heart, Briefcase, Coffee, Globe } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import Tooltip from "@/app/components/Tooltip";
@@ -252,9 +253,17 @@ export default function Navbar() {
         }`}
       >
         <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          {/* Logo */}
+          {/* Logo — circular VC mark. Replace /public/logo-vc.png (or
+              .svg) to swap. */}
           <Link href="/" className="flex shrink-0 items-center gap-2">
-            <Zap className="h-6 w-6 text-green-600" />
+            <Image
+              src="/logo-vc.svg"
+              alt="Vending Connector"
+              width={40}
+              height={40}
+              priority
+              className="h-9 w-9"
+            />
             <span className="whitespace-nowrap text-lg font-bold text-gray-900">Vending Connector</span>
           </Link>
 
@@ -499,7 +508,17 @@ export default function Navbar() {
         {/* Drawer Header */}
         <div className="flex items-center justify-between border-b border-white/20 px-4 py-4">
           <div className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-white" />
+            {/* White background disc so the green ring + navy VC of
+                the logo stay legible on the green drawer header. */}
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white p-0.5">
+              <Image
+                src="/logo-vc.svg"
+                alt="Vending Connector"
+                width={32}
+                height={32}
+                className="h-7 w-7"
+              />
+            </span>
             <span className="text-base font-bold text-white">Vending Connector</span>
           </div>
           <button

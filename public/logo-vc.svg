@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Vending Connector logo placeholder">
+  <!-- Placeholder for public/logo-vc.png — same aspect (1:1) so the
+       Navbar/Footer layout stays put when the real PNG is dropped
+       in. Design mirrors the intent: green ring, navy VC, green
+       bolt through the middle. Overwrite with the real photo. -->
+  <circle cx="400" cy="400" r="380" fill="white" stroke="#22C55E" stroke-width="24"/>
+  <g font-family="Inter, system-ui, sans-serif" font-weight="900" font-size="380" text-anchor="middle" dominant-baseline="central">
+    <text x="240" y="410" fill="#0F1E3D">V</text>
+    <text x="560" y="410" fill="#0F1E3D">C</text>
+  </g>
+  <!-- Diagonal lightning bolt through the middle -->
+  <path d="M470 130 L300 430 L410 430 L330 670 L520 350 L410 350 Z"
+        fill="#22C55E"/>
+</svg>
