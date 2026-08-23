@@ -11,6 +11,7 @@ export const GONDOLA_SLOTS = [
   "financing",
   "ai-vending",
   "website-services",
+  "location-services",
 ] as const;
 
 export type GondolaSlot = (typeof GONDOLA_SLOTS)[number];
@@ -28,6 +29,7 @@ export const GONDOLA_SLOT_LABELS: Record<GondolaSlot, string> = {
   financing: "Financing",
   "ai-vending": "AI Vending Machines",
   "website-services": "Website Services",
+  "location-services": "Location Services",
 };
 
 // 15 MB per image — matches the website-request media cap and is

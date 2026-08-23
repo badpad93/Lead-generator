@@ -47,6 +47,7 @@ export async function GET() {
     financing: null,
     "ai-vending": null,
     "website-services": null,
+    "location-services": null,
   };
 
   for (const row of data ?? []) {
