@@ -860,6 +860,11 @@ export default function LeadsPage() {
   const statusColor: Record<string, string> = {
     new: "bg-blue-50 text-blue-700 ring-blue-200",
     initiated: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+    // Call 1 / Call 2 sit between initiated and contacted — two
+    // deepening shades of purple so a scanner instantly sees which
+    // attempt this lead is on without reading the label.
+    call_1: "bg-purple-50 text-purple-700 ring-purple-200",
+    call_2: "bg-purple-100 text-purple-800 ring-purple-300",
     contacted: "bg-yellow-50 text-yellow-700 ring-yellow-200",
     qualified: "bg-green-50 text-green-700 ring-green-200",
     won: "bg-emerald-50 text-emerald-700 ring-emerald-200",
@@ -1204,6 +1209,8 @@ export default function LeadsPage() {
           <option value="">All Statuses</option>
           <option value="new">New</option>
           <option value="initiated">Initiated</option>
+          <option value="call_1">Call 1</option>
+          <option value="call_2">Call 2</option>
           <option value="contacted">Contacted</option>
           <option value="qualified">Qualified</option>
           <option value="won">Won</option>
@@ -1431,6 +1438,8 @@ export default function LeadsPage() {
                     >
                       <option value="new">New</option>
                       <option value="initiated">Initiated</option>
+                      <option value="call_1">Call 1</option>
+                      <option value="call_2">Call 2</option>
                       <option value="contacted">Contacted</option>
                       <option value="qualified">Qualified</option>
                       <option value="won">Won</option>
