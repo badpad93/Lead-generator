@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus, Trash2, Send, FileSignature, ClipboardCheck } from "lucide-react";
+import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus, Trash2, Send, FileSignature, ClipboardCheck, Key } from "lucide-react";
+import SendCredentialsModal from "./SendCredentialsModal";
 
 interface TeamMember {
   id: string;
@@ -76,6 +77,9 @@ export default function TeamPage() {
   const [currentUserRole, setCurrentUserRole] = useState("");
   const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
+  // Send Credentials modal — one open at a time, keyed by member.
+  const [credentialsTarget, setCredentialsTarget] = useState<TeamMember | null>(null);
+  const [credentialsToast, setCredentialsToast] = useState<string | null>(null);
 
   const loadTeamMembers = useCallback(async (t: string) => {
     const res = await fetch("/api/sales/users", { headers: { Authorization: `Bearer ${t}` } });
@@ -469,6 +473,15 @@ export default function TeamPage() {
                         >
                           <FileSignature className="h-4 w-4" />
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setCredentialsTarget(m)}
+                          className="inline-flex items-center gap-1 rounded-md p-1.5 text-gray-300 hover:bg-green-50 hover:text-green-600 transition-colors"
+                          title={`Send login credentials to ${m.full_name || m.email}`}
+                          aria-label={`Send credentials to ${m.full_name || m.email}`}
+                        >
+                          <Key className="h-4 w-4" />
+                        </button>
                         {m.id !== currentUserId && (
                           <button
                             type="button"
@@ -736,6 +749,34 @@ export default function TeamPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Send Credentials modal — mounted at page root so it overlays
+          every UI beneath it. Only opens when a target row is set. */}
+      {credentialsTarget && (
+        <SendCredentialsModal
+          memberId={credentialsTarget.id}
+          memberName={credentialsTarget.full_name || credentialsTarget.email}
+          memberEmail={credentialsTarget.email}
+          token={token}
+          onClose={() => setCredentialsTarget(null)}
+          onSent={(res) => {
+            setCredentialsToast(
+              `Credentials sent to ${credentialsTarget?.full_name || credentialsTarget?.email} at ${res.sent_to}.`,
+            );
+            window.setTimeout(() => setCredentialsToast(null), 6_000);
+          }}
+        />
+      )}
+
+      {/* Non-blocking success toast for send-credentials. */}
+      {credentialsToast && (
+        <div
+          role="status"
+          className="fixed bottom-6 right-6 z-[10000] max-w-sm rounded-lg border border-emerald-200 bg-white px-4 py-3 text-sm text-emerald-800 shadow-lg"
+        >
+          {credentialsToast}
         </div>
       )}
     </div>
