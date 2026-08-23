@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1500" role="img" aria-label="Coffee Service placeholder">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F0FDF4"/>
+      <stop offset="100%" stop-color="#DCFCE7"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="1500" fill="url(#g)"/>
+  <rect x="60" y="60" width="1080" height="1380" rx="40" fill="white" stroke="#22C55E" stroke-width="4" stroke-dasharray="16 16"/>
+  <g transform="translate(600 700)" text-anchor="middle" font-family="Inter, system-ui, sans-serif">
+    <text y="0" font-size="80" font-weight="800" fill="#0A0A0A">Coffee Service</text>
+    <text y="80" font-size="32" fill="#525252">Flavia C600 brewer photo</text>
+    <text y="180" font-size="24" fill="#737373">Drop your real image at:</text>
+    <text y="230" font-size="26" font-weight="600" fill="#22C55E">/public/images/marketing/coffee-service.png</text>
+  </g>
+</svg>

@@ -45,6 +45,7 @@ import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 import OperatorOnboarding from "./OperatorOnboarding";
 import LocatorOnboarding from "@/app/components/LocatorOnboarding";
 import ListingPipeline from "@/app/components/ListingPipeline";
+import MarketingGondola from "@/app/components/marketing/MarketingGondola";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -449,6 +450,14 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-[calc(100vh-160px)] bg-light">
+      {/* ------- MARKETING GONDOLA -------
+          Rotating promo carousel — same component the public homepage
+          renders, so a logged-in user sees the same "what we do"
+          showcase directly under the top nav. Everything below
+          (welcome header, quick actions, requests, operators) is
+          unchanged. */}
+      <MarketingGondola />
+
       {/* ------- WELCOME HEADER ------- */}
       <div className="border-b border-gray-100 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
