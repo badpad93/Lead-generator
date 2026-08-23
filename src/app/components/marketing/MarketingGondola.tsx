@@ -40,6 +40,7 @@ import {
   Package,
   Globe,
   TrendingUp,
+  MapPin,
 } from "lucide-react";
 import {
   useEffect,
@@ -145,6 +146,21 @@ const SLIDES: Slide[] = [
     image: { src: "/images/marketing/website-services.svg", alt: "Professional vending business website" },
     cta: { label: "Explore Website Services", href: "/website-services" },
     icon: Globe,
+  },
+  {
+    id: "location-services",
+    eyebrow: "Location Services",
+    title: "Find Quality Placements for Your Machines",
+    description:
+      "Professional location sourcing for vending operators. Vending Connector's team finds qualified, ready-to-install placements so you spend less time hunting and more time earning.",
+    bullets: [
+      "Qualified location opportunities",
+      "Fill your route faster",
+      "Nationwide support",
+    ],
+    image: { src: "/images/marketing/location-services.svg", alt: "Quality vending machine placements" },
+    cta: { label: "Request Locations", href: "/request-location" },
+    icon: MapPin,
   },
 ];
 
@@ -330,9 +346,13 @@ export default function MarketingGondola() {
               const override = overrides[s.id as GondolaSlot];
               const src = override?.url ?? s.image.src;
               const isRemote = !!override;
+              // Key includes the src so <Image> hard-remounts when
+              // an override arrives or is swapped — otherwise React
+              // reuses the same <img> node and the browser's HTTP
+              // cache serves the old bitmap.
               return (
                 <Image
-                  key={s.id}
+                  key={`${s.id}:${src}`}
                   src={src}
                   alt={s.image.alt}
                   fill

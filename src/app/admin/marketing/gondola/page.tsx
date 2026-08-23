@@ -47,6 +47,7 @@ const PLACEHOLDER_SRC: Record<GondolaSlot, string> = {
   financing: "/images/marketing/financing.svg",
   "ai-vending": "/images/marketing/ai-vending.svg",
   "website-services": "/images/marketing/website-services.svg",
+  "location-services": "/images/marketing/location-services.svg",
 };
 
 export default function GondolaAdminPage() {
@@ -58,6 +59,7 @@ export default function GondolaAdminPage() {
     financing: null,
     "ai-vending": null,
     "website-services": null,
+    "location-services": null,
   });
   const [slotState, setSlotState] = useState<Record<GondolaSlot, SlotState>>(() => {
     const init: Record<string, SlotState> = {};
