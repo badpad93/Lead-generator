@@ -65,6 +65,17 @@ export async function PUT(
   // the CDN's URL cache — the previous object is removed below.
   const key = `${slot}/${Date.now()}${ext}`;
 
+  // Defensive: if migration 153's bucket-insert didn't land in this
+  // Supabase project, provision the public bucket here on first
+  // upload so admins don't hit a raw "Bucket not found" error.
+  const bucketReady = await ensureGondolaBucket();
+  if (!bucketReady.ok) {
+    return NextResponse.json(
+      { error: bucketReady.error },
+      { status: bucketReady.status },
+    );
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer());
   const { error: uploadErr } = await supabaseAdmin.storage
     .from(GONDOLA_BUCKET)
@@ -74,6 +85,19 @@ export async function PUT(
       cacheControl: "3600",
     });
   if (uploadErr) {
+    // Surface bucket-not-found as an actionable message pointing at
+    // the fix (migration 153) instead of the raw Storage SDK string.
+    if (/bucket not found/i.test(uploadErr.message)) {
+      return NextResponse.json(
+        {
+          error:
+            "Storage bucket 'marketing-gondola' does not exist. " +
+            "Run supabase/migrations/153_marketing_gondola.sql (or " +
+            "the bucket INSERT it contains) in the Supabase SQL editor.",
+        },
+        { status: 500 },
+      );
+    }
     return NextResponse.json({ error: uploadErr.message }, { status: 500 });
   }
 
@@ -101,10 +125,20 @@ export async function PUT(
   if (upsertErr || !row) {
     // Roll back the storage upload so we don't leave an orphan.
     await supabaseAdmin.storage.from(GONDOLA_BUCKET).remove([key]).catch(() => {});
-    return NextResponse.json(
-      { error: upsertErr?.message ?? "Failed to record upload" },
-      { status: 500 },
-    );
+    // Surface missing-table as actionable — the other half of
+    // migration 153 that may not have landed in this project.
+    const raw = upsertErr?.message ?? "Failed to record upload";
+    if (/relation .*marketing_gondola_images.* does not exist/i.test(raw)) {
+      return NextResponse.json(
+        {
+          error:
+            "Table 'marketing_gondola_images' does not exist. " +
+            "Run supabase/migrations/153_marketing_gondola.sql in the Supabase SQL editor.",
+        },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({ error: raw }, { status: 500 });
   }
 
   if (prior?.storage_path && prior.storage_path !== key) {
@@ -178,4 +212,37 @@ function extensionFromMime(mime: string): string {
     case "image/webp": return ".webp";
     default:           return "";
   }
+}
+
+/**
+ * Idempotent bucket check. If the public 'marketing-gondola' bucket
+ * isn't there (migration 153's storage.buckets insert didn't run,
+ * or a fresh Supabase project spun up after that migration), create
+ * it with public read. Returns a shape callers can turn straight
+ * into an HTTP response on failure.
+ */
+async function ensureGondolaBucket(): Promise<
+  { ok: true } | { ok: false; error: string; status: number }
+> {
+  const { data, error } = await supabaseAdmin.storage.getBucket(GONDOLA_BUCKET);
+  if (data) return { ok: true };
+  // getBucket returns error === null / data === null when absent on
+  // some SDK versions; treat both as "missing" and try to create.
+  if (error && !/not found/i.test(error.message)) {
+    return { ok: false, error: error.message, status: 500 };
+  }
+  const { error: createErr } = await supabaseAdmin.storage.createBucket(
+    GONDOLA_BUCKET,
+    { public: true },
+  );
+  if (createErr && !/already exists/i.test(createErr.message)) {
+    return {
+      ok: false,
+      error:
+        `Could not provision the 'marketing-gondola' storage bucket: ${createErr.message}. ` +
+        `Run supabase/migrations/153_marketing_gondola.sql in the Supabase SQL editor.`,
+      status: 500,
+    };
+  }
+  return { ok: true };
 }
