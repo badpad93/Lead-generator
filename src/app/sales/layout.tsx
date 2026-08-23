@@ -30,6 +30,7 @@ import {
   BookOpen,
   ScrollText,
   Workflow,
+  ClipboardCheck,
 } from "lucide-react";
 
 // minLevel: 1=Admin, 2=DOS, 3=Market Leader, 4=BDP/Sales
@@ -52,6 +53,7 @@ const NAV_ITEMS = [
   { href: "/sales/time-clock", label: "Time Clock", icon: Timer, minLevel: 4 as const },
   { href: "/sales/resources", label: "Resources", icon: FolderOpen, minLevel: 4 as const },
   { href: "/sales/candidates", label: "Candidates", icon: UserPlus, minLevel: 4 as const },
+  { href: "/sales/onboarding-packets", label: "Onboarding Packets", icon: ClipboardCheck, minLevel: 3 as const },
   { href: "/sales/hiring-dashboard", label: "Hiring & Onboarding", icon: BarChart3, minLevel: 3 as const },
   { href: "/sales/admin/documents", label: "Doc Templates", icon: FileText, minLevel: 1 as const },
   { href: "/sales/admin/email-templates", label: "Email Templates", icon: Mail, minLevel: 1 as const },
