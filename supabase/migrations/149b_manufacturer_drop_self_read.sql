@@ -1,0 +1,33 @@
+-- ═════════════════════════════════════════════════════════════════════
+-- 149b — Drop manufacturer_partners self-read RLS policy
+-- ─────────────────────────────────────────────────────────────────────
+-- 149 added a self_read_manufacturer_partner policy so authenticated
+-- partners could hydrate their own dashboard without a server hop.
+-- Correct pattern in isolation — but RLS is row-level, not column-
+-- level. The self-read grants the ENTIRE row (68 columns) to the
+-- partner, including admin-internal fields that were never meant
+-- to leave the API allowlist:
+--
+--   admin_notes            — internal notes about the partner
+--   status_reason          — internal reasoning for reject/suspend/terminate
+--   reviewed_by            — which staff member reviewed
+--   suspended_by / terminated_by — same
+--   dwolla_customer_id / dwolla_funding_source_url — broader than
+--     the "verified?" flag the UI actually needs
+--
+-- Every other table across 148 + 149 routes through service_role
+-- and does field-allowlisting in the API layer (which gets PR-
+-- reviewed). This is the only non-service-role policy across the
+-- two migrations. Column GRANTs would work in theory but silently
+-- rot when new columns are added — allowlists in code do not.
+--
+-- Fix: drop the policy. Manufacturer dashboard reads its row via
+-- GET /api/manufacturer/me (ships in commit 3) which returns only
+-- partner-visible fields.
+--
+-- Safe now: the table is empty and no profile holds
+-- manufacturer_partner, so no data was ever exposed.
+-- ═════════════════════════════════════════════════════════════════════
+
+DROP POLICY IF EXISTS self_read_manufacturer_partner
+  ON public.manufacturer_partners;
