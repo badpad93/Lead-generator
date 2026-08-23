@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus, Trash2, Send, FileSignature } from "lucide-react";
+import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus, Trash2, Send, FileSignature, ClipboardCheck } from "lucide-react";
 
 interface TeamMember {
   id: string;
@@ -338,6 +338,13 @@ export default function TeamPage() {
           >
             <FileSignature className="h-4 w-4" /> Onboard
           </button>
+          <Link
+            href="/sales/onboarding-packets"
+            className="flex items-center gap-1.5 rounded-lg border border-green-600 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+            title="View every contractor onboarding packet in one place"
+          >
+            <ClipboardCheck className="h-4 w-4" /> Onboarding Packets
+          </Link>
           <button
             onClick={() => { setShowAddMember(true); setAddError(null); setAddSuccess(null); }}
             className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
