@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Phone, Zap } from "lucide-react";
+import Image from "next/image";
+import { Phone } from "lucide-react";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
 
 const footerColumns = [
@@ -45,7 +46,17 @@ export default function Footer() {
           {/* Brand Column */}
           <div className="lg:col-span-1">
             <Link href="/" className="inline-flex items-center gap-2">
-              <Zap className="h-6 w-6 text-green-600" />
+              {/* White disc so the logo's green ring + navy VC stay
+                  legible against the black footer background. */}
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white p-0.5">
+                <Image
+                  src="/logo-vc.svg"
+                  alt="Vending Connector"
+                  width={36}
+                  height={36}
+                  className="h-8 w-8"
+                />
+              </span>
               <span className="text-lg font-bold text-white">Vending Connector</span>
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-gray-400">

@@ -262,7 +262,9 @@ export default function MarketingGondola() {
       role="region"
       aria-roledescription="carousel"
       aria-label="Vending Connector featured programs"
-      className="relative w-full overflow-hidden border-b border-gray-100 bg-gradient-to-b from-light-warm via-white to-light-warm"
+      // Green feature background — brand green wash that ties the
+      // gondola to the VC palette without swamping body text.
+      className="relative w-full overflow-hidden border-b border-green-200 bg-gradient-to-br from-green-50 via-green-100 to-green-50"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -278,7 +280,9 @@ export default function MarketingGondola() {
           className="order-2 flex flex-col justify-center animate-fade-in"
           aria-live="polite"
         >
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-green-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-green-primary">
+          {/* White pill for the eyebrow — on the green background the
+              previous translucent-green pill lost contrast. */}
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-green-primary shadow-sm ring-1 ring-inset ring-green-200">
             <Icon className="h-3.5 w-3.5" />
             {activeSlide.eyebrow}
           </span>
@@ -378,10 +382,12 @@ export default function MarketingGondola() {
               aria-selected={active}
               aria-label={`Slide ${i + 1}: ${SLIDES[i].title}`}
               onClick={() => goTo(i)}
+              // Inactive dots use a green tone so they read on the
+              // green background without disappearing.
               className={`h-2 rounded-full transition-all ${
                 active
                   ? "w-8 bg-green-primary"
-                  : "w-2 bg-gray-300 hover:bg-gray-400"
+                  : "w-2 bg-green-primary/30 hover:bg-green-primary/50"
               }`}
             />
           );
