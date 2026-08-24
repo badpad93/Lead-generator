@@ -12,7 +12,10 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from("coffee_products")
       .select("*, coffee_categories(id, name, slug)")
-      .order("sort_order", { ascending: true });
+      // Match the customer feed ordering so what the admin sees in
+      // this table is exactly what the storefront renders.
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

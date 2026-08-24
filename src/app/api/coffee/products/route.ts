@@ -25,7 +25,11 @@ export async function GET(req: NextRequest) {
       .from("coffee_products")
       .select("*, coffee_categories(id, name, slug)")
       .eq("active", true)
-      .order("sort_order", { ascending: true });
+      // sort_order first (0 = admin hasn't customized yet); name
+      // second as a stable tiebreaker so ties don't render in a
+      // random physical-insert order every request.
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
 
     // Explicit id list (used by guest cart / checkout to display line
     // items). Cap at 100 to bound the query and reject empty tokens.

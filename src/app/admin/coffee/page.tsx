@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   X,
   ChevronDown,
+  ChevronUp,
   Eye,
   ArrowLeft,
   Database,
@@ -250,6 +251,47 @@ export default function AdminCoffeePage() {
       }
     } catch {}
   }, [token]);
+
+  /**
+   * Move a product up (delta = -1) or down (delta = +1) in the
+   * catalog. Local state is optimistically swapped so the row jumps
+   * immediately; the bulk-reorder endpoint is fired in the
+   * background. On error we refetch so the UI reconverges with the
+   * server. Called from the up/down arrows on each product row.
+   */
+  const [reorderingProduct, setReorderingProduct] = useState<string | null>(null);
+  const reorderProduct = useCallback(
+    async (productId: string, delta: -1 | 1) => {
+      if (!token) return;
+      // Compute the desired local order without touching state yet.
+      const idx = products.findIndex((p) => p.id === productId);
+      if (idx < 0) return;
+      const target = idx + delta;
+      if (target < 0 || target >= products.length) return;
+      const next = products.slice();
+      [next[idx], next[target]] = [next[target], next[idx]];
+      setProducts(next);
+      setReorderingProduct(productId);
+      try {
+        const res = await fetch("/api/admin/coffee/products/reorder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ ordered_ids: next.map((p) => p.id) }),
+        });
+        if (!res.ok) {
+          showToast("Failed to save new order — reverting.", "error");
+          await fetchProducts();
+        }
+      } catch {
+        showToast("Network error saving product order.", "error");
+        await fetchProducts();
+      } finally {
+        setReorderingProduct(null);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [token, products, fetchProducts],
+  );
 
   const fetchCategories = useCallback(async () => {
     if (!token) return;
@@ -1122,6 +1164,7 @@ export default function AdminCoffeePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="px-3 py-3 text-center font-semibold text-gray-600 w-24" title="Storefront display order — use the arrows to reorder">Order</th>
                     <th className="px-5 py-3 text-left font-semibold text-gray-600">Name</th>
                     <th className="px-5 py-3 text-left font-semibold text-gray-600">SKU</th>
                     <th className="px-5 py-3 text-left font-semibold text-gray-600">Category</th>
@@ -1135,11 +1178,43 @@ export default function AdminCoffeePage() {
                 <tbody>
                   {products.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-5 py-12 text-center text-gray-500">No products yet</td>
+                      <td colSpan={9} className="px-5 py-12 text-center text-gray-500">No products yet</td>
                     </tr>
                   ) : (
-                    products.map((product) => (
+                    products.map((product, i) => (
                       <tr key={product.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                        <td className="px-3 py-3 text-center">
+                          {/* Order controls — position number + up/down.
+                              Swap-with-neighbor pattern; the API
+                              renumbers everyone to i*10 in bulk so
+                              ties collapse and future single-row
+                              nudges have room. */}
+                          <div className="inline-flex items-center gap-1">
+                            <span className="min-w-[22px] text-xs font-mono text-gray-500">{i + 1}</span>
+                            <div className="inline-flex flex-col">
+                              <button
+                                type="button"
+                                onClick={() => reorderProduct(product.id, -1)}
+                                disabled={i === 0 || reorderingProduct !== null}
+                                className="rounded p-0.5 text-gray-400 hover:bg-green-50 hover:text-green-600 disabled:opacity-25 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                                title="Move up in the storefront"
+                                aria-label={`Move ${product.name} up`}
+                              >
+                                <ChevronUp className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => reorderProduct(product.id, 1)}
+                                disabled={i === products.length - 1 || reorderingProduct !== null}
+                                className="rounded p-0.5 text-gray-400 hover:bg-green-50 hover:text-green-600 disabled:opacity-25 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                                title="Move down in the storefront"
+                                aria-label={`Move ${product.name} down`}
+                              >
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </td>
                         <td className="px-5 py-3 font-medium text-gray-900">{product.name}</td>
                         <td className="px-5 py-3 text-gray-600">{product.sku}</td>
                         <td className="px-5 py-3 text-gray-600">{product.coffee_categories?.name || "—"}</td>
