@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Search, ShoppingCart, Coffee, Lock, Loader2, X, AlertCircle, BookOpen, FileSignature } from "lucide-react";
+import { Search, ShoppingCart, Coffee, Lock, Loader2, X, AlertCircle, BookOpen, FileSignature, FileDown } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import CoffeeCartDrawer from "@/app/components/CoffeeCartDrawer";
@@ -225,6 +225,35 @@ export default function CoffeeMarketplacePage() {
   const agreementLegacy = agreementStatus === "legacy_approved";
   const agreementPending = agreementStatus === "provider_signed_pending_company_countersign";
   const needsAgreementSign = coffeeEnabled && agreementStatus !== null && !agreementSigned && !agreementPending;
+  // The fully-executed PDF download surfaces only when the customer's
+  // agreement is truly executed (not legacy_approved — legacy rows
+  // don't have signature audit data and no PDF was rendered).
+  const canDownloadExecutedPdf = agreementStatus === "fully_executed";
+  const [downloadingAgreement, setDownloadingAgreement] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  async function handleDownloadAgreementPdf() {
+    setDownloadingAgreement(true);
+    setDownloadError(null);
+    try {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setDownloadError("Sign in required.");
+        return;
+      }
+      const res = await fetch("/api/coffee/agreement/pdf", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.url) {
+        setDownloadError(json.error || "PDF is not available yet.");
+        return;
+      }
+      window.open(json.url, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloadingAgreement(false);
+    }
+  }
 
   function stockBadge(status: string) {
     switch (status) {
@@ -407,6 +436,43 @@ export default function CoffeeMarketplacePage() {
               >
                 Sign
               </Link>
+            </div>
+          </div>
+        )}
+
+        {canDownloadExecutedPdf && (
+          <div className="mb-6 rounded-xl border border-emerald-800 bg-emerald-900/20 p-4">
+            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+              <div className="flex items-start gap-2">
+                <FileDown className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-400" />
+                <div>
+                  <p className="text-sm font-semibold text-white">Your signed agreement is on file</p>
+                  <p className="text-xs text-gray-300">
+                    Download a PDF copy of your fully-executed Equipment Loan &amp; Beverage Supply Agreement.
+                  </p>
+                  {downloadError && (
+                    <p className="mt-1 text-xs text-amber-300">{downloadError}</p>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleDownloadAgreementPdf}
+                disabled={downloadingAgreement}
+                className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {downloadingAgreement ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Preparing…
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="h-3.5 w-3.5" />
+                    Download PDF
+                  </>
+                )}
+              </button>
             </div>
           </div>
         )}

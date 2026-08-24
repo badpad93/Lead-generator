@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getAdminUserId } from "@/lib/adminAuth";
+import { getSalesUser } from "@/lib/salesAuth";
 import {
   isValidHttpUrl,
   sendCredentialsEmail,
@@ -32,8 +32,15 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const adminId = await getAdminUserId(req);
-  if (!adminId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Same auth path as the Team page uses (getSalesUser), then gate
+  // on role === "admin". Keeps the button-shows-vs-API-accepts
+  // decision in one place — /api/sales/users is authoritative for
+  // the CRM view of who is admin.
+  const actor = await getSalesUser(req);
+  if (!actor || actor.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const adminId = actor.id;
 
   const { id: teamMemberId } = await params;
   if (!teamMemberId) {

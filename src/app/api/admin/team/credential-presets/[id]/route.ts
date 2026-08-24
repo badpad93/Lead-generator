@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getAdminUserId } from "@/lib/adminAuth";
+import { getSalesUser } from "@/lib/salesAuth";
 
 /**
  * DELETE /api/admin/team/credential-presets/[id]  — admin-only
@@ -10,8 +10,10 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const adminId = await getAdminUserId(req);
-  if (!adminId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const actor = await getSalesUser(req);
+  if (!actor || actor.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "Preset id required" }, { status: 400 });
