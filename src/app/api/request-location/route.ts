@@ -101,19 +101,13 @@ export async function POST(req: Request) {
     }
   }
 
-  const { data: existingLead } = await supabaseAdmin
-    .from("sales_leads")
-    .select("id")
-    .eq("business_name", business_name)
-    .limit(1)
-    .maybeSingle();
-
-  if (existingLead) {
-    return NextResponse.json(
-      { error: "A request for this business has already been submitted. Call (888) 851-1462 if you need assistance." },
-      { status: 409 }
-    );
-  }
+  // Duplicate-business guard intentionally removed — operators
+  // routinely place multiple, separate location-services requests
+  // (different addresses, different ZIP sets, different machine
+  // counts, or a repeat purchase for the same business). Every
+  // submission spawns its own sales_lead row and its own workflow;
+  // findOrCreateSalesAccount below still dedups the sales_accounts
+  // row so the account view stays consolidated.
 
   const leadRow: Record<string, unknown> = {
     business_name,
