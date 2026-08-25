@@ -115,14 +115,26 @@ export function hasPermission(actor: WorkflowActor, permission: WorkflowPermissi
 
 /**
  * Check whether a viewer is allowed to see a specific workflow row.
- * Uses assigned + primary_owner assignment as the "assigned" test.
+ * Uses assigned + primary_owner assignment as the "assigned" test,
+ * plus a creator-visibility rule so a non-admin who spawns a
+ * workflow (e.g. a custom perpetual task) always sees their own
+ * creation even when they didn't assign it to themselves.
  */
 export async function canViewWorkflow(
   actor: WorkflowActor,
-  workflow: { customer_id: string; assigned_user_id: string | null; id: string },
+  workflow: {
+    customer_id: string;
+    assigned_user_id: string | null;
+    created_by?: string | null;
+    id: string;
+  },
 ): Promise<boolean> {
   if (actor.scope === "all") return true;
   if (workflow.customer_id === actor.id) return true;
+  // Creators always see their own workflows, regardless of scope.
+  // Prevents the "I made this thing, why don't I see it?" trap
+  // introduced when view-all was narrowed to admins.
+  if (workflow.created_by && workflow.created_by === actor.id) return true;
   if (actor.scope === "assigned") {
     if (workflow.assigned_user_id === actor.id) return true;
     const { data: collab } = await supabaseAdmin

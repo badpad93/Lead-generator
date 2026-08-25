@@ -72,8 +72,12 @@ export async function GET(req: NextRequest) {
  */
 async function resolveVisibleWorkflowIds(actor: WorkflowActor): Promise<string[] | null> {
   if (actor.scope === "all") return null;
-  const [assignedRes, collabRes] = await Promise.all([
+  const [assignedRes, createdRes, collabRes] = await Promise.all([
     supabaseAdmin.from("workflows").select("id").eq("assigned_user_id", actor.id),
+    // Creator inclusion — mirrors the /api/workflows list rule so
+    // the dashboard metrics account for workflows the actor spawned
+    // but hasn't (yet) assigned to themselves.
+    supabaseAdmin.from("workflows").select("id").eq("created_by", actor.id),
     supabaseAdmin
       .from("workflow_assignments")
       .select("workflow_id")
@@ -82,6 +86,7 @@ async function resolveVisibleWorkflowIds(actor: WorkflowActor): Promise<string[]
   ]);
   const ids = new Set<string>();
   for (const r of assignedRes.data ?? []) if (r.id) ids.add(r.id as string);
+  for (const r of createdRes.data ?? []) if (r.id) ids.add(r.id as string);
   for (const r of collabRes.data ?? []) if (r.workflow_id) ids.add(r.workflow_id as string);
   return Array.from(ids);
 }
