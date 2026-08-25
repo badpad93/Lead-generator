@@ -53,7 +53,11 @@ export async function GET(req: NextRequest) {
   if (q.unassigned === "true") query = query.is("assigned_user_id", null);
   if (q.search) query = query.or(`title.ilike.%${q.search}%,product_name.ilike.%${q.search}%,workflow_number.ilike.%${q.search}%`);
 
-  // Scope: `assigned` sees own + collaborator + primary; `all` sees all.
+  // Scope: `assigned` sees own + collaborator + primary + creator;
+  // `all` sees everything. Creator inclusion (`created_by=eq.${actor.id}`)
+  // makes sure a non-admin who spawns a workflow via the manual
+  // modal always sees it in their own list — even if they left it
+  // unassigned. Matches the canViewWorkflow single-row rule.
   if (actor.scope === "assigned") {
     const { data: collabIds } = await supabaseAdmin
       .from("workflow_assignments")
@@ -62,7 +66,9 @@ export async function GET(req: NextRequest) {
       .eq("active", true);
     const ids = (collabIds ?? []).map((r) => r.workflow_id).filter(Boolean);
     const csv = ids.length > 0 ? ids.join(",") : "00000000-0000-0000-0000-000000000000";
-    query = query.or(`assigned_user_id.eq.${actor.id},id.in.(${csv})`);
+    query = query.or(
+      `assigned_user_id.eq.${actor.id},created_by.eq.${actor.id},id.in.(${csv})`,
+    );
   }
 
   const orderBy = q.orderBy ?? "due_date";

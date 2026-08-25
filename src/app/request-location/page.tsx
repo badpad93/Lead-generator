@@ -40,7 +40,18 @@ const US_STATES = [
   "VA","WA","WV","WI","WY","DC",
 ];
 
-const DEPOSIT_AMOUNT = 100;
+// $100 per location — the deposit scales linearly with the number of
+// machines the operator requests. Kept in sync with
+// DEPOSIT_CENTS_PER_LOCATION in src/app/api/request-location/route.ts.
+const DEPOSIT_PER_LOCATION = 100;
+
+function parseMachineCount(v: string): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+function fmtDollars(n: number): string {
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 export default function RequestLocationPage() {
   return (
@@ -154,6 +165,8 @@ function RequestLocationInner() {
   }
 
   if (deposited) {
+    const receiptCount = receiptData ? parseMachineCount(receiptData.machine_count) : 0;
+    const receiptTotal = receiptCount * DEPOSIT_PER_LOCATION;
     return (
       <div className="min-h-screen bg-gradient-to-b from-light to-light-warm py-16">
         <div className="mx-auto max-w-2xl px-4 sm:px-6">
@@ -166,7 +179,9 @@ function RequestLocationInner() {
                 Request Submitted Successfully
               </h1>
               <p className="mt-2 text-sm text-black-primary/60">
-                Your $100.00 location services deposit has been received.
+                {receiptCount > 0
+                  ? `Your ${fmtDollars(receiptTotal)} location services deposit has been received.`
+                  : "Your location services deposit has been received."}
               </p>
             </div>
 
@@ -188,7 +203,14 @@ function RequestLocationInner() {
                     )}
                     <tr className="border-t border-gray-200">
                       <td className="pt-3 pr-4 text-gray-500 font-medium">Deposit Paid</td>
-                      <td className="pt-3 font-bold text-green-700 text-lg">$100.00</td>
+                      <td className="pt-3 font-bold text-green-700 text-lg">
+                        {fmtDollars(receiptTotal)}
+                        {receiptCount > 1 && (
+                          <span className="ml-2 text-xs font-normal text-gray-500">
+                            ({receiptCount} × ${DEPOSIT_PER_LOCATION})
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -220,6 +242,9 @@ function RequestLocationInner() {
     );
   }
 
+  const machineCountNum = parseMachineCount(form.machine_count);
+  const totalDeposit = machineCountNum * DEPOSIT_PER_LOCATION;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-light to-light-warm py-16">
       <div className="mx-auto max-w-2xl px-4 sm:px-6">
@@ -238,7 +263,17 @@ function RequestLocationInner() {
         <div className="rounded-2xl border border-green-100 bg-white p-6 shadow-lg sm:p-8">
           <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
             <p className="text-sm text-amber-800">
-              <strong>$100.00 non-refundable deposit required</strong> — A deposit is collected to begin your location search. You will be redirected to complete payment after submitting.
+              <strong>${DEPOSIT_PER_LOCATION}.00 per location non-refundable deposit</strong> — a deposit is collected up front to begin your location search.
+              {machineCountNum > 0 ? (
+                <>
+                  {" "}Total for {machineCountNum} location{machineCountNum === 1 ? "" : "s"}: <strong>{fmtDollars(totalDeposit)}</strong>.
+                </>
+              ) : (
+                <>
+                  {" "}Enter how many machines you need below to see your total.
+                </>
+              )}{" "}
+              You will be redirected to complete payment after submitting.
             </p>
           </div>
 
@@ -337,7 +372,9 @@ function RequestLocationInner() {
                   Processing...
                 </>
               ) : (
-                `Pay $${DEPOSIT_AMOUNT}.00 Deposit & Submit`
+                machineCountNum > 0
+                  ? `Pay ${fmtDollars(totalDeposit)} Deposit & Submit`
+                  : `Pay Deposit & Submit`
               )}
             </button>
 

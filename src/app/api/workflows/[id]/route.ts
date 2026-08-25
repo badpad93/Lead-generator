@@ -31,6 +31,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     id: workflow.id,
     customer_id: workflow.customer_id,
     assigned_user_id: workflow.assigned_user_id,
+    // Threaded through so a non-admin creator can still view their
+    // own spawned workflow even if it isn't assigned to them.
+    created_by: (workflow as { created_by?: string | null }).created_by ?? null,
   });
   if (!canView) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
