@@ -40,6 +40,10 @@ const PUBLIC_EXACT = new Set<string>([
   "/eula",
   "/non-circumvention",
   "/careers",
+  // Public lead-capture / marketing pages the funnel depends on.
+  // Operators land here from marketing before signing up.
+  "/request-location",
+  "/financing",
   // Common static files that live at the root.
   "/favicon.ico",
   "/robots.txt",
@@ -63,6 +67,10 @@ const PUBLIC_PREFIXES = [
   "/coffee/claim",       // token-based coffee brewer claim
   "/coffee/guest-checkout",
   "/coffee/guest-track/",
+  // /financing/complete-application and any future /financing/*
+  // subroute — keep the whole namespace public so the follow-up
+  // steps in the funnel don't hit the auth wall.
+  "/financing/",
   "/images/",
   "/fonts/",
 ];
