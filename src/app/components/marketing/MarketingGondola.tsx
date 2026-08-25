@@ -65,7 +65,7 @@ type Slide = {
   description: string;
   bullets?: string[];
   image: { src: string; alt: string };
-  cta: { label: string; href: string };
+  cta: { label: string; href: string; external?: boolean };
   icon: typeof Coffee;
 };
 
@@ -99,7 +99,11 @@ const SLIDES: Slide[] = [
       "10-year financing options",
     ],
     image: { src: "/images/marketing/10-10-10.svg", alt: "10 Machines 10 Locations 10 Year Financing" },
-    cta: { label: "Sign Up Today", href: "/signup" },
+    cta: {
+      label: "Schedule a Call Today",
+      href: "https://calendly.com/d/dz6s-vmq-6wy/vending-connector-consultation",
+      external: true,
+    },
     icon: TrendingUp,
   },
   {
@@ -319,13 +323,29 @@ export default function MarketingGondola() {
             </ul>
           )}
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Link
-              href={activeSlide.cta.href}
-              className="inline-flex items-center gap-2 rounded-lg bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-primary"
-            >
-              {activeSlide.cta.label}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            {/* External CTAs (e.g. the 10/10/10 Calendly consultation
+                link) open in a new tab so the visitor keeps their
+                place on the marketing gondola. Internal routes stay
+                on next/link for client-side navigation. */}
+            {activeSlide.cta.external ? (
+              <a
+                href={activeSlide.cta.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-primary"
+              >
+                {activeSlide.cta.label}
+                <ArrowRight className="h-4 w-4" />
+              </a>
+            ) : (
+              <Link
+                href={activeSlide.cta.href}
+                className="inline-flex items-center gap-2 rounded-lg bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-primary"
+              >
+                {activeSlide.cta.label}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
             <span className="text-xs text-gray-400">
               {index + 1} / {slideCount}
             </span>
