@@ -3,22 +3,67 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * Routes that require an authenticated session.
- * Unauthenticated visitors are redirected to /login.
+ * Auth model: allowlist-based.
+ *
+ * Every page requires a signed-in session by default. The only
+ * exceptions are the paths in PUBLIC_EXACT / PUBLIC_PREFIXES —
+ * auth flows themselves, the marketing homepage, legal pages,
+ * token-based portals whose URL IS the credential, and the two
+ * lead-capture surfaces (/request-location and /financing) the
+ * funnel depends on.
+ *
+ * Anything not on either list is treated as "protected" and
+ * unauth visitors are bounced to /login?redirect=<original>.
+ * (Signed-in visitors then continue through the existing
+ * placement-partner isolation / contact-on-file / email-verification
+ * gates below.)
  */
-const PROTECTED_PATHS = [
-  "/dashboard",
-  "/post-request",
-  "/post-route",
-  "/listings/new",
-  "/routes-for-sale",
-  "/your-leads",
-  "/admin",
-  "/account",
-  "/saved-requests",
-  "/sales",
+const PUBLIC_EXACT = new Set<string>([
+  "/",
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/check-email",
+  "/resend-verification",
+  "/verify-email",
+  "/verify-email-required",
+  "/privacy-policy",
+  "/eula",
+  "/non-circumvention",
+  "/careers",
+  "/request-location",
   "/financing",
+  // Root static assets.
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/manifest.json",
+  "/apple-icon.png",
+  "/icon.png",
+  "/logo.png",
+  "/logo-vc.svg",
+  "/og-image.png",
+]);
+
+const PUBLIC_PREFIXES = [
+  "/auth/",                  // Supabase OAuth / email-callback landing
+  "/onboarding/",            // contractor onboarding — /onboarding/{token}
+  "/sign/",                  // agreement signing — /sign/{token}
+  "/placement/onboarding",   // placement provider self-serve intake
+  "/coffee/claim",           // token-based coffee brewer claim
+  "/coffee/guest-checkout",
+  "/coffee/guest-track/",
+  "/financing/",             // /financing/complete-application + any future step
+  "/images/",
+  "/fonts/",
 ];
+
+function isPublicPath(pathname: string): boolean {
+  if (PUBLIC_EXACT.has(pathname)) return true;
+  for (const p of PUBLIC_PREFIXES) if (pathname.startsWith(p)) return true;
+  return false;
+}
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -42,10 +87,10 @@ export async function proxy(req: NextRequest) {
   // Redirect authenticated users away from auth pages
   const isAuthPage = pathname === "/login" || pathname === "/signup";
 
-  // Only check protected paths (and auth pages for reverse redirect)
-  const isProtected = PROTECTED_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(p + "/")
-  ) || /^\/machines-for-sale\/[^/]+\/checkout/.test(pathname);
+  // Allowlist-based auth gate. Anything NOT on the public list is
+  // protected. Auth pages also flow through so we can bounce
+  // signed-in visitors back to /dashboard.
+  const isProtected = !isPublicPath(pathname);
   if (!isProtected && !isAuthPage) return NextResponse.next();
 
   // Create a Supabase server client that reads/writes cookies on the request/response
