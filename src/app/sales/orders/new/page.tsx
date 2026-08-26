@@ -210,7 +210,7 @@ function NewOrderContent() {
         <h2 className="text-2xl font-bold text-gray-900 mb-2">{docLabel} Submitted!</h2>
         {sendResult?.ok ? (
           <p className="text-sm text-green-700 max-w-sm">
-            Email sent to <strong>{sendResult.recipient}</strong> and CC&apos;d to james@apexaivending.com &amp; katrina.cacdac@apexaivending.com
+            Email sent to <strong>{sendResult.recipient}</strong> and CC&apos;d to james@apexaivending.com, anthony.heidal@apexaivending.com &amp; bryan.rice@apexaivending.com
           </p>
         ) : (
           <div className="max-w-sm">

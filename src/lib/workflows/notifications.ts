@@ -10,6 +10,7 @@
 
 import { Resend } from "resend";
 import { supabaseAdmin } from "../supabaseAdmin";
+import { APEX_ADMIN_NOTIFY } from "../adminNotifyRecipients";
 import type { WorkflowRow } from "./types";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
@@ -184,7 +185,27 @@ async function resolveRecipients(
     }
   }
 
-  return recipients;
+  // Always-notify list: every workflow notification also fans out to
+  // the standing Apex admin distribution. De-duplicated below so an
+  // admin who's already on the list via role or team_email doesn't
+  // get two copies.
+  for (const email of APEX_ADMIN_NOTIFY) {
+    recipients.push({ email, audience: "team" });
+  }
+
+  // Dedupe by email — de-lowercases so "James@..." and "james@..."
+  // collapse to a single recipient. Preserves first-seen audience
+  // (customer > assignee > team) so per-audience template wording
+  // stays right.
+  const seen = new Set<string>();
+  const deduped: Recipient[] = [];
+  for (const r of recipients) {
+    const key = r.email.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push({ ...r, email: key });
+  }
+  return deduped;
 }
 
 function teamEmailFor(team: string | null): string | null {

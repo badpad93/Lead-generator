@@ -4,8 +4,10 @@ import { getSalesUser } from "@/lib/salesAuth";
 import { Resend } from "resend";
 import { createInvoice, sendInvoiceEmail } from "@/lib/quickbooks";
 
+import { APEX_ADMIN_NOTIFY } from "@/lib/adminNotifyRecipients";
+
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
-const ALWAYS_CC = ["james@apexaivending.com", "katrina.cacdac@apexaivending.com"];
+const ALWAYS_CC = [...APEX_ADMIN_NOTIFY];
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
