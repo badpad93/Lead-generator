@@ -24,12 +24,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
   const body = await req.json();
-  const { action } = body;
+  let { action } = body as { action: string };
 
-  const statusUpdate = STATUS_ACTIONS[action];
-  if (!statusUpdate) {
+  if (!STATUS_ACTIONS[action]) {
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }
+
+  // Location-services orders are deposit-only — the placement fee is
+  // billed separately per placement, not on this order. So a
+  // "mark_deposit_paid" click on a location_services order should
+  // behave as if the whole order is paid: no "Collect remaining
+  // balance" next action, no deposit-style receipt implying a
+  // balance is owed. Promote the action before the status write.
+  if (action === "mark_deposit_paid") {
+    const { data: orderPeek } = await supabaseAdmin
+      .from("sales_orders")
+      .select("order_type")
+      .eq("id", id)
+      .maybeSingle();
+    if (orderPeek?.order_type === "location_services") {
+      action = "mark_paid";
+    }
+  }
+  const statusUpdate = STATUS_ACTIONS[action];
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (statusUpdate.order_status) updates.order_status = statusUpdate.order_status;
@@ -108,6 +125,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     } catch (ledgerErr) {
       console.error("[status] ledger write failed (non-fatal):", ledgerErr);
+    }
+  }
+
+  // Workflow sync — mirror payment onto the linked workflow, and
+  // spawn a location_services workflow if this was a paid intake
+  // deposit that hadn't materialized one yet. The QB webhook fires
+  // this same helper; adding it here so manual "mark paid" clicks
+  // don't leave orphans. Non-fatal — status update already
+  // succeeded whether or not the workflow sync completes.
+  if (action === "mark_paid" || action === "mark_deposit_paid") {
+    try {
+      const { syncWorkflowFromSalesOrderPaid } = await import("@/lib/workflows/paymentSync");
+      await syncWorkflowFromSalesOrderPaid({
+        orderId: id,
+        source: "manual_mark_paid",
+        changeKey: `manual:sales_order:${id}:${action}`,
+      });
+    } catch (workflowErr) {
+      console.error("[status] workflow sync failed (non-fatal):", workflowErr);
     }
   }
 

@@ -226,11 +226,14 @@ export async function POST(req: Request) {
   // clears, at which point the location_services workflow is
   // auto-spawned (see spawnLocationServicesWorkflowFromPaidOrder).
   //
-  // Pricing: $100 deposit per location + $500 placement fee per
-  // location — so total per location is $600 and totals scale
-  // linearly with count.
+  // Pricing: this order is the DEPOSIT ONLY ($100 per location).
+  // The $500 placement fee per location is billed as a separate
+  // invoice per placement as machines actually land — it does NOT
+  // belong on the intake order. Baking it in here previously caused
+  // "mark deposit paid" to send receipts advertising a phantom
+  // remaining balance the customer doesn't owe.
   let orderId: string | null = null;
-  const totalValueDollars = (depositCents + machine_count * 50000) / 100;
+  const totalValueDollars = depositDollars;
   if (accountId) {
     try {
       const { data: order, error: orderErr } = await supabaseAdmin
@@ -251,7 +254,9 @@ export async function POST(req: Request) {
           total_value: totalValueDollars,
           deposit_amount: depositDollars,
           deposit_paid: false,
-          remaining_balance: totalValueDollars - depositDollars,
+          // Deposit-only order — no remaining balance is due on this
+          // row. Placement fees are invoiced separately per location.
+          remaining_balance: 0,
           // 'unpaid' at intake — nothing has been paid yet. The QB
           // invoice.paid webhook flips this to 'paid' when the
           // deposit clears and spawns the workflow at that point.
@@ -261,7 +266,7 @@ export async function POST(req: Request) {
           fulfillment_status: "pending",
           next_required_action: "Awaiting deposit payment",
           recipient_email: email,
-          notes: `Location services request — ${machine_count} ${machine_type} location${machine_count > 1 ? "s" : ""} in ${state} (ZIP ${zip_code}). Address: ${address}. $100 deposit + $500 placement fee per location.`,
+          notes: `Location services deposit — ${machine_count} ${machine_type} location${machine_count > 1 ? "s" : ""} in ${state} (ZIP ${zip_code}). Address: ${address}. $100 deposit per location; placement fees are billed separately per placement.`,
         })
         .select("id")
         .single();
@@ -274,9 +279,9 @@ export async function POST(req: Request) {
           .from("order_items")
           .insert({
             order_id: order.id,
-            service_name: `Location Services — ${machine_count} ${machine_type} location${machine_count > 1 ? "s" : ""}`,
+            service_name: `Location Services Deposit — ${machine_count} ${machine_type} location${machine_count > 1 ? "s" : ""}`,
             price: totalValueDollars,
-            notes: `${machine_count} ${machine_type} location(s) in ${state} (ZIP ${zip_code}). $100 deposit + $500 placement fee per location.`,
+            notes: `Deposit only — $100 per location × ${machine_count}. Placement fees are billed separately per placement, not on this order.`,
           });
         if (itemErr) {
           console.error("[request-location] order_items insert failed:", itemErr);
