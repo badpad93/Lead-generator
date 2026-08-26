@@ -86,7 +86,140 @@ export async function advancePaymentStageForWorkflow(args: {
 }
 
 /**
- * Mark any workflow(s) linked to this sales_order as paid.
+ * Location-services intake used to spawn a workflow at /request-location
+ * time with payment_status='partial'. That leaked speculative requests
+ * (never-paid deposits) into the workflows queue. We now defer the
+ * spawn until the QB invoice actually clears — this helper handles it.
+ *
+ * Preconditions: the sales_order was created at intake time and holds
+ * (a) the linked sales_leads row with the full customer intake,
+ * (b) account_id, and (c) order_type='location_services'.
+ *
+ * Idempotent: no-ops if a workflow is already linked to the order or
+ * to the underlying lead (source_id).
+ */
+async function spawnLocationServicesWorkflowFromPaidOrder(
+  orderId: string,
+): Promise<string | null> {
+  const { data: order } = await supabaseAdmin
+    .from("sales_orders")
+    .select("id, lead_id, account_id, recipient_email, order_type, notes")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order) return null;
+  if (order.order_type !== "location_services") return null;
+
+  const { data: lead } = order.lead_id
+    ? await supabaseAdmin
+        .from("sales_leads")
+        .select("id, business_name, contact_name, phone, email, address, state, zip_code, machine_count, machine_type, assigned_to")
+        .eq("id", order.lead_id)
+        .maybeSingle()
+    : { data: null };
+
+  const recipientEmail = (order.recipient_email || lead?.email || "").trim();
+  if (!recipientEmail) return null;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .ilike("email", recipientEmail)
+    .maybeSingle();
+  if (!profile) {
+    // Customer never created an account. Nothing to attach the
+    // workflow to. When they sign up later /admin/workflows/backfill
+    // is the recovery path.
+    return null;
+  }
+
+  const machineCount = Number(lead?.machine_count ?? 0) || 1;
+  const depositPerLocationCents = 10000; // $100 — matches request-location constant
+  const depositCents = machineCount * depositPerLocationCents;
+  // $500 placement fee per location on top of the $100 deposit.
+  const totalDueCents = depositCents + machineCount * 50000;
+
+  // Idempotency: if a workflow already exists for this lead's
+  // source_id, bail. The getOrCreateWorkflow call also enforces
+  // this, but skipping the extra work here is cheaper.
+  if (order.lead_id) {
+    const { data: existing } = await supabaseAdmin
+      .from("workflows")
+      .select("id")
+      .eq("source_type", "location_request")
+      .eq("source_id", order.lead_id)
+      .eq("workflow_type", "location_services")
+      .maybeSingle();
+    if (existing) return existing.id as string;
+  }
+
+  // Refer-rep name (for the intake snapshot). Best-effort — not fatal
+  // if the assigned_to profile lookup fails.
+  let referringRepName: string | null = null;
+  if (lead?.assigned_to) {
+    const { data: rep } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name")
+      .eq("id", lead.assigned_to)
+      .maybeSingle();
+    referringRepName = rep?.full_name ?? null;
+  }
+
+  const { getOrCreateWorkflow } = await import("./service");
+  const { workflow } = await getOrCreateWorkflow({
+    customerId: profile.id,
+    workflowType: "location_services",
+    sourceType: "location_request",
+    sourceId: order.lead_id ?? orderId,
+    locationRequestId: order.lead_id ?? undefined,
+    orderId,
+    productKey: "location_services",
+    productName: `Location Services — ${machineCount} location${machineCount > 1 ? "s" : ""}`,
+    quantityPurchased: machineCount,
+    paymentStatus: "paid",
+    primaryTeam: "locations",
+    startDate: new Date().toISOString(),
+    metadata: {
+      source: "request-location-deposit-paid",
+      deposit_amount_cents: depositCents,
+      deposit_paid_cents: depositCents,
+      deposit_per_location_cents: depositPerLocationCents,
+      total_due_cents: totalDueCents,
+      source_intake: {
+        business_name: lead?.business_name ?? null,
+        contact_name: lead?.contact_name ?? null,
+        phone: lead?.phone ?? null,
+        email: recipientEmail,
+        address: lead?.address ?? null,
+        state: lead?.state ?? null,
+        zip_code: lead?.zip_code ?? null,
+        machine_count: machineCount,
+        machine_type: lead?.machine_type ?? null,
+        referring_sales_rep_name: referringRepName,
+      },
+    },
+    actorType: "system",
+  });
+
+  // Stamp the deposit money columns (mirrors what the intake path
+  // used to do — the UI reads these directly rather than the
+  // metadata sidecar).
+  await supabaseAdmin
+    .from("workflows")
+    .update({
+      deposit_paid_cents: depositCents,
+      total_due_cents: totalDueCents,
+    })
+    .eq("id", workflow.id);
+
+  return workflow.id;
+}
+
+/**
+ * Mark any workflow(s) linked to this sales_order as paid. For
+ * location_services orders that have no linked workflow yet (intake
+ * no longer spawns one — we wait for the deposit to clear), also
+ * spawn the workflow in the paid state before running the mark-paid
+ * loop.
  */
 export async function syncWorkflowFromSalesOrderPaid(args: {
   orderId: string;
@@ -94,6 +227,25 @@ export async function syncWorkflowFromSalesOrderPaid(args: {
   source: string;
   changeKey?: string;
 }): Promise<number> {
+  // Payment-time spawn for location_services intake. Only fires when
+  // no workflow is linked; helper is idempotent.
+  try {
+    const { data: existingLinked } = await supabaseAdmin
+      .from("workflows")
+      .select("id")
+      .eq("order_id", args.orderId)
+      .limit(1)
+      .maybeSingle();
+    if (!existingLinked) {
+      await spawnLocationServicesWorkflowFromPaidOrder(args.orderId);
+    }
+  } catch (spawnErr) {
+    console.error(
+      "[paymentSync] location_services workflow spawn on paid order failed:",
+      spawnErr,
+    );
+  }
+
   const { data: workflows } = await supabaseAdmin
     .from("workflows")
     .select("id, payment_status, deposit_paid_cents, total_due_cents, version")
