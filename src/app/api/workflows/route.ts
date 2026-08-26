@@ -82,25 +82,32 @@ export async function GET(req: NextRequest) {
   const { data, error, count } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Batch-fetch customer names for the returned page so the CRM table
-  // can show "who this workflow is for" without an N+1.
+  // Batch-fetch customer + assignee names for the returned page so
+  // the CRM table can show "who this workflow is for" and "who
+  // owns it" without an N+1 lookup. One profiles round-trip covers
+  // both roles since customer_id and assigned_user_id both point at
+  // profiles.id.
   const rows = data ?? [];
   const customerIds = Array.from(new Set(rows.map((r) => r.customer_id).filter(Boolean)));
-  const customerMap: Record<string, { full_name: string | null; email: string | null }> = {};
-  if (customerIds.length > 0) {
+  const assigneeIds = Array.from(new Set(rows.map((r) => r.assigned_user_id).filter(Boolean)));
+  const profileIds = Array.from(new Set([...customerIds, ...assigneeIds]));
+  const profileMap: Record<string, { full_name: string | null; email: string | null }> = {};
+  if (profileIds.length > 0) {
     const { data: profiles } = await supabaseAdmin
       .from("profiles")
       .select("id, full_name, email")
-      .in("id", customerIds);
+      .in("id", profileIds);
     for (const p of profiles ?? []) {
-      customerMap[p.id] = { full_name: p.full_name, email: p.email };
+      profileMap[p.id] = { full_name: p.full_name, email: p.email };
     }
   }
 
   const workflowsWithCustomer = rows.map((r) => ({
     ...r,
-    customer_name: customerMap[r.customer_id]?.full_name ?? null,
-    customer_email: customerMap[r.customer_id]?.email ?? null,
+    customer_name: profileMap[r.customer_id]?.full_name ?? null,
+    customer_email: profileMap[r.customer_id]?.email ?? null,
+    assigned_user_name: r.assigned_user_id ? profileMap[r.assigned_user_id]?.full_name ?? null : null,
+    assigned_user_email: r.assigned_user_id ? profileMap[r.assigned_user_id]?.email ?? null : null,
   }));
 
   return NextResponse.json({
