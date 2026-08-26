@@ -4,7 +4,12 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendLocationRequestConfirmation } from "@/lib/intakeEmail";
 import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 
-const TO_EMAILS = ["james@apexaivending.com", "louis.cirino@apexaivending.com"];
+import { APEX_ADMIN_NOTIFY } from "@/lib/adminNotifyRecipients";
+
+// Every location services request goes to the standing admin list
+// (james/anthony/bryan) plus louis, who runs the location team's
+// intake triage.
+const TO_EMAILS = [...APEX_ADMIN_NOTIFY, "louis.cirino@apexaivending.com"];
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 // Deposit is $100 PER LOCATION requested — not a flat $100 total.
 // A 10-location request pays $1,000 up front; a single-location
