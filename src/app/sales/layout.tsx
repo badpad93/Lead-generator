@@ -14,7 +14,6 @@ import {
   PhoneCall,
   DollarSign,
   TrendingUp,
-  GitBranch,
   UserCog,
   UserPlus,
   Zap,
@@ -38,7 +37,10 @@ const NAV_ITEMS = [
   { href: "/sales", label: "Dashboard", icon: LayoutDashboard, minLevel: 4 as const },
   { href: "/sales/results", label: "Results", icon: TrendingUp, minLevel: 4 as const },
   { href: "/sales/leads", label: "Leads", icon: Users, minLevel: 4 as const },
-  { href: "/sales/pipelines", label: "Pipelines", icon: GitBranch, minLevel: 4 as const },
+  // Pipelines nav entry removed from the CRM sidebar per product
+  // request — the /sales/pipelines routes still exist for direct
+  // links and any deep-linked flows that reach them, but the nav
+  // tile no longer surfaces them.
   { href: "/sales/deals", label: "Deal Dashboard", icon: Kanban, minLevel: 4 as const },
   { href: "/sales/accounts", label: "Accounts", icon: Building2, minLevel: 4 as const },
   { href: "/sales/orders", label: "Orders / Quotes", icon: ClipboardList, minLevel: 4 as const },
