@@ -42,6 +42,8 @@ interface WorkflowRow {
   company_id: string | null;
   customer_name: string | null;
   customer_email: string | null;
+  assigned_user_name: string | null;
+  assigned_user_email: string | null;
   updated_at: string;
 }
 
@@ -400,6 +402,7 @@ export default function WorkflowsPage() {
               <th className="px-4 py-3">Workflow</th>
               <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Type</th>
+              <th className="px-4 py-3">Assigned</th>
               <th className="px-4 py-3">Progress</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Due</th>
@@ -409,14 +412,14 @@ export default function WorkflowsPage() {
           <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                   <Loader2 className="inline-block h-5 w-5 animate-spin mr-2" />
                   Loading workflows…
                 </td>
               </tr>
             ) : workflows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                   <Filter className="inline-block h-5 w-5 mr-2 text-gray-400" />
                   No workflows match the current filters.
                 </td>
@@ -510,6 +513,22 @@ function WorkflowRowRender({
           <Icon className="h-3.5 w-3.5" />
           {meta.label}
         </div>
+      </td>
+      <td className="px-4 py-3">
+        {workflow.assigned_user_id ? (
+          <>
+            <div className="text-sm font-medium text-gray-900">
+              {workflow.assigned_user_name ?? workflow.assigned_user_email ?? "—"}
+            </div>
+            {workflow.assigned_user_email && workflow.assigned_user_name && (
+              <div className="text-xs text-gray-500 truncate max-w-[200px]">{workflow.assigned_user_email}</div>
+            )}
+          </>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+            Unassigned
+          </span>
+        )}
       </td>
       <td className="px-4 py-3">
         {total > 0 ? (
