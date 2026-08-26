@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
-import { Loader2, ChevronLeft, Upload } from "lucide-react";
+import { Loader2, ChevronLeft, Upload, MapPin, CheckCircle2, AlertCircle } from "lucide-react";
 
 const WORKFLOW_TYPES = [
   { value: "ai_machine_fulfillment", label: "AI Machine Fulfillment" },
@@ -25,6 +25,57 @@ export default function WorkflowBackfillPage() {
   const [prefill, setPrefill] = useState("");
   const [posting, setPosting] = useState(false);
   const [result, setResult] = useState<{ ok?: boolean; error?: string; workflow?: { id: string; workflow_number: string } } | null>(null);
+
+  // Bulk backfill: paid location_services orders that never got a
+  // workflow (guest submissions from before the profile-provisioning
+  // fix). Uses the shared spawn helper — same code path the QB
+  // webhook now runs, so results converge.
+  const [locBackfilling, setLocBackfilling] = useState(false);
+  const [locBackfillResult, setLocBackfillResult] = useState<
+    | null
+    | {
+        error?: string;
+        scanned?: number;
+        spawned?: number;
+        already_linked?: number;
+        failed?: number;
+        details?: Array<{
+          order_id: string;
+          recipient_email: string | null;
+          outcome: "spawned" | "already_linked" | "failed";
+          workflow_id?: string;
+          reason?: string;
+        }>;
+      }
+  >(null);
+
+  async function runLocationServicesBackfill() {
+    if (!confirm(
+      "Run backfill for all paid location-services orders without a workflow?\n\n" +
+      "This is idempotent — orders that already have a workflow are skipped. " +
+      "Guests without a profile will be auto-provisioned so the workflow can attach.",
+    )) return;
+    setLocBackfilling(true);
+    setLocBackfillResult(null);
+    try {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setLocBackfillResult({ error: "Not authenticated" });
+        return;
+      }
+      const res = await fetch("/api/admin/workflows/backfill-location-services", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json();
+      setLocBackfillResult(json);
+    } catch (e) {
+      setLocBackfillResult({ error: e instanceof Error ? e.message : "Network error" });
+    } finally {
+      setLocBackfilling(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -72,6 +123,100 @@ export default function WorkflowBackfillPage() {
       <Link href="/sales/workflows" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4">
         <ChevronLeft className="h-4 w-4" /> Back to Workflows
       </Link>
+
+      {/* Bulk backfill — one-shot recovery for paid location-services
+          orders that never spawned a workflow (guest intake before the
+          profile-provisioning fix). Idempotent — safe to re-run. */}
+      <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+        <div className="flex items-start gap-3">
+          <MapPin className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
+          <div className="flex-1">
+            <h2 className="text-base font-semibold text-amber-900">
+              Bulk backfill — Location Services (paid, no workflow)
+            </h2>
+            <p className="mt-1 text-sm text-amber-800">
+              Scans every paid location-services order and spawns a workflow for any that don&apos;t already have one.
+              Guests without a profile get a provisional account so the workflow can attach cleanly. Idempotent.
+            </p>
+            <button
+              type="button"
+              onClick={runLocationServicesBackfill}
+              disabled={locBackfilling}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 disabled:opacity-50"
+            >
+              {locBackfilling ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Backfilling…
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Run Location Services Backfill
+                </>
+              )}
+            </button>
+
+            {locBackfillResult && (
+              <div className="mt-4 space-y-2">
+                {locBackfillResult.error ? (
+                  <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{locBackfillResult.error}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-200">
+                        Scanned: {locBackfillResult.scanned ?? 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-200">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Spawned: {locBackfillResult.spawned ?? 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-700 ring-1 ring-inset ring-gray-200">
+                        Already linked: {locBackfillResult.already_linked ?? 0}
+                      </span>
+                      {(locBackfillResult.failed ?? 0) > 0 && (
+                        <span className="inline-flex items-center gap-1.5 rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800 ring-1 ring-inset ring-red-200">
+                          <AlertCircle className="h-3 w-3" />
+                          Failed: {locBackfillResult.failed}
+                        </span>
+                      )}
+                    </div>
+
+                    {locBackfillResult.details && locBackfillResult.details.length > 0 && (
+                      <details className="rounded-lg border border-amber-100 bg-white/60 p-2 text-xs">
+                        <summary className="cursor-pointer font-medium text-amber-900">Per-order detail</summary>
+                        <div className="mt-2 max-h-64 overflow-y-auto space-y-1">
+                          {locBackfillResult.details.map((d) => (
+                            <div key={d.order_id + d.outcome} className="flex items-start gap-2 border-b border-amber-100 py-1 last:border-0">
+                              <span
+                                className={
+                                  d.outcome === "spawned"
+                                    ? "inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800"
+                                    : d.outcome === "already_linked"
+                                    ? "inline-flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-700"
+                                    : "inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800"
+                                }
+                              >
+                                {d.outcome}
+                              </span>
+                              <span className="font-mono text-gray-500">{d.order_id.slice(0, 8)}</span>
+                              <span className="text-gray-700">{d.recipient_email ?? "—"}</span>
+                              {d.reason && <span className="text-red-700">{d.reason}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h1 className="text-2xl font-semibold text-gray-900">Backfill Workflow</h1>
