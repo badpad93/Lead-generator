@@ -189,11 +189,18 @@ export async function POST(req: Request) {
     console.error("[request-location] account creation error", accountError);
   }
 
-  // Create the sales_orders row NOW so the request lives in both
-  // Orders and Workflows. Order stays 'partial' payment until the
-  // remaining balance is collected via the customer Pay Balance flow.
-  // $100 deposit per location + $500 placement fee per location — so
-  // total per location is $600 and totals scale linearly with count.
+  // Create the sales_orders row NOW so the request shows up in the
+  // Orders queue immediately (document_type='order', order_type=
+  // 'location_services'). It starts as payment_status='unpaid' —
+  // nothing has been paid at this point, only the QB invoice has
+  // been sent. The QB invoice.paid webhook (see webhooks/quickbooks
+  // + workflows/paymentSync) flips it to 'paid' when the deposit
+  // clears, at which point the location_services workflow is
+  // auto-spawned (see spawnLocationServicesWorkflowFromPaidOrder).
+  //
+  // Pricing: $100 deposit per location + $500 placement fee per
+  // location — so total per location is $600 and totals scale
+  // linearly with count.
   let orderId: string | null = null;
   const totalValueDollars = (depositCents + machine_count * 50000) / 100;
   if (accountId) {
@@ -213,7 +220,10 @@ export async function POST(req: Request) {
           deposit_amount: depositDollars,
           deposit_paid: false,
           remaining_balance: totalValueDollars - depositDollars,
-          payment_status: "partial",
+          // 'unpaid' at intake — nothing has been paid yet. The QB
+          // invoice.paid webhook flips this to 'paid' when the
+          // deposit clears and spawns the workflow at that point.
+          payment_status: "unpaid",
           invoice_status: "sent",
           agreement_status: "not_sent",
           fulfillment_status: "pending",
