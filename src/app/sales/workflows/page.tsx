@@ -44,6 +44,12 @@ interface WorkflowRow {
   customer_email: string | null;
   assigned_user_name: string | null;
   assigned_user_email: string | null;
+  // Populated by the API when the historical assigned_user_id is
+  // null but there's an active collaborator in workflow_assignments
+  // (sales_rep, location_specialist, etc.). Drives the "Assigned"
+  // column so real ownership shows through instead of "Unassigned".
+  assigned_user_id_effective: string | null;
+  assigned_user_role: string | null;
   updated_at: string;
 }
 
@@ -515,14 +521,21 @@ function WorkflowRowRender({
         </div>
       </td>
       <td className="px-4 py-3">
-        {workflow.assigned_user_id ? (
+        {workflow.assigned_user_id_effective ? (
           <>
             <div className="text-sm font-medium text-gray-900">
               {workflow.assigned_user_name ?? workflow.assigned_user_email ?? "—"}
             </div>
-            {workflow.assigned_user_email && workflow.assigned_user_name && (
-              <div className="text-xs text-gray-500 truncate max-w-[200px]">{workflow.assigned_user_email}</div>
-            )}
+            <div className="mt-0.5 flex items-center gap-1.5">
+              {workflow.assigned_user_role && workflow.assigned_user_role !== "primary_owner" && (
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 uppercase tracking-wide">
+                  {workflow.assigned_user_role.replace(/_/g, " ")}
+                </span>
+              )}
+              {workflow.assigned_user_email && workflow.assigned_user_name && (
+                <span className="text-xs text-gray-500 truncate max-w-[180px]">{workflow.assigned_user_email}</span>
+              )}
+            </div>
           </>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
