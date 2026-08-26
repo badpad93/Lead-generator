@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
-import { spawnLocationServicesWorkflowFromPaidOrder } from "@/lib/workflows/paymentSync";
+import { spawnLocationServicesWorkflowFromPaidOrderDetailed } from "@/lib/workflows/paymentSync";
 
 /**
  * POST /api/sales/orders/[id]/send-to-workflow
@@ -59,12 +59,12 @@ export async function POST(
 
   if (order.order_type === "location_services") {
     try {
-      const workflowId = await spawnLocationServicesWorkflowFromPaidOrder(order.id);
-      if (!workflowId) {
+      const spawnResult = await spawnLocationServicesWorkflowFromPaidOrderDetailed(order.id);
+      if (!spawnResult.workflow_id) {
         return NextResponse.json(
           {
-            error:
-              "Could not spawn the workflow — the spawn helper returned null. Most likely the underlying sales_lead is missing data, or provisional-profile provisioning failed. Check the server logs and try again.",
+            error: `Could not spawn the workflow — ${spawnResult.reason}`,
+            outcome: spawnResult.outcome,
           },
           { status: 500 },
         );
@@ -72,13 +72,15 @@ export async function POST(
       const { data: created } = await supabaseAdmin
         .from("workflows")
         .select("id, workflow_number")
-        .eq("id", workflowId)
+        .eq("id", spawnResult.workflow_id)
         .maybeSingle();
       return NextResponse.json({
         ok: true,
-        already_linked: false,
-        workflow_id: workflowId,
+        already_linked: spawnResult.outcome === "already_linked_by_lead",
+        workflow_id: spawnResult.workflow_id,
         workflow_number: created?.workflow_number ?? null,
+        outcome: spawnResult.outcome,
+        reason: spawnResult.reason,
       });
     } catch (err) {
       return NextResponse.json(
