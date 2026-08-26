@@ -120,17 +120,46 @@ async function spawnLocationServicesWorkflowFromPaidOrder(
   const recipientEmail = (order.recipient_email || lead?.email || "").trim();
   if (!recipientEmail) return null;
 
-  const { data: profile } = await supabaseAdmin
+  let { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("id")
     .ilike("email", recipientEmail)
     .maybeSingle();
+
+  // Guest intake: /request-location is public, so the customer may
+  // have paid without ever creating an account. Provision a real
+  // profile flagged is_provisional=true so the workflow can attach
+  // to a legitimate customer_id. Uses the same helper the coffee
+  // guest checkout relies on so the "claim your account" magic-link
+  // flow works uniformly. If provisioning fails we fall back to
+  // null and let admin backfill catch it.
   if (!profile) {
-    // Customer never created an account. Nothing to attach the
-    // workflow to. When they sign up later /admin/workflows/backfill
-    // is the recovery path.
-    return null;
+    try {
+      const { provisionAccountForGuestCheckout } = await import(
+        "@/lib/auth/provisionalAccount"
+      );
+      const provisioned = await provisionAccountForGuestCheckout({
+        email: recipientEmail,
+        business_name: lead?.business_name ?? "",
+        contact_name: lead?.contact_name ?? "",
+        phone: lead?.phone ?? "",
+        address: lead?.address ?? "",
+        city: null,
+        state: lead?.state ?? null,
+        zip: null,
+        marketing_consent: false,
+        referring_sales_rep_id: lead?.assigned_to ?? null,
+      });
+      profile = { id: provisioned.userId };
+    } catch (provisionErr) {
+      console.error(
+        "[paymentSync] provisional profile creation failed for location_services payment:",
+        provisionErr,
+      );
+      return null;
+    }
   }
+  if (!profile) return null;
 
   const machineCount = Number(lead?.machine_count ?? 0) || 1;
   const depositPerLocationCents = 10000; // $100 — matches request-location constant
