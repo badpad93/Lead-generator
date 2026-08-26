@@ -91,23 +91,61 @@ export async function advancePaymentStageForWorkflow(args: {
  * (never-paid deposits) into the workflows queue. We now defer the
  * spawn until the QB invoice actually clears — this helper handles it.
  *
- * Preconditions: the sales_order was created at intake time and holds
- * (a) the linked sales_leads row with the full customer intake,
- * (b) account_id, and (c) order_type='location_services'.
- *
  * Idempotent: no-ops if a workflow is already linked to the order or
  * to the underlying lead (source_id).
+ *
+ * Returns just the workflow id (or null on any hard fail) so all the
+ * existing callers keep working. Behind the scenes it uses
+ * spawnLocationServicesWorkflowFromPaidOrderDetailed — which returns
+ * a discriminated result with a machine-readable reason — so admin
+ * fallback surfaces can tell the operator EXACTLY why nothing spawned
+ * instead of a vague "returned null".
  */
 export async function spawnLocationServicesWorkflowFromPaidOrder(
   orderId: string,
 ): Promise<string | null> {
+  const result = await spawnLocationServicesWorkflowFromPaidOrderDetailed(orderId);
+  return result.workflow_id;
+}
+
+/**
+ * Structured version of the spawn — returns why nothing happened so
+ * the /api/sales/orders/[id]/send-to-workflow admin fallback can
+ * report actionable reasons to the operator instead of a generic
+ * "returned null" error.
+ */
+export interface SpawnResult {
+  workflow_id: string | null;
+  outcome:
+    | "spawned"
+    | "already_linked"
+    | "already_linked_by_lead"
+    | "order_missing"
+    | "order_wrong_type"
+    | "missing_email"
+    | "profile_provisioning_failed"
+    | "workflow_insert_failed";
+  reason: string;
+}
+
+export async function spawnLocationServicesWorkflowFromPaidOrderDetailed(
+  orderId: string,
+): Promise<SpawnResult> {
   const { data: order } = await supabaseAdmin
     .from("sales_orders")
     .select("id, lead_id, account_id, recipient_email, order_type, notes")
     .eq("id", orderId)
     .maybeSingle();
-  if (!order) return null;
-  if (order.order_type !== "location_services") return null;
+  if (!order) {
+    return { workflow_id: null, outcome: "order_missing", reason: `No sales_orders row with id ${orderId}.` };
+  }
+  if (order.order_type !== "location_services") {
+    return {
+      workflow_id: null,
+      outcome: "order_wrong_type",
+      reason: `Order type is '${order.order_type ?? "(null)"}', not 'location_services'.`,
+    };
+  }
 
   const { data: lead } = order.lead_id
     ? await supabaseAdmin
@@ -118,7 +156,13 @@ export async function spawnLocationServicesWorkflowFromPaidOrder(
     : { data: null };
 
   const recipientEmail = (order.recipient_email || lead?.email || "").trim();
-  if (!recipientEmail) return null;
+  if (!recipientEmail) {
+    return {
+      workflow_id: null,
+      outcome: "missing_email",
+      reason: "Neither the sales_order.recipient_email nor the linked sales_lead.email is set — nothing to attach a customer to.",
+    };
+  }
 
   let { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -131,8 +175,7 @@ export async function spawnLocationServicesWorkflowFromPaidOrder(
   // profile flagged is_provisional=true so the workflow can attach
   // to a legitimate customer_id. Uses the same helper the coffee
   // guest checkout relies on so the "claim your account" magic-link
-  // flow works uniformly. If provisioning fails we fall back to
-  // null and let admin backfill catch it.
+  // flow works uniformly.
   if (!profile) {
     try {
       const { provisionAccountForGuestCheckout } = await import(
@@ -152,14 +195,25 @@ export async function spawnLocationServicesWorkflowFromPaidOrder(
       });
       profile = { id: provisioned.userId };
     } catch (provisionErr) {
+      const msg = provisionErr instanceof Error ? provisionErr.message : String(provisionErr);
       console.error(
         "[paymentSync] provisional profile creation failed for location_services payment:",
         provisionErr,
       );
-      return null;
+      return {
+        workflow_id: null,
+        outcome: "profile_provisioning_failed",
+        reason: `Could not provision a provisional profile for ${recipientEmail}: ${msg.slice(0, 260)}.`,
+      };
     }
   }
-  if (!profile) return null;
+  if (!profile) {
+    return {
+      workflow_id: null,
+      outcome: "profile_provisioning_failed",
+      reason: `Provisioning completed without an error but no profile id came back for ${recipientEmail}.`,
+    };
+  }
 
   const machineCount = Number(lead?.machine_count ?? 0) || 1;
   const depositPerLocationCents = 10000; // $100 — matches request-location constant
@@ -178,7 +232,13 @@ export async function spawnLocationServicesWorkflowFromPaidOrder(
       .eq("source_id", order.lead_id)
       .eq("workflow_type", "location_services")
       .maybeSingle();
-    if (existing) return existing.id as string;
+    if (existing) {
+      return {
+        workflow_id: existing.id as string,
+        outcome: "already_linked_by_lead",
+        reason: `A workflow already exists for lead ${order.lead_id}.`,
+      };
+    }
   }
 
   // Refer-rep name (for the intake snapshot). Best-effort — not fatal
@@ -193,41 +253,53 @@ export async function spawnLocationServicesWorkflowFromPaidOrder(
     referringRepName = rep?.full_name ?? null;
   }
 
-  const { getOrCreateWorkflow } = await import("./service");
-  const { workflow } = await getOrCreateWorkflow({
-    customerId: profile.id,
-    workflowType: "location_services",
-    sourceType: "location_request",
-    sourceId: order.lead_id ?? orderId,
-    locationRequestId: order.lead_id ?? undefined,
-    orderId,
-    productKey: "location_services",
-    productName: `Location Services — ${machineCount} location${machineCount > 1 ? "s" : ""}`,
-    quantityPurchased: machineCount,
-    paymentStatus: "paid",
-    primaryTeam: "locations",
-    startDate: new Date().toISOString(),
-    metadata: {
-      source: "request-location-deposit-paid",
-      deposit_amount_cents: depositCents,
-      deposit_paid_cents: depositCents,
-      deposit_per_location_cents: depositPerLocationCents,
-      total_due_cents: totalDueCents,
-      source_intake: {
-        business_name: lead?.business_name ?? null,
-        contact_name: lead?.contact_name ?? null,
-        phone: lead?.phone ?? null,
-        email: recipientEmail,
-        address: lead?.address ?? null,
-        state: lead?.state ?? null,
-        zip_code: lead?.zip_code ?? null,
-        machine_count: machineCount,
-        machine_type: lead?.machine_type ?? null,
-        referring_sales_rep_name: referringRepName,
+  let workflow;
+  try {
+    const { getOrCreateWorkflow } = await import("./service");
+    const result = await getOrCreateWorkflow({
+      customerId: profile.id,
+      workflowType: "location_services",
+      sourceType: "location_request",
+      sourceId: order.lead_id ?? orderId,
+      locationRequestId: order.lead_id ?? undefined,
+      orderId,
+      productKey: "location_services",
+      productName: `Location Services — ${machineCount} location${machineCount > 1 ? "s" : ""}`,
+      quantityPurchased: machineCount,
+      paymentStatus: "paid",
+      primaryTeam: "locations",
+      startDate: new Date().toISOString(),
+      metadata: {
+        source: "request-location-deposit-paid",
+        deposit_amount_cents: depositCents,
+        deposit_paid_cents: depositCents,
+        deposit_per_location_cents: depositPerLocationCents,
+        total_due_cents: totalDueCents,
+        source_intake: {
+          business_name: lead?.business_name ?? null,
+          contact_name: lead?.contact_name ?? null,
+          phone: lead?.phone ?? null,
+          email: recipientEmail,
+          address: lead?.address ?? null,
+          state: lead?.state ?? null,
+          zip_code: lead?.zip_code ?? null,
+          machine_count: machineCount,
+          machine_type: lead?.machine_type ?? null,
+          referring_sales_rep_name: referringRepName,
+        },
       },
-    },
-    actorType: "system",
-  });
+      actorType: "system",
+    });
+    workflow = result.workflow;
+  } catch (insertErr) {
+    const msg = insertErr instanceof Error ? insertErr.message : String(insertErr);
+    console.error("[paymentSync] getOrCreateWorkflow threw during spawn:", insertErr);
+    return {
+      workflow_id: null,
+      outcome: "workflow_insert_failed",
+      reason: `getOrCreateWorkflow failed: ${msg.slice(0, 260)}.`,
+    };
+  }
 
   // Stamp the deposit money columns (mirrors what the intake path
   // used to do — the UI reads these directly rather than the
@@ -240,7 +312,11 @@ export async function spawnLocationServicesWorkflowFromPaidOrder(
     })
     .eq("id", workflow.id);
 
-  return workflow.id;
+  return {
+    workflow_id: workflow.id,
+    outcome: "spawned",
+    reason: `Spawned workflow ${workflow.id} for order ${orderId}.`,
+  };
 }
 
 /**
