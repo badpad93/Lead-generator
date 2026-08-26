@@ -4726,6 +4726,14 @@ export default function AdminPage() {
                 <span className="sm:hidden">Gondola</span>
               </Link>
               <Link
+                href="/admin/workflows/backfill"
+                className="inline-flex items-center gap-2 rounded-xl border border-green-primary px-4 py-2.5 text-sm font-medium text-green-primary shadow-sm transition-colors hover:bg-green-50"
+              >
+                <Timer className="h-4 w-4" />
+                <span className="hidden sm:inline">Workflow Backfill</span>
+                <span className="sm:hidden">Backfill</span>
+              </Link>
+              <Link
                 href="/sales"
                 className="inline-flex items-center gap-2 rounded-xl bg-green-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-primary/90"
               >

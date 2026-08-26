@@ -298,6 +298,19 @@ export default function WorkflowsPage() {
             <Plus className="h-4 w-4" />
             New Workflow
           </button>
+          {/* Backfill jump — admin-only. Endpoint auth is stricter
+              (getAdminUserId) so this button only surfaces for the
+              role that can actually use it. */}
+          {userRole === "admin" && (
+            <Link
+              href="/admin/workflows/backfill"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500 bg-white px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50"
+              title="Backfill workflows for legacy customers or paid location-services requests that never spawned"
+            >
+              <Package className="h-4 w-4" />
+              Backfill
+            </Link>
+          )}
         </div>
       </div>
 
