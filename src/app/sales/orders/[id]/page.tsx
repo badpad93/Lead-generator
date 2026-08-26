@@ -203,6 +203,33 @@ export default function OrderDetailPage() {
     setActionLoading("");
   }
 
+  async function handleSendToWorkflow() {
+    if (!confirm(
+      "Manually create a workflow from this order?\n\n" +
+      "Use this as a fallback if the automatic spawn didn't fire " +
+      "(e.g. QB webhook missed, or manual mark-paid predated the fix). " +
+      "Idempotent — if a workflow is already linked, nothing new is created.",
+    )) return;
+    setActionLoading("send_to_workflow");
+    try {
+      const res = await fetch(`/api/sales/orders/${id}/send-to-workflow`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || "Failed to send to workflow");
+      } else if (data.already_linked) {
+        alert(`This order is already linked to workflow ${data.workflow_number ?? data.workflow_id}.`);
+      } else {
+        alert(`Workflow ${data.workflow_number ?? data.workflow_id} created and linked.`);
+      }
+    } finally {
+      await fetchOrder();
+      setActionLoading("");
+    }
+  }
+
   async function handleSendRemainingBalance() {
     if (!confirm("Send the Location Services remaining balance invoice to the customer? This typically goes out once secured locations have been fulfilled.")) return;
     setActionLoading("send_remaining_balance");
@@ -741,6 +768,21 @@ export default function OrderDetailPage() {
                     {actionLoading === sa.action ? "..." : sa.label}
                   </button>
                 ))}
+                {/* Manual fallback for the auto-spawn path — only
+                    shows on location_services orders today since
+                    that's the type the send-to-workflow endpoint
+                    supports. Idempotent — clicking on an already-
+                    linked order returns the existing workflow. */}
+                {order.order_type === "location_services" && (
+                  <button
+                    onClick={handleSendToWorkflow}
+                    disabled={actionLoading === "send_to_workflow"}
+                    className="w-full rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors cursor-pointer disabled:opacity-50 bg-amber-600 hover:bg-amber-700"
+                    title="Manually create a workflow from this order — use as a fallback if the auto-spawn didn't fire"
+                  >
+                    {actionLoading === "send_to_workflow" ? "..." : "Send to Workflows"}
+                  </button>
+                )}
               </div>
             </div>
           )}
