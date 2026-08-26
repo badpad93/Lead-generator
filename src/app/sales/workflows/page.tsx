@@ -97,11 +97,15 @@ function filtersForView(savedView: string, search: string): Filters {
       return { ...EMPTY_FILTERS, search, status: "in_progress" };
     case "completed":
       return { ...EMPTY_FILTERS, search, status: "completed" };
-    default:
-      if (Object.hasOwn(TYPE_META, savedView)) {
-        return { ...EMPTY_FILTERS, search, workflowType: savedView };
-      }
+    case "all":
       return { ...EMPTY_FILTERS, search };
+    default:
+      // Any non-preset saved view IS a workflow_type filter — both
+      // built-in ids (ai_machine_fulfillment, coffee_service, …) and
+      // custom template types (custom:cold_calling, …) pass through
+      // untouched. Server-side accepts either via zod
+      // workflowTypeEnum.
+      return { ...EMPTY_FILTERS, search, workflowType: savedView };
   }
 }
 
@@ -120,7 +124,10 @@ export default function WorkflowsPage() {
     const unassigned = urlParams.get("unassigned");
     if (unassigned === "true") return "unassigned";
     const type = urlParams.get("workflowType");
-    if (type && Object.hasOwn(TYPE_META, type)) return type;
+    // Accept any workflowType — built-in or custom:xxx. The chip
+    // may not exist for it yet on first render (custom template list
+    // hydrates after mount), but the filter still works.
+    if (type) return type;
     return "all";
   })();
   const [savedView, setSavedView] = useState<string>(initialSavedView);
@@ -130,6 +137,43 @@ export default function WorkflowsPage() {
   const [userRole, setUserRole] = useState<string>("");
   const canOverride = ["admin", "director_of_sales", "market_leader"].includes(userRole);
   const [overriding, setOverriding] = useState<string | null>(null);
+  // Admin-defined custom templates. Loaded once on mount and merged
+  // into TYPE_META below so each custom workflow_type gets a real
+  // display label (the template title) instead of falling back to
+  // the raw "custom:xxx" key. Also drives the extra filter chips
+  // at the top of the list.
+  const [customTypes, setCustomTypes] = useState<{ workflow_type: string; title: string; category: string | null }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCustom() {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/admin/workflow-templates", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok || cancelled) return;
+      const data = await res.json();
+      const rows: Array<{ workflow_type: string; title: string; category: string | null; is_custom: boolean; active: boolean }> = data.templates ?? [];
+      setCustomTypes(
+        rows
+          .filter((t) => t.is_custom && t.active && t.workflow_type.startsWith("custom:"))
+          .map((t) => ({ workflow_type: t.workflow_type, title: t.title, category: t.category ?? null })),
+      );
+    }
+    loadCustom();
+    return () => { cancelled = true; };
+  }, []);
+  // Runtime-merged type metadata — built-ins from the module TYPE_META
+  // + every custom template we fetched. Used for row labels and the
+  // saved-view chip row.
+  const mergedTypeMeta = useMemo(() => {
+    const map: Record<string, { label: string; icon: typeof Package; team: string }> = { ...TYPE_META };
+    for (const t of customTypes) {
+      map[t.workflow_type] = { label: t.title, icon: Package, team: "custom" };
+    }
+    return map;
+  }, [customTypes]);
 
   const filters = useMemo(() => filtersForView(savedView, search), [savedView, search]);
 
@@ -283,6 +327,22 @@ export default function WorkflowsPage() {
             onClick={() => setSavedView(type)}
           />
         ))}
+        {/* Custom template types get their own chip row. Rendered
+            after built-ins so the layout order stays predictable
+            and grouped. */}
+        {customTypes.length > 0 && (
+          <>
+            <div className="w-px h-6 bg-gray-200 mx-1" />
+            {customTypes.map((t) => (
+              <SavedViewChip
+                key={t.workflow_type}
+                label={t.title}
+                active={savedView === t.workflow_type}
+                onClick={() => setSavedView(t.workflow_type)}
+              />
+            ))}
+          </>
+        )}
       </div>
 
       {/* Search + sort */}
@@ -357,6 +417,7 @@ export default function WorkflowsPage() {
                   canOverride={canOverride}
                   overriding={overriding === w.id}
                   onMarkPaid={() => markPaid(w.id, w.workflow_number)}
+                  typeMeta={mergedTypeMeta}
                 />
               ))
             )}
@@ -373,14 +434,21 @@ function WorkflowRowRender({
   canOverride,
   overriding,
   onMarkPaid,
+  typeMeta,
 }: {
   workflow: WorkflowRow;
   nowMs: number;
   canOverride: boolean;
   overriding: boolean;
   onMarkPaid: () => void;
+  typeMeta: Record<string, { label: string; icon: typeof Package; team: string }>;
 }) {
-  const meta = TYPE_META[workflow.workflow_type] ?? { label: workflow.workflow_type, icon: Package, team: "" };
+  // Prefer the merged map (built-ins + admin's custom templates) so
+  // custom-type rows render with the template's actual title rather
+  // than the ugly "custom:xxx" fallback.
+  const meta = typeMeta[workflow.workflow_type]
+    ?? TYPE_META[workflow.workflow_type]
+    ?? { label: humanizeCustomType(workflow.workflow_type), icon: Package, team: "" };
   const Icon = meta.icon;
   const status = STATUS_STYLE[workflow.overall_status] ?? STATUS_STYLE.not_started;
   const total = Number(workflow.quantity_purchased);
@@ -883,6 +951,21 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
       </div>
     </div>
   );
+}
+
+/**
+ * Fallback label for custom workflow types when the /api/admin/
+ * workflow-templates fetch hasn't hydrated yet (or the row was
+ * spawned from a since-deleted template). Turns "custom:cold_calling"
+ * into "Cold Calling" so the row is still legible.
+ */
+function humanizeCustomType(workflowType: string): string {
+  const bare = workflowType.startsWith("custom:") ? workflowType.slice("custom:".length) : workflowType;
+  return bare
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 function formatRelative(iso: string, nowMs: number): string {
