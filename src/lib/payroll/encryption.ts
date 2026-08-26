@@ -26,13 +26,20 @@ const IV_LEN = 12;  // 96 bits — recommended for GCM
 const KEY_VERSION = 1;
 
 let _cachedKey: Buffer | null = null;
+/** True when PAYROLL_ENCRYPTION_KEY is configured and valid. */
+export function isEncryptionConfigured(): boolean {
+  try {
+    return !!getMasterKey();
+  } catch {
+    return false;
+  }
+}
+
 function getMasterKey(): Buffer {
   if (_cachedKey) return _cachedKey;
   const raw = process.env.PAYROLL_ENCRYPTION_KEY;
   if (!raw) {
-    throw new Error(
-      "PAYROLL_ENCRYPTION_KEY env var is not set — refusing to persist plaintext payroll data.",
-    );
+    throw new Error("PAYROLL_ENCRYPTION_KEY env var is not set.");
   }
   let decoded: Buffer;
   try {

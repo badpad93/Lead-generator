@@ -114,7 +114,9 @@ export default function PayrollWizardPage() {
 
   // Draft form state (both admin steps display + worker inputs)
   const [form, setForm] = useState<WorkerDraft>({});
-  const [ssn, setSsn] = useState(""); const [ssn2, setSsn2] = useState(""); const [showSsn, setShowSsn] = useState(false);
+  // SSN input removed per product request — workers no longer enter
+  // their SSN through this packet. Employer collects it out-of-band
+  // (QuickBooks Workforce invite, offline form, etc.).
   const [tin, setTin] = useState("");
   const [routing, setRouting] = useState(""); const [routing2, setRouting2] = useState("");
   const [account, setAccount] = useState(""); const [account2, setAccount2] = useState(""); const [showAcct, setShowAcct] = useState(false);
@@ -138,8 +140,10 @@ export default function PayrollWizardPage() {
   const steps = state?.admin.classification === "1099_contractor" ? C1099_STEPS : W2_STEPS;
   const currentStep = steps[stepIndex];
 
+  const [warning, setWarning] = useState<string | null>(null);
   async function saveDraft(step: string, nonSensitive?: Record<string, unknown>, encrypted?: Record<string, string>): Promise<boolean> {
     setSaving(true);
+    setWarning(null);
     try {
       const res = await fetch(`/api/payroll/${token}/save-draft`, {
         method: "PATCH",
@@ -149,11 +153,13 @@ export default function PayrollWizardPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setError(json.error || `Save failed (${res.status})`); return false; }
       // Clear sensitive input state after successful save
-      if (encrypted?.ssn) setSsn(""), setSsn2("");
       if (encrypted?.tin) setTin("");
       if (encrypted?.["bank.routing"]) setRouting(""), setRouting2("");
       if (encrypted?.["bank.account"]) setAccount(""), setAccount2("");
       if (encrypted?.["w4.additional_withholding_cents"]) setAddlWithhold("");
+      if (Array.isArray(json.warnings) && json.warnings.length > 0) {
+        setWarning(json.warnings.join(" "));
+      }
       await load();
       return true;
     } finally { setSaving(false); }
@@ -176,15 +182,9 @@ export default function PayrollWizardPage() {
       if (!form.legal_first_name || !form.legal_last_name || !form.date_of_birth) {
         setError("Legal name and date of birth are required."); return false;
       }
-      if (state?.admin.classification === "w2_employee") {
-        if (ssn || ssn2) {
-          if (ssn !== ssn2) { setError("Social Security numbers don't match."); return false; }
-          if (!/^\d{9}$/.test(ssn.replace(/[^0-9]/g, ""))) { setError("SSN must be 9 digits."); return false; }
-          enc.ssn = ssn.replace(/[^0-9]/g, "");
-        } else if (!state?.saved_sensitive_keys.includes("ssn")) {
-          setError("Social Security number is required."); return false;
-        }
-      }
+      // SSN intentionally NOT collected in this packet — the
+      // employer captures it separately (e.g. QuickBooks Workforce
+      // invite). Wizard progresses without it.
       ns.legal_first_name = form.legal_first_name;
       ns.middle_name = form.middle_name;
       ns.legal_last_name = form.legal_last_name;
@@ -357,13 +357,11 @@ export default function PayrollWizardPage() {
             </TwoCol>
             <Field label="Mobile Phone" type="tel" autoComplete="tel" inputMode="tel" value={form.mobile_phone ?? ""} onChange={(v) => setForm({ ...form, mobile_phone: v })} />
             {state.admin.classification === "w2_employee" && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-amber-900"><ShieldCheck className="h-4 w-4" /> Social Security Number</div>
-                {savedKeys.has("ssn") ? (
-                  <div className="text-xs text-amber-800">On file. Enter a new value only if you need to replace it — otherwise leave blank and continue.</div>
-                ) : null}
-                <SensitiveField label="SSN"          value={ssn}  show={showSsn} onToggle={() => setShowSsn(!showSsn)} onChange={setSsn}  inputMode="numeric" />
-                <SensitiveField label="Confirm SSN"  value={ssn2} show={showSsn} onToggle={() => setShowSsn(!showSsn)} onChange={setSsn2} inputMode="numeric" />
+              <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+                <div className="font-semibold mb-1">About your Social Security Number</div>
+                <p className="text-xs">
+                  We do not collect your SSN through this packet. Your employer will collect it separately (typically via a QuickBooks Workforce invite or an offline W-4). No action needed from you here.
+                </p>
               </div>
             )}
           </>
@@ -529,7 +527,6 @@ export default function PayrollWizardPage() {
             <ReviewRow k="Address" v={form.address_street ? `${form.address_street}, ${form.address_city}, ${form.address_state} ${form.address_zip}` : "—"} />
             {state.admin.classification === "w2_employee" ? (
               <>
-                <ReviewRow k="SSN" v={form.ssn_last4 ? `***-**-${form.ssn_last4}` : "—"} />
                 <ReviewRow k="Filing Status" v={form.filing_status ?? "—"} />
               </>
             ) : (
@@ -555,6 +552,9 @@ export default function PayrollWizardPage() {
 
         {error && (
           <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>
+        )}
+        {warning && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{warning}</div>
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4">

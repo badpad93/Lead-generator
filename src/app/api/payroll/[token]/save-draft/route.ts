@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isTokenLive, resolveRawPayrollToken } from "@/lib/payroll/tokenLookup";
-import { encryptField, last4 } from "@/lib/payroll/encryption";
+import { encryptField, isEncryptionConfigured, last4 } from "@/lib/payroll/encryption";
 
 /**
  * PATCH /api/payroll/[token]/save-draft
@@ -89,39 +89,62 @@ export async function PATCH(
   // 2) Encrypt + store each sensitive field. Also write the last-4
   //    onto payroll_worker_details for masked display (never the
   //    full value). Never log the plaintext.
+  //
+  //    Encryption is soft-fail: when PAYROLL_ENCRYPTION_KEY isn't
+  //    configured, non-sensitive fields still save normally. The
+  //    response carries a `warnings` array so the wizard can inform
+  //    the worker instead of hitting a scary error page. Sensitive
+  //    values are dropped from memory as soon as this handler
+  //    returns — they aren't persisted anywhere in the
+  //    unencrypted state.
   const last4Patch: Record<string, unknown> = {};
-  for (const [key, rawVal] of Object.entries(encrypted)) {
-    if (!ENCRYPTED_ALLOWLIST.has(key)) continue;
-    if (typeof rawVal !== "string") continue;
-    const clean = rawVal.replace(/[^0-9A-Za-z]/g, "").trim();
-    if (!clean) continue;
-    let enc;
-    try {
-      enc = encryptField(clean);
-    } catch (encErr) {
-      console.error("[payroll.save-draft] encrypt failed:", encErr);
-      return NextResponse.json(
-        { error: "Server misconfiguration prevented saving this field. The platform team has been notified." },
-        { status: 500 },
-      );
-    }
-    await supabaseAdmin.from("payroll_encrypted").upsert(
-      {
-        profile_id: profileId,
-        field_key: key,
-        ciphertext: enc.ciphertext,
-        iv: enc.iv,
-        auth_tag: enc.auth_tag,
-        key_version: enc.key_version,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "profile_id,field_key" },
-    );
+  const warnings: string[] = [];
+  const encryptionOk = isEncryptionConfigured();
 
-    if (key === "ssn") last4Patch.ssn_last4 = last4(clean);
-    else if (key === "tin") last4Patch.tin_last4 = last4(clean);
-    else if (key === "bank.routing") last4Patch.routing_last4 = last4(clean);
-    else if (key === "bank.account") last4Patch.account_last4 = last4(clean);
+  if (!encryptionOk && Object.keys(encrypted).some((k) => ENCRYPTED_ALLOWLIST.has(k))) {
+    warnings.push(
+      "Sensitive fields (SSN / TIN / bank details) were not stored — payroll encryption is not yet configured on the server. Non-sensitive fields on this step were saved. Ask your payroll admin to complete server configuration, then re-enter these fields.",
+    );
+    console.warn(
+      "[payroll.save-draft] Encryption key missing; dropped sensitive fields for profile:",
+      profileId,
+    );
+  }
+
+  if (encryptionOk) {
+    for (const [key, rawVal] of Object.entries(encrypted)) {
+      if (!ENCRYPTED_ALLOWLIST.has(key)) continue;
+      if (typeof rawVal !== "string") continue;
+      const clean = rawVal.replace(/[^0-9A-Za-z]/g, "").trim();
+      if (!clean) continue;
+      let enc;
+      try {
+        enc = encryptField(clean);
+      } catch (encErr) {
+        console.error("[payroll.save-draft] encrypt failed:", encErr);
+        warnings.push(
+          `Could not securely save ${key}. Non-sensitive fields on this step were saved. Please try that field again after the platform team investigates.`,
+        );
+        continue;
+      }
+      await supabaseAdmin.from("payroll_encrypted").upsert(
+        {
+          profile_id: profileId,
+          field_key: key,
+          ciphertext: enc.ciphertext,
+          iv: enc.iv,
+          auth_tag: enc.auth_tag,
+          key_version: enc.key_version,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "profile_id,field_key" },
+      );
+
+      if (key === "ssn") last4Patch.ssn_last4 = last4(clean);
+      else if (key === "tin") last4Patch.tin_last4 = last4(clean);
+      else if (key === "bank.routing") last4Patch.routing_last4 = last4(clean);
+      else if (key === "bank.account") last4Patch.account_last4 = last4(clean);
+    }
   }
   if (Object.keys(last4Patch).length > 0) {
     await supabaseAdmin
@@ -147,10 +170,13 @@ export async function PATCH(
     metadata: {
       step,
       // ONLY the keys of sensitive fields we saved — never values.
-      sensitive_keys_saved: Object.keys(encrypted).filter((k) => ENCRYPTED_ALLOWLIST.has(k)),
+      sensitive_keys_saved: encryptionOk
+        ? Object.keys(encrypted).filter((k) => ENCRYPTED_ALLOWLIST.has(k))
+        : [],
       non_sensitive_keys_saved: Object.keys(filteredNS),
+      encryption_configured: encryptionOk,
     },
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, warnings });
 }

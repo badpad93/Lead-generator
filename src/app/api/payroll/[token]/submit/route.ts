@@ -59,7 +59,9 @@ export async function POST(
 
   if (profile.classification === "w2_employee") {
     if (!worker?.date_of_birth) missing.push("Date of birth");
-    if (!encKeys.has("ssn")) missing.push("Social Security number");
+    // SSN is intentionally NOT required in this packet — the
+    // employer collects it out-of-band (QuickBooks Workforce
+    // invite or offline W-4).
     if (!worker?.filing_status) missing.push("Federal filing status");
   } else if (profile.classification === "1099_contractor") {
     if (!worker?.federal_tax_class) missing.push("Federal tax classification");
