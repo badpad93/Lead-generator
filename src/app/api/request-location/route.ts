@@ -297,81 +297,17 @@ export async function POST(req: Request) {
     sendLocationRequestConfirmation({ to: email, name: contact_name })
       .catch((e) => console.error("[request-location] confirmation email error", e));
 
-    // Bridge to Workflows: if a profile already exists for this email,
-    // spawn the location_services workflow immediately with
-    // payment_status='partial' + deposit metadata so the customer sees
-    // it on their /account/workflows page as soon as they log in. If no
-    // profile exists yet, the workflow can be backfilled from
-    // /admin/workflows/backfill once the customer signs up.
-    try {
-      const { data: existingProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("id")
-        .ilike("email", email)
-        .maybeSingle();
-
-      if (existingProfile) {
-        const { getOrCreateWorkflow } = await import("@/lib/workflows/service");
-        // Placement fee assumption: standard $500/location Apex Placement Fee
-        // stacked on top of the $100/location deposit. Adjust in the
-        // workflow's metadata if pricing differs; the customer's Pay
-        // Balance flow just reads workflow.total_due_cents.
-        const totalDueCents = depositCents + machine_count * 50000;
-
-        await getOrCreateWorkflow({
-          customerId: existingProfile.id,
-          workflowType: "location_services",
-          sourceType: "location_request",
-          sourceId: lead.id,
-          locationRequestId: lead.id,
-          orderId: orderId ?? undefined,
-          productKey: "location_services",
-          productName: `Location Services — ${machine_count} location${machine_count > 1 ? "s" : ""}`,
-          quantityPurchased: machine_count,
-          paymentStatus: "partial",
-          primaryTeam: "locations",
-          startDate: new Date().toISOString(),
-          metadata: {
-            source: "request-location-deposit",
-            deposit_amount_cents: depositCents,
-            deposit_paid_cents: depositCents,
-            deposit_per_location_cents: DEPOSIT_CENTS_PER_LOCATION,
-            total_due_cents: totalDueCents,
-            // source_intake = exactly what the customer submitted, so
-            // whoever picks up the workflow sees the full request.
-            source_intake: {
-              business_name,
-              contact_name,
-              phone,
-              email,
-              address, // was previously dropped — bug fix
-              state,
-              zip_codes,
-              zip_code,
-              machine_count,
-              machine_type,
-              referring_sales_rep_name: referringRepName,
-            },
-          },
-          actorType: "system",
-        });
-
-        // Set the money columns via a targeted update — the service's
-        // metadata block is a jsonb sidecar, but total_due_cents /
-        // deposit_paid_cents are dedicated columns the UI reads.
-        await supabaseAdmin
-          .from("workflows")
-          .update({
-            deposit_paid_cents: depositCents,
-            total_due_cents: totalDueCents,
-          })
-          .eq("source_type", "location_request")
-          .eq("source_id", lead.id)
-          .eq("workflow_type", "location_services");
-      }
-    } catch (workflowErr) {
-      console.error("[request-location] workflow spawn failed:", workflowErr);
-    }
+    // Workflow spawn intentionally removed from this route. We no
+    // longer create a location_services workflow at intake — the
+    // spawn is deferred until the QuickBooks invoice actually
+    // clears. See src/lib/workflows/paymentSync.ts
+    // (syncWorkflowFromSalesOrderPaid + the location_services
+    // spawn helper) — when the QB webhook lands, the sales_order
+    // is matched, and if it's a location_services order with no
+    // workflow yet, one is created in the paid state and the
+    // marketplace bridge fires. Rationale: keeps the workflows
+    // queue clean of speculative requests where the deposit was
+    // never paid.
 
     if (fullInvoice.InvoiceLink) {
       return NextResponse.json({ url: fullInvoice.InvoiceLink });
