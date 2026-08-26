@@ -98,7 +98,7 @@ export async function advancePaymentStageForWorkflow(args: {
  * Idempotent: no-ops if a workflow is already linked to the order or
  * to the underlying lead (source_id).
  */
-async function spawnLocationServicesWorkflowFromPaidOrder(
+export async function spawnLocationServicesWorkflowFromPaidOrder(
   orderId: string,
 ): Promise<string | null> {
   const { data: order } = await supabaseAdmin
