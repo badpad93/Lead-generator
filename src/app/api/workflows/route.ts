@@ -82,14 +82,56 @@ export async function GET(req: NextRequest) {
   const { data, error, count } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Batch-fetch customer + assignee names for the returned page so
-  // the CRM table can show "who this workflow is for" and "who
-  // owns it" without an N+1 lookup. One profiles round-trip covers
-  // both roles since customer_id and assigned_user_id both point at
-  // profiles.id.
   const rows = data ?? [];
+
+  // Collaborator fallback: workflows.assigned_user_id is only set
+  // when the assignment is role='primary_owner'. Other roles
+  // (sales_rep, location_specialist, financing_coordinator, etc.)
+  // sit in workflow_assignments without touching the workflow row.
+  // We look up the active assignments for every workflow on this
+  // page so the "Assigned" column reflects real ownership rather
+  // than falsely showing "Unassigned" when a collaborator exists.
+  const workflowIds = rows.map((r) => r.id);
+  const assignmentsByWorkflow: Record<string, Array<{ user_id: string; role: string; assigned_at: string }>> = {};
+  if (workflowIds.length > 0) {
+    const { data: assignRows } = await supabaseAdmin
+      .from("workflow_assignments")
+      .select("workflow_id, user_id, role, assigned_at")
+      .in("workflow_id", workflowIds)
+      .eq("active", true)
+      .order("assigned_at", { ascending: true });
+    for (const a of assignRows ?? []) {
+      if (!a.workflow_id || !a.user_id) continue;
+      if (!assignmentsByWorkflow[a.workflow_id]) assignmentsByWorkflow[a.workflow_id] = [];
+      assignmentsByWorkflow[a.workflow_id].push({
+        user_id: a.user_id,
+        role: a.role,
+        assigned_at: a.assigned_at,
+      });
+    }
+  }
+
+  // Effective assignee per workflow: prefer workflows.assigned_user_id
+  // (the historical primary), then the first primary_owner assignment,
+  // then the earliest active assignment of any role.
+  function effectiveAssignee(r: typeof rows[number]): {
+    userId: string | null;
+    role: string | null;
+  } {
+    if (r.assigned_user_id) return { userId: r.assigned_user_id, role: "primary_owner" };
+    const assigns = assignmentsByWorkflow[r.id] ?? [];
+    const primary = assigns.find((a) => a.role === "primary_owner");
+    if (primary) return { userId: primary.user_id, role: primary.role };
+    const first = assigns[0];
+    if (first) return { userId: first.user_id, role: first.role };
+    return { userId: null, role: null };
+  }
+
+  // Batch-fetch customer + effective-assignee names in one round trip.
   const customerIds = Array.from(new Set(rows.map((r) => r.customer_id).filter(Boolean)));
-  const assigneeIds = Array.from(new Set(rows.map((r) => r.assigned_user_id).filter(Boolean)));
+  const assigneeIds = Array.from(
+    new Set(rows.map((r) => effectiveAssignee(r).userId).filter((v): v is string => !!v)),
+  );
   const profileIds = Array.from(new Set([...customerIds, ...assigneeIds]));
   const profileMap: Record<string, { full_name: string | null; email: string | null }> = {};
   if (profileIds.length > 0) {
@@ -102,13 +144,21 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const workflowsWithCustomer = rows.map((r) => ({
-    ...r,
-    customer_name: profileMap[r.customer_id]?.full_name ?? null,
-    customer_email: profileMap[r.customer_id]?.email ?? null,
-    assigned_user_name: r.assigned_user_id ? profileMap[r.assigned_user_id]?.full_name ?? null : null,
-    assigned_user_email: r.assigned_user_id ? profileMap[r.assigned_user_id]?.email ?? null : null,
-  }));
+  const workflowsWithCustomer = rows.map((r) => {
+    const eff = effectiveAssignee(r);
+    return {
+      ...r,
+      customer_name: profileMap[r.customer_id]?.full_name ?? null,
+      customer_email: profileMap[r.customer_id]?.email ?? null,
+      // Historical: keep the column pointing at the primary. UI
+      // reads assigned_user_name/email for display, so downstream
+      // consumers don't need to know about the fallback.
+      assigned_user_name: eff.userId ? profileMap[eff.userId]?.full_name ?? null : null,
+      assigned_user_email: eff.userId ? profileMap[eff.userId]?.email ?? null : null,
+      assigned_user_id_effective: eff.userId,
+      assigned_user_role: eff.role,
+    };
+  });
 
   return NextResponse.json({
     workflows: workflowsWithCustomer,
