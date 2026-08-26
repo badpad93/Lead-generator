@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
-import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus, Trash2, Send, FileSignature, ClipboardCheck, Key } from "lucide-react";
+import { Users, Loader2, Search, CheckCircle2, Clock, UserX, AlertTriangle, Plus, X, Eye, EyeOff, UserPlus, Trash2, Send, FileSignature, ClipboardCheck, Key, Coins } from "lucide-react";
 import SendCredentialsModal from "./SendCredentialsModal";
+import AddToPayrollModal from "./AddToPayrollModal";
 
 interface TeamMember {
   id: string;
@@ -80,6 +81,9 @@ export default function TeamPage() {
   // Send Credentials modal — one open at a time, keyed by member.
   const [credentialsTarget, setCredentialsTarget] = useState<TeamMember | null>(null);
   const [credentialsToast, setCredentialsToast] = useState<string | null>(null);
+  // Add to Payroll modal — one open at a time, keyed by member.
+  const [payrollTarget, setPayrollTarget] = useState<TeamMember | null>(null);
+  const [payrollToast, setPayrollToast] = useState<string | null>(null);
 
   const loadTeamMembers = useCallback(async (t: string) => {
     const res = await fetch("/api/sales/users", { headers: { Authorization: `Bearer ${t}` } });
@@ -482,6 +486,15 @@ export default function TeamPage() {
                         >
                           <Key className="h-4 w-4" />
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setPayrollTarget(m)}
+                          className="inline-flex items-center gap-1 rounded-md p-1.5 text-gray-300 hover:bg-green-50 hover:text-green-600 transition-colors"
+                          title={`Add ${m.full_name || m.email} to payroll`}
+                          aria-label={`Add ${m.full_name || m.email} to payroll`}
+                        >
+                          <Coins className="h-4 w-4" />
+                        </button>
                         {m.id !== currentUserId && (
                           <button
                             type="button"
@@ -777,6 +790,28 @@ export default function TeamPage() {
           className="fixed bottom-6 right-6 z-[10000] max-w-sm rounded-lg border border-emerald-200 bg-white px-4 py-3 text-sm text-emerald-800 shadow-lg"
         >
           {credentialsToast}
+        </div>
+      )}
+
+      {payrollTarget && (
+        <AddToPayrollModal
+          memberId={payrollTarget.id}
+          memberName={payrollTarget.full_name || payrollTarget.email}
+          memberEmail={payrollTarget.email}
+          token={token}
+          onClose={() => setPayrollTarget(null)}
+          onSent={() => {
+            setPayrollToast(`Payroll invitation sent to ${payrollTarget?.full_name || payrollTarget?.email}.`);
+            window.setTimeout(() => setPayrollToast(null), 6_000);
+          }}
+        />
+      )}
+      {payrollToast && (
+        <div
+          role="status"
+          className="fixed bottom-6 right-6 z-[10000] max-w-sm rounded-lg border border-emerald-200 bg-white px-4 py-3 text-sm text-emerald-800 shadow-lg"
+        >
+          {payrollToast}
         </div>
       )}
     </div>

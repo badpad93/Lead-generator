@@ -50,6 +50,7 @@ const PUBLIC_PREFIXES = [
   "/auth/",                  // Supabase OAuth / email-callback landing
   "/onboarding/",            // contractor onboarding — /onboarding/{token}
   "/sign/",                  // agreement signing — /sign/{token}
+  "/payroll/",               // payroll onboarding — /payroll/{token}
   "/placement/onboarding",   // placement provider self-serve intake
   "/coffee/claim",           // token-based coffee brewer claim
   "/coffee/guest-checkout",
