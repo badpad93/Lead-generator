@@ -106,6 +106,31 @@ export async function POST(req: Request) {
     }
   }
 
+  // Auto-assign to the sales rep with the lightest active-workflow
+  // load when the customer didn't come in through a specific
+  // referral. Tie-break skips the last-assigned rep for this order
+  // type so intake distributes evenly instead of hammering one rep.
+  // Falls back to null (unassigned) when there are no eligible reps.
+  let autoAssignedRep: string | null = null;
+  let autoAssignedRepName: string | null = null;
+  if (!referringRep) {
+    try {
+      const { pickLeastLoadedSalesRep } = await import("@/lib/salesAutoAssign");
+      const pick = await pickLeastLoadedSalesRep({ orderType: "location_services" });
+      if (pick) {
+        autoAssignedRep = pick.userId;
+        autoAssignedRepName = pick.fullName;
+        console.log(
+          `[request-location] auto-assigned to ${pick.email} (${pick.userId}): ${pick.reason}`,
+        );
+      }
+    } catch (assignErr) {
+      console.error("[request-location] auto-assign failed:", assignErr);
+    }
+  }
+  const ownerRep = referringRep ?? autoAssignedRep;
+  const ownerRepName = referringRepName ?? autoAssignedRepName;
+
   // Duplicate-business guard intentionally removed — operators
   // routinely place multiple, separate location-services requests
   // (different addresses, different ZIP sets, different machine
@@ -125,9 +150,12 @@ export async function POST(req: Request) {
     machine_count,
     status: "new",
     source: referringRep ? "request-location-referral" : "request-location",
-    notes: `Location services request — ${machine_count} ${machine_type} machine(s) requested for ZIP(s) ${zip_code} in ${state}${referringRepName ? ` (referred by ${referringRepName})` : ""}`,
+    notes: `Location services request — ${machine_count} ${machine_type} machine(s) requested for ZIP(s) ${zip_code} in ${state}${referringRepName ? ` (referred by ${referringRepName})` : autoAssignedRepName ? ` (auto-assigned to ${autoAssignedRepName})` : ""}`,
+    // created_by stays honest — only set to the rep when the intake
+    // came from THEIR referral link. Auto-assigned rows leave
+    // created_by null; ownership lives on assigned_to.
     created_by: referringRep,
-    assigned_to: referringRep,
+    assigned_to: ownerRep,
   };
 
   // Try with deposit + machine_type columns (deposit_* needs migration
@@ -181,7 +209,7 @@ export async function POST(req: Request) {
       email,
       address,
       notes: `Auto-created from location services request — ${machine_count} machine(s), ZIP(s) ${zip_code}, ${state}`,
-      assigned_to: referringRep,
+      assigned_to: ownerRep,
       created_by: referringRep,
     });
     accountId = account?.id ?? null;
@@ -189,11 +217,18 @@ export async function POST(req: Request) {
     console.error("[request-location] account creation error", accountError);
   }
 
-  // Create the sales_orders row NOW so the request lives in both
-  // Orders and Workflows. Order stays 'partial' payment until the
-  // remaining balance is collected via the customer Pay Balance flow.
-  // $100 deposit per location + $500 placement fee per location — so
-  // total per location is $600 and totals scale linearly with count.
+  // Create the sales_orders row NOW so the request shows up in the
+  // Orders queue immediately (document_type='order', order_type=
+  // 'location_services'). It starts as payment_status='unpaid' —
+  // nothing has been paid at this point, only the QB invoice has
+  // been sent. The QB invoice.paid webhook (see webhooks/quickbooks
+  // + workflows/paymentSync) flips it to 'paid' when the deposit
+  // clears, at which point the location_services workflow is
+  // auto-spawned (see spawnLocationServicesWorkflowFromPaidOrder).
+  //
+  // Pricing: $100 deposit per location + $500 placement fee per
+  // location — so total per location is $600 and totals scale
+  // linearly with count.
   let orderId: string | null = null;
   const totalValueDollars = (depositCents + machine_count * 50000) / 100;
   if (accountId) {
@@ -203,8 +238,12 @@ export async function POST(req: Request) {
         .insert({
           account_id: accountId,
           lead_id: lead.id,
+          // created_by stays honest — null for non-referral intake.
+          // assigned_rep_id gets the referrer OR the auto-picked
+          // lightest-load rep so the row shows up in someone's
+          // Orders queue immediately.
           created_by: referringRep,
-          assigned_rep_id: referringRep,
+          assigned_rep_id: ownerRep,
           document_type: "order",
           order_type: "location_services",
           order_status: "sent",
@@ -213,7 +252,10 @@ export async function POST(req: Request) {
           deposit_amount: depositDollars,
           deposit_paid: false,
           remaining_balance: totalValueDollars - depositDollars,
-          payment_status: "partial",
+          // 'unpaid' at intake — nothing has been paid yet. The QB
+          // invoice.paid webhook flips this to 'paid' when the
+          // deposit clears and spawns the workflow at that point.
+          payment_status: "unpaid",
           invoice_status: "sent",
           agreement_status: "not_sent",
           fulfillment_status: "pending",
