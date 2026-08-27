@@ -14,6 +14,9 @@ interface FormState {
   zip_codes: string[];
   machine_count: string;
   machine_type: string;
+  travel_radius_miles: string;
+  excluded_industries: string;
+  meeting_availability: string;
 }
 
 const initial: FormState = {
@@ -26,6 +29,9 @@ const initial: FormState = {
   zip_codes: [""],
   machine_count: "",
   machine_type: "",
+  travel_radius_miles: "",
+  excluded_industries: "",
+  meeting_availability: "",
 };
 
 // The five product lines the operator can request a location for.
@@ -141,6 +147,9 @@ function RequestLocationInner() {
           zip_codes: validZips,
           machine_count: Number(form.machine_count),
           machine_type: form.machine_type,
+          travel_radius_miles: form.travel_radius_miles ? Number(form.travel_radius_miles) : null,
+          excluded_industries: form.excluded_industries || null,
+          meeting_availability: form.meeting_availability || null,
           ref: ref || undefined,
         }),
       });
@@ -200,6 +209,15 @@ function RequestLocationInner() {
                     <tr><td className="py-1.5 pr-4 text-gray-500">Machines Requested</td><td className="py-1.5 font-medium text-gray-900">{receiptData.machine_count}</td></tr>
                     {receiptData.machine_type && (
                       <tr><td className="py-1.5 pr-4 text-gray-500">Machine Type</td><td className="py-1.5 text-gray-900">{receiptData.machine_type}</td></tr>
+                    )}
+                    {receiptData.travel_radius_miles && (
+                      <tr><td className="py-1.5 pr-4 text-gray-500">Travel Radius</td><td className="py-1.5 text-gray-900">{receiptData.travel_radius_miles} mi</td></tr>
+                    )}
+                    {receiptData.excluded_industries && (
+                      <tr><td className="py-1.5 pr-4 text-gray-500">Industries to Avoid</td><td className="py-1.5 text-gray-900">{receiptData.excluded_industries}</td></tr>
+                    )}
+                    {receiptData.meeting_availability && (
+                      <tr><td className="py-1.5 pr-4 text-gray-500">Availability</td><td className="py-1.5 text-gray-900">{receiptData.meeting_availability}</td></tr>
                     )}
                     <tr className="border-t border-gray-200">
                       <td className="pt-3 pr-4 text-gray-500 font-medium">Deposit Paid</td>
@@ -317,6 +335,46 @@ function RequestLocationInner() {
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-black-primary">
+                How far can you travel for a location? <span className="text-black-primary/40 font-normal">(miles)</span>
+              </span>
+              <input
+                type="number"
+                min={0}
+                value={form.travel_radius_miles}
+                onChange={(e) => update("travel_radius_miles", e.target.value)}
+                placeholder="e.g. 25"
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black-primary outline-none transition-colors focus:border-green-primary focus:ring-2 focus:ring-green-100"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-black-primary">
+                Are there any industries you don&apos;t want to work in? <span className="text-black-primary/40 font-normal">(optional)</span>
+              </span>
+              <textarea
+                rows={2}
+                value={form.excluded_industries}
+                onChange={(e) => update("excluded_industries", e.target.value)}
+                placeholder="e.g. bars, tobacco shops, adult retail"
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black-primary outline-none transition-colors focus:border-green-primary focus:ring-2 focus:ring-green-100"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-black-primary">
+                General availability for meetings <span className="text-black-primary/40 font-normal">(optional)</span>
+              </span>
+              <textarea
+                rows={2}
+                value={form.meeting_availability}
+                onChange={(e) => update("meeting_availability", e.target.value)}
+                placeholder="e.g. Weekday mornings before 11am, or any weekend"
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black-primary outline-none transition-colors focus:border-green-primary focus:ring-2 focus:ring-green-100"
+              />
             </label>
 
             <div>

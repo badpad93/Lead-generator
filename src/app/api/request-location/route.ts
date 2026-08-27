@@ -45,6 +45,9 @@ export async function POST(req: Request) {
   const state = clean(body.state);
   const machine_count_raw = body.machine_count;
   const machine_type_raw = body.machine_type;
+  const travel_radius_raw = body.travel_radius_miles;
+  const excluded_industries = clean(body.excluded_industries);
+  const meeting_availability = clean(body.meeting_availability);
 
   const rawZips = Array.isArray(body.zip_codes) ? body.zip_codes : body.zip_code ? [body.zip_code] : [];
   const zip_codes: string[] = rawZips.map((z: unknown) => (typeof z === "string" ? z.trim() : "")).filter(Boolean);
@@ -87,6 +90,20 @@ export async function POST(req: Request) {
     );
   }
   const machine_type: MachineType = machine_type_raw;
+
+  // Travel radius is optional — accept null/empty, and reject
+  // non-integer / negative values.
+  let travel_radius_miles: number | null = null;
+  if (travel_radius_raw != null && travel_radius_raw !== "") {
+    const n = Number(travel_radius_raw);
+    if (!Number.isFinite(n) || n < 0) {
+      return NextResponse.json(
+        { error: "Travel radius must be a non-negative number of miles." },
+        { status: 400 }
+      );
+    }
+    travel_radius_miles = Math.round(n);
+  }
 
   const depositCents = machine_count * DEPOSIT_CENTS_PER_LOCATION;
   const depositDollars = depositCents / 100;
@@ -150,18 +167,27 @@ export async function POST(req: Request) {
     machine_count,
     status: "new",
     source: referringRep ? "request-location-referral" : "request-location",
-    notes: `Location services request — ${machine_count} ${machine_type} machine(s) requested for ZIP(s) ${zip_code} in ${state}${referringRepName ? ` (referred by ${referringRepName})` : autoAssignedRepName ? ` (auto-assigned to ${autoAssignedRepName})` : ""}`,
+    notes: [
+      `Location services request — ${machine_count} ${machine_type} machine(s) requested for ZIP(s) ${zip_code} in ${state}${referringRepName ? ` (referred by ${referringRepName})` : autoAssignedRepName ? ` (auto-assigned to ${autoAssignedRepName})` : ""}`,
+      travel_radius_miles != null ? `Willing to travel up to ${travel_radius_miles} mi.` : null,
+      excluded_industries ? `Industries to avoid: ${excluded_industries}.` : null,
+      meeting_availability ? `Availability: ${meeting_availability}.` : null,
+    ].filter(Boolean).join(" "),
     // created_by stays honest — only set to the rep when the intake
     // came from THEIR referral link. Auto-assigned rows leave
     // created_by null; ownership lives on assigned_to.
     created_by: referringRep,
     assigned_to: ownerRep,
+    travel_radius_miles,
+    excluded_industries: excluded_industries || null,
+    meeting_availability: meeting_availability || null,
   };
 
-  // Try with deposit + machine_type columns (deposit_* needs migration
-  // 081, machine_type needs migration 152). Failures on either column
-  // fall back to smaller insert shapes so an old DB still accepts the
-  // request instead of a hard 500.
+  // Try with deposit + machine_type + intake-preferences columns
+  // (deposit_* needs migration 081, machine_type needs 152,
+  // travel_radius_miles/excluded_industries/meeting_availability
+  // need 158). Failures on any column fall back to smaller insert
+  // shapes so an older DB still accepts the request.
   let { data: lead, error: dbError } = await supabaseAdmin.from("sales_leads").insert({
     ...leadRow,
     deposit_status: "pending",
@@ -169,11 +195,38 @@ export async function POST(req: Request) {
     machine_type,
   }).select("id").single();
 
-  // Fallback: machine_type column missing (migration 152 not run).
+  // Fallback 1: intake-preference columns missing (migration 158 not run).
+  if (dbError && /travel_radius_miles|excluded_industries|meeting_availability/.test(dbError.message ?? "")) {
+    console.warn("[request-location] intake-preference columns missing, inserting without them");
+    const {
+      travel_radius_miles: _tr,
+      excluded_industries: _ei,
+      meeting_availability: _ma,
+      ...leadRowSansPrefs
+    } = leadRow;
+    void _tr; void _ei; void _ma;
+    const retry = await supabaseAdmin.from("sales_leads").insert({
+      ...leadRowSansPrefs,
+      deposit_status: "pending",
+      deposit_amount_cents: depositCents,
+      machine_type,
+    }).select("id").single();
+    lead = retry.data;
+    dbError = retry.error;
+  }
+
+  // Fallback 2: machine_type column missing (migration 152 not run).
   if (dbError && dbError.message?.includes("machine_type")) {
     console.warn("[request-location] machine_type column missing, inserting without it");
+    const {
+      travel_radius_miles: _tr2,
+      excluded_industries: _ei2,
+      meeting_availability: _ma2,
+      ...leadRowSansPrefs
+    } = leadRow;
+    void _tr2; void _ei2; void _ma2;
     const retry = await supabaseAdmin.from("sales_leads").insert({
-      ...leadRow,
+      ...leadRowSansPrefs,
       deposit_status: "pending",
       deposit_amount_cents: depositCents,
     }).select("id").single();
@@ -343,6 +396,7 @@ export async function POST(req: Request) {
     // Send admin notification email
     sendAdminNotification({
       business_name, contact_name, phone, email, address, state, zip_code, machine_count, machine_type,
+      travel_radius_miles, excluded_industries, meeting_availability,
       depositDollars,
     }).catch((e) => console.error("[request-location] email error", e));
 
@@ -396,9 +450,12 @@ async function sendAdminNotification(params: {
   zip_code: string;
   machine_count: number;
   machine_type: string;
+  travel_radius_miles: number | null;
+  excluded_industries: string;
+  meeting_availability: string;
   depositDollars: number;
 }) {
-  const { business_name, contact_name, phone, email, address, state, zip_code, machine_count, machine_type, depositDollars } = params;
+  const { business_name, contact_name, phone, email, address, state, zip_code, machine_count, machine_type, travel_radius_miles, excluded_industries, meeting_availability, depositDollars } = params;
   const resend = new Resend(process.env.RESEND_API_KEY);
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
@@ -416,6 +473,9 @@ async function sendAdminNotification(params: {
         <tr><td style="padding:6px 0;color:#6b7280;">ZIP Code(s)</td><td style="padding:6px 0;color:#111827;">${zip_code}</td></tr>
         <tr><td style="padding:6px 0;color:#6b7280;">Machines Requested</td><td style="padding:6px 0;color:#111827;font-weight:600;">${machine_count}</td></tr>
         <tr><td style="padding:6px 0;color:#6b7280;">Machine Type</td><td style="padding:6px 0;color:#111827;font-weight:600;">${machine_type}</td></tr>
+        ${travel_radius_miles != null ? `<tr><td style="padding:6px 0;color:#6b7280;">Travel Radius</td><td style="padding:6px 0;color:#111827;">${travel_radius_miles} mi</td></tr>` : ""}
+        ${excluded_industries ? `<tr><td style="padding:6px 0;color:#6b7280;">Industries to Avoid</td><td style="padding:6px 0;color:#111827;">${excluded_industries}</td></tr>` : ""}
+        ${meeting_availability ? `<tr><td style="padding:6px 0;color:#6b7280;">Availability</td><td style="padding:6px 0;color:#111827;">${meeting_availability}</td></tr>` : ""}
       </table>
     </div>
   `;
