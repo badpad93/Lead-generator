@@ -12,6 +12,8 @@ const INDUSTRIES = [
   "electrical supply stores", "vocational schools", "universities",
   "cosmetology schools", "trucking schools", "nursing schools",
   "barbershops", "car washes", "laundromats",
+  "golf simulators", "golf simulator lounges", "indoor golf centers",
+  "golf entertainment venues", "topgolf",
 ];
 
 const US_STATES = [
