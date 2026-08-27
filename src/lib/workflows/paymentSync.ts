@@ -150,7 +150,7 @@ export async function spawnLocationServicesWorkflowFromPaidOrderDetailed(
   const { data: lead } = order.lead_id
     ? await supabaseAdmin
         .from("sales_leads")
-        .select("id, business_name, contact_name, phone, email, address, state, zip_code, machine_count, machine_type, assigned_to")
+        .select("id, business_name, contact_name, phone, email, address, state, zip_code, machine_count, machine_type, travel_radius_miles, excluded_industries, meeting_availability, assigned_to")
         .eq("id", order.lead_id)
         .maybeSingle()
     : { data: null };
@@ -285,6 +285,9 @@ export async function spawnLocationServicesWorkflowFromPaidOrderDetailed(
           zip_code: lead?.zip_code ?? null,
           machine_count: machineCount,
           machine_type: lead?.machine_type ?? null,
+          travel_radius_miles: (lead as { travel_radius_miles?: number | null } | null)?.travel_radius_miles ?? null,
+          excluded_industries: (lead as { excluded_industries?: string | null } | null)?.excluded_industries ?? null,
+          meeting_availability: (lead as { meeting_availability?: string | null } | null)?.meeting_availability ?? null,
           referring_sales_rep_name: referringRepName,
         },
       },
