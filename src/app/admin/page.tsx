@@ -466,9 +466,14 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
       ) : users.length === 0 ? (
         <p className="py-8 text-center text-sm text-black-primary/40">No users found</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-100">
+        // Cap the users list at a scrollable height so long user lists
+        // stay reachable without pushing the rest of the admin panel
+        // off-screen. Sticky thead keeps column labels visible while
+        // scrolling; overflow-auto handles both axes so wide + tall
+        // tables both work.
+        <div className="max-h-[calc(100vh-320px)] min-h-[240px] overflow-auto rounded-xl border border-gray-100">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-100 bg-gray-50/50">
+            <thead className="sticky top-0 z-10 border-b border-gray-100 bg-gray-50 shadow-sm">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Name</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Email</th>
