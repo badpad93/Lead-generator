@@ -289,7 +289,7 @@ export default function CoffeeAgreementPage() {
                 disabled={pendingCountersign}
                 className="mt-0.5"
               />
-              <span>I acknowledge <strong>installation, service, and day-to-day upkeep</strong> responsibilities as set out in section 8.</span>
+              <span>I acknowledge that <strong>Customer pays all shipping, installation, and service costs</strong>, and that on termination I must ship the Equipment back at my expense within <strong>15 days</strong> of the termination date.</span>
             </label>
           </div>
 

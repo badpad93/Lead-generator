@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
-import { signAsProvider, getOrStartAgreement } from "@/lib/placementAgreements";
+import { signAsProvider, getOrStartAgreement, getActiveTemplate } from "@/lib/placementAgreements";
+import { generateCoffeeAgreementPdf } from "@/lib/pdf/coffeeAgreementPdf";
 
 /**
  * POST /api/coffee/agreement/sign
@@ -120,12 +121,87 @@ export async function POST(req: NextRequest) {
       console.error("[coffee.agreement.sign] profile grant failed:", e);
     }
 
-    // Notify admin so they know to countersign.
+    // Generate a customer-signed PDF (countersign fields left null — the
+    // fully-executed PDF with Apex countersignature is produced later by
+    // the countersign endpoint). We attach this to BOTH the admin
+    // notification and the customer's confirmation so the customer walks
+    // away with an immediate copy of what they just signed. Non-fatal —
+    // signing itself has already succeeded.
+    let signedPdfBytes: Uint8Array | null = null;
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
+      const template = await getActiveTemplate("coffee_supply");
+      if (template) {
+        signedPdfBytes = await generateCoffeeAgreementPdf({
+          template_content_html: template.content_html,
+          template_title: template.title,
+          template_version: template.version,
+          template_effective_date: template.effective_date,
+          agreement_id: updated.id,
+          metadata: {
+            customer_name: customerName,
+            customer_address: customerAddress,
+            num_machines: numMachines,
+            authorized_representative_name: authRepName,
+            authorized_representative_title: authRepTitle,
+            ack_exclusive_supply: true,
+            ack_minimum_purchase: true,
+            ack_installation_maintenance: true,
+          },
+          signature: {
+            provider_typed_name: typedName,
+            provider_email: profile.email,
+            provider_signed_at_iso: updated.provider_signed_at ?? new Date().toISOString(),
+            provider_ip: ip,
+            provider_consent_esign: true,
+            countersigner_name: null,
+            countersigner_email: null,
+            countersigner_at_iso: null,
+          },
+        });
+      }
+    } catch (pdfErr) {
+      console.error("[coffee.agreement.sign] PDF gen failed:", pdfErr);
+    }
+
+    const resendClient = new Resend(process.env.RESEND_API_KEY);
+    const from = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
+    const pdfAttachment = signedPdfBytes
+      ? [{
+          filename: `Coffee-Supply-Agreement-${customerName.replace(/[^A-Za-z0-9]+/g, "-")}.pdf`,
+          content: Buffer.from(signedPdfBytes).toString("base64"),
+        }]
+      : undefined;
+
+    // Customer confirmation — the on-file email receives a copy of the
+    // signed agreement immediately.
+    if (profile.email) {
+      try {
+        await resendClient.emails.send({
+          from,
+          to: profile.email,
+          subject: `Your signed Coffee Supply Agreement — copy attached`,
+          html: `
+            <p>Thanks for signing the Equipment Loan &amp; Beverage Supply Agreement.</p>
+            <p>Your signed copy is attached to this email for your records. You can start placing coffee orders right away — Apex AI Vending will countersign and send the fully-executed copy shortly.</p>
+            <p><strong>Customer:</strong> ${escapeHtml(customerName)}<br />
+               <strong>Address on file:</strong> ${escapeHtml(customerAddress)}<br />
+               <strong>Number of machines:</strong> ${numMachines}<br />
+               <strong>Authorized representative:</strong> ${escapeHtml(authRepName)} (${escapeHtml(authRepTitle)})<br />
+               <strong>Signed at:</strong> ${escapeHtml(updated.provider_signed_at || "")}</p>
+            <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com"}/coffee" style="display:inline-block;background:#16a34a;color:#ffffff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;">Start ordering</a></p>
+          `,
+          attachments: pdfAttachment,
+        });
+      } catch (e) {
+        console.error("[coffee.agreement.sign] customer notification failed:", e);
+      }
+    }
+
+    // Admin notification — same PDF attached so admin has the signed
+    // record in the inbox before countersigning.
+    try {
       const adminInbox = process.env.COFFEE_ADMIN_EMAIL || "james@apexaivending.com";
-      const from = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
-      await resend.emails.send({
+      await resendClient.emails.send({
         from,
         to: adminInbox,
         subject: `Coffee Supply Agreement signed by ${customerName} — countersign needed`,
@@ -139,6 +215,7 @@ export async function POST(req: NextRequest) {
           <p><strong>Typed name:</strong> ${escapeHtml(typedName)}</p>
           <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com"}/admin/coffee/agreements">Open the coffee agreements queue →</a></p>
         `,
+        attachments: pdfAttachment,
       });
     } catch (e) {
       console.error("[coffee.agreement.sign] admin notification failed:", e);

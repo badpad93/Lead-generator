@@ -63,6 +63,12 @@ function CheckoutContent() {
     notes: "",
   });
   const [billingSameAsShipping, setBillingSameAsShipping] = useState(false);
+  // Shipping address mode:
+  //   "default" — mirror whatever is on the profile (address on file).
+  //   "custom"  — enter a one-off address for this order only.
+  // The customer's profile is unaffected either way; this only controls
+  // what ships on THIS order.
+  const [shippingMode, setShippingMode] = useState<"default" | "custom">("default");
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -306,35 +312,94 @@ function CheckoutContent() {
       <form onSubmit={handleSubmit} className="mt-8 grid gap-8 lg:grid-cols-5">
         <div className="lg:col-span-3 space-y-6">
           <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Shipping Information</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <h2 className="text-lg font-bold text-gray-900">Shipping Information</h2>
+            </div>
+
+            {/* Default vs custom address selector. Default = whatever
+                is on file for the signed-in account (pulled from profile
+                on init). Custom = one-off address for THIS order only. */}
+            <div className="mb-4 grid gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3 sm:grid-cols-2">
+              <label className={`flex cursor-pointer items-start gap-2 rounded-lg p-2 text-sm transition-colors ${
+                shippingMode === "default" ? "bg-white ring-2 ring-green-600" : "hover:bg-white"
+              }`}>
+                <input
+                  type="radio"
+                  name="shipping_mode"
+                  value="default"
+                  checked={shippingMode === "default"}
+                  onChange={() => {
+                    setShippingMode("default");
+                    if (profile) {
+                      setForm((prev) => ({
+                        ...prev,
+                        shipping_business_name: profile.company_name || "",
+                        shipping_name: profile.full_name || "",
+                        shipping_address: profile.address || "",
+                        shipping_city: profile.city || "",
+                        shipping_state: profile.state || "",
+                        shipping_zip: profile.zip || "",
+                        shipping_phone: profile.phone || "",
+                      }));
+                    }
+                  }}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-semibold text-gray-900">Ship to default address</span>
+                  <span className="mt-0.5 block text-xs text-gray-500">
+                    {profile?.address
+                      ? `${profile.address}, ${profile.city || ""} ${profile.state || ""} ${profile.zip || ""}`.trim()
+                      : "Address on file for this account"}
+                  </span>
+                </span>
+              </label>
+              <label className={`flex cursor-pointer items-start gap-2 rounded-lg p-2 text-sm transition-colors ${
+                shippingMode === "custom" ? "bg-white ring-2 ring-green-600" : "hover:bg-white"
+              }`}>
+                <input
+                  type="radio"
+                  name="shipping_mode"
+                  value="custom"
+                  checked={shippingMode === "custom"}
+                  onChange={() => setShippingMode("custom")}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-semibold text-gray-900">Custom address for this order</span>
+                  <span className="mt-0.5 block text-xs text-gray-500">Enter a one-off ship-to below.</span>
+                </span>
+              </label>
+            </div>
+
+            <div className={`grid gap-4 sm:grid-cols-2 ${shippingMode === "default" ? "opacity-60" : ""}`}>
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">Business Name <span className="text-red-500">*</span></label>
-                <input type="text" required value={form.shipping_business_name} onChange={(e) => updateForm("shipping_business_name", e.target.value)} className={inputClass} />
+                <input type="text" required value={form.shipping_business_name} onChange={(e) => updateForm("shipping_business_name", e.target.value)} disabled={shippingMode === "default"} className={inputClass} />
               </div>
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">Contact Name <span className="text-red-500">*</span></label>
-                <input type="text" required value={form.shipping_name} onChange={(e) => updateForm("shipping_name", e.target.value)} className={inputClass} />
+                <input type="text" required value={form.shipping_name} onChange={(e) => updateForm("shipping_name", e.target.value)} disabled={shippingMode === "default"} className={inputClass} />
               </div>
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">Street Address <span className="text-red-500">*</span></label>
-                <input type="text" required value={form.shipping_address} onChange={(e) => updateForm("shipping_address", e.target.value)} className={inputClass} />
+                <input type="text" required value={form.shipping_address} onChange={(e) => updateForm("shipping_address", e.target.value)} disabled={shippingMode === "default"} className={inputClass} />
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">City <span className="text-red-500">*</span></label>
-                <input type="text" required value={form.shipping_city} onChange={(e) => updateForm("shipping_city", e.target.value)} className={inputClass} />
+                <input type="text" required value={form.shipping_city} onChange={(e) => updateForm("shipping_city", e.target.value)} disabled={shippingMode === "default"} className={inputClass} />
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">State <span className="text-red-500">*</span></label>
-                <input type="text" required value={form.shipping_state} onChange={(e) => updateForm("shipping_state", e.target.value)} className={inputClass} />
+                <input type="text" required value={form.shipping_state} onChange={(e) => updateForm("shipping_state", e.target.value)} disabled={shippingMode === "default"} className={inputClass} />
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">ZIP Code <span className="text-red-500">*</span></label>
-                <input type="text" required value={form.shipping_zip} onChange={(e) => updateForm("shipping_zip", e.target.value)} className={inputClass} />
+                <input type="text" required value={form.shipping_zip} onChange={(e) => updateForm("shipping_zip", e.target.value)} disabled={shippingMode === "default"} className={inputClass} />
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">Phone <span className="text-red-500">*</span></label>
-                <input type="tel" required value={form.shipping_phone} onChange={(e) => updateForm("shipping_phone", e.target.value)} className={inputClass} />
+                <input type="tel" required value={form.shipping_phone} onChange={(e) => updateForm("shipping_phone", e.target.value)} disabled={shippingMode === "default"} className={inputClass} />
               </div>
             </div>
           </div>
