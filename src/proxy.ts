@@ -165,7 +165,15 @@ export async function proxy(req: NextRequest) {
   // PATCH /api/auth/me). Slow path: fall back to a service-role profiles
   // read for accounts created before this gate — prevents an infinite
   // redirect loop when the DB row is fine but auth metadata hasn't caught up.
-  if (user && isProtected) {
+  //
+  // Skip this gate entirely when the user is already on /complete-profile
+  // (or its subpaths) — otherwise a fresh OAuth signup with no address on
+  // file gets redirected to /complete-profile, then the gate fires again
+  // and bounces to /complete-profile, and the browser gives up with
+  // ERR_TOO_MANY_REDIRECTS. The /complete-profile page itself already
+  // redirects unauthenticated visitors to /login.
+  const isCompleteProfilePath = pathname === "/complete-profile" || pathname.startsWith("/complete-profile/");
+  if (user && isProtected && !isCompleteProfilePath) {
     const meta = { ...(user.user_metadata || {}), ...(user.app_metadata || {}) } as Record<string, unknown>;
     const readField = (k: string): string => typeof meta[k] === "string" ? (meta[k] as string).trim() : "";
     let phone = readField("phone");

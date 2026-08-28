@@ -239,7 +239,10 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (roleFilter) params.set("role", roleFilter);
-      params.set("limit", "100");
+      // Match the total user count so the "N users total" tally is not
+      // silently truncated by pagination. 1000 covers current + expected
+      // near-term growth; extend once we cross that.
+      params.set("limit", "1000");
       const res = await fetch(`/api/admin/users?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -466,9 +469,16 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
       ) : users.length === 0 ? (
         <p className="py-8 text-center text-sm text-black-primary/40">No users found</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-100">
+        // Cap the users list at a scrollable height so long user lists
+        // stay reachable without pushing the rest of the admin panel
+        // off-screen. overflow-y-scroll (not auto) forces the vertical
+        // scrollbar to always be visible — macOS's overlay scrollbars
+        // hide with `overflow-auto` and admins couldn't tell the region
+        // was scrollable. overflow-x-auto keeps a horizontal bar only
+        // when the table actually needs one.
+        <div className="max-h-[calc(100vh-320px)] min-h-[280px] overflow-y-scroll overflow-x-auto rounded-xl border border-gray-100 [scrollbar-gutter:stable]">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-100 bg-gray-50/50">
+            <thead className="sticky top-0 z-10 border-b border-gray-100 bg-gray-50 shadow-sm">
               <tr>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Name</th>
                 <th className="px-4 py-3 font-medium text-black-primary/60">Email</th>

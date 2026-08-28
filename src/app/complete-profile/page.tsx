@@ -38,6 +38,7 @@ export default function CompleteProfilePage() {
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
+        setLoading(false);
         router.push("/login");
         return;
       }
@@ -49,9 +50,15 @@ export default function CompleteProfilePage() {
         });
         if (res.ok) {
           const profile = await res.json();
-          const hasRole = profile.role && !["operator"].includes(profile.role);
-          if (hasRole && profile.phone && profile.address && profile.city && profile.state && profile.zip) {
-            router.push("/dashboard");
+          // Any authenticated user with a real role + full contact info can
+          // proceed straight to the dashboard. The old "hasRole" check
+          // excluded operators (the OAuth-auto-created default role), which
+          // trapped operators with complete profiles on this page.
+          if (
+            profile.role &&
+            profile.phone && profile.address && profile.city && profile.state && profile.zip
+          ) {
+            window.location.href = "/dashboard";
             return;
           }
           if (profile.role && ["operator", "locator", "location_manager", "employee", "sales"].includes(profile.role)) {
@@ -111,14 +118,23 @@ export default function CompleteProfilePage() {
       });
 
       if (res.ok) {
-        router.push("/dashboard");
-      } else {
-        const data = await res.json().catch(() => ({ error: "Failed to save" }));
-        setError(data.error || "Failed to save");
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        // Full-page navigation (not router.push) so the browser resends
+        // fresh cookies and the middleware re-reads the just-mirrored
+        // user_metadata / profile — otherwise a stale request cache can
+        // send /dashboard right back to /complete-profile and it looks
+        // to the user like Continue did nothing.
+        window.location.href = "/dashboard";
+        return;
       }
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      const data = await res.json().catch(() => ({ error: "Failed to save" }));
+      setError(data.error || `Failed to save (status ${res.status})`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
-      setError("Failed to save. Please try again.");
+      setError("Failed to save. Please check your connection and try again.");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setSaving(false);
