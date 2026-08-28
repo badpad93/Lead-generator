@@ -9,15 +9,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Fetch products + primary category + full category list via the
-    // junction table. `categories` on each row is the array of every
-    // category the product belongs to; `coffee_categories` remains the
-    // primary category so existing UI columns don't need to change.
+    // Fetch primary product rows first. We hydrate junction rows in a
+    // second query so a schema-cache miss on the new join table can't
+    // break the admin catalog view.
     const { data, error } = await supabaseAdmin
       .from("coffee_products")
-      .select(
-        "*, coffee_categories(id, name, slug), coffee_product_categories(is_primary, coffee_categories(id, name, slug))"
-      )
+      .select("*, coffee_categories(id, name, slug)")
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 
@@ -25,14 +22,35 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const products = (data || []).map((row: Record<string, unknown>) => {
-      const links = (row.coffee_product_categories as Array<{
-        is_primary: boolean;
-        coffee_categories: { id: string; name: string; slug: string } | null;
-      }> | null) ?? [];
-      const categories = links
-        .map((l) => l.coffee_categories)
-        .filter((c): c is { id: string; name: string; slug: string } => !!c);
+    const rows = data || [];
+    const categoriesByProduct = new Map<string, Array<{ id: string; name: string; slug: string }>>();
+    if (rows.length > 0) {
+      const { data: junctionRows } = await supabaseAdmin
+        .from("coffee_product_categories")
+        .select("product_id, coffee_categories(id, name, slug)")
+        .in("product_id", rows.map((r: { id: string }) => r.id));
+      for (const link of ((junctionRows || []) as unknown as Array<{
+        product_id: string;
+        coffee_categories: { id: string; name: string; slug: string } | { id: string; name: string; slug: string }[] | null;
+      }>)) {
+        const cat = Array.isArray(link.coffee_categories)
+          ? link.coffee_categories[0]
+          : link.coffee_categories;
+        if (!cat) continue;
+        const list = categoriesByProduct.get(link.product_id) ?? [];
+        list.push(cat);
+        categoriesByProduct.set(link.product_id, list);
+      }
+    }
+
+    const products = rows.map((row: Record<string, unknown>) => {
+      const linked = categoriesByProduct.get(row.id as string) ?? [];
+      const primary = row.coffee_categories as { id: string; name: string; slug: string } | null;
+      const categories = linked.length > 0
+        ? linked
+        : primary
+          ? [primary]
+          : [];
       const category_ids = categories.map((c) => c.id);
       return { ...row, categories, category_ids };
     });
