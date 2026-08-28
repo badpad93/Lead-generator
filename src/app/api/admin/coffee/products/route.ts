@@ -9,11 +9,15 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Fetch products + primary category + full category list via the
+    // junction table. `categories` on each row is the array of every
+    // category the product belongs to; `coffee_categories` remains the
+    // primary category so existing UI columns don't need to change.
     const { data, error } = await supabaseAdmin
       .from("coffee_products")
-      .select("*, coffee_categories(id, name, slug)")
-      // Match the customer feed ordering so what the admin sees in
-      // this table is exactly what the storefront renders.
+      .select(
+        "*, coffee_categories(id, name, slug), coffee_product_categories(is_primary, coffee_categories(id, name, slug))"
+      )
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 
@@ -21,11 +25,41 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ products: data || [] });
+    const products = (data || []).map((row: Record<string, unknown>) => {
+      const links = (row.coffee_product_categories as Array<{
+        is_primary: boolean;
+        coffee_categories: { id: string; name: string; slug: string } | null;
+      }> | null) ?? [];
+      const categories = links
+        .map((l) => l.coffee_categories)
+        .filter((c): c is { id: string; name: string; slug: string } => !!c);
+      const category_ids = categories.map((c) => c.id);
+      return { ...row, categories, category_ids };
+    });
+
+    return NextResponse.json({ products });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+// Replace the product's category memberships. Passing an empty array
+// clears every category link. Passing a single-item array behaves
+// exactly like the legacy category_id write. is_primary marks the
+// first (or explicitly-primary) category so the storefront can still
+// pick "the" category badge for a product card.
+async function syncProductCategories(productId: string, categoryIds: string[], primaryId: string | null) {
+  const deduped = Array.from(new Set(categoryIds.filter((s) => /^[0-9a-f-]{36}$/i.test(s))));
+  await supabaseAdmin.from("coffee_product_categories").delete().eq("product_id", productId);
+  if (deduped.length === 0) return;
+  const primary = primaryId && deduped.includes(primaryId) ? primaryId : deduped[0];
+  const rows = deduped.map((cid) => ({
+    product_id: productId,
+    category_id: cid,
+    is_primary: cid === primary,
+  }));
+  await supabaseAdmin.from("coffee_product_categories").insert(rows);
 }
 
 export async function POST(req: NextRequest) {
@@ -37,10 +71,22 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
+    // Accept either the new category_ids array or the legacy single
+    // category_id. category_id (on coffee_products itself) is treated
+    // as the primary category so the row's badge stays stable.
+    const rawIds: string[] = Array.isArray(body.category_ids)
+      ? body.category_ids.filter((v: unknown): v is string => typeof v === "string")
+      : body.category_id
+        ? [String(body.category_id)]
+        : [];
+    const primaryId: string | null = body.category_id
+      ? String(body.category_id)
+      : rawIds[0] ?? null;
+
     const { data, error } = await supabaseAdmin
       .from("coffee_products")
       .insert({
-        category_id: body.category_id ?? null,
+        category_id: primaryId,
         name: body.name,
         sku: body.sku,
         description: body.description ?? null,
@@ -58,6 +104,10 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (rawIds.length > 0) {
+      await syncProductCategories(data.id, rawIds, primaryId);
     }
 
     return NextResponse.json({ product: data }, { status: 201 });
@@ -99,6 +149,19 @@ export async function PATCH(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Sync the many-to-many category memberships when the caller sent
+    // an explicit list. Omitting category_ids from the PATCH body
+    // leaves the memberships untouched (so a PATCH that only edits
+    // the name / price doesn't wipe categories).
+    if ("category_ids" in fields && Array.isArray(fields.category_ids)) {
+      const rawIds: string[] = (fields.category_ids as unknown[]).filter(
+        (v): v is string => typeof v === "string",
+      );
+      const primaryId: string | null =
+        typeof fields.category_id === "string" ? fields.category_id : rawIds[0] ?? null;
+      await syncProductCategories(id, rawIds, primaryId);
     }
 
     // Propagate base price + shipping to the Tier 1 tier-price row.

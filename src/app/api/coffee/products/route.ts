@@ -23,7 +23,9 @@ export async function GET(req: NextRequest) {
 
     let query = supabaseAdmin
       .from("coffee_products")
-      .select("*, coffee_categories(id, name, slug)")
+      .select(
+        "*, coffee_categories(id, name, slug), coffee_product_categories(is_primary, coffee_categories(id, name, slug))"
+      )
       .eq("active", true)
       // sort_order first (0 = admin hasn't customized yet); name
       // second as a stable tiebreaker so ties don't render in a
@@ -53,7 +55,22 @@ export async function GET(req: NextRequest) {
         .single();
 
       if (cat) {
-        query = query.eq("category_id", cat.id);
+        // Resolve every product that lives in this category through the
+        // junction table (many-to-many). Falls through to zero results
+        // when nothing matches instead of a bare .eq() on the legacy
+        // primary category_id column, so multi-category products
+        // surface correctly.
+        const { data: linkRows } = await supabaseAdmin
+          .from("coffee_product_categories")
+          .select("product_id")
+          .eq("category_id", cat.id);
+        const productIds = (linkRows || [])
+          .map((r: { product_id: string }) => r.product_id)
+          .filter((id): id is string => typeof id === "string");
+        if (productIds.length === 0) {
+          return NextResponse.json({ products: [] });
+        }
+        query = query.in("id", productIds);
       }
     }
 
@@ -75,10 +92,18 @@ export async function GET(req: NextRequest) {
     });
 
     const products = rows.map((r: Record<string, unknown>) => {
+      const links = (r.coffee_product_categories as Array<{
+        is_primary: boolean;
+        coffee_categories: { id: string; name: string; slug: string } | null;
+      }> | null) ?? [];
+      const categories = links
+        .map((l) => l.coffee_categories)
+        .filter((c): c is { id: string; name: string; slug: string } => !!c);
+      const base = { ...r, categories };
       const resolved = priced.get(r.id as string);
-      if (!resolved) return r;
+      if (!resolved) return base;
       return {
-        ...r,
+        ...base,
         price: resolved.price,
         shipping_cost: resolved.shipping_cost,
         pricing_tier_id: resolved.pricing_tier_id,
