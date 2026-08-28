@@ -530,7 +530,17 @@ export default function AdminCoffeePage() {
       });
 
       if (res.ok) {
-        showToast(editingProduct ? "Product updated" : "Product created", "success");
+        const payload = await res.json().catch(() => ({}));
+        // If the API returned a warning (e.g. multi-category link
+        // table isn't reachable because migration 160 hasn't run),
+        // surface it as an ERROR toast — the product was saved but
+        // the extra categories were silently dropped, and the admin
+        // needs to know.
+        if (payload.warning) {
+          showToast(payload.warning, "error");
+        } else {
+          showToast(editingProduct ? "Product updated" : "Product created", "success");
+        }
         resetProductForm();
         fetchProducts();
       } else {
