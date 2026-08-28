@@ -170,14 +170,22 @@ export default function CoffeeAgreementPage() {
       )}
 
       {pendingCountersign && (
-        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-semibold text-amber-900 mb-1 flex items-center gap-2">
-            <AlertCircle className="h-4 w-4" /> Awaiting countersignature
+        <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <p className="text-sm font-semibold text-emerald-900 mb-1 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" /> Signed — you&apos;re all set
           </p>
-          <p className="text-sm text-amber-800">
+          <p className="text-sm text-emerald-800">
             You signed on {agreement?.provider_signed_at ? new Date(agreement.provider_signed_at).toLocaleString() : "recently"}.
-            Apex AI Vending will countersign shortly — you&apos;ll be able to place orders once that clears.
+            You can start placing coffee orders right away. Apex AI Vending will countersign for your records and email you the fully-executed copy.
           </p>
+          <div className="mt-3">
+            <Link
+              href="/coffee"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
+            >
+              <Coffee className="h-3.5 w-3.5" /> Start ordering
+            </Link>
+          </div>
         </div>
       )}
 
