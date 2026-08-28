@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
@@ -96,6 +96,11 @@ export default function Navbar() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  // Which top-nav group dropdown is currently pinned open by a click.
+  // Null when nothing is click-pinned; hover state is still handled by
+  // the CSS classes below, so pointer users see no behavior change.
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const navGroupsRef = useRef<HTMLUListElement | null>(null);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -223,6 +228,26 @@ export default function Navbar() {
     return () => document.removeEventListener("click", handleClick);
   }, [userMenuOpen]);
 
+  // Close the click-pinned top-nav dropdown when the pointer clicks
+  // anywhere outside the nav bar (including on a dropdown link, which
+  // will still navigate before this handler runs).
+  useEffect(() => {
+    if (!openGroup) return;
+    const handleClick = (e: MouseEvent) => {
+      if (navGroupsRef.current && !navGroupsRef.current.contains(e.target as Node)) {
+        setOpenGroup(null);
+      }
+    };
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [openGroup]);
+
+  // Close any pinned dropdown on route change so it doesn't linger over
+  // the next page.
+  useEffect(() => {
+    setOpenGroup(null);
+  }, [pathname]);
+
   async function handleLogout() {
     const supabase = createBrowserClient();
     await supabase.auth.signOut();
@@ -267,36 +292,64 @@ export default function Navbar() {
             <span className="whitespace-nowrap text-lg font-bold text-gray-900">Vending Connector</span>
           </Link>
 
-          {/* Desktop Navigation — grouped dropdowns */}
-          <ul className="hidden items-center gap-0.5 xl:flex">
-            {NAV_GROUPS.map((group) => (
-              <li key={group.label} className="relative group">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium text-black-primary transition-colors hover:bg-green-50 hover:text-green-primary group-focus-within:bg-green-50 group-focus-within:text-green-primary"
-                  aria-haspopup="true"
-                >
-                  {group.label}
-                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-hover:rotate-180 group-focus-within:rotate-180" />
-                </button>
-                <div className="pointer-events-none invisible absolute left-0 top-full z-40 mt-1 w-72 rounded-2xl border border-gray-100 bg-white p-2 opacity-0 shadow-xl transition-all group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100">
-                  {group.items.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="block rounded-lg px-3 py-2 transition-colors hover:bg-green-50"
-                    >
-                      <div className="text-sm font-semibold text-black-primary">{item.label}</div>
-                      {item.description && (
-                        <div className="mt-0.5 text-[11px] leading-snug text-gray-500">
-                          {item.description}
-                        </div>
-                      )}
-                    </Link>
-                  ))}
-                </div>
-              </li>
-            ))}
+          {/* Desktop Navigation — grouped dropdowns.
+              Two triggers for the dropdown so it works for every input mode:
+              - CSS :hover / :focus-within for pointer + keyboard users.
+              - onClick that toggles openGroup for touch users and for the
+                brief post-hydration window on dashboard where the main
+                thread is busy and hover repaint lags. Adding a click
+                path also stops iOS Safari from swallowing the first tap
+                on the trigger. */}
+          <ul ref={navGroupsRef} className="hidden items-center gap-0.5 xl:flex">
+            {NAV_GROUPS.map((group) => {
+              const isOpen = openGroup === group.label;
+              return (
+                <li key={group.label} className="relative group">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenGroup((prev) => (prev === group.label ? null : group.label));
+                    }}
+                    className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-colors hover:bg-green-50 hover:text-green-primary group-focus-within:bg-green-50 group-focus-within:text-green-primary ${
+                      isOpen ? "bg-green-50 text-green-primary" : "text-black-primary"
+                    }`}
+                    aria-haspopup="true"
+                    aria-expanded={isOpen}
+                  >
+                    {group.label}
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 transition-transform group-hover:rotate-180 group-focus-within:rotate-180 ${
+                        isOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  <div
+                    className={`absolute left-0 top-full z-40 mt-1 w-72 rounded-2xl border border-gray-100 bg-white p-2 shadow-xl transition-all group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100 ${
+                      isOpen
+                        ? "pointer-events-auto visible opacity-100"
+                        : "pointer-events-none invisible opacity-0"
+                    }`}
+                  >
+                    {group.items.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setOpenGroup(null)}
+                        className="block rounded-lg px-3 py-2 transition-colors hover:bg-green-50"
+                      >
+                        <div className="text-sm font-semibold text-black-primary">{item.label}</div>
+                        {item.description && (
+                          <div className="mt-0.5 text-[11px] leading-snug text-gray-500">
+                            {item.description}
+                          </div>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
 
           {/* Desktop Auth Buttons / User Menu */}
