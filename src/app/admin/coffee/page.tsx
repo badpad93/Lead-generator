@@ -54,6 +54,8 @@ interface Product {
   sort_order: number;
   category_id: string | null;
   coffee_categories: Category | null;
+  categories?: Category[];
+  category_ids?: string[];
 }
 
 interface OrderProfile {
@@ -173,6 +175,7 @@ export default function AdminCoffeePage() {
     active: true,
     sort_order: "0",
     category_id: "",
+    category_ids: [] as string[],
   });
   const [savingProduct, setSavingProduct] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<string | null>(null);
@@ -420,12 +423,21 @@ export default function AdminCoffeePage() {
       active: true,
       sort_order: "0",
       category_id: "",
+      category_ids: [],
     });
     setEditingProduct(null);
     setShowProductForm(false);
   }
 
   function startEditProduct(product: Product) {
+    // Prefer the new many-to-many list; fall back to the legacy single
+    // category_id so a product row that was created before migration 160
+    // still edits cleanly.
+    const categoryIds: string[] = Array.isArray(product.category_ids) && product.category_ids.length > 0
+      ? product.category_ids
+      : product.category_id
+        ? [product.category_id]
+        : [];
     setProductForm({
       name: product.name,
       sku: product.sku,
@@ -438,7 +450,8 @@ export default function AdminCoffeePage() {
       min_order_qty: String(product.min_order_qty),
       active: product.active,
       sort_order: String(product.sort_order),
-      category_id: product.category_id || "",
+      category_id: product.category_id || categoryIds[0] || "",
+      category_ids: categoryIds,
     });
     setEditingProduct(product);
     setShowProductForm(true);
@@ -480,6 +493,12 @@ export default function AdminCoffeePage() {
     e.preventDefault();
     setSavingProduct(true);
     try {
+      // Send both category_id (primary, kept on coffee_products for
+      // backwards compat) and category_ids (full many-to-many list).
+      // If the admin picked exactly one category, primary auto-defaults
+      // to it; otherwise the first selected is the primary badge.
+      const selectedIds = (productForm.category_ids || []).filter(Boolean);
+      const primaryCategoryId = productForm.category_id || selectedIds[0] || null;
       const body: Record<string, unknown> = {
         name: productForm.name,
         sku: productForm.sku,
@@ -492,7 +511,8 @@ export default function AdminCoffeePage() {
         min_order_qty: parseInt(productForm.min_order_qty) || 1,
         active: productForm.active,
         sort_order: parseInt(productForm.sort_order) || 0,
-        category_id: productForm.category_id || null,
+        category_id: primaryCategoryId,
+        category_ids: selectedIds,
       };
 
       if (editingProduct) {
@@ -987,17 +1007,68 @@ export default function AdminCoffeePage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Category</label>
-                  <select
-                    value={productForm.category_id}
-                    onChange={(e) => setProductForm((p) => ({ ...p, category_id: e.target.value }))}
-                    className={inputClass}
-                  >
-                    <option value="">None</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Categories <span className="text-xs font-normal text-gray-500">— pick every section the product should appear in</span>
+                  </label>
+                  <div className="max-h-56 overflow-y-auto rounded-xl border border-gray-200 p-2">
+                    {categories.length === 0 ? (
+                      <p className="p-2 text-xs text-gray-500">No categories yet. Create one in the Categories tab.</p>
+                    ) : (
+                      categories.map((cat) => {
+                        const checked = productForm.category_ids?.includes(cat.id) ?? false;
+                        const isPrimary = productForm.category_id === cat.id;
+                        return (
+                          <label
+                            key={cat.id}
+                            className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-gray-50"
+                          >
+                            <span className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  setProductForm((p) => {
+                                    const set = new Set(p.category_ids || []);
+                                    if (e.target.checked) set.add(cat.id);
+                                    else set.delete(cat.id);
+                                    const next = Array.from(set);
+                                    // Keep the primary in sync: if we just
+                                    // unchecked the primary, promote the
+                                    // first remaining; if nothing is
+                                    // primary yet and we're checking the
+                                    // first item, make it primary.
+                                    let primary = p.category_id;
+                                    if (!e.target.checked && p.category_id === cat.id) {
+                                      primary = next[0] ?? "";
+                                    } else if (!primary && next.length > 0) {
+                                      primary = next[0];
+                                    }
+                                    return { ...p, category_ids: next, category_id: primary };
+                                  });
+                                }}
+                                className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                              />
+                              <span>{cat.name}</span>
+                            </span>
+                            {checked && (
+                              <button
+                                type="button"
+                                onClick={() => setProductForm((p) => ({ ...p, category_id: cat.id }))}
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                                  isPrimary
+                                    ? "bg-green-600 text-white"
+                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                }`}
+                                title="Mark as the primary category (shows as the product's badge)"
+                              >
+                                {isPrimary ? "Primary" : "Make primary"}
+                              </button>
+                            )}
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">Price</label>
@@ -1216,7 +1287,26 @@ export default function AdminCoffeePage() {
                         </td>
                         <td className="px-5 py-3 font-medium text-gray-900">{product.name}</td>
                         <td className="px-5 py-3 text-gray-600">{product.sku}</td>
-                        <td className="px-5 py-3 text-gray-600">{product.coffee_categories?.name || "—"}</td>
+                        <td className="px-5 py-3 text-gray-600">
+                          {product.categories && product.categories.length > 0 ? (
+                            <span className="flex flex-wrap gap-1">
+                              {product.categories.map((cat) => (
+                                <span
+                                  key={cat.id}
+                                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                    cat.id === product.category_id
+                                      ? "bg-green-100 text-green-700 ring-1 ring-green-200"
+                                      : "bg-gray-100 text-gray-700 ring-1 ring-gray-200"
+                                  }`}
+                                >
+                                  {cat.name}
+                                </span>
+                              ))}
+                            </span>
+                          ) : (
+                            product.coffee_categories?.name || "—"
+                          )}
+                        </td>
                         <td className="px-5 py-3 text-right font-medium text-gray-900">${Number(product.price).toFixed(2)}</td>
                         <td className="px-5 py-3 text-right text-gray-600">{Number(product.shipping_cost) > 0 ? `$${Number(product.shipping_cost).toFixed(2)}` : "Free"}</td>
                         <td className="px-5 py-3">
