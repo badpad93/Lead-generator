@@ -2,39 +2,59 @@
   "name": "vending-connector",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.11.1",
+  "engines": {
+    "node": "24.x",
+    "pnpm": "10.11.1"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "lint:strict": "eslint . --max-warnings=0",
+    "lint:prune": "eslint . --prune-suppressions --max-warnings=0",
+    "typecheck": "tsc --noEmit --pretty false",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "pnpm lint:strict && pnpm typecheck && pnpm test",
+    "preflight": "pnpm check && pnpm build",
+    "prepare": "node scripts/prepare.mjs"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.10.2",
-    "@supabase/supabase-js": "^2.103.3",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.112.4",
     "clsx": "^2.1.1",
     "googleapis": "^171.4.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.564.0",
-    "next": "16.2.0",
+    "next": "16.3.3",
     "pdf-lib": "^1.17.1",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "resend": "^6.9.4",
-    "sharp": "^0.34.5",
-    "stripe": "^20.4.0",
-    "tailwind-merge": "^3.0.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "resend": "^6.24.0",
+    "sharp": "^0.35.4",
+    "stripe": "^20.4.1",
+    "tailwind-merge": "^3.6.0",
     "write-excel-file": "^4.1.1",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.0",
-    "tailwindcss": "^4",
-    "typescript": "^5",
-    "vitest": "^4.1.5"
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.3.3",
+    "husky": "9.1.7",
+    "lint-staged": "17.4.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp"
+    ]
   }
 }

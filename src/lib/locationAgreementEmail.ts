@@ -1,6 +1,5 @@
-import { Resend } from "resend";
+import { getResendClient } from "./resendClient";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.FROM_EMAIL || "sales@bytebitevending.com";
 const ADMIN_EMAIL = "james@apexaivending.com";
 const PHONE = "(888) 851-1462";
@@ -14,7 +13,7 @@ export async function sendLocationAgreementEmail(params: {
 }) {
   const { to, recipientName, businessName, agreementUrl } = params;
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: `Location Placement Agreement — ${businessName}`,
@@ -58,7 +57,7 @@ export async function sendLocationMatchedEmail(params: {
 }) {
   const { to, recipientName, businessName, locationName } = params;
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: `Great news — an operator is interested in ${locationName}`,
@@ -93,7 +92,7 @@ export async function sendLocationDealClosedEmail(params: {
 }) {
   const { to, recipientName, businessName, locationName } = params;
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: `Placement confirmed — ${locationName}`,
@@ -141,7 +140,7 @@ export async function sendListingPendingApprovalEmail(params: {
   const adminUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com"}/admin`;
   const location = [city, state].filter(Boolean).join(", ") || "N/A";
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to: ADMIN_EMAIL,
     subject: `New marketplace listing pending approval — ${listingTitle}`,
@@ -185,7 +184,7 @@ export async function sendListingApprovedEmail(params: {
 }) {
   const { to, sellerName, listingTitle } = params;
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: `Your listing is now live — ${listingTitle}`,
@@ -224,7 +223,7 @@ export async function sendListingPurchasedEmail(params: {
   const { to, sellerName, listingTitle, buyerName, amount } = params;
   const payout = (amount * 0.85).toFixed(2);
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: `Your listing was purchased — ${listingTitle}`,
@@ -263,7 +262,7 @@ export async function sendListingExpiredEmail(params: {
 }) {
   const { to, sellerName, listingTitle } = params;
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: `Listing expired — ${listingTitle}`,

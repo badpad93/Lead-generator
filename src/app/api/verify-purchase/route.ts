@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getStripeClient } from "@/lib/stripeClient";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 /**
  * POST /api/verify-purchase — fallback for when the Stripe webhook
@@ -72,7 +71,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Ask Stripe whether payment actually succeeded
-  const session = await stripe.checkout.sessions.retrieve(
+  const session = await getStripeClient().checkout.sessions.retrieve(
     purchase.stripe_checkout_session_id
   );
 

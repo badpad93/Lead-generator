@@ -1,6 +1,5 @@
-import { Resend } from "resend";
+import { getResendClient } from "./resendClient";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.FROM_EMAIL || "sales@bytebitevending.com";
 const ADMIN_EMAIL = "james@apexaivending.com";
 
@@ -26,7 +25,7 @@ export async function sendAgreementSignedNotification(params: {
     ? `<tr><td style="padding:4px 8px;color:#6b7280;">Placement Fee</td><td style="padding:4px 8px;font-weight:600;color:#16a34a;">$${price.toLocaleString()}</td></tr>`
     : "";
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to: ADMIN_EMAIL,
     subject: `${label} Signed — ${businessName || recipientName}`,
@@ -64,7 +63,7 @@ export async function sendAgreementEmail(params: {
 }) {
   const { to, recipientName, businessName, price, agreementUrl, pdfBuffer } = params;
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: `Location Placement Agreement — $${price.toLocaleString()}`,
@@ -140,7 +139,7 @@ export async function sendFullSiteDetailsEmail(params: {
       `
     : "";
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: `Full Site Details — ${locationName}`,

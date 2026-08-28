@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import { getResendClient } from "@/lib/resendClient";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.MARKETING_FROM_EMAIL || "sales@vendingconnector.com";
 
 const TEMPLATES: Record<string, { subject: string; body: string }> = {
@@ -183,7 +182,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     content: Buffer.from(a.content, "base64"),
   }));
 
-  const { error: sendError } = await resend.emails.send({
+  const { error: sendError } = await getResendClient().emails.send({
     from: FROM,
     to: toList,
     ...(ccList.length > 0 ? { cc: ccList } : {}),

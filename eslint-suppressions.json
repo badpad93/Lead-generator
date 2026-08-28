@@ -1,0 +1,3910 @@
+{
+  "scripts/bulk-import-leads.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 8
+    }
+  },
+  "scripts/generate-brand-assets.mjs": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "no-console": {
+      "count": 6
+    }
+  },
+  "scripts/generate-locations-sql.js": {
+    "no-console": {
+      "count": 1
+    }
+  },
+  "scripts/generate-new-locations-sql.js": {
+    "no-console": {
+      "count": 1
+    }
+  },
+  "src/app/HomePageClient.tsx": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/account/agreements/[id]/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/account/agreements/page.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/app/account/workflows/[id]/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 8
+    }
+  },
+  "src/app/account/workflows/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/app/admin/accounts/duplicates/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/app/admin/careers/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/coffee/agreements/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/coffee/page.tsx": {
+    "@next/next/no-img-element": {
+      "count": 3
+    },
+    "complexity": {
+      "count": 8
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/admin/coffee/tier-prices/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/admin/financial/attributions/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/financial/commissions/page.tsx": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "react-hooks/purity": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/financial/invoices/page.tsx": {
+    "no-nested-ternary": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/financial/page.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/financial/payments/new/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/admin/financial/payments/page.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/financial/reconciliation/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/financial/refunds/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/financial/settings/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/inventory/page.tsx": {
+    "complexity": {
+      "count": 5
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "src/app/admin/inventory/setup/config/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/admin/inventory/setup/skus/page.tsx": {
+    "complexity": {
+      "count": 5
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/admin/inventory/setup/suppliers/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/app/admin/inventory/setup/warehouses/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/app/admin/marketing/gondola/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/agreements/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/analytics/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/contracts/[id]/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/contracts/new/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/contracts/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/manufacturers/[id]/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/manufacturers/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/notifications/page.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/partners/[id]/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    },
+    "react-hooks/static-components": {
+      "count": 4
+    }
+  },
+  "src/app/admin/marketplace/partners/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/payouts/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/ratings/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/submissions/[id]/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/submissions/page.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/marketplace/tier-proposals/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "complexity": {
+      "count": 17
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 13
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 9
+    }
+  },
+  "src/app/admin/payroll/[id]/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/payroll/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/website-requests/[id]/page.tsx": {
+    "@next/next/no-img-element": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/admin/website-requests/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/workflows/backfill/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/admin/workflows/templates/page.tsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/agreements/[token]/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/account/media/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/account/workflows/[id]/pay-balance/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/careers/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/coffee/applications/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/coffee/categories/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/coffee/guides/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/coffee/orders/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/admin/coffee/products/reorder/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/coffee/products/route.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-depth": {
+      "count": 3
+    }
+  },
+  "src/app/api/admin/coffee/tier-prices/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/contractor-onboarding/[id]/download/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/contractor-onboarding/[id]/regenerate/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/contractor-onboarding/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/dedup-leads/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/admin/financial/attribution-roles/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/financial/attribution-roles/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/financial/attributions/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/financial/commission-rules/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/financial/commission-rules/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/financial/commissions/backfill/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/financial/commissions/clawbacks/settle/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/financial/commissions/mark-paid/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/financial/commissions/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/financial/invoices/route.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/app/api/admin/financial/payments/[id]/proof/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/financial/payments/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/admin/financial/refunds/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/inventory/backfill-coffee-consumption/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/inventory/counts/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/inventory/import/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/inventory/skus/bulk-assign-supplier/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/inventory/skus/import-from-coffee-products/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/inventory/skus/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/inventory/suppliers/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/inventory/suppliers/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/inventory/transactions/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/lead-generator/override/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/manufacturers/[id]/agreement-download/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/manufacturers/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/manufacturers/[id]/status/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/manufacturers/equipment/[eqId]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/manufacturers/pricing-exceptions/[excId]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/manufacturers/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/marketing/gondola/[slot]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/marketplace/agreements/[id]/countersign/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 3
+    }
+  },
+  "src/app/api/admin/marketplace/analytics/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/marketplace/contracts/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/marketplace/contracts/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/marketplace/documents/[id]/download/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/marketplace/operator-invoices/[id]/mark-paid/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/marketplace/partners/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/marketplace/partners/[id]/send-agreement/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/marketplace/partners/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/admin/marketplace/submissions/[id]/review/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/marketplace/tier-proposals/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/payroll/profiles/[id]/resend/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/payroll/profiles/[id]/reveal/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/payroll/profiles/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/payroll/profiles/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/admin/requests/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/sales-accounts/duplicates/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/sales-accounts/merge/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/team/[id]/credential-history/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/team/[id]/send-credentials/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/team/credential-presets/route.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/users/[id]/add-to-crm/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/users/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 4
+    }
+  },
+  "src/app/api/admin/users/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/website-requests/[id]/assign/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/website-requests/[id]/status/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/website-requests/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/workflow-templates/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/workflow-templates/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/workflows/backfill-location-services/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/admin/workflows/backfill/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 2
+    }
+  },
+  "src/app/api/agreements/sign/[token]/initials/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/agreements/sign/[token]/sign/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/app/api/agreements/sign/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/agreements/token/[token]/checkout/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/agreements/token/[token]/sign/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/ai-summary/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/auth/me/route.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-depth": {
+      "count": 3
+    }
+  },
+  "src/app/api/auth/resend-verification/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/auth/signup-email/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/auth/signup-lead/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/auth/yahoo/callback/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/careers/apply/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/checkout/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/agreement/pdf/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/agreement/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/agreement/sign/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/apply/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/cart/route.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/checkout/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/guest-checkout/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-unneeded-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/guest-track/[token]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/orders/[id]/confirm/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/orders/[id]/reorder/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/orders/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/pricing-proposals/[id]/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/coffee/pricing-proposals/[id]/send/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/coffee/pricing-proposals/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/coffee/products/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/connect/onboard/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/connect/status/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/cron/inventory-digest/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/cron/verification-reminders/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 3
+    }
+  },
+  "src/app/api/cron/workflows/due-soon/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/digest/send/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/featured-subscription/route.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/financing/[applicationId]/upload-completed/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/financing/route.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 1
+    },
+    "no-unneeded-ternary": {
+      "count": 2
+    }
+  },
+  "src/app/api/intake/location/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/intake/route.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/intake/upload/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/location-agreements/[token]/sign/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 2
+    }
+  },
+  "src/app/api/locations/[id]/calculate-pricing/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/locations/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/machine-listings/[id]/checkout/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-unneeded-ternary": {
+      "count": 2
+    }
+  },
+  "src/app/api/machine-listings/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/machine-listings/process-image/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/machine-listings/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/manufacturer/me/agreement/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/manufacturer/me/dwolla/exchange/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/manufacturer/me/dwolla/link-token/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/manufacturer/me/equipment/[id]/pricing-exception/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/manufacturer/me/equipment/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/manufacturer/me/orders/[id]/bol/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/manufacturer/me/orders/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/manufacturer/me/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/manufacturer/me/submit/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/manufacturer/me/warranty-doc/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketplace/contracts/[id]/tier-proposal/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketplace/contracts/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketplace/my-contracts/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketplace/partners/bank-accounts/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketplace/partners/documents/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketplace/partners/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketplace/submissions/[id]/photos/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketplace/submissions/[id]/publish/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketplace/submissions/[id]/rate/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketplace/submissions/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketplace/team/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/my/commissions/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/non-circumvention/[token]/sign/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/candidate-portal/[token]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/candidate-portal/[token]/submit-form/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/candidate-portal/[token]/upload/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/candidates/[id]/advance/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/candidates/[id]/approve/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/candidates/[id]/documents/[docId]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/candidates/[id]/documents/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/candidates/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/candidates/[id]/send-docs/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/candidates/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/contractor/[token]/finish/route.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "object-shorthand": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/contractor/[token]/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/onboarding/dashboard/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/document-templates/[id]/route.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/document-templates/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/email-templates/[id]/route.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/email-templates/route.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/onboarding/step-doc-assignments/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/operator/contracts/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/operator/contracts/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/operator/marketplace/submissions/[id]/decide/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/app/api/operator/marketplace/submissions/[id]/rate/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/operators/[id]/route.ts": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/app/api/operators/route.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/app/api/payroll/[token]/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/app/api/payroll/[token]/save-draft/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/payroll/[token]/submit/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/pipeline-items/[id]/approve-step/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/pipeline-items/[id]/esign/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/pipeline-items/[id]/move/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/pipeline-items/[id]/payments/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/pipeline-items/[id]/resend-agreement/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 2
+    }
+  },
+  "src/app/api/pipeline-items/[id]/send-details/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/pipeline-items/[id]/send-proposal/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 1
+    }
+  },
+  "src/app/api/pipeline-items/bulk-delete/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/pipeline-items/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "object-shorthand": {
+      "count": 1
+    }
+  },
+  "src/app/api/pipelines/[id]/steps/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/placement/agreement/sign/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/placement/dwolla/exchange/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/placement/my/earnings/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/purchases/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/quickbooks/oauth/callback/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/request-location/route.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/app/api/requests/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/requests/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/reviews/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/routes/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/accounts/[id]/equipment/[equipmentId]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/accounts/[id]/equipment/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/accounts/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/agreements/[id]/apex-sign/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/agreements/[id]/create-order/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/agreements/[id]/pdf/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/agreements/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/agreements/[id]/send-apex-placement-invoice/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/agreements/[id]/send/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/app/api/sales/agreements/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/call-lists/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/catalog-items/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/sales/commissions/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/sales/deals/[id]/finalize/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/deals/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/deals/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/executive-snapshot/route.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/goals/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/lead-generator/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/leads/[id]/convert/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/leads/[id]/emails/route.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/leads/[id]/publish/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/leads/[id]/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/sales/leads/import/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/leads/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "object-shorthand": {
+      "count": 2
+    }
+  },
+  "src/app/api/sales/markets/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/sales/orders/[id]/agreement/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/orders/[id]/attributions/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/sales/orders/[id]/commission/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/orders/[id]/items/[itemId]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/orders/[id]/items/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/orders/[id]/route.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/orders/[id]/send-receipt/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/orders/[id]/send-remaining-balance/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/orders/[id]/send-to-workflow/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/orders/[id]/send/route.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/orders/[id]/status/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/orders/route.ts": {
+    "complexity": {
+      "count": 4
+    }
+  },
+  "src/app/api/sales/placement-demand/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/resources/[id]/send/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/resources/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/results/route.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/users/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/users/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/sales/workload/route.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/team/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/time-entries/route.ts": {
+    "complexity": {
+      "count": 4
+    },
+    "no-console": {
+      "count": 5
+    }
+  },
+  "src/app/api/user-listings/[id]/checkout/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/user-listings/[id]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/user-listings/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/verify-purchase/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/webhooks/dwolla/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/webhooks/esign/route.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-depth": {
+      "count": 5
+    }
+  },
+  "src/app/api/webhooks/paypal/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/webhooks/quickbooks/route.ts": {
+    "complexity": {
+      "count": 5
+    },
+    "max-depth": {
+      "count": 10
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 15
+    }
+  },
+  "src/app/api/webhooks/stripe/route.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 3
+    }
+  },
+  "src/app/api/website-requests/[id]/media/route.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/website-requests/[id]/submit/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/website-requests/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/workflows/[id]/assign/accept/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/workflows/[id]/payment-status/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/workflows/[id]/route.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/api/workflows/[id]/stages/[stageKey]/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/workflows/metrics/route.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/app/api/workflows/route.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/app/auth/callback/page.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 5
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/become-featured/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/app/browse-operators/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "complexity": {
+      "count": 4
+    },
+    "max-depth": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "prefer-const": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/browse-requests/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "complexity": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/careers/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/coffee/agreement/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/coffee/apply/page.tsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/coffee/checkout/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 3
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "react-hooks/immutability": {
+      "count": 2
+    }
+  },
+  "src/app/coffee/guest-checkout/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/coffee/orders/[id]/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-depth": {
+      "count": 3
+    }
+  },
+  "src/app/coffee/page.tsx": {
+    "@next/next/no-img-element": {
+      "count": 4
+    },
+    "complexity": {
+      "count": 4
+    },
+    "max-depth": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/coffee/pricing-calculator/page.tsx": {
+    "@next/next/no-img-element": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 4
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/app/coffee/proposals/[token]/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/coffee/track/[token]/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/complete-profile/page.tsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/components/BlurredContent.tsx": {
+    "@next/next/no-img-element": {
+      "count": 1
+    }
+  },
+  "src/app/components/CoffeeCartDrawer.tsx": {
+    "@next/next/no-img-element": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/components/LeadGeneratorAdminPanel.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/components/LeadGeneratorForm.tsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/components/LeadPurchaseAgreement.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/components/LocatorOnboarding.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/components/MagicLinkHashCatcher.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/components/Navbar.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 3
+    },
+    "max-depth": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/components/RatingCard.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/components/RequestCard.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/components/SourceIntakePanel.tsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/app/components/StaticMapPreview.tsx": {
+    "@next/next/no-img-element": {
+      "count": 1
+    }
+  },
+  "src/app/components/Tooltip.tsx": {
+    "react-hooks/purity": {
+      "count": 1
+    },
+    "react-hooks/refs": {
+      "count": 2
+    }
+  },
+  "src/app/components/website-builder/WizardBrandStep.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/components/website-builder/WizardContentStep.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/components/website-builder/WizardDomainStep.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/app/components/website-builder/WizardMediaStep.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/components/website-builder/WizardProductsStep.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/components/website-builder/WizardReviewStep.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/dashboard/page.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    },
+    "complexity": {
+      "count": 5
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 5
+    },
+    "react-hooks/preserve-manual-memoization": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/dashboard/profile/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "src/app/financing/complete-application/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/financing/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/lead-intake/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/location-agreement/[token]/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/location-intake/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/login/page.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 2
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/machines-for-sale/[id]/checkout/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/machines-for-sale/[id]/page.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/machines-for-sale/page.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/manufacturer/apply/page.tsx": {
+    "complexity": {
+      "count": 12
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/manufacturer/orders/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/marketplace/[id]/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react/no-unescaped-entities": {
+      "count": 2
+    }
+  },
+  "src/app/marketplace/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    },
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/my-listings/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 6
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    },
+    "react/no-unescaped-entities": {
+      "count": 1
+    }
+  },
+  "src/app/my/commissions/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/non-circumvention/[token]/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/onboarding/[token]/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 5
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/operator/contracts/[id]/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/operator/contracts/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/operator/marketplace/[id]/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/operator/marketplace/page.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/operators/[id]/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/payroll/[token]/page.tsx": {
+    "@typescript-eslint/no-unused-expressions": {
+      "count": 2
+    },
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/placement/agreement/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/placement/contracts/[id]/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/placement/contracts/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/placement/earnings/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/placement/onboarding/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 5
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/placement/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/placement/payouts/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/placement/settings/bank-account/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/placement/settings/page.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/placement/submissions/[id]/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/placement/submissions/new/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/placement/submissions/page.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/placement/team/invite/[token]/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/placement/team/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/post-machine/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "max-depth": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/post-request/page.tsx": {
+    "complexity": {
+      "count": 4
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/post-route/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/request-location/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/requests/[id]/page.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/resend-verification/page.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/reset-password/page.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/routes-for-sale/[id]/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/routes-for-sale/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    },
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/sales/accounts/[id]/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/accounts/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/admin/documents/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-nested-callbacks": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/admin/email-templates/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-nested-callbacks": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/admin/pipeline-doc-mapping/page.tsx": {
+    "complexity": {
+      "count": 4
+    },
+    "max-nested-callbacks": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/sales/agreements/[id]/page.tsx": {
+    "complexity": {
+      "count": 8
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/agreements/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/call-lists/page.tsx": {
+    "complexity": {
+      "count": 4
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/candidates/[id]/forms/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/sales/candidates/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 4
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/catalog/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/commissions/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/deals/[id]/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/deals/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/sales/hiring-dashboard/page.tsx": {
+    "max-nested-callbacks": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/leads/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 13
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/onboarding-packets/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/orders/[id]/AttributionPanel.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/orders/[id]/CommissionOverridePanel.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/orders/[id]/agreement/page.tsx": {
+    "complexity": {
+      "count": 5
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/orders/[id]/page.tsx": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/orders/new/page.tsx": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/sales/orders/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/sales/pipelines/[id]/edit/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/pipelines/[id]/items/[itemId]/page.tsx": {
+    "complexity": {
+      "count": 13
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 26
+    },
+    "react-hooks/preserve-manual-memoization": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 3
+    }
+  },
+  "src/app/sales/pipelines/[id]/items/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/pipelines/onboarding/edit/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    },
+    "max-nested-callbacks": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/sales/pipelines/onboarding/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-nested-callbacks": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/sales/pipelines/page.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-nested-callbacks": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/resources/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/results/page.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/team/AddToPayrollModal.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/team/SendCredentialsModal.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/sales/team/[id]/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-nested-callbacks": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/team/contractor-onboarding/[id]/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/team/page.tsx": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-nested-callbacks": {
+      "count": 1
+    },
+    "react-hooks/immutability": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/time-clock/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 2
+    },
+    "react-hooks/purity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/sales/workflows/[id]/page.tsx": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 7
+    },
+    "react-hooks/purity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/sales/workflows/page.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/app/sales/workload/page.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/saved-requests/page.tsx": {
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/app/sign/[token]/page.tsx": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 6
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/app/signup/page.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/tools/lead-generator/manage/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/tools/lead-generator/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/tools/lead-generator/subscribe/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/verify-email-required/page.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 1
+    }
+  },
+  "src/app/verify-email/page.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/website-builder/[id]/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/your-leads/page.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/onboarding/FormRenderer.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 6
+    }
+  },
+  "src/lib/adminAuth.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/agreementEmail.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/lib/auth.ts": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 2
+    }
+  },
+  "src/lib/auth/provisionalAccount.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/candidateAdvancement.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 8
+    }
+  },
+  "src/lib/coffeeCrmMirror.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/lib/coffeeEmail.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    }
+  },
+  "src/lib/coffeePricing.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/commissions.ts": {
+    "complexity": {
+      "count": 6
+    },
+    "max-depth": {
+      "count": 11
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/lib/confirmationEmail.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/lib/dealScoring.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/dealValidation.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/dwolla.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/lib/emailVerification.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/generateAgreementPdf.ts": {
+    "complexity": {
+      "count": 4
+    },
+    "max-depth": {
+      "count": 5
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 2
+    }
+  },
+  "src/lib/generateLocationPlacementPdf.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 2
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/lib/generateProposalPdf.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    }
+  },
+  "src/lib/generateReceiptPdf.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/lib/googleSheets.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/intakeEmail.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/lib/inventory/bulkImport.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/lib/inventory/coffeeOrderConsumption.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/inventory/forecast.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/lib/inventory/ledger.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/lib/inventory/purchaseOrders.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/lib/inventory/replenishment.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/lib/leadGeneratorAccess.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/leadGeneratorSubscription.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/locationAgreement.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 4
+    }
+  },
+  "src/lib/locations/access.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/lib/machinePurchaseEmail.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/manufacturerPayouts.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/marketplace/contracts.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/marketplaceAuth.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/marketplaceDwolla.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/marketplaceEligibility.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/marketplaceEmail.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/lib/marketplaceHandoff.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/marketplaceNotifications.ts": {
+    "complexity": {
+      "count": 6
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    },
+    "prefer-const": {
+      "count": 2
+    }
+  },
+  "src/lib/marketplaceQb.ts": {
+    "complexity": {
+      "count": 4
+    }
+  },
+  "src/lib/marketplaceRatings.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/marketplaceScoring.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/marketplaceSms.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/marketplaceTeam.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/nonCircumvention.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 2
+    }
+  },
+  "src/lib/onboardingNotificationEmail.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/onboardingPipelineEmail.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/paymentBackfill.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/paymentHandlers.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 5
+    },
+    "max-depth": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 1
+    }
+  },
+  "src/lib/paymentIngest.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/lib/paymentLedger.ts": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/lib/paymentReconciliation.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/paymentReminders.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/pdf/agreementPdf.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-params": {
+      "count": 2
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/lib/pdf/coffeeAgreementPdf.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/lib/pdf/contractorOnboardingPdf.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/pdf/manufacturerAgreementPdf.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/lib/permissions.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/placementAgreements.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    }
+  },
+  "src/lib/placesApi.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/pricing/locationPricing.test.ts": {
+    "max-nested-callbacks": {
+      "count": 4
+    }
+  },
+  "src/lib/quickbooks.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/lib/salesAccountResolver.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/salesAttribution.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/lib/salesAuth.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/salesAutoAssign.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/sendOrderReceipt.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/lib/sopGuidance.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/spreadsheetExport.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "complexity": {
+      "count": 2
+    },
+    "no-console": {
+      "count": 4
+    }
+  },
+  "src/lib/stepGating.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/lib/websiteRequestEmail.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/welcomeEmail.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/lib/workflows/approvals.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/workflows/hooks.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/lib/workflows/notifications.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/lib/workflows/paymentSync.ts": {
+    "complexity": {
+      "count": 4
+    },
+    "max-depth": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/lib/workflows/permissions.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/lib/workflows/service.ts": {
+    "complexity": {
+      "count": 12
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/proxy.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    }
+  }
+}

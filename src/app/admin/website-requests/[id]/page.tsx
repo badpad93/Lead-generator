@@ -283,7 +283,6 @@ export default function AdminWebsiteRequestDetailPage() {
                         <ExternalLink className="inline h-3 w-3 mr-1" /> {m.external_url}
                       </a>
                     ) : m.signed_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <a href={m.signed_url} target="_blank" rel="noreferrer" className="block group">
                         {m.mime_type?.startsWith("video/") ? (
                           <div className="aspect-square flex items-center justify-center bg-gray-50 text-xs text-gray-500">Video</div>

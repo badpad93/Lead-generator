@@ -289,7 +289,6 @@ export default function AdminCoffeePage() {
         setReorderingProduct(null);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [token, products, fetchProducts],
   );
 
