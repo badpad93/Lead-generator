@@ -1,7 +1,6 @@
-import { Resend } from "resend";
+import { getResendClient } from "./resendClient";
 import { supabaseAdmin } from "./supabaseAdmin";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.FROM_EMAIL || "sales@bytebitevending.com";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com";
 const ADMIN_EMAIL = "james@apexaivending.com";
@@ -80,7 +79,7 @@ async function sendNonCircumventionEmail(params: {
 }) {
   const { to, recipientName, agreementUrl } = params;
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: "Non-Circumvention Agreement — Please Sign to Receive Location Details",
@@ -131,7 +130,7 @@ export async function sendSignedCopyToAdmin(agreement: {
     timeZone: "America/New_York",
   });
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to: ADMIN_EMAIL,
     subject: `Non-Circumvention Agreement Signed — ${agreement.company_name || agreement.operator_name || "Unknown"}`,

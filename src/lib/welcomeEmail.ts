@@ -1,6 +1,5 @@
-import { Resend } from "resend";
+import { getResendClient } from "./resendClient";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.FROM_EMAIL || "sales@bytebitevending.com";
 const ADMIN_EMAIL = "james@apexaivending.com";
 const APP_URL =
@@ -33,7 +32,7 @@ export async function sendWelcomeEmail(params: {
 
   const isLocator = role === "locator";
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: isLocator
@@ -91,7 +90,7 @@ export async function sendLocatorSignupAdminNotification(params: {
   const { name, email } = params;
   const adminUrl = `${APP_URL}/admin`;
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to: ADMIN_EMAIL,
     subject: `New Locator Signup — ${name} (${email})`,
@@ -131,7 +130,7 @@ export async function sendLocatorApprovedEmail(params: {
 }) {
   const { to, firstName } = params;
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: "Your Locator Account Has Been Approved!",
@@ -173,7 +172,7 @@ export async function sendLocatorRejectedEmail(params: {
 }) {
   const { to, firstName } = params;
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: FROM,
     to,
     subject: "Vending Connector — Account Update",
