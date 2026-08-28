@@ -335,7 +335,7 @@ export default function Navbar() {
                       <Link
                         key={item.href}
                         href={item.href}
-                        onClick={() => setOpenGroup(null)}
+                        prefetch={false}
                         className="block rounded-lg px-3 py-2 transition-colors hover:bg-green-50"
                       >
                         <div className="text-sm font-semibold text-black-primary">{item.label}</div>
