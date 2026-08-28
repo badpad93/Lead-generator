@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const search = url.searchParams.get("search") || "";
   const role = url.searchParams.get("role") || "";
-  const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 200);
+  const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 1000);
   const offset = parseInt(url.searchParams.get("offset") || "0");
 
   let query = supabaseAdmin
