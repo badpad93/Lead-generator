@@ -29,7 +29,6 @@ export default function CoffeeApplyPage() {
     existing_machines: "",
     estimated_volume: "",
     notes: "",
-    agreement_signed: false,
   });
 
   useEffect(() => {
@@ -359,23 +358,9 @@ export default function CoffeeApplyPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-gray-800 bg-gray-900 p-6">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.agreement_signed}
-                onChange={(e) => updateForm("agreement_signed", e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-gray-600 bg-gray-800 text-green-600 focus:ring-green-500 cursor-pointer"
-              />
-              <span className="text-sm text-gray-300">
-                I agree to the Coffee Service Agreement terms and conditions
-              </span>
-            </label>
-          </div>
-
           <button
             type="submit"
-            disabled={submitting || !form.agreement_signed}
+            disabled={submitting}
             className="w-full rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700 hover:shadow-md disabled:bg-gray-700 disabled:text-gray-400 cursor-pointer disabled:cursor-not-allowed"
           >
             {submitting ? (
