@@ -279,7 +279,7 @@ export default function CoffeeAgreementPage() {
                 disabled={pendingCountersign}
                 className="mt-0.5"
               />
-              <span>I acknowledge the <strong>minimum purchase requirement</strong> of $200/machine/month in beverage supplies.</span>
+              <span>I acknowledge the <strong>minimum purchase requirement</strong> of $1,000/machine/month in beverage supplies.</span>
             </label>
             <label className="flex items-start gap-2 text-sm text-gray-700">
               <input
