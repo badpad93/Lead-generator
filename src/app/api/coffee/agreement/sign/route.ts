@@ -99,6 +99,27 @@ export async function POST(req: NextRequest) {
       userAgent: ua,
     });
 
+    // Signing the coffee supply agreement is now sufficient to unlock the
+    // coffee shop + checkout — no admin countersign is required for the
+    // operator to start ordering. Countersign still runs (see the admin
+    // queue) and produces the fully-executed PDF for records, but it is
+    // no longer a prerequisite for placing an order.
+    //
+    // Best-effort — if the profile update fails, the signature record is
+    // still saved and admin can fall back to toggling coffee_access_enabled
+    // manually from the Users tab.
+    try {
+      await supabaseAdmin
+        .from("profiles")
+        .update({
+          coffee_access_enabled: true,
+          coffee_agreement_signed: true,
+        })
+        .eq("id", userId);
+    } catch (e) {
+      console.error("[coffee.agreement.sign] profile grant failed:", e);
+    }
+
     // Notify admin so they know to countersign.
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
