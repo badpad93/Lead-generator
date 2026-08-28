@@ -40,6 +40,9 @@ pnpm lint:prune
 Do not increase `eslint-suppressions.json` to bypass a new violation. Refactor
 the new code instead.
 
+For incremental agent-assisted cleanup of the existing baseline, use the
+[legacy lint refactor plan](docs/legacy-lint-refactor-plan.md).
+
 ## Continuous integration
 
 GitHub Actions runs lint, type-checking, tests, a secret-independent production
