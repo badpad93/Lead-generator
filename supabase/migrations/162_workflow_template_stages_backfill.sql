@@ -12,46 +12,44 @@
 -- server-side and the UI has no stage_key input. This migration
 -- heals rows written before that landed.
 --
--- Strategy (statements execute in the migration transaction in
--- declaration order; each UPDATE completes before the next starts):
+-- Statement ordering matters. Statements execute in the migration
+-- transaction in declaration order, each UPDATE fully committing
+-- its writes to visible state before the next statement reads.
+-- Two ordering invariants keep the backfill from destroying data:
 --
---   Step 1: PROMOTE — for every custom-template stage where the
---     stage_key looks like a human label (contains a space or an
---     uppercase letter), copy the key value into stage_name. We do
---     NOT gate on the current stage_name because the incumbent
---     value is either 'New Stage' or a garbage concatenation, and
---     neither is worth preserving. Runs BEFORE any slug rewrite so
---     the label is captured verbatim.
+--   * PROMOTE must run BEFORE SLUGIFY so the "human label in the
+--     key" text is captured into stage_name before the key is
+--     rewritten.
+--   * DERIVE must run BEFORE SLUGIFY too. Rows that landed with an
+--     already-clean key AND stage_name = 'New Stage' (bucket C:
+--     'onboarding', 'test', 'testing') would otherwise get their
+--     key slugified from the placeholder to 'new_stage' — losing
+--     the only remaining signal of what the stage was.
 --
---   Step 2: SLUGIFY — deterministic slug per (template_id) with a
---     numeric suffix on collision. Only writes when the current key
---     differs from the target slug, so idempotent.
+-- Sequence (5 statements against template stages + workflow_stages):
 --
---   Step 3: MIRROR — copy the new slugified keys onto every
---     workflow_stages row that references those template stages, so
---     the URL path in DELETE /api/workflows/[id]/stages/[stageKey]
---     stops receiving spaces + uppercase for live workflows.
+--   1. PROMOTE   template_stages + workflow_stages
+--   2. DERIVE    template_stages   (reads pre-slugified key)
+--   3. SLUGIFY   template_stages   (now every stage_name is real)
+--   4. MIRROR key + name           (workflow_stages inherits from template)
 --
---   Step 4: DERIVE — any row that's still stage_name = 'New Stage'
---     after Step 1 had a key that was already clean-looking
---     ('onboarding', 'test', ...). The typed original is lost, so
---     titlecase the key as the best available fallback:
---     'onboarding' -> 'Onboarding'. Beats leaving 'New Stage'.
+-- Idempotent: PROMOTE no-ops on slugified keys, DERIVE no-ops on
+-- rows no longer named 'New Stage', SLUGIFY short-circuits when
+-- the key already matches, MIRROR no-ops when values already match.
 --
--- Idempotent: re-running is a no-op. Step 1 won't fire on a slugified
--- key (no space/uppercase). Step 2 short-circuits when the key
--- already matches. Step 4 won't fire on rows no longer named
--- 'New Stage'.
---
--- Expected end state after this migration runs:
+-- Expected end state:
 --   - zero custom-template stages with stage_name = 'New Stage'
 --   - zero custom-template stage_key values matching [[:space:][:upper:]]
---   - 'Finish setting up lead' preserved on the template it came from
---     (as stage_name; its key becomes finish_setting_up_lead)
+--   - 'Finish setting up lead' preserved on its template as stage_name
+--     (key becomes finish_setting_up_lead)
 
--- Step 1 — promote key -> name whenever the key looks like a human
--- label, regardless of what stage_name currently holds. This runs
--- BEFORE Step 2's slug rewrite so the label is captured intact.
+-- ─── Step 1: PROMOTE key -> name ──────────────────────────────────
+-- For every custom-template stage whose key looks like a human
+-- label (contains a space or an uppercase letter), copy the key
+-- value into stage_name. Runs regardless of the incumbent name —
+-- those rows either hold 'New Stage' or a garbage concatenation
+-- and neither is worth preserving.
+
 UPDATE workflow_template_stages ts
    SET stage_name = ts.stage_key
   FROM workflow_templates t
@@ -67,9 +65,32 @@ UPDATE workflow_stages s
    AND t.is_custom = true
    AND s.stage_key ~ '[[:space:][:upper:]]';
 
--- Step 2 — slugify every custom-template stage_key. Deterministic
--- collision handling: first occurrence per template keeps the bare
--- slug, subsequent occurrences get "_2", "_3", ...
+-- ─── Step 2: DERIVE name from key (template stages) ───────────────
+-- Rows still named 'New Stage' after PROMOTE had keys that were
+-- already clean-looking ('onboarding', 'test'). The typed original
+-- is unrecoverable; titlecase the key as the best available
+-- fallback. MUST run before SLUGIFY so we read the intent-carrying
+-- key BEFORE it gets rewritten.
+--
+-- Guard: skip rows whose key has no alphanumeric character at all
+-- (would produce an empty or all-punctuation stage_name). Those
+-- rows keep 'New Stage' so an admin sees the failure and fixes it
+-- by hand.
+
+UPDATE workflow_template_stages ts
+   SET stage_name = initcap(replace(ts.stage_key, '_', ' '))
+  FROM workflow_templates t
+ WHERE ts.template_id = t.id
+   AND t.is_custom = true
+   AND ts.stage_name = 'New Stage'
+   AND ts.stage_key ~ '[a-zA-Z0-9]';
+
+-- ─── Step 3: SLUGIFY template stage_key ───────────────────────────
+-- Deterministic per-template slug with numeric-suffix collision
+-- handling. By the time this runs every stage_name is a real
+-- label (bucket A, B via PROMOTE; bucket C via DERIVE; bucket D
+-- was already correct), so base_slug is meaningful.
+
 WITH slugged AS (
   SELECT
     ts.id,
@@ -110,29 +131,26 @@ UPDATE workflow_template_stages ts
      ELSE slugged.base_slug || '_' || slugged.collision_index
    END;
 
--- Step 3 — mirror the slugified keys onto workflow_stages so live
--- workflows lose the spaces/uppercase in their URL paths.
+-- ─── Step 4: MIRROR key + name to workflow_stages ─────────────────
+-- Live workflows carry their own copy of stage_key and stage_name
+-- (the columns are the source of truth for the detail page). Push
+-- the healed template values down so:
+--   * URL paths in DELETE /api/workflows/[id]/stages/[stageKey]
+--     stop receiving spaces + uppercase
+--   * workflow_stages rows that still show 'New Stage' pick up
+--     the derived-or-promoted name
+
 UPDATE workflow_stages s
    SET stage_key = ts.stage_key
   FROM workflow_template_stages ts
  WHERE s.template_stage_id = ts.id
    AND s.stage_key <> ts.stage_key;
 
--- Step 4 — for rows still named 'New Stage', derive a readable name
--- from the (now-clean) slugified key. The original typed name is
--- unrecoverable for these rows; titlecase of the key beats the
--- placeholder. Also handle the workflow_stages copies.
-UPDATE workflow_template_stages ts
-   SET stage_name = initcap(replace(ts.stage_key, '_', ' '))
-  FROM workflow_templates t
- WHERE ts.template_id = t.id
-   AND t.is_custom = true
-   AND ts.stage_name = 'New Stage';
-
 UPDATE workflow_stages s
-   SET stage_name = initcap(replace(s.stage_key, '_', ' '))
+   SET stage_name = ts.stage_name
   FROM workflow_template_stages ts
   JOIN workflow_templates t ON t.id = ts.template_id
  WHERE s.template_stage_id = ts.id
    AND t.is_custom = true
-   AND s.stage_name = 'New Stage';
+   AND s.stage_name = 'New Stage'
+   AND ts.stage_name <> 'New Stage';
