@@ -91,8 +91,18 @@ export async function dispatchNotification(args: DispatchArgs): Promise<void> {
       }
 
       try {
+        // Internal workflows (custom-template perpetual tasks assigned
+        // to a staff member as both customer and assignee) should not
+        // read like a customer's product order in the email body.
+        // Detect once per rule iteration so the template can swap
+        // "order" wording for "workflow"/"task" wording.
+        const isInternal =
+          !!workflow.customer_id &&
+          !!workflow.assigned_user_id &&
+          workflow.customer_id === workflow.assigned_user_id;
         const { subject, html } = renderTemplate(rule.template_key, workflow, {
           audience: recipient.audience,
+          isInternal,
           ...args.extraContext,
         });
         const send = await getResend().emails.send({
@@ -283,33 +293,44 @@ function escape(s: string): string {
 type TemplateFn = (workflow: WorkflowRow, context: RenderContext) => { title: string; body: string; ctaLabel?: string };
 
 const TEMPLATES: Record<string, TemplateFn> = {
-  workflow_created_customer: (w) => ({
-    title: `${w.title} — we're getting started`,
-    body: `<p>Thanks for your order! We've received your <strong>${escape(w.title)}</strong> and started tracking it. You can follow progress at any time from the link below.</p>${
-      w.quantity_purchased > 0 ? `<p style="margin-top:8px"><strong>Quantity:</strong> ${w.quantity_purchased}</p>` : ""
-    }`,
-    ctaLabel: "Track your order",
-  }),
+  workflow_created_customer: (w, ctx) => {
+    // Internal task assigned to an employee/contractor — don't call it
+    // an "order," they didn't order anything. Call it a workflow.
+    if (ctx.isInternal) {
+      return {
+        title: `New workflow assigned — ${w.title}`,
+        body: `<p>A new workflow has been created and assigned to you: <strong>${escape(w.title)}</strong>.</p><p style="margin-top:8px">Open it below to review the stages and get started.</p>`,
+        ctaLabel: "Open workflow",
+      };
+    }
+    return {
+      title: `${w.title} — we're getting started`,
+      body: `<p>Thanks for your order! We've received your <strong>${escape(w.title)}</strong> and started tracking it. You can follow progress at any time from the link below.</p>${
+        w.quantity_purchased > 0 ? `<p style="margin-top:8px"><strong>Quantity:</strong> ${w.quantity_purchased}</p>` : ""
+      }`,
+      ctaLabel: "Track your order",
+    };
+  },
   machine_shipped_customer: (w, ctx) => ({
     title: `Your machines have shipped — ${w.workflow_number}`,
-    body: `<p>Your order for <strong>${escape(w.title)}</strong> has shipped.</p>${
+    body: `<p>Your ${ctx.isInternal ? "workflow" : "order"} for <strong>${escape(w.title)}</strong> has shipped.</p>${
       ctx.trackingSummary ? `<p style="margin-top:8px">${escape(String(ctx.trackingSummary))}</p>` : ""
     }`,
     ctaLabel: "View tracking",
   }),
-  machine_delivered_customer: (w) => ({
+  machine_delivered_customer: (w, ctx) => ({
     title: `Machines delivered — ${w.workflow_number}`,
-    body: `<p>Your order for <strong>${escape(w.title)}</strong> has been delivered. Installation and activation come next.</p>`,
+    body: `<p>Your ${ctx.isInternal ? "workflow" : "order"} for <strong>${escape(w.title)}</strong> has been delivered. Installation and activation come next.</p>`,
     ctaLabel: "See progress",
   }),
-  location_secured_customer: (w) => ({
+  location_secured_customer: (w, ctx) => ({
     title: `A location has been secured — ${w.title}`,
-    body: `<p>Good news! Our team has secured a location for you. Progress on your location services order:</p><p><strong>${w.quantity_completed} of ${w.quantity_purchased} locations secured</strong>.</p>`,
+    body: `<p>Good news! Our team has secured a location for you. Progress on your location services ${ctx.isInternal ? "workflow" : "order"}:</p><p><strong>${w.quantity_completed} of ${w.quantity_purchased} locations secured</strong>.</p>`,
     ctaLabel: "View details",
   }),
-  location_completed_customer: (w) => ({
+  location_completed_customer: (w, ctx) => ({
     title: `Location services complete — ${w.workflow_number}`,
-    body: `<p>All ${w.quantity_purchased} locations for your <strong>${escape(w.title)}</strong> order have been secured and completed.</p>`,
+    body: `<p>All ${w.quantity_purchased} locations for your <strong>${escape(w.title)}</strong> ${ctx.isInternal ? "workflow" : "order"} have been secured and completed.</p>`,
     ctaLabel: "View summary",
   }),
   financing_approved_customer: () => ({
@@ -322,14 +343,16 @@ const TEMPLATES: Record<string, TemplateFn> = {
     body: `<p>Funds from your SBA financing have been disbursed. This closes your financing workflow.</p>`,
     ctaLabel: "View summary",
   }),
-  workflow_completed_customer: (w) => ({
+  workflow_completed_customer: (w, ctx) => ({
     title: `${w.title} — complete!`,
-    body: `<p>Your <strong>${escape(w.title)}</strong> order is fully complete. Thank you for choosing Vending Connector.</p>`,
+    body: `<p>Your <strong>${escape(w.title)}</strong> ${ctx.isInternal ? "workflow" : "order"} is fully complete.${ctx.isInternal ? "" : " Thank you for choosing Vending Connector."}</p>`,
     ctaLabel: "View summary",
   }),
   action_required_customer: (w, ctx) => ({
     title: `Action needed — ${w.title}`,
-    body: `<p>${escape(String(ctx.actionMessage ?? "Our team needs some information from you to keep your order moving."))}</p>`,
+    body: `<p>${escape(String(ctx.actionMessage ?? (ctx.isInternal
+      ? "This workflow needs your attention to keep moving."
+      : "Our team needs some information from you to keep your order moving.")))}</p>`,
     ctaLabel: "Take action",
   }),
   approval_needed_customer: (w, ctx) => ({
@@ -340,7 +363,7 @@ const TEMPLATES: Record<string, TemplateFn> = {
             ctx.city || ctx.state ? ` — ${escape([ctx.city, ctx.state].filter(Boolean).join(", "))}` : ""
           }</p>`
         : ""
-    }<p style="margin-top:8px">Open your order to accept or decline. Please review promptly.</p>`,
+    }<p style="margin-top:8px">Open your ${ctx.isInternal ? "workflow" : "order"} to accept or decline. Please review promptly.</p>`,
     ctaLabel: "Review location",
   }),
   deadline_changed_customer: (w) => ({
