@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     // the extra category memberships in a second best-effort query.
     let query = supabaseAdmin
       .from("coffee_products")
-      .select("*, coffee_categories(id, name, slug)")
+      .select("*, coffee_categories!coffee_products_category_id_fkey(id, name, slug)")
       .eq("active", true)
       // sort_order first (0 = admin hasn't customized yet); name
       // second as a stable tiebreaker so ties don't render in a

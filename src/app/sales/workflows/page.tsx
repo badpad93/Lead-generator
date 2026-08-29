@@ -830,15 +830,24 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
     });
     const json = await res.json().catch(() => ({}));
     if (res.ok && json.workflow?.id) {
-      // The workflow was saved, but the template's stages may not
-      // have propagated (missing/inactive template, empty stages).
-      // Surface the API's diagnostic so the admin knows what to fix
-      // instead of ending up on a stage-less detail page with no
-      // explanation.
-      if (json.stageWarning) {
-        setError(json.stageWarning);
-        setSubmitting(false);
-        return;
+      // Dump the DB trace to the browser console so we can debug why
+      // template stages aren't propagating without adding UI. Open
+      // DevTools → Console after creating a workflow to see it.
+      if (json.debugTrace) {
+        console.group("[workflow spawn debug]");
+        console.log("Input workflowType sent by modal:", json.debugTrace.inputWorkflowType);
+        console.log("Workflow row created:", json.debugTrace.workflowRow);
+        console.log("All templates in DB for that workflow_type:", json.debugTrace.allTemplatesForThisType);
+        console.log("Which template resolveTemplate would pick:", json.debugTrace.resolveTemplateWouldReturn);
+        console.log(
+          `Template stages in DB (for the linked/resolved template): ${json.debugTrace.templateStagesInDb.length}`,
+          json.debugTrace.templateStagesInDb,
+        );
+        console.log(
+          `Workflow stages actually inserted: ${json.debugTrace.workflowStagesInDb.length}`,
+          json.debugTrace.workflowStagesInDb,
+        );
+        console.groupEnd();
       }
       onCreated(json.workflow.id);
     } else {

@@ -13,7 +13,7 @@ import { getAdminUserId } from "@/lib/adminAuth";
  */
 
 const stageSchema = z.object({
-  stage_key: z.string().min(1).max(60),
+  stage_key: z.string().max(60).optional(),
   stage_name: z.string().min(1).max(120),
   stage_order: z.number().int().min(0),
   stage_type: z.enum(["quantity", "status", "date", "approval", "document", "milestone"]),
@@ -22,6 +22,32 @@ const stageSchema = z.object({
   default_customer_message: z.string().max(500).nullable().optional(),
   description: z.string().max(500).nullable().optional(),
 });
+
+function slugifyStageKey(name: string): string {
+  const cleaned = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 55);
+  return cleaned || "stage";
+}
+
+function assignUniqueKeys<T extends { stage_name: string }>(
+  stages: T[],
+): Array<T & { stage_key: string }> {
+  const used = new Set<string>();
+  return stages.map((s) => {
+    const base = slugifyStageKey(s.stage_name);
+    let candidate = base;
+    let i = 2;
+    while (used.has(candidate)) {
+      candidate = `${base}_${i}`;
+      i += 1;
+    }
+    used.add(candidate);
+    return { ...s, stage_key: candidate };
+  });
+}
 
 const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -95,7 +121,17 @@ export async function PATCH(
     // stage rows copied at spawn time. Editing the template affects
     // only future spawns.
     await supabaseAdmin.from("workflow_template_stages").delete().eq("template_id", id);
-    const rows = stages.map((s) => ({
+    const rows = assignUniqueKeys(
+      stages.map((s) => ({
+        stage_name: s.stage_name.trim(),
+        stage_type: s.stage_type,
+        stage_order: s.stage_order,
+        required_for_completion: s.required_for_completion,
+        customer_visible: s.customer_visible,
+        default_customer_message: s.default_customer_message ?? null,
+        description: s.description ?? null,
+      })),
+    ).map((s) => ({
       template_id: id,
       stage_key: s.stage_key,
       stage_name: s.stage_name,
@@ -103,8 +139,8 @@ export async function PATCH(
       stage_type: s.stage_type,
       required_for_completion: s.required_for_completion,
       customer_visible: s.customer_visible,
-      default_customer_message: s.default_customer_message ?? null,
-      description: s.description ?? null,
+      default_customer_message: s.default_customer_message,
+      description: s.description,
     }));
     const { error: sErr } = await supabaseAdmin.from("workflow_template_stages").insert(rows);
     if (sErr) return NextResponse.json({ error: `Stage replace failed: ${sErr.message}` }, { status: 500 });

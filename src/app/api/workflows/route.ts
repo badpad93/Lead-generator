@@ -243,42 +243,65 @@ export async function POST(req: NextRequest) {
   try {
     const { workflow, stages, created } = await getOrCreateWorkflow(parsed.data);
 
-    // Diagnostic: if the workflow was requested with a custom template
-    // but ended up with zero stages, look up why so the client can show
-    // a clear error instead of silently succeeding.
-    let stageWarning: string | null = null;
-    if (created && stages.length === 0) {
-      const wtype = workflow.workflow_type;
-      const { data: tpl } = await supabaseAdmin
-        .from("workflow_templates")
-        .select("id, active, version")
-        .eq("workflow_type", wtype)
-        .order("version", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!tpl) {
-        stageWarning = `No template found for workflow_type "${wtype}". Create one at /admin/workflows/templates and try again.`;
-      } else if (!tpl.active) {
-        stageWarning = `Template for "${wtype}" (v${tpl.version}) is INACTIVE. Reactivate it at /admin/workflows/templates.`;
-      } else {
-        const { count } = await supabaseAdmin
-          .from("workflow_template_stages")
-          .select("id", { count: "exact", head: true })
-          .eq("template_id", tpl.id);
-        if (!count || count === 0) {
-          stageWarning = `Template for "${wtype}" (v${tpl.version}) exists but has ZERO stages defined. Edit the template at /admin/workflows/templates and add stages.`;
-        } else {
-          stageWarning = `Template resolved (v${tpl.version}, ${count} stages) but seeding failed silently. Check server logs for "[workflows.service]".`;
-        }
-      }
+    // Full trace of what the DB actually contains, so we can debug why
+    // stages aren't propagating. Always included on the response so
+    // client can log to console.
+    const wtype = workflow.workflow_type;
+    const templateIdOnWorkflow = (workflow as { template_id?: string | null }).template_id ?? null;
+    const { data: allTemplatesForType } = await supabaseAdmin
+      .from("workflow_templates")
+      .select("id, version, active, title, is_custom")
+      .eq("workflow_type", wtype)
+      .order("version", { ascending: false });
+    const templateForLinked = templateIdOnWorkflow
+      ? (allTemplatesForType ?? []).find((t) => t.id === templateIdOnWorkflow) ?? null
+      : null;
+    // What resolveTemplate WOULD pick right now.
+    const templateResolved = (allTemplatesForType ?? []).find((t) => t.active) ?? null;
+    const templateIdForStageLookup = templateForLinked?.id ?? templateResolved?.id ?? null;
+    let templateStagesInDb: Array<{ id: string; stage_key: string; stage_name: string; stage_order: number }> = [];
+    if (templateIdForStageLookup) {
+      const { data: ts } = await supabaseAdmin
+        .from("workflow_template_stages")
+        .select("id, stage_key, stage_name, stage_order")
+        .eq("template_id", templateIdForStageLookup)
+        .order("stage_order", { ascending: true });
+      templateStagesInDb = ts ?? [];
     }
+    const { data: workflowStagesInDb } = await supabaseAdmin
+      .from("workflow_stages")
+      .select("id, stage_key, stage_name, stage_order")
+      .eq("workflow_id", workflow.id)
+      .order("stage_order", { ascending: true });
+
+    const debugTrace = {
+      inputWorkflowType: parsed.data.workflowType,
+      workflowRow: {
+        id: workflow.id,
+        workflow_type: wtype,
+        title: workflow.title,
+        template_id: templateIdOnWorkflow,
+      },
+      allTemplatesForThisType: (allTemplatesForType ?? []).map((t) => ({
+        id: t.id,
+        version: t.version,
+        active: t.active,
+        title: t.title,
+        is_custom: t.is_custom,
+      })),
+      resolveTemplateWouldReturn: templateResolved
+        ? { id: templateResolved.id, version: templateResolved.version, title: templateResolved.title }
+        : null,
+      templateStagesInDb,
+      workflowStagesInDb: workflowStagesInDb ?? [],
+    };
 
     return NextResponse.json({
       ok: true,
       workflow,
       stagesCount: stages.length,
       created,
-      stageWarning,
+      debugTrace,
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Create failed" }, { status: 400 });
