@@ -242,7 +242,44 @@ export async function POST(req: NextRequest) {
 
   try {
     const { workflow, stages, created } = await getOrCreateWorkflow(parsed.data);
-    return NextResponse.json({ ok: true, workflow, stagesCount: stages.length, created });
+
+    // Diagnostic: if the workflow was requested with a custom template
+    // but ended up with zero stages, look up why so the client can show
+    // a clear error instead of silently succeeding.
+    let stageWarning: string | null = null;
+    if (created && stages.length === 0) {
+      const wtype = workflow.workflow_type;
+      const { data: tpl } = await supabaseAdmin
+        .from("workflow_templates")
+        .select("id, active, version")
+        .eq("workflow_type", wtype)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!tpl) {
+        stageWarning = `No template found for workflow_type "${wtype}". Create one at /admin/workflows/templates and try again.`;
+      } else if (!tpl.active) {
+        stageWarning = `Template for "${wtype}" (v${tpl.version}) is INACTIVE. Reactivate it at /admin/workflows/templates.`;
+      } else {
+        const { count } = await supabaseAdmin
+          .from("workflow_template_stages")
+          .select("id", { count: "exact", head: true })
+          .eq("template_id", tpl.id);
+        if (!count || count === 0) {
+          stageWarning = `Template for "${wtype}" (v${tpl.version}) exists but has ZERO stages defined. Edit the template at /admin/workflows/templates and add stages.`;
+        } else {
+          stageWarning = `Template resolved (v${tpl.version}, ${count} stages) but seeding failed silently. Check server logs for "[workflows.service]".`;
+        }
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      workflow,
+      stagesCount: stages.length,
+      created,
+      stageWarning,
+    });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Create failed" }, { status: 400 });
   }
