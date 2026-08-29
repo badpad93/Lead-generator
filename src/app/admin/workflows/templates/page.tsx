@@ -129,8 +129,16 @@ export default function AdminWorkflowTemplatesPage() {
             <div key={category}>
               <h2 className="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-2">{category}</h2>
               <div className="space-y-2">
-                {list.map((t) => (
-                  <div key={t.id} className="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-center gap-3">
+                {list.map((t) => {
+                  const stageCount = t.stages?.length ?? 0;
+                  const hasNoStages = t.is_custom && stageCount === 0;
+                  return (
+                  <div
+                    key={t.id}
+                    className={`rounded-lg border p-4 flex flex-wrap items-center gap-3 ${
+                      hasNoStages ? "border-red-300 bg-red-50" : "border-gray-200 bg-white"
+                    }`}
+                  >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-gray-900">{t.title}</span>
@@ -139,6 +147,16 @@ export default function AdminWorkflowTemplatesPage() {
                             <ShieldCheck className="h-3 w-3" /> System
                           </span>
                         )}
+                        <span
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold ${
+                            stageCount === 0
+                              ? "bg-red-100 text-red-700"
+                              : "bg-emerald-100 text-emerald-800"
+                          }`}
+                          title="Number of stages defined on this template — new workflows spawned from this template get exactly this many stages"
+                        >
+                          {stageCount} stage{stageCount !== 1 ? "s" : ""}
+                        </span>
                         <span className="inline-flex items-center gap-1 rounded bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-[10px] font-medium">
                           Weight {t.workload_weight}
                         </span>
@@ -147,8 +165,13 @@ export default function AdminWorkflowTemplatesPage() {
                         )}
                       </div>
                       <div className="text-xs text-gray-500 mt-0.5">
-                        {t.workflow_type} · {t.stages.length} stage{t.stages.length !== 1 ? "s" : ""} · rule: {t.completion_rule.replace(/_/g, " ")}
+                        {t.workflow_type} · rule: {t.completion_rule.replace(/_/g, " ")}
                       </div>
+                      {hasNoStages && (
+                        <div className="mt-2 text-xs font-medium text-red-700">
+                          ⚠️ This template has no stages. Workflows spawned from it will be empty. Click Edit to add stages.
+                        </div>
+                      )}
                       {t.description && <div className="text-xs text-gray-600 mt-1">{t.description}</div>}
                     </div>
                     {t.is_custom && (
@@ -158,7 +181,8 @@ export default function AdminWorkflowTemplatesPage() {
                       </>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
