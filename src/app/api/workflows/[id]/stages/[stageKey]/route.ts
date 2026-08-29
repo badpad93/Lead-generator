@@ -95,3 +95,61 @@ export async function PATCH(
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
+
+/**
+ * DELETE /api/workflows/[id]/stages/[stageKey]
+ *
+ * Remove a stage from a workflow. Same gate as adding + operational
+ * edit — assigned rep or elevated role.
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; stageKey: string }> },
+) {
+  const actor = await getWorkflowActor(req);
+  if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { id, stageKey } = await params;
+
+  const { data: workflow } = await supabaseAdmin
+    .from("workflows")
+    .select("id, customer_id, assigned_user_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (!workflow) return NextResponse.json({ error: "Workflow not found" }, { status: 404 });
+
+  if (!(await canOperationallyEditWorkflow(actor, workflow))) {
+    return NextResponse.json(
+      { error: "Forbidden — you must be assigned to edit this workflow" },
+      { status: 403 },
+    );
+  }
+
+  const { data: existing } = await supabaseAdmin
+    .from("workflow_stages")
+    .select("id, stage_name")
+    .eq("workflow_id", id)
+    .eq("stage_key", stageKey)
+    .maybeSingle();
+  if (!existing) return NextResponse.json({ error: "Stage not found" }, { status: 404 });
+
+  const { error } = await supabaseAdmin
+    .from("workflow_stages")
+    .delete()
+    .eq("id", existing.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  try {
+    await supabaseAdmin.from("workflow_events").insert({
+      workflow_id: id,
+      event_type: "stage_removed",
+      old_value: { stage_key: stageKey, stage_name: existing.stage_name },
+      actor_user_id: actor.id,
+      actor_type: "staff",
+      source: "api",
+    });
+  } catch {
+    /* non-fatal */
+  }
+
+  return NextResponse.json({ ok: true });
+}
