@@ -14,7 +14,7 @@ import { getAdminUserId } from "@/lib/adminAuth";
  */
 
 const stageSchema = z.object({
-  stage_key: z.string().min(1).max(60),
+  stage_key: z.string().max(60).optional(),
   stage_name: z.string().min(1).max(120),
   stage_order: z.number().int().min(0),
   stage_type: z.enum(["quantity", "status", "date", "approval", "document", "milestone"]),
@@ -23,6 +23,45 @@ const stageSchema = z.object({
   default_customer_message: z.string().max(500).nullable().optional(),
   description: z.string().max(500).nullable().optional(),
 });
+
+/**
+ * Derive a URL-safe, DB-friendly stage_key from the human stage_name.
+ * Guarantees: lowercase, only [a-z0-9_], no leading/trailing/duplicate
+ * underscores, at most 60 chars. Callers must resolve duplicates
+ * against (template_id, stage_key) UNIQUE.
+ *
+ * Ignoring whatever the admin typed into the stage_key field is
+ * deliberate — admins keep pasting the human label into that box
+ * because the two inputs are visually similar, which produces
+ * stage_keys with spaces + uppercase that then break the URL path
+ * on DELETE /api/workflows/[id]/stages/[stageKey].
+ */
+function slugifyStageKey(name: string): string {
+  const cleaned = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 55);
+  return cleaned || "stage";
+}
+
+/** Assigns a unique slug per stage using a numeric suffix on collision. */
+function assignUniqueKeys<T extends { stage_name: string }>(
+  stages: T[],
+): Array<T & { stage_key: string }> {
+  const used = new Set<string>();
+  return stages.map((s) => {
+    const base = slugifyStageKey(s.stage_name);
+    let candidate = base;
+    let i = 2;
+    while (used.has(candidate)) {
+      candidate = `${base}_${i}`;
+      i += 1;
+    }
+    used.add(candidate);
+    return { ...s, stage_key: candidate };
+  });
+}
 
 const createSchema = z.object({
   workflow_type: z.string().min(1).max(80),
@@ -145,7 +184,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: tErr?.message ?? "Template insert failed" }, { status: 500 });
   }
 
-  const stageRows = input.stages.map((s) => ({
+  // Slugify stage_key server-side from the typed name. Whatever the
+  // admin typed into the stage_key input is ignored — see slugifyStageKey
+  // for the rationale.
+  const stageRows = assignUniqueKeys(
+    input.stages.map((s) => ({
+      stage_name: s.stage_name.trim(),
+      stage_type: s.stage_type,
+      stage_order: s.stage_order,
+      required_for_completion: s.required_for_completion,
+      customer_visible: s.customer_visible,
+      default_customer_message: s.default_customer_message ?? null,
+      description: s.description ?? null,
+    })),
+  ).map((s) => ({
     template_id: template.id,
     stage_key: s.stage_key,
     stage_name: s.stage_name,
@@ -153,8 +205,8 @@ export async function POST(req: NextRequest) {
     stage_type: s.stage_type,
     required_for_completion: s.required_for_completion,
     customer_visible: s.customer_visible,
-    default_customer_message: s.default_customer_message ?? null,
-    description: s.description ?? null,
+    default_customer_message: s.default_customer_message,
+    description: s.description,
   }));
   const { error: sErr } = await supabaseAdmin
     .from("workflow_template_stages")

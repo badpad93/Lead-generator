@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     // break the admin catalog view.
     const { data, error } = await supabaseAdmin
       .from("coffee_products")
-      .select("*, coffee_categories(id, name, slug)")
+      .select("*, coffee_categories!coffee_products_category_id_fkey(id, name, slug)")
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 
@@ -187,7 +187,7 @@ export async function PATCH(req: NextRequest) {
       .from("coffee_products")
       .update(updates)
       .eq("id", id)
-      .select("*, coffee_categories(id, name, slug)")
+      .select("*, coffee_categories!coffee_products_category_id_fkey(id, name, slug)")
       .single();
 
     if (error) {

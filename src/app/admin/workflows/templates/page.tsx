@@ -456,16 +456,22 @@ function TemplateEditorModal({
                       type="text"
                       value={s.stage_name}
                       onChange={(e) => updateStage(i, { stage_name: e.target.value })}
-                      placeholder="Stage name"
+                      placeholder="Stage name (e.g. Discovery Call)"
                       className="flex-1 rounded-md border border-gray-200 px-2 py-1 text-sm"
                     />
-                    <input
-                      type="text"
-                      value={s.stage_key}
-                      onChange={(e) => updateStage(i, { stage_key: e.target.value })}
-                      placeholder="stage_key"
-                      className="w-32 rounded-md border border-gray-200 px-2 py-1 text-xs font-mono"
-                    />
+                    {/* The stage_key input was removed — admins kept
+                        pasting the human name in here, and the server
+                        now derives the key from stage_name via
+                        slugifyStageKey(). Displayed read-only as a
+                        hint so admins can see the URL-safe id. */}
+                    <span
+                      className="w-32 truncate rounded-md bg-gray-50 px-2 py-1 text-[11px] font-mono text-gray-500 border border-gray-100"
+                      title="Auto-generated URL-safe id — derived from the stage name on save"
+                    >
+                      {s.stage_name
+                        ? s.stage_name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 30) || "stage"
+                        : "—"}
+                    </span>
                     <select
                       value={s.stage_type}
                       onChange={(e) => updateStage(i, { stage_type: e.target.value as Stage["stage_type"] })}
