@@ -48,40 +48,69 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .order("stage_order", { ascending: true });
   let { data: allStages } = await stagesQuery;
 
-  // Lazy self-heal: if the workflow is bound to a template but has no
-  // stages (spawn happened before the template existed, or seed silently
-  // failed), copy the template's stages in now so the detail page isn't
-  // an empty shell. Staff-triggered only so we don't hide the issue
-  // when a customer looks at their side.
-  if (
-    staffView &&
-    (!allStages || allStages.length === 0) &&
-    (workflow as { template_id?: string | null }).template_id
-  ) {
-    const templateId = (workflow as { template_id: string }).template_id;
-    const { data: templateStages } = await supabaseAdmin
-      .from("workflow_template_stages")
-      .select("*")
-      .eq("template_id", templateId)
-      .order("stage_order", { ascending: true });
-    if (templateStages && templateStages.length > 0) {
-      const rows = templateStages.map((ts) => ({
-        workflow_id: id,
-        template_stage_id: ts.id,
-        stage_key: ts.stage_key,
-        stage_name: ts.stage_name,
-        stage_order: ts.stage_order,
-        stage_type: ts.stage_type,
-        status: "not_started",
-        target_quantity: ts.stage_type === "quantity" ? (workflow.quantity_purchased ?? 1) : null,
-        completed_quantity: 0,
-        customer_visible: ts.customer_visible,
-        required_for_completion: ts.required_for_completion,
-        customer_message: ts.default_customer_message,
-      }));
-      await supabaseAdmin.from("workflow_stages").insert(rows);
-      const reread = await stagesQuery;
-      allStages = reread.data;
+  // Lazy self-heal: if the workflow has no stages, try to seed them
+  // from the template. We resolve the template by BOTH template_id
+  // (preferred) and workflow_type (fallback) — the fallback catches
+  // workflows spawned before the template existed OR spawned by a
+  // code path that didn't set template_id, both of which show up as
+  // empty-stage workflows even though the admin has already published
+  // a template that matches. Staff-triggered only so a customer view
+  // doesn't quietly write to the DB. Also back-fills workflows.template_id
+  // when we resolve via workflow_type so subsequent reads take the
+  // faster path and the History tab shows the linkage.
+  if (staffView && (!allStages || allStages.length === 0)) {
+    const existingTemplateId = (workflow as { template_id?: string | null }).template_id ?? null;
+    let template: { id: string } | null = existingTemplateId ? { id: existingTemplateId } : null;
+
+    if (!template && workflow.workflow_type) {
+      const { data: matched } = await supabaseAdmin
+        .from("workflow_templates")
+        .select("id, version")
+        .eq("workflow_type", workflow.workflow_type)
+        .eq("active", true)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (matched) {
+        template = { id: matched.id };
+        // Backfill workflows.template_id + template_version so the
+        // linkage is durable and the fast path picks it up next time.
+        await supabaseAdmin
+          .from("workflows")
+          .update({ template_id: matched.id, template_version: matched.version })
+          .eq("id", id);
+      }
+    }
+
+    if (template) {
+      const { data: templateStages } = await supabaseAdmin
+        .from("workflow_template_stages")
+        .select("*")
+        .eq("template_id", template.id)
+        .order("stage_order", { ascending: true });
+      if (templateStages && templateStages.length > 0) {
+        const rows = templateStages.map((ts) => ({
+          workflow_id: id,
+          template_stage_id: ts.id,
+          stage_key: ts.stage_key,
+          stage_name: ts.stage_name,
+          stage_order: ts.stage_order,
+          stage_type: ts.stage_type,
+          status: "not_started",
+          target_quantity: ts.stage_type === "quantity" ? (workflow.quantity_purchased ?? 1) : null,
+          completed_quantity: 0,
+          customer_visible: ts.customer_visible,
+          required_for_completion: ts.required_for_completion,
+          customer_message: ts.default_customer_message,
+        }));
+        const { error: seedErr } = await supabaseAdmin.from("workflow_stages").insert(rows);
+        if (seedErr) {
+          console.error("[workflows.detail] lazy stage seed failed:", seedErr.message);
+        } else {
+          const reread = await stagesQuery;
+          allStages = reread.data;
+        }
+      }
     }
   }
 
