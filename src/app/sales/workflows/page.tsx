@@ -85,6 +85,7 @@ type Filters = {
   overdue: string;
   unassigned: string;
   search: string;
+  assignedUserId: string;
 };
 
 const EMPTY_FILTERS: Filters = {
@@ -93,27 +94,28 @@ const EMPTY_FILTERS: Filters = {
   overdue: "",
   unassigned: "",
   search: "",
+  assignedUserId: "",
 };
 
-function filtersForView(savedView: string, search: string): Filters {
+function filtersForView(savedView: string, search: string, assignedUserId: string): Filters {
   switch (savedView) {
     case "overdue":
-      return { ...EMPTY_FILTERS, search, overdue: "true" };
+      return { ...EMPTY_FILTERS, search, assignedUserId, overdue: "true" };
     case "unassigned":
-      return { ...EMPTY_FILTERS, search, unassigned: "true" };
+      return { ...EMPTY_FILTERS, search, assignedUserId, unassigned: "true" };
     case "in_progress":
-      return { ...EMPTY_FILTERS, search, status: "in_progress" };
+      return { ...EMPTY_FILTERS, search, assignedUserId, status: "in_progress" };
     case "completed":
-      return { ...EMPTY_FILTERS, search, status: "completed" };
+      return { ...EMPTY_FILTERS, search, assignedUserId, status: "completed" };
     case "all":
-      return { ...EMPTY_FILTERS, search };
+      return { ...EMPTY_FILTERS, search, assignedUserId };
     default:
       // Any non-preset saved view IS a workflow_type filter — both
       // built-in ids (ai_machine_fulfillment, coffee_service, …) and
       // custom template types (custom:cold_calling, …) pass through
       // untouched. Server-side accepts either via zod
       // workflowTypeEnum.
-      return { ...EMPTY_FILTERS, search, workflowType: savedView };
+      return { ...EMPTY_FILTERS, search, assignedUserId, workflowType: savedView };
   }
 }
 
@@ -139,6 +141,11 @@ export default function WorkflowsPage() {
     return "all";
   })();
   const [savedView, setSavedView] = useState<string>(initialSavedView);
+  // Assignee filter — drives the "Assignee" dropdown next to search.
+  // Deep-linkable via ?assignedUserId=<uuid>.
+  const initialAssignedUserId = urlParams.get("assignedUserId") ?? "";
+  const [assignedUserId, setAssignedUserId] = useState<string>(initialAssignedUserId);
+  const [assignableUsers, setAssignableUsers] = useState<Array<{ id: string; full_name: string; email: string; role: string }>>([]);
   const [orderBy, setOrderBy] = useState<"due_date" | "created_at" | "updated_at" | "priority">("due_date");
   const [orderDir, setOrderDir] = useState<"asc" | "desc">("asc");
   const [showNewModal, setShowNewModal] = useState(false);
@@ -183,7 +190,32 @@ export default function WorkflowsPage() {
     return map;
   }, [customTypes]);
 
-  const filters = useMemo(() => filtersForView(savedView, search), [savedView, search]);
+  const filters = useMemo(
+    () => filtersForView(savedView, search, assignedUserId),
+    [savedView, search, assignedUserId],
+  );
+
+  // Populate the Assignee dropdown from /api/sales/users. Same endpoint
+  // the New Workflow modal uses to list who a workflow can be assigned
+  // to, so the roster is guaranteed consistent.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadUsers() {
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/sales/users", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok || cancelled) return;
+      const users: Array<{ id: string; full_name: string; email: string; role: string }> = await res.json();
+      setAssignableUsers(
+        [...users].sort((a, b) => (a.full_name || a.email).localeCompare(b.full_name || b.email)),
+      );
+    }
+    loadUsers();
+    return () => { cancelled = true; };
+  }, []);
 
   // We snapshot Date.now() at fetch time and thread it down into row
   // renders. This keeps the render pass pure (React 19 purity rule)
@@ -256,6 +288,7 @@ export default function WorkflowsPage() {
       if (filters.status) qs.set("status", filters.status);
       if (filters.overdue) qs.set("overdue", filters.overdue);
       if (filters.unassigned) qs.set("unassigned", filters.unassigned);
+      if (filters.assignedUserId) qs.set("assignedUserId", filters.assignedUserId);
       if (filters.search) qs.set("search", filters.search);
       qs.set("orderBy", orderBy);
       qs.set("orderDir", orderDir);
@@ -377,6 +410,37 @@ export default function WorkflowsPage() {
             placeholder="Search by number, title, or product…"
             className="w-full rounded-lg border border-gray-200 bg-white pl-10 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
+        </div>
+        {/* Assignee dropdown. Filters both the primary_owner column
+            and any active workflow_assignments collaborator on the
+            server, so picking a person catches every workflow they
+            own OR collaborate on. */}
+        <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+          <Filter className="h-4 w-4 text-gray-400" />
+          <select
+            value={assignedUserId}
+            onChange={(e) => setAssignedUserId(e.target.value)}
+            className="bg-transparent focus:outline-none"
+            aria-label="Filter by assignee"
+          >
+            <option value="">All assignees</option>
+            {assignableUsers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.full_name || u.email}
+              </option>
+            ))}
+          </select>
+          {assignedUserId && (
+            <button
+              type="button"
+              onClick={() => setAssignedUserId("")}
+              className="text-gray-400 hover:text-gray-700"
+              aria-label="Clear assignee filter"
+              title="Clear assignee filter"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
         <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
           <ArrowUpDown className="h-4 w-4 text-gray-400" />

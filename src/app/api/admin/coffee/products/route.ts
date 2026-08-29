@@ -67,17 +67,40 @@ export async function GET(req: NextRequest) {
 // exactly like the legacy category_id write. is_primary marks the
 // first (or explicitly-primary) category so the storefront can still
 // pick "the" category badge for a product card.
-async function syncProductCategories(productId: string, categoryIds: string[], primaryId: string | null) {
+//
+// Returns { warning: string | null } — surfaced back to the admin so a
+// silent no-op (e.g. junction table doesn't exist because migration
+// 160 wasn't run yet) is visible in the UI instead of quietly
+// dropping the extra memberships.
+async function syncProductCategories(
+  productId: string,
+  categoryIds: string[],
+  primaryId: string | null,
+): Promise<{ warning: string | null }> {
   const deduped = Array.from(new Set(categoryIds.filter((s) => /^[0-9a-f-]{36}$/i.test(s))));
-  await supabaseAdmin.from("coffee_product_categories").delete().eq("product_id", productId);
-  if (deduped.length === 0) return;
+  const { error: delErr } = await supabaseAdmin
+    .from("coffee_product_categories")
+    .delete()
+    .eq("product_id", productId);
+  if (delErr) {
+    console.error("[admin/coffee/products] junction delete failed:", delErr.message);
+    return { warning: `Multi-category link table isn't reachable (${delErr.message}). Run migration 160 in Supabase.` };
+  }
+  if (deduped.length === 0) return { warning: null };
   const primary = primaryId && deduped.includes(primaryId) ? primaryId : deduped[0];
   const rows = deduped.map((cid) => ({
     product_id: productId,
     category_id: cid,
     is_primary: cid === primary,
   }));
-  await supabaseAdmin.from("coffee_product_categories").insert(rows);
+  const { error: insErr } = await supabaseAdmin
+    .from("coffee_product_categories")
+    .insert(rows);
+  if (insErr) {
+    console.error("[admin/coffee/products] junction insert failed:", insErr.message);
+    return { warning: `Extra categories weren't saved (${insErr.message}). Run migration 160 in Supabase.` };
+  }
+  return { warning: null };
 }
 
 export async function POST(req: NextRequest) {
@@ -124,11 +147,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    let warning: string | null = null;
     if (rawIds.length > 0) {
-      await syncProductCategories(data.id, rawIds, primaryId);
+      const res = await syncProductCategories(data.id, rawIds, primaryId);
+      warning = res.warning;
     }
 
-    return NextResponse.json({ product: data }, { status: 201 });
+    return NextResponse.json({ product: data, warning }, { status: 201 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -173,13 +198,15 @@ export async function PATCH(req: NextRequest) {
     // an explicit list. Omitting category_ids from the PATCH body
     // leaves the memberships untouched (so a PATCH that only edits
     // the name / price doesn't wipe categories).
+    let warning: string | null = null;
     if ("category_ids" in fields && Array.isArray(fields.category_ids)) {
       const rawIds: string[] = (fields.category_ids as unknown[]).filter(
         (v): v is string => typeof v === "string",
       );
       const primaryId: string | null =
         typeof fields.category_id === "string" ? fields.category_id : rawIds[0] ?? null;
-      await syncProductCategories(id, rawIds, primaryId);
+      const res = await syncProductCategories(id, rawIds, primaryId);
+      warning = res.warning;
     }
 
     // Propagate base price + shipping to the Tier 1 tier-price row.
@@ -217,7 +244,7 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ product: data });
+    return NextResponse.json({ product: data, warning });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });

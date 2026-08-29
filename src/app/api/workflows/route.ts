@@ -36,7 +36,27 @@ export async function GET(req: NextRequest) {
 
   if (q.workflowType) query = query.eq("workflow_type", q.workflowType);
   if (q.status) query = query.eq("overall_status", q.status);
-  if (q.assignedUserId) query = query.eq("assigned_user_id", q.assignedUserId);
+  if (q.assignedUserId) {
+    // Match either the historical single primary_owner column OR any
+    // active collaborator row on workflow_assignments — otherwise
+    // filtering by a specific person hides every workflow where they
+    // are a sales_rep / location_specialist collaborator rather than
+    // the primary owner.
+    const { data: collabRows } = await supabaseAdmin
+      .from("workflow_assignments")
+      .select("workflow_id")
+      .eq("user_id", q.assignedUserId)
+      .eq("active", true);
+    const collabIds = (collabRows ?? [])
+      .map((r) => r.workflow_id)
+      .filter(Boolean);
+    const csv = collabIds.length > 0
+      ? collabIds.join(",")
+      : "00000000-0000-0000-0000-000000000000";
+    query = query.or(
+      `assigned_user_id.eq.${q.assignedUserId},id.in.(${csv})`,
+    );
+  }
   if (q.customerId) query = query.eq("customer_id", q.customerId);
   if (q.companyId) query = query.eq("company_id", q.companyId);
   if (q.agreementId) query = query.eq("agreement_id", q.agreementId);
