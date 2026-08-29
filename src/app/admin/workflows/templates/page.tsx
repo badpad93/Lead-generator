@@ -41,6 +41,13 @@ const DEFAULT_CATEGORIES = [
   "Account Management",
   "Sales Ops",
   "Operator Coaching",
+  "Fulfillment",
+  "Customer Support",
+  "Onboarding",
+  "Retention",
+  "Compliance",
+  "Internal Tasks",
+  "Marketing",
   "Other",
 ];
 
@@ -319,16 +326,40 @@ function TemplateEditorModal({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Category</label>
-              <input
-                type="text"
-                list="cat-list"
-                value={category ?? ""}
-                onChange={(e) => setCategory(e.target.value)}
+              {/* Real select so all default categories are visible on
+                  click — the previous datalist-only input hid every
+                  option unless the admin knew to double-click the
+                  field. "Custom…" reveals the free-form text box so
+                  admins can still coin a new category. */}
+              <select
+                value={
+                  category && !DEFAULT_CATEGORIES.includes(category)
+                    ? "__custom__"
+                    : (category ?? DEFAULT_CATEGORIES[0])
+                }
+                onChange={(e) => {
+                  if (e.target.value === "__custom__") {
+                    setCategory("");
+                  } else {
+                    setCategory(e.target.value);
+                  }
+                }}
                 className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
-              />
-              <datalist id="cat-list">
-                {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c} />)}
-              </datalist>
+              >
+                {DEFAULT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+                <option value="__custom__">Custom…</option>
+              </select>
+              {(category !== null && category !== undefined && !DEFAULT_CATEGORIES.includes(category)) && (
+                <input
+                  type="text"
+                  value={category ?? ""}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="Type a custom category"
+                  className="mt-2 w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                />
+              )}
             </div>
             <div>
               <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Workload weight (1-20)</label>
