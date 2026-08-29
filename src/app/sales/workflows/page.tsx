@@ -830,6 +830,16 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
     });
     const json = await res.json().catch(() => ({}));
     if (res.ok && json.workflow?.id) {
+      // The workflow was saved, but the template's stages may not
+      // have propagated (missing/inactive template, empty stages).
+      // Surface the API's diagnostic so the admin knows what to fix
+      // instead of ending up on a stage-less detail page with no
+      // explanation.
+      if (json.stageWarning) {
+        setError(json.stageWarning);
+        setSubmitting(false);
+        return;
+      }
       onCreated(json.workflow.id);
     } else {
       setError(json.error ?? "Failed to create workflow");
