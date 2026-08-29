@@ -412,20 +412,53 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
 
       {/* Stages */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="p-5 border-b border-gray-100">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">Stages</h2>
+          {data.isStaffView && (
+            <AddStageButton workflowId={id} onSaved={load} />
+          )}
         </div>
-        <div className="divide-y divide-gray-100">
-          {data.stages.map((stage) => (
-            <StageRow
-              key={stage.id}
-              stage={stage}
-              saving={saving === stage.stage_key}
-              onUpdate={(patch) => updateStageField(stage.stage_key, patch)}
-              staffView={data.isStaffView}
-            />
-          ))}
-        </div>
+        {data.stages.length === 0 ? (
+          <div className="p-6 text-sm text-gray-500 text-center">
+            No stages yet.{" "}
+            {data.isStaffView && "Click “+ Add stage” above to build one."}
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {data.stages.map((stage) => (
+              <StageRow
+                key={stage.id}
+                stage={stage}
+                saving={saving === stage.stage_key}
+                onUpdate={(patch) => updateStageField(stage.stage_key, patch)}
+                onDelete={
+                  data.isStaffView
+                    ? async () => {
+                        if (!confirm(`Delete the "${stage.stage_name}" stage? This cannot be undone.`)) return;
+                        const supabase = createBrowserClient();
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (!session?.access_token) return;
+                        const res = await fetch(
+                          `/api/workflows/${id}/stages/${encodeURIComponent(stage.stage_key)}`,
+                          {
+                            method: "DELETE",
+                            headers: { Authorization: `Bearer ${session.access_token}` },
+                          },
+                        );
+                        if (res.ok) {
+                          load();
+                        } else {
+                          const err = await res.json().catch(() => ({}));
+                          alert(err.error ?? "Failed to delete stage");
+                        }
+                      }
+                    : undefined
+                }
+                staffView={data.isStaffView}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Source Intake — as-submitted customer data from the origin form.
@@ -580,11 +613,13 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
 function StageRow({
   stage,
   onUpdate,
+  onDelete,
   saving,
   staffView,
 }: {
   stage: Stage;
   onUpdate: (patch: Record<string, unknown>) => Promise<void>;
+  onDelete?: () => Promise<void> | void;
   saving: boolean;
   staffView: boolean;
 }) {
@@ -715,6 +750,18 @@ function StageRow({
               <option value="completed">Completed</option>
               <option value="skipped">Skipped</option>
             </select>
+            {staffView && onDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete()}
+                disabled={saving}
+                className="p-1.5 text-gray-400 hover:text-red-600 disabled:opacity-40"
+                aria-label={`Delete stage ${stage.stage_name}`}
+                title="Delete stage"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1233,6 +1280,94 @@ function AddNoteForm({ workflowId, onSaved }: { workflowId: string; onSaved: () 
           Post
         </button>
       </div>
+    </div>
+  );
+}
+
+function AddStageButton({ workflowId, onSaved }: { workflowId: string; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [type, setType] = useState<"milestone" | "status" | "quantity" | "approval" | "document" | "date">("milestone");
+  const [required, setRequired] = useState(false);
+  const [customerVisible, setCustomerVisible] = useState(true);
+  const [posting, setPosting] = useState(false);
+
+  async function submit() {
+    if (!name.trim()) return;
+    setPosting(true);
+    const supabase = createBrowserClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) { setPosting(false); return; }
+    const res = await fetch(`/api/workflows/${workflowId}/stages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({
+        stage_name: name.trim(),
+        stage_type: type,
+        required_for_completion: required,
+        customer_visible: customerVisible,
+      }),
+    });
+    if (res.ok) {
+      setName(""); setType("milestone"); setRequired(false); setCustomerVisible(true);
+      setOpen(false); onSaved();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error ?? "Failed to add stage");
+    }
+    setPosting(false);
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline"
+      >
+        <Plus className="h-3.5 w-3.5" /> Add stage
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+        placeholder="Stage name"
+        autoFocus
+        className="rounded-md border border-gray-200 px-2 py-1 text-sm min-w-[10rem]"
+      />
+      <select
+        value={type}
+        onChange={(e) => setType(e.target.value as typeof type)}
+        className="rounded-md border border-gray-200 px-2 py-1 text-sm"
+      >
+        <option value="milestone">Milestone</option>
+        <option value="status">Status</option>
+        <option value="quantity">Quantity</option>
+        <option value="approval">Approval</option>
+        <option value="document">Document</option>
+        <option value="date">Date</option>
+      </select>
+      <label className="inline-flex items-center gap-1 text-xs text-gray-600">
+        <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required
+      </label>
+      <label className="inline-flex items-center gap-1 text-xs text-gray-600">
+        <input type="checkbox" checked={customerVisible} onChange={(e) => setCustomerVisible(e.target.checked)} /> Customer-visible
+      </label>
+      <button
+        type="button"
+        disabled={posting || !name.trim()}
+        onClick={submit}
+        className="rounded-md bg-emerald-600 text-white px-3 py-1 text-sm disabled:opacity-50"
+      >
+        {posting ? "…" : "Save"}
+      </button>
+      <button type="button" onClick={() => setOpen(false)} className="text-xs text-gray-500">
+        Cancel
+      </button>
     </div>
   );
 }

@@ -46,7 +46,45 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .select("*")
     .eq("workflow_id", id)
     .order("stage_order", { ascending: true });
-  const { data: allStages } = await stagesQuery;
+  let { data: allStages } = await stagesQuery;
+
+  // Lazy self-heal: if the workflow is bound to a template but has no
+  // stages (spawn happened before the template existed, or seed silently
+  // failed), copy the template's stages in now so the detail page isn't
+  // an empty shell. Staff-triggered only so we don't hide the issue
+  // when a customer looks at their side.
+  if (
+    staffView &&
+    (!allStages || allStages.length === 0) &&
+    (workflow as { template_id?: string | null }).template_id
+  ) {
+    const templateId = (workflow as { template_id: string }).template_id;
+    const { data: templateStages } = await supabaseAdmin
+      .from("workflow_template_stages")
+      .select("*")
+      .eq("template_id", templateId)
+      .order("stage_order", { ascending: true });
+    if (templateStages && templateStages.length > 0) {
+      const rows = templateStages.map((ts) => ({
+        workflow_id: id,
+        template_stage_id: ts.id,
+        stage_key: ts.stage_key,
+        stage_name: ts.stage_name,
+        stage_order: ts.stage_order,
+        stage_type: ts.stage_type,
+        status: "not_started",
+        target_quantity: ts.stage_type === "quantity" ? (workflow.quantity_purchased ?? 1) : null,
+        completed_quantity: 0,
+        customer_visible: ts.customer_visible,
+        required_for_completion: ts.required_for_completion,
+        customer_message: ts.default_customer_message,
+      }));
+      await supabaseAdmin.from("workflow_stages").insert(rows);
+      const reread = await stagesQuery;
+      allStages = reread.data;
+    }
+  }
+
   const stages = staffView
     ? (allStages ?? [])
     : (allStages ?? []).filter((s) => s.customer_visible);
