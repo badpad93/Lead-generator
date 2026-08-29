@@ -210,7 +210,42 @@ export async function getOrCreateWorkflow(
   const workflow = created as WorkflowRow;
 
   // Seed stages from the template.
-  const stages = await seedStagesFromTemplate(workflow.id, template, workflow.quantity_purchased);
+  let stages = await seedStagesFromTemplate(workflow.id, template, workflow.quantity_purchased);
+
+  // Retry-with-fresh-lookup fallback. The initial resolveTemplate call
+  // may have missed the admin's custom template — schema-cache lag,
+  // race with a template that was created seconds ago, or a bug in the
+  // spawn caller passing a slightly-off workflow_type. Rather than
+  // stranding the workflow with zero stages, do one more lookup by
+  // workflow_type and seed if we find one. Also back-fills the
+  // template_id linkage so the detail page shows the right binding.
+  if (stages.length === 0) {
+    const { data: fallback } = await supabaseAdmin
+      .from("workflow_templates")
+      .select("*")
+      .eq("workflow_type", workflow.workflow_type)
+      .eq("active", true)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (fallback) {
+      const retry = await seedStagesFromTemplate(
+        workflow.id,
+        fallback as WorkflowTemplateRow,
+        workflow.quantity_purchased,
+      );
+      if (retry.length > 0) {
+        stages = retry;
+        await supabaseAdmin
+          .from("workflows")
+          .update({ template_id: fallback.id, template_version: fallback.version })
+          .eq("id", workflow.id);
+        console.warn(
+          `[workflows.service] recovered stages via fallback lookup for workflow ${workflow.id} (type=${workflow.workflow_type})`,
+        );
+      }
+    }
+  }
 
   await recordEvent({
     workflowId: workflow.id,
