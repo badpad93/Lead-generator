@@ -472,10 +472,11 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {data.stages.map((stage) => (
+            {data.stages.map((stage, idx) => (
               <StageRow
                 key={stage.id}
                 stage={stage}
+                isLast={idx === data.stages.length - 1}
                 saving={saving === stage.stage_key}
                 onUpdate={(patch) => updateStageField(stage.stage_key, patch)}
                 onDelete={
@@ -663,12 +664,14 @@ function StageRow({
   onDelete,
   saving,
   staffView,
+  isLast,
 }: {
   stage: Stage;
   onUpdate: (patch: Record<string, unknown>) => Promise<void>;
   onDelete?: () => Promise<void> | void;
   saving: boolean;
   staffView: boolean;
+  isLast: boolean;
 }) {
   // Adjust-state-when-a-prop-changes pattern (React 19). Snapshot the
   // last-seen persisted values; when the parent supplies a new stage
@@ -677,29 +680,24 @@ function StageRow({
   const [lastSeen, setLastSeen] = useState({
     completed_quantity: stage.completed_quantity,
     internal_notes: stage.internal_notes ?? "",
-    customer_message: stage.customer_message ?? "",
     stage_name: stage.stage_name,
   });
   const [qtyDraft, setQtyDraft] = useState(String(stage.completed_quantity));
   const [notesDraft, setNotesDraft] = useState(stage.internal_notes ?? "");
-  const [customerDraft, setCustomerDraft] = useState(stage.customer_message ?? "");
   const [nameDraft, setNameDraft] = useState(stage.stage_name);
 
   if (
     lastSeen.completed_quantity !== stage.completed_quantity ||
     lastSeen.internal_notes !== (stage.internal_notes ?? "") ||
-    lastSeen.customer_message !== (stage.customer_message ?? "") ||
     lastSeen.stage_name !== stage.stage_name
   ) {
     setLastSeen({
       completed_quantity: stage.completed_quantity,
       internal_notes: stage.internal_notes ?? "",
-      customer_message: stage.customer_message ?? "",
       stage_name: stage.stage_name,
     });
     setQtyDraft(String(stage.completed_quantity));
     setNotesDraft(stage.internal_notes ?? "");
-    setCustomerDraft(stage.customer_message ?? "");
     setNameDraft(stage.stage_name);
   }
 
@@ -785,18 +783,27 @@ function StageRow({
                 </button>
               </>
             )}
-            <select
-              value={stage.status}
-              onChange={(e) => onUpdate({ status: e.target.value })}
-              disabled={saving}
-              className="rounded-md border border-gray-200 text-sm px-2 py-1"
-            >
-              <option value="not_started">Not started</option>
-              <option value="in_progress">In progress</option>
-              <option value="blocked">Blocked</option>
-              <option value="completed">Completed</option>
-              <option value="skipped">Skipped</option>
-            </select>
+            {/* Simplified progression: one button per stage. Marks
+                the stage complete on click — server-side rollup
+                handles advancing the workflow. Label reads "Next"
+                on non-final stages and "Complete" on the last one
+                so the rep always knows what the click will do. */}
+            {stage.status === "completed" ? (
+              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 text-sm font-medium">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Done
+              </span>
+            ) : (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => onUpdate({ status: "completed" })}
+                className="inline-flex items-center gap-1 rounded-md bg-emerald-600 text-white px-3 py-1 text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+                title={isLast ? "Mark this stage done and complete the workflow" : "Mark this stage done and move on"}
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                {isLast ? "Complete" : "Next"}
+              </button>
+            )}
             {staffView && onDelete && (
               <button
                 type="button"
@@ -812,42 +819,26 @@ function StageRow({
           </div>
         )}
       </div>
+      {/* Single note field per stage. Customer-visible messaging
+          was removed to keep the row simple — internal notes are
+          the one input the rep needs. */}
       {staffView && (
-        <div className="mt-3 grid md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
-              Internal note
-              <span className="text-gray-400 normal-case font-normal ml-2">auto-saves on blur</span>
-            </label>
-            <textarea
-              value={notesDraft}
-              onChange={(e) => setNotesDraft(e.target.value)}
-              onBlur={() => {
-                if (notesDraft !== (stage.internal_notes ?? "")) {
-                  onUpdate({ internalNotes: notesDraft });
-                }
-              }}
-              rows={2}
-              className="w-full rounded-md border border-gray-200 px-2 py-1 text-sm resize-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-emerald-700 mb-1">
-              Customer message
-              <span className="text-emerald-600/60 normal-case font-normal ml-2">auto-saves on blur</span>
-            </label>
-            <textarea
-              value={customerDraft}
-              onChange={(e) => setCustomerDraft(e.target.value)}
-              onBlur={() => {
-                if (customerDraft !== (stage.customer_message ?? "")) {
-                  onUpdate({ customerMessage: customerDraft });
-                }
-              }}
-              rows={2}
-              className="w-full rounded-md border border-emerald-200 bg-emerald-50/50 px-2 py-1 text-sm resize-none"
-            />
-          </div>
+        <div className="mt-3">
+          <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+            Note
+            <span className="text-gray-400 normal-case font-normal ml-2">auto-saves on blur</span>
+          </label>
+          <textarea
+            value={notesDraft}
+            onChange={(e) => setNotesDraft(e.target.value)}
+            onBlur={() => {
+              if (notesDraft !== (stage.internal_notes ?? "")) {
+                onUpdate({ internalNotes: notesDraft });
+              }
+            }}
+            rows={2}
+            className="w-full rounded-md border border-gray-200 px-2 py-1 text-sm resize-none"
+          />
         </div>
       )}
     </div>
