@@ -1512,7 +1512,11 @@ function AdminActions({
         onClick={() => {
           const iso = window.prompt("New due date (YYYY-MM-DD):");
           if (!iso) return;
-          const dt = new Date(`${iso}T00:00:00.000Z`);
+          // Noon UTC so the date the admin typed renders as the
+          // same calendar day in every timezone. Midnight UTC
+          // flips to the previous day for anyone west of UTC when
+          // .toLocaleDateString() renders it.
+          const dt = new Date(`${iso}T12:00:00.000Z`);
           if (isNaN(dt.getTime())) { alert("Invalid date"); return; }
           submit("/deadline", "PATCH", { newDueDate: dt.toISOString() });
         }}

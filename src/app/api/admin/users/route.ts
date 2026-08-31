@@ -19,6 +19,11 @@ export async function GET(req: NextRequest) {
   let query = supabaseAdmin
     .from("profiles")
     .select("*", { count: "exact" })
+    // Hide soft-deleted profiles from the admin user list. The row
+    // stays in the DB so historical FK joins (orders, workflows,
+    // agreements) still resolve as "Deleted User", but it should
+    // never surface as a manageable account.
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 

@@ -356,8 +356,18 @@ function UsersManager({ token, onSuccess }: { token: string; onSuccess: (msg: st
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
+        // Endpoint returns mode: "hard" (row removed) or "soft" (row
+        // anonymized because FK history blocked a hard delete). The
+        // account is gone from every list either way; the toast just
+        // tells the admin which happened so they know whether the
+        // audit trail still points to them under "Deleted User".
+        const payload = await res.json().catch(() => ({ mode: "hard" }));
         setDeleteTarget(null);
-        onSuccess("User deleted successfully");
+        onSuccess(
+          payload.mode === "soft"
+            ? "User anonymized (had linked records) and can no longer sign in"
+            : "User deleted successfully",
+        );
         fetchUsers();
       } else {
         const data = await res.json().catch(() => ({ error: "Delete failed" }));

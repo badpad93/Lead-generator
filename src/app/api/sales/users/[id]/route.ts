@@ -5,12 +5,15 @@ import { getSalesUser } from "@/lib/salesAuth";
 /**
  * DELETE /api/sales/users/[id]
  *
- * Admin-only: remove a sales-team member. Deletes:
- *   - The auth user (Supabase auth.users)
- *   - Cascades to profiles via FK
- *   - Sets assignment references (workflow_assignments, sales_leads.assigned_to,
- *     sales_orders.created_by, etc.) to NULL via existing ON DELETE SET NULL
- *     constraints — nothing else in the CRM breaks
+ * Admin-only: remove a sales-team member.
+ *
+ * Strategy mirrors /api/admin/users/[id]: try hard delete of the
+ * profile row first (works when the account has no referenced
+ * history). If Postgres blocks the delete with a foreign-key
+ * violation — because the rep is referenced by workflows,
+ * orders, assignments, etc. — fall back to a soft delete that
+ * redacts the PII, stamps deleted_at, and deletes the auth user
+ * so the account cannot log in again.
  *
  * Refuses to delete:
  *   - The requester themselves (prevents lockout)
@@ -39,12 +42,13 @@ export async function DELETE(
     .maybeSingle();
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  // Last-admin guard
+  // Last-admin guard.
   if (target.role === "admin") {
     const { count } = await supabaseAdmin
       .from("profiles")
       .select("id", { count: "exact", head: true })
-      .eq("role", "admin");
+      .eq("role", "admin")
+      .is("deleted_at", null);
     if ((count ?? 0) <= 1) {
       return NextResponse.json(
         { error: "Cannot delete the last remaining admin" },
@@ -53,18 +57,66 @@ export async function DELETE(
     }
   }
 
-  // Delete auth user — cascades to profiles.
-  const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(id);
-  if (authErr) {
-    return NextResponse.json({ error: `Auth delete failed: ${authErr.message}` }, { status: 500 });
+  // Try hard delete first.
+  const { error: hardErr } = await supabaseAdmin.from("profiles").delete().eq("id", id);
+  if (!hardErr) {
+    const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (authErr && !/not.*found/i.test(authErr.message)) {
+      return NextResponse.json({ error: `Auth delete failed: ${authErr.message}` }, { status: 500 });
+    }
+    return NextResponse.json({
+      ok: true,
+      mode: "hard",
+      deleted: { id: target.id, email: target.email, role: target.role },
+    });
   }
 
-  // Belt-and-suspenders: ensure the profile row is also gone. Some
-  // schemas don't have the auth→profiles cascade wired.
-  await supabaseAdmin.from("profiles").delete().eq("id", id);
+  const isFkBlock =
+    hardErr.code === "23503" ||
+    /foreign key/i.test(hardErr.message) ||
+    /violates.*constraint/i.test(hardErr.message);
+  if (!isFkBlock) {
+    return NextResponse.json({ error: hardErr.message }, { status: 500 });
+  }
+
+  const nowIso = new Date().toISOString();
+  const anonEmail = `deleted+${id.slice(0, 8)}@vendingconnector.local`;
+  const { error: softErr } = await supabaseAdmin
+    .from("profiles")
+    .update({
+      deleted_at: nowIso,
+      full_name: "Deleted User",
+      email: anonEmail,
+      phone: null,
+      address: null,
+      city: null,
+      state: null,
+      zip: null,
+      company_name: null,
+      bio: null,
+      website: null,
+      featured: false,
+      coffee_access_enabled: false,
+    })
+    .eq("id", id);
+  if (softErr) {
+    return NextResponse.json(
+      { error: `Soft delete failed: ${softErr.message}` },
+      { status: 500 },
+    );
+  }
+
+  const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(id);
+  if (authErr && !/not.*found/i.test(authErr.message)) {
+    return NextResponse.json(
+      { error: `Profile anonymized but auth user delete failed: ${authErr.message}` },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({
     ok: true,
+    mode: "soft",
     deleted: { id: target.id, email: target.email, role: target.role },
   });
 }

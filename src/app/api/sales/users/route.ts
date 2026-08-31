@@ -11,6 +11,9 @@ export async function GET(req: NextRequest) {
     .from("profiles")
     .select("id, full_name, email, role")
     .in("role", ["admin", "sales", "director_of_sales", "market_leader", "sales_manager"])
+    // Hide soft-deleted team members from every assignment dropdown
+    // and rep roster in the CRM.
+    .is("deleted_at", null)
     .order("full_name");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -297,8 +297,13 @@ function TemplateEditorModal({
       active,
       requires_payment: requiresPayment,
       stages: stages.map((s, idx) => ({
-        stage_key: s.stage_key.trim(),
-        stage_name: s.stage_name.trim(),
+        // Guard against missing/null fields on legacy rows. The
+        // server derives stage_key from stage_name anyway (see
+        // slugifyStageKey), so the client-side stage_key here is
+        // informational only, but a .trim() call on undefined
+        // would crash the whole save.
+        stage_key: (s.stage_key ?? "").trim(),
+        stage_name: (s.stage_name ?? "").trim(),
         stage_order: (idx + 1) * 10,
         stage_type: s.stage_type,
         required_for_completion: s.required_for_completion,
@@ -454,7 +459,13 @@ function TemplateEditorModal({
                     <span className="text-xs text-gray-400 w-6">#{i + 1}</span>
                     <input
                       type="text"
-                      value={s.stage_name}
+                      // ?? "" keeps this a controlled input even if a
+                      // loaded row ever has stage_name = null. React
+                      // silently drops keystrokes after an
+                      // uncontrolled -> controlled flip, which is
+                      // exactly the "can't change stage name"
+                      // behavior admins were hitting.
+                      value={s.stage_name ?? ""}
                       onChange={(e) => updateStage(i, { stage_name: e.target.value })}
                       placeholder="Stage name (e.g. Discovery Call)"
                       className="flex-1 rounded-md border border-gray-200 px-2 py-1 text-sm"

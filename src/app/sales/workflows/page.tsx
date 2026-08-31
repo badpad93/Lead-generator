@@ -823,7 +823,11 @@ function NewWorkflowModal({ onClose, onCreated }: { onClose: () => void; onCreat
         workflowType,
         productName: productName || undefined,
         quantityPurchased: Number(quantity) || 1,
-        dueDate: dueDate ? new Date(`${dueDate}T00:00:00.000Z`).toISOString() : undefined,
+        // Noon UTC (not midnight) so the date the admin picked
+        // renders as the same calendar day in every timezone. Midnight
+        // UTC would flip to the previous day for anyone west of UTC
+        // when the workflow detail page runs `.toLocaleDateString()`.
+        dueDate: dueDate ? new Date(`${dueDate}T12:00:00.000Z`).toISOString() : undefined,
         priority,
         description: notes || undefined,
       }),
