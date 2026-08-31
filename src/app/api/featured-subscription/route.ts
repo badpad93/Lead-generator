@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getStripeClient } from "@/lib/stripeClient";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const FEATURED_PRICE = 2999; // $29.99 in cents
 const MAX_FEATURED_PER_STATE = 3;
 
@@ -115,7 +114,7 @@ export async function POST(req: NextRequest) {
   // Get or create Stripe customer
   let customerId = profile.stripe_customer_id;
   if (!customerId) {
-    const customer = await stripe.customers.create({
+    const customer = await getStripeClient().customers.create({
       email: user.email,
       metadata: { supabase_user_id: user.id },
     });
@@ -127,7 +126,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Create a Stripe Checkout Session in subscription mode
-  const session = await stripe.checkout.sessions.create({
+  const session = await getStripeClient().checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
     line_items: [
@@ -187,7 +186,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "No active subscription" }, { status: 404 });
   }
 
-  await stripe.subscriptions.update(profile.stripe_subscription_id, {
+  await getStripeClient().subscriptions.update(profile.stripe_subscription_id, {
     cancel_at_period_end: true,
   });
 

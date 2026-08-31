@@ -29,8 +29,6 @@ describe("calculateLocationPrice", () => {
     });
 
     it("just below the Premium threshold stays Basic", () => {
-      // hours 24/7=40, machines 4=30, traffic=(?/500)*30. Need total 59
-      // 40+30+traffic=59 → traffic=-11 impossible. Use lower hours/machines:
       // hours high=30, machines 3=23, traffic 6 → 59 → Basic
       const r = calculateLocationPrice(
         make({ business_hours: "high", machines_requested: 3, employees: 50, foot_traffic: 50 }),
@@ -42,7 +40,7 @@ describe("calculateLocationPrice", () => {
     });
 
     it("score 60 → Premium", () => {
-      // hours 24/7=40, machines 2=15, traffic 5 → total 60
+      // hours 24/7=40, machines 2=15, traffic ~5 → total 60
       const r = calculateLocationPrice(
         make({ business_hours: "24/7", machines_requested: 2, employees: 50, foot_traffic: 33 }),
       );
@@ -130,6 +128,61 @@ describe("calculateLocationPrice", () => {
     });
     it("DEFAULT_LOCATION_PRICE = Tier1", () => {
       expect(DEFAULT_LOCATION_PRICE).toBe(500);
+    });
+  });
+
+  describe("business_hours scoring", () => {
+    it("low → 10", () => {
+      const result = calculateLocationPrice(make({ business_hours: "low" }));
+      expect(result.hours_score).toBe(10);
+    });
+    it("medium → 20", () => {
+      const result = calculateLocationPrice(make({ business_hours: "medium" }));
+      expect(result.hours_score).toBe(20);
+    });
+    it("high → 30", () => {
+      const result = calculateLocationPrice(make({ business_hours: "high" }));
+      expect(result.hours_score).toBe(30);
+    });
+    it("24/7 → 40", () => {
+      const result = calculateLocationPrice(make({ business_hours: "24/7" }));
+      expect(result.hours_score).toBe(40);
+    });
+  });
+
+  describe("machines_requested scoring", () => {
+    it("1 → 8", () => {
+      const result = calculateLocationPrice(make({ machines_requested: 1 }));
+      expect(result.machine_score).toBe(8);
+    });
+    it("2 → 15", () => {
+      const result = calculateLocationPrice(make({ machines_requested: 2 }));
+      expect(result.machine_score).toBe(15);
+    });
+    it("3 → 23", () => {
+      const result = calculateLocationPrice(make({ machines_requested: 3 }));
+      expect(result.machine_score).toBe(23);
+    });
+    it("4 → 30", () => {
+      const result = calculateLocationPrice(make({ machines_requested: 4 }));
+      expect(result.machine_score).toBe(30);
+    });
+  });
+
+  describe("traffic score cap at 30", () => {
+    it("caps traffic_score at 30 for very high traffic", () => {
+      const result = calculateLocationPrice(make({ employees: 1000, foot_traffic: 1000 }));
+      expect(result.traffic_score).toBe(30);
+    });
+  });
+
+  describe("total score cap at 100", () => {
+    it("caps total_score at 100", () => {
+      const result = calculateLocationPrice(
+        make({ employees: 5000, foot_traffic: 5000, business_hours: "24/7", machines_requested: 4 }),
+      );
+      // traffic(30) + hours(40) + machine(30) = 100
+      expect(result.total_score).toBe(100);
     });
   });
 

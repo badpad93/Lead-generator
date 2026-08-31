@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import sharp from "sharp";
+import sharp, { type Metadata } from "sharp";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Validate that sharp can read it as an image
-  let metadata: sharp.Metadata;
+  let metadata: Metadata;
   try {
     metadata = await sharp(input).metadata();
   } catch {
