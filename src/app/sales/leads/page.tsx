@@ -240,30 +240,46 @@ export default function LeadsPage() {
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
   async function handleAdd() {
-    if (!addForm.business_name) return;
-    if (!addForm.city.trim()) { alert("City is required"); return; }
-    if (addForm.entity_type === "location") {
+    // For location leads, mirror the Location Details fields into the
+    // top-level sales_leads columns so the underlying row is valid
+    // without the admin having to type the same info twice. The pricing
+    // engine reads employee_count/traffic_count/business_hours/machines_
+    // requested from Location Details; those aren't mirrored — they
+    // travel through the API as-is.
+    const isLocation = addForm.entity_type === "location";
+    const payload = isLocation
+      ? {
+          ...addForm,
+          business_name: addForm.location_name || addForm.business_name,
+          contact_name: addForm.decision_maker_name || addForm.contact_name,
+          email: addForm.decision_maker_email || addForm.email,
+        }
+      : addForm;
+
+    if (isLocation) {
       const missing: string[] = [];
       if (!addForm.location_name) missing.push("Location Name");
       if (!addForm.industry) missing.push("Industry");
+      if (!addForm.city?.trim()) missing.push("City");
       if (!addForm.zip) missing.push("ZIP Code");
       if (!addForm.employee_count) missing.push("Employee Count");
       if (!addForm.traffic_count) missing.push("Foot Traffic");
       if (!addForm.decision_maker_name) missing.push("Decision Maker Name");
       if (!addForm.decision_maker_email) missing.push("Decision Maker Email");
-      if (!addForm.phone && !addForm.address) {
-        if (!addForm.phone) missing.push("Phone");
-      }
+      if (!addForm.phone) missing.push("Phone");
       if (!addForm.machine_type) missing.push("Machine Type");
       if (missing.length > 0) {
         alert(`Required location fields missing: ${missing.join(", ")}`);
         return;
       }
+    } else {
+      if (!addForm.business_name) return;
+      if (!addForm.city.trim()) { alert("City is required"); return; }
     }
     const res = await fetch("/api/sales/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(addForm),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -956,14 +972,7 @@ export default function LeadsPage() {
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-gray-900 mb-3">New Lead</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <input placeholder="Business Name *" value={addForm.business_name} onChange={(e) => setAddForm((f) => ({ ...f, business_name: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-            <input placeholder="Contact Name" value={addForm.contact_name} onChange={(e) => setAddForm((f) => ({ ...f, contact_name: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-            <input placeholder="Phone" value={addForm.phone} onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-            <input placeholder="Email" value={addForm.email} onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-            <input placeholder="Address" value={addForm.address} onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-            <input placeholder="City *" value={addForm.city} onChange={(e) => setAddForm((f) => ({ ...f, city: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-            <input placeholder="State (e.g. TX)" maxLength={2} value={addForm.state} onChange={(e) => setAddForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none uppercase" />
-            <input placeholder="Source (referral, web, cold call...)" value={addForm.source} onChange={(e) => setAddForm((f) => ({ ...f, source: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+            {/* Common controls — always visible. */}
             <select value={addForm.entity_type} onChange={(e) => setAddForm((f) => ({ ...f, entity_type: e.target.value as EntityType }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
               {ENTITY_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
@@ -975,23 +984,64 @@ export default function LeadsPage() {
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
+            <input placeholder="Source (referral, web, cold call...)" value={addForm.source} onChange={(e) => setAddForm((f) => ({ ...f, source: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+
+            {/* Non-location entities keep the full top form. For
+                location leads, all name/contact/address fields live
+                in the Location Details section below to avoid
+                duplication. */}
+            {addForm.entity_type !== "location" && (
+              <>
+                <input placeholder="Business Name *" value={addForm.business_name} onChange={(e) => setAddForm((f) => ({ ...f, business_name: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Contact Name" value={addForm.contact_name} onChange={(e) => setAddForm((f) => ({ ...f, contact_name: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Phone" value={addForm.phone} onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Email" value={addForm.email} onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Address" value={addForm.address} onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="City *" value={addForm.city} onChange={(e) => setAddForm((f) => ({ ...f, city: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="State (e.g. TX)" maxLength={2} value={addForm.state} onChange={(e) => setAddForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none uppercase" />
+              </>
+            )}
           </div>
 
-          {/* Location Details — shown when entity_type is "location" */}
+          {/* Location Details — shown when entity_type is "location".
+              Holds every field the pricing engine needs plus the
+              contact/address info that used to live in the top form.
+              Grouped into three subsections so the operator can see
+              which inputs feed the tier calculation. */}
           {addForm.entity_type === "location" && (
             <div className="mt-4 rounded-lg border border-green-200 bg-green-50/50 p-4">
               <h4 className="text-xs font-semibold text-green-800 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Building2 className="h-3.5 w-3.5" /> Location Details
               </h4>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+
+              {/* Identity + address (feeds the sales_leads row + the
+                  location record). No duplicate top-form fields
+                  anymore — this is the single source of truth. */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-3">
                 <input placeholder="Location Name *" value={addForm.location_name} onChange={(e) => setAddForm((f) => ({ ...f, location_name: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
                 <input placeholder="Industry *" value={addForm.industry} onChange={(e) => setAddForm((f) => ({ ...f, industry: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Street Address" value={addForm.address} onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="City *" value={addForm.city} onChange={(e) => setAddForm((f) => ({ ...f, city: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="State (e.g. TX)" maxLength={2} value={addForm.state} onChange={(e) => setAddForm((f) => ({ ...f, state: e.target.value.toUpperCase() }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none uppercase" />
                 <input placeholder="ZIP Code *" value={addForm.zip} onChange={(e) => setAddForm((f) => ({ ...f, zip: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-                <input placeholder="Employee Count *" type="number" min="0" value={addForm.employee_count} onChange={(e) => setAddForm((f) => ({ ...f, employee_count: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
-                <input placeholder="Foot Traffic *" type="number" min="0" value={addForm.traffic_count} onChange={(e) => setAddForm((f) => ({ ...f, traffic_count: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+              </div>
+
+              {/* Decision maker (contact). Mirrored into
+                  contact_name/email on submit. */}
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-green-700 mb-1.5">Decision maker</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-3">
                 <input placeholder="Decision Maker Name *" value={addForm.decision_maker_name} onChange={(e) => setAddForm((f) => ({ ...f, decision_maker_name: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
                 <input placeholder="Decision Maker Email *" type="email" value={addForm.decision_maker_email} onChange={(e) => setAddForm((f) => ({ ...f, decision_maker_email: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
                 <input placeholder="Phone *" value={addForm.phone || ""} onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+              </div>
+
+              {/* Pricing engine inputs. Every field here directly
+                  feeds calculateLocationPrice() — required so the
+                  tier + $ price on the sales order is meaningful. */}
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-green-700 mb-1.5">Pricing engine inputs</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <input placeholder="Employee Count *" type="number" min="0" value={addForm.employee_count} onChange={(e) => setAddForm((f) => ({ ...f, employee_count: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
+                <input placeholder="Foot Traffic (daily count) *" type="number" min="0" value={addForm.traffic_count} onChange={(e) => setAddForm((f) => ({ ...f, traffic_count: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none" />
                 <select value={addForm.machine_type} onChange={(e) => setAddForm((f) => ({ ...f, machine_type: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
                   <option value="">Machine Type *</option>
                   <option value="ai">AI Machine</option>
@@ -1011,10 +1061,10 @@ export default function LeadsPage() {
                   <option value="4">4 Machines</option>
                 </select>
                 <select value={addForm.business_hours} onChange={(e) => setAddForm((f) => ({ ...f, business_hours: e.target.value }))} className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none cursor-pointer">
-                  <option value="8">8 Hours</option>
-                  <option value="12">12 Hours</option>
-                  <option value="16">16 Hours</option>
-                  <option value="24">24 Hours</option>
+                  <option value="8">Under 12 hours / day</option>
+                  <option value="12">12–16 hours / day</option>
+                  <option value="16">16–24 hours / day</option>
+                  <option value="24">24/7</option>
                 </select>
               </div>
             </div>
