@@ -149,7 +149,19 @@ export async function PATCH(
   }
 }
 
-/** DELETE /api/admin/users/[id] — admin deletes a user */
+/** DELETE /api/admin/users/[id] — admin deletes a user.
+ *
+ * Strategy: try a hard delete first (clean removal of both the
+ * profile row and the auth user). If the profile delete is blocked
+ * by an FK constraint — because the account has referenced history
+ * on orders, workflows, agreements, etc. — fall back to a soft
+ * delete that redacts the PII, stamps deleted_at, and deletes the
+ * auth user so the account cannot log in again. Historical rows
+ * that FK to this profile stay valid and render as "Deleted User".
+ *
+ * Response includes `mode: "hard" | "soft"` so the admin UI can
+ * tell whether the row was fully removed or just anonymized.
+ */
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -161,26 +173,72 @@ export async function DELETE(
 
   const { id } = await params;
 
-  // Prevent admin from deleting themselves
   if (id === adminId) {
     return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 });
   }
 
-  // Delete profile (cascade will handle related data via DB constraints)
-  const { error: profileError } = await supabaseAdmin
+  // Attempt hard delete first.
+  const { error: hardErr } = await supabaseAdmin
     .from("profiles")
     .delete()
     .eq("id", id);
 
-  if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
+  if (!hardErr) {
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (authError && !/not.*found/i.test(authError.message)) {
+      return NextResponse.json({ error: authError.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, mode: "hard" });
   }
 
-  // Also delete the auth user
+  // FK constraint violation → account has referenced history and
+  // Postgres blocked the delete. Fall back to soft-delete.
+  const isFkBlock =
+    hardErr.code === "23503" ||
+    /foreign key/i.test(hardErr.message) ||
+    /violates.*constraint/i.test(hardErr.message);
+  if (!isFkBlock) {
+    return NextResponse.json({ error: hardErr.message }, { status: 500 });
+  }
+
+  const nowIso = new Date().toISOString();
+  const anonEmail = `deleted+${id.slice(0, 8)}@vendingconnector.local`;
+  const { error: softErr } = await supabaseAdmin
+    .from("profiles")
+    .update({
+      deleted_at: nowIso,
+      full_name: "Deleted User",
+      email: anonEmail,
+      phone: null,
+      address: null,
+      city: null,
+      state: null,
+      zip: null,
+      company_name: null,
+      bio: null,
+      website: null,
+      // Kill any active feature flags so the deleted account can't
+      // appear as featured or coffee-enabled anywhere.
+      featured: false,
+      coffee_access_enabled: false,
+    })
+    .eq("id", id);
+  if (softErr) {
+    return NextResponse.json(
+      { error: `Soft delete failed: ${softErr.message}` },
+      { status: 500 },
+    );
+  }
+
+  // Auth user must go regardless so the account cannot log back in
+  // and re-populate the profile.
   const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
-  if (authError) {
-    return NextResponse.json({ error: authError.message }, { status: 500 });
+  if (authError && !/not.*found/i.test(authError.message)) {
+    return NextResponse.json(
+      { error: `Profile anonymized but auth user delete failed: ${authError.message}` },
+      { status: 500 },
+    );
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, mode: "soft" });
 }
