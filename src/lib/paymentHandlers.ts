@@ -9,7 +9,7 @@ import { sendMachinePurchaseThankYouEmail, sendMachinePurchaseNotificationEmail,
 import { generateSiteDetailsPdf } from "@/lib/pdf/agreementPdf";
 import { sendFullSiteDetailsEmail } from "@/lib/agreementEmail";
 import { sendLocationDealClosedEmail } from "@/lib/locationAgreementEmail";
-import { PricingResult } from "@/lib/pricing/locationPricing";
+import { PricingResult, coerceTier } from "@/lib/pricing/locationPricing";
 
 // ─── Lead Purchase ───
 
@@ -252,14 +252,16 @@ export async function handleAgreementPaymentCompleted(params: {
     .eq("id", location.id);
 
   try {
+    const tier = coerceTier(agreement.pricing_tier);
     const pricing: PricingResult = {
       total_score: agreement.pricing_score,
       traffic_score: 0,
       hours_score: 0,
       machine_score: 0,
-      tier: agreement.pricing_tier as 1 | 2 | 3 | 4 | 5,
-      tier_label: `Tier ${agreement.pricing_tier}`,
+      tier,
+      tier_label: `Tier ${tier}`,
       price: Number(agreement.pricing_price),
+      is_ten_ten_ten: false,
     };
 
     const pdfBytes = await generateSiteDetailsPdf({

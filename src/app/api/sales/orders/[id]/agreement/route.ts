@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import { DEFAULT_LOCATION_PRICE } from "@/lib/pricing/locationPricing";
 
 /* ------------------------------------------------------------------ */
 /*  POST — Create a purchase agreement from an order                  */
@@ -59,10 +60,13 @@ export async function POST(
     (sum, i) => sum + (Number(i.quantity) || 1),
     0,
   );
+  // Fall back to the Basic tier price (shared with the marketplace
+  // operator fee) instead of the legacy $400 hardcode. Real line
+  // items always carry a unit_price computed by the pricing engine.
   const locationFeePerSecured =
     locationItems.length > 0
-      ? Number(locationItems[0].unit_price) || Number(locationItems[0].price) || 400
-      : 400;
+      ? Number(locationItems[0].unit_price) || Number(locationItems[0].price) || DEFAULT_LOCATION_PRICE
+      : DEFAULT_LOCATION_PRICE;
   const maxLocationServiceValue = locationsPurchased * locationFeePerSecured;
 
   // --- Freight ---

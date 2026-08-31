@@ -6,6 +6,7 @@ import {
   BusinessHours,
   MachinesRequested,
   PricingResult,
+  coerceTier,
 } from "@/lib/pricing/locationPricing";
 import { generateAgreementPdf } from "@/lib/pdf/agreementPdf";
 import { sendAgreementEmail } from "@/lib/agreementEmail";
@@ -89,14 +90,16 @@ export async function POST(
       // Pricing calculation failed — continue without it
     }
   } else if (location.pricing_score != null) {
+    const tier = coerceTier(location.pricing_tier);
     pricing = {
       total_score: location.pricing_score,
       traffic_score: Math.min(((location.employee_count ?? 0) + (location.traffic_count ?? 0)) / 500 * 30, 30),
       hours_score: ({ low: 10, medium: 20, high: 30, "24/7": 40 } as Record<string, number>)[location.business_hours ?? "low"] ?? 10,
       machine_score: ({ 1: 8, 2: 15, 3: 23, 4: 30 } as Record<number, number>)[location.machines_requested ?? 1] ?? 8,
-      tier: location.pricing_tier as 1 | 2 | 3 | 4 | 5,
-      tier_label: `Tier ${location.pricing_tier}`,
+      tier,
+      tier_label: `Tier ${tier}`,
       price: Number(location.pricing_price),
+      is_ten_ten_ten: false,
     };
   }
 

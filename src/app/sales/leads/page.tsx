@@ -154,9 +154,12 @@ export default function LeadsPage() {
 
   // Convert-to-deal state
   const [convertingLeadId, setConvertingLeadId] = useState<string | null>(null);
-  const [convertPipelineId, setConvertPipelineId] = useState("");
   const [convertError, setConvertError] = useState<string | null>(null);
   const [convertSaving, setConvertSaving] = useState(false);
+  // New "Convert to Order" flow — skip the pipeline picker, ask for
+  // the two inputs the pricing engine actually needs on day one.
+  const [convertNumLocations, setConvertNumLocations] = useState<string>("1");
+  const [convertTenTenTen, setConvertTenTenTen] = useState(false);
   const [salesPipelines, setSalesPipelines] = useState<{ id: string; name: string }[]>([]);
 
   // Lead → Placement Agreement + Publish state
@@ -293,25 +296,32 @@ export default function LeadsPage() {
   function openConvertDialog(id: string) {
     setConvertingLeadId(id);
     setConvertError(null);
-    if (salesPipelines.length === 1) {
-      setConvertPipelineId(salesPipelines[0].id);
-    } else {
-      setConvertPipelineId("");
-    }
+    setConvertNumLocations("1");
+    setConvertTenTenTen(false);
   }
 
   async function handleConvert() {
-    if (!convertingLeadId || !convertPipelineId) return;
+    if (!convertingLeadId) return;
     setConvertSaving(true);
     setConvertError(null);
-    const res = await fetch(`/api/sales/leads/${convertingLeadId}/convert`, {
+    const res = await fetch(`/api/sales/leads/${convertingLeadId}/convert-to-order`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ pipeline_id: convertPipelineId }),
+      body: JSON.stringify({
+        is_ten_ten_ten: convertTenTenTen,
+        num_locations: Math.max(1, Number(convertNumLocations) || 1),
+      }),
     });
     if (res.ok) {
+      const json = await res.json().catch(() => ({}));
       setConvertingLeadId(null);
-      fetchLeads();
+      if (json.order_id) {
+        // Land the rep straight on the new order so they can price
+        // it, send it, and move on — no pipeline stop.
+        router.push(`/sales/orders/${json.order_id}`);
+      } else {
+        fetchLeads();
+      }
     } else {
       const err = await res.json().catch(() => ({}));
       setConvertError(err.error || `Conversion failed (${res.status})`);
@@ -1524,13 +1534,13 @@ export default function LeadsPage() {
                         </button>
                       )}
                       {lead.status === "qualified" ? (
-                        <span title="Converted to Deal" className="rounded-lg p-1.5 text-green-600">
+                        <span title="Converted to Order" className="rounded-lg p-1.5 text-green-600">
                           <CheckCircle2 className="h-4 w-4" />
                         </span>
                       ) : (
                         <button
                           onClick={() => openConvertDialog(lead.id)}
-                          title="Convert to Deal"
+                          title="Convert to Order"
                           className="rounded-lg p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 cursor-pointer"
                         >
                           <ArrowRight className="h-4 w-4" />
@@ -1631,31 +1641,46 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* Convert to Deal Modal */}
+      {/* Convert to Order Modal — skips the old pipeline stage entirely.
+          Creates a sales_orders row with a seeded location_services
+          line item and drops the rep on the order detail page so they
+          can finalize pricing and send it. */}
       {convertingLeadId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Convert to Deal</h2>
+              <h2 className="text-lg font-bold text-gray-900">Convert to Order</h2>
               <button onClick={() => setConvertingLeadId(null)} className="rounded-lg p-1 text-gray-400 hover:text-gray-600 cursor-pointer">
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="text-sm text-gray-500 mb-4">Select a pipeline for this deal:</p>
-            {salesPipelines.length === 0 ? (
-              <p className="text-sm text-red-600 mb-4">No sales pipelines found. Create a pipeline first.</p>
-            ) : (
-              <select
-                value={convertPipelineId}
-                onChange={(e) => setConvertPipelineId(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none mb-4 cursor-pointer"
-              >
-                {salesPipelines.length > 1 && <option value="">Select pipeline...</option>}
-                {salesPipelines.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            )}
+            <p className="text-sm text-gray-500 mb-4">
+              Creates a new order for this lead and takes you to the order page. Pricing is set by our tier engine — Basic $500, Premium $800, Elite $1,200 — or a flat $400 if the customer took the 10/10/10 prepaid deal.
+            </p>
+            <div className="mb-4">
+              <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1">Number of locations</label>
+              <input
+                type="number"
+                min={1}
+                value={convertNumLocations}
+                onChange={(e) => setConvertNumLocations(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+              />
+            </div>
+            <label className="mb-4 flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={convertTenTenTen}
+                onChange={(e) => setConvertTenTenTen(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="font-medium text-gray-900">10/10/10 prepaid deal</span>
+                <span className="mt-0.5 block text-xs text-gray-500">
+                  Flat $400/location — customer pays everything up front, no deposit invoice.
+                </span>
+              </span>
+            </label>
             {convertError && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{convertError}</div>
             )}
@@ -1663,11 +1688,11 @@ export default function LeadsPage() {
               <button onClick={() => setConvertingLeadId(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
               <button
                 onClick={handleConvert}
-                disabled={convertSaving || !convertPipelineId}
+                disabled={convertSaving}
                 className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
               >
                 {convertSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                Convert
+                Create order
               </button>
             </div>
           </div>

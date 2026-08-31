@@ -7,14 +7,21 @@ export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { data, error } = await supabaseAdmin
+  // Try the deleted_at filter first; retry without it if migration
+  // 163 hasn't run yet so the assignment dropdowns keep working.
+  let { data, error } = await supabaseAdmin
     .from("profiles")
     .select("id, full_name, email, role")
     .in("role", ["admin", "sales", "director_of_sales", "market_leader", "sales_manager"])
-    // Hide soft-deleted team members from every assignment dropdown
-    // and rep roster in the CRM.
     .is("deleted_at", null)
     .order("full_name");
+  if (error && /deleted_at/i.test(error.message)) {
+    ({ data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email, role")
+      .in("role", ["admin", "sales", "director_of_sales", "market_leader", "sales_manager"])
+      .order("full_name"));
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data || []);
