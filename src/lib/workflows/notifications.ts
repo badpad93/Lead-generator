@@ -254,10 +254,19 @@ function renderTemplate(
     title,
     body,
     ctaLabel = "View details",
+    ctaSuffix = "",
   } = TEMPLATES[templateKey]?.(workflow, context) ?? {
     title: `Workflow update: ${workflow.title}`,
     body: `Your workflow "${workflow.title}" has been updated.`,
   };
+
+  // ctaSuffix lets a template append e.g. "?action=accept" so the
+  // detail page can auto-scroll / auto-open the right control on
+  // arrival. Prepended with "?" or "&" depending on whether the
+  // base URL already has a query string.
+  const finalHref = ctaSuffix
+    ? `${detailUrl}${detailUrl.includes("?") ? "&" : "?"}${ctaSuffix.replace(/^[?&]/, "")}`
+    : detailUrl;
 
   const html = `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;color:#111827">
@@ -267,7 +276,7 @@ function renderTemplate(
       <h2 style="font-size:18px;margin:0 0 12px">${escape(title)}</h2>
       <div style="font-size:14px;line-height:1.6;color:#374151">${body}</div>
       <p style="margin-top:24px">
-        <a href="${detailUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">
+        <a href="${finalHref}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">
           ${escape(ctaLabel)}
         </a>
       </p>
@@ -290,7 +299,10 @@ function escape(s: string): string {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 }
 
-type TemplateFn = (workflow: WorkflowRow, context: RenderContext) => { title: string; body: string; ctaLabel?: string };
+type TemplateFn = (
+  workflow: WorkflowRow,
+  context: RenderContext,
+) => { title: string; body: string; ctaLabel?: string; ctaSuffix?: string };
 
 const TEMPLATES: Record<string, TemplateFn> = {
   workflow_created_customer: (w, ctx) => {
@@ -386,9 +398,17 @@ const TEMPLATES: Record<string, TemplateFn> = {
 
   // Employee-facing
   assignment_created_employee: (w) => ({
-    title: `You've been assigned: ${w.workflow_number} — ${w.title}`,
-    body: `<p>You are now the primary owner of <strong>${escape(w.title)}</strong>. Open the workflow to review the current state and next steps.</p>`,
-    ctaLabel: "Open workflow",
+    title: `Please accept your new workflow: ${w.workflow_number} — ${w.title}`,
+    body: `<p>You've been assigned <strong>${escape(w.title)}</strong>.</p>
+      <p style="margin-top:8px">To confirm ownership, please click <strong>Accept Workflow</strong> below. Until you accept, this workflow will show as <em>pending acceptance</em> on your team's dashboard.</p>`,
+    ctaLabel: "Accept Workflow",
+    ctaSuffix: "action=accept",
+  }),
+  workflow_completed_assignee: (w) => ({
+    title: `Workflow complete: ${w.workflow_number} — ${w.title}`,
+    body: `<p>All stages on <strong>${escape(w.title)}</strong> are marked complete and the workflow has been closed out.</p>
+      <p style="margin-top:8px">Thanks for driving this to the finish line.</p>`,
+    ctaLabel: "View summary",
   }),
   due_soon_employee: (w) => ({
     title: `Due soon: ${w.workflow_number} — ${w.title}`,
