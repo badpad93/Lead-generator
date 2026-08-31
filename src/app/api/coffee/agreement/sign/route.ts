@@ -179,16 +179,17 @@ export async function POST(req: NextRequest) {
         await resendClient.emails.send({
           from,
           to: profile.email,
-          subject: `Your signed Coffee Supply Agreement — copy attached`,
+          subject: `Thanks for signing your Coffee Supply Agreement`,
           html: `
-            <p>Thanks for signing the Equipment Loan &amp; Beverage Supply Agreement.</p>
-            <p>Your signed copy is attached to this email for your records. You can start placing coffee orders right away — Apex AI Vending will countersign and send the fully-executed copy shortly.</p>
-            <p><strong>Customer:</strong> ${escapeHtml(customerName)}<br />
+            <p>Thank you for signing the Coffee Supply Agreement — we are looking forward to serving you.</p>
+            <p>Please see the attached copy of the signed agreement and keep this for your records. You can start placing coffee orders right away; Apex AI Vending will countersign and send the fully-executed copy shortly.</p>
+            <p style="margin-top:16px"><strong>Customer:</strong> ${escapeHtml(customerName)}<br />
                <strong>Address on file:</strong> ${escapeHtml(customerAddress)}<br />
                <strong>Number of machines:</strong> ${numMachines}<br />
                <strong>Authorized representative:</strong> ${escapeHtml(authRepName)} (${escapeHtml(authRepTitle)})<br />
                <strong>Signed at:</strong> ${escapeHtml(updated.provider_signed_at || "")}</p>
             <p><a href="${process.env.NEXT_PUBLIC_APP_URL || "https://vendingconnector.com"}/coffee" style="display:inline-block;background:#16a34a;color:#ffffff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;">Start ordering</a></p>
+            <p style="margin-top:24px">Thanks!<br />Vending Connector</p>
           `,
           attachments: pdfAttachment,
         });
