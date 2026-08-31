@@ -184,9 +184,18 @@ export async function DELETE(
     .eq("id", id);
 
   if (!hardErr) {
-    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
-    if (authError && !/not.*found/i.test(authError.message)) {
-      return NextResponse.json({ error: authError.message }, { status: 500 });
+    // Auth soft-delete first so the row isn't physically removed
+    // even when the FK chain would otherwise cascade. If that
+    // fails, try the hard variant. Either flavor blocks sign-in.
+    const soft = await supabaseAdmin.auth.admin.deleteUser(id, true);
+    if (soft.error && !/not.*found/i.test(soft.error.message)) {
+      const hard = await supabaseAdmin.auth.admin.deleteUser(id);
+      if (hard.error && !/not.*found/i.test(hard.error.message)) {
+        return NextResponse.json(
+          { error: `Profile removed but auth user delete failed: ${hard.error.message}` },
+          { status: 500 },
+        );
+      }
     }
     return NextResponse.json({ success: true, mode: "hard" });
   }
@@ -230,12 +239,44 @@ export async function DELETE(
     );
   }
 
-  // Auth user must go regardless so the account cannot log back in
-  // and re-populate the profile.
-  const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
-  if (authError && !/not.*found/i.test(authError.message)) {
+  // Auth user must be blocked so the account cannot sign in and
+  // re-populate the anonymized profile. Prefer soft-delete
+  // (shouldSoftDelete=true) — Supabase marks auth.users.deleted_at
+  // instead of removing the row, which sidesteps the FK cascade
+  // that just blocked the profile hard-delete. If soft-delete
+  // itself is refused (older Supabase versions), try hard delete,
+  // and if THAT fails ban the user via a very-long ban_duration
+  // so they still can't log in.
+  const softAuth = await supabaseAdmin.auth.admin.deleteUser(id, true);
+  let authBlocked = !softAuth.error || /not.*found/i.test(softAuth.error.message);
+  let authMessage: string | null = softAuth.error?.message ?? null;
+  if (!authBlocked) {
+    const hardAuth = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (!hardAuth.error || /not.*found/i.test(hardAuth.error.message)) {
+      authBlocked = true;
+      authMessage = null;
+    } else {
+      authMessage = hardAuth.error.message;
+      // Last resort — ban the user for ~100 years. They stay in
+      // auth.users but every sign-in is refused.
+      const banned = await supabaseAdmin.auth.admin.updateUserById(id, {
+        ban_duration: "876000h",
+      });
+      if (!banned.error) {
+        authBlocked = true;
+        authMessage = null;
+      } else {
+        authMessage = banned.error.message;
+      }
+    }
+  }
+  if (!authBlocked) {
     return NextResponse.json(
-      { error: `Profile anonymized but auth user delete failed: ${authError.message}` },
+      {
+        error:
+          "Profile anonymized but the auth account could not be disabled. " +
+          `Please disable the account manually in Supabase Auth. (${authMessage ?? "unknown error"})`,
+      },
       { status: 500 },
     );
   }
