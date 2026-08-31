@@ -16,27 +16,29 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 1000);
   const offset = parseInt(url.searchParams.get("offset") || "0");
 
-  let query = supabaseAdmin
-    .from("profiles")
-    .select("*", { count: "exact" })
-    // Hide soft-deleted profiles from the admin user list. The row
-    // stays in the DB so historical FK joins (orders, workflows,
-    // agreements) still resolve as "Deleted User", but it should
-    // never surface as a manageable account.
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  if (search) {
-    const s = sanitizeSearch(search);
-    if (s) query = query.or(`full_name.ilike.%${s}%,email.ilike.%${s}%`);
+  // Build the query. deleted_at filter is attempted first; when the
+  // column doesn't exist (migration 163 not yet run) we retry without
+  // it so the admin panel never renders empty just because a schema
+  // change is pending.
+  function build(withDeletedFilter: boolean) {
+    let q = supabaseAdmin
+      .from("profiles")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (withDeletedFilter) q = q.is("deleted_at", null);
+    if (search) {
+      const s = sanitizeSearch(search);
+      if (s) q = q.or(`full_name.ilike.%${s}%,email.ilike.%${s}%`);
+    }
+    if (role) q = q.eq("role", role);
+    return q;
   }
 
-  if (role) {
-    query = query.eq("role", role);
+  let { data, error, count } = await build(true);
+  if (error && /deleted_at/i.test(error.message)) {
+    ({ data, error, count } = await build(false));
   }
-
-  const { data, error, count } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
