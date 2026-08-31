@@ -258,6 +258,13 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
   const totalPct = w.quantity_purchased > 0 ? Math.min(100, Math.round((w.quantity_completed / w.quantity_purchased) * 100)) : 0;
   const dueDelta = w.due_date ? Math.floor((new Date(w.due_date).getTime() - Date.now()) / 86400_000) : null;
 
+  // Viewer's own pending assignment (if any). Drives the yellow
+  // "please accept this workflow" banner + the auto-scroll from
+  // the ?action=accept email deep-link.
+  const myPendingAssignment = data.assignments.find(
+    (a) => a.active && a.user_id === data.viewerId && !a.accepted_at,
+  );
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center gap-2 text-sm">
@@ -265,6 +272,46 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
           <ChevronLeft className="h-4 w-4" /> Back to Workflows
         </Link>
       </div>
+
+      {/* Accept-assignment banner — only shows when the current
+          viewer has an active, unaccepted assignment on this workflow.
+          The email CTA lands here with ?action=accept so we surface
+          a big, obvious control instead of asking the rep to hunt
+          through the Assignees panel. */}
+      {myPendingAssignment && (
+        <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-700 mt-0.5 shrink-0" />
+            <div>
+              <div className="font-semibold text-amber-900">Please accept this workflow</div>
+              <div className="text-sm text-amber-800 mt-0.5">
+                You&apos;ve been assigned as {myPendingAssignment.role.replace(/_/g, " ")}. Confirm to take ownership — until you accept, this workflow shows as pending on your team&apos;s dashboard.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              const res = await withAuth((token) =>
+                fetch(`/api/workflows/${id}/assign/accept`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ assignmentId: myPendingAssignment.id }),
+                }),
+              );
+              if (res && res.ok) {
+                await load();
+              } else if (res) {
+                const err = await res.json().catch(() => ({}));
+                alert(`Accept failed: ${err.error ?? "Unknown"}`);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 text-white px-4 py-2 text-sm font-semibold hover:bg-amber-700"
+          >
+            <CheckCircle2 className="h-4 w-4" /> Accept Workflow
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">

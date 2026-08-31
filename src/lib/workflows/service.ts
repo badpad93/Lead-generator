@@ -692,9 +692,16 @@ export async function recomputeWorkflowRollup(
       ? requiredQuantityStages[requiredQuantityStages.length - 1]
       : stages.filter((s) => s.stage_type === "quantity").at(-1) ?? null;
 
-  const newQuantityCompleted = rollupSource ? Number(rollupSource.completed_quantity) : workflow.quantity_completed;
+  let newQuantityCompleted = rollupSource ? Number(rollupSource.completed_quantity) : workflow.quantity_completed;
 
   const newOverallStatus = deriveOverallStatus(workflow, stages, template);
+
+  // When a workflow flips to completed with no quantity stages to
+  // rollup from (custom templates with only milestone/status stages),
+  // snap the counter to purchased so the header stops reading "0/1".
+  if (newOverallStatus === "completed" && newQuantityCompleted < workflow.quantity_purchased) {
+    newQuantityCompleted = workflow.quantity_purchased;
+  }
 
   const patch: Record<string, unknown> = {};
   const changedFields: string[] = [];
@@ -767,8 +774,8 @@ function deriveOverallStatus(
 
   const allRequiredMet = (() => {
     if (rule === "never_auto_completes") return false;
-    if (requiredStages.length === 0) return false;
     if (rule === "quantity_reached_on_final_stages") {
+      if (requiredStages.length === 0) return false;
       return requiredStages.every(
         (s) =>
           s.stage_type === "quantity" &&
@@ -777,10 +784,17 @@ function deriveOverallStatus(
       );
     }
     if (rule === "terminal_status") {
+      if (requiredStages.length === 0) return false;
       return requiredStages.some((s) => s.status === "completed");
     }
-    // all_required_stages_completed
-    return requiredStages.every((s) => s.status === "completed" || s.status === "skipped");
+    // all_required_stages_completed — if the admin didn't flag any
+    // stages as required (a common oversight when building custom
+    // templates), fall back to "every stage is complete or skipped"
+    // so marking every stage done still completes the workflow. Only
+    // trips when there IS at least one stage to check.
+    if (stages.length === 0) return false;
+    const gate = requiredStages.length > 0 ? requiredStages : stages;
+    return gate.every((s) => s.status === "completed" || s.status === "skipped");
   })();
 
   if (allRequiredMet) return "completed";
