@@ -103,11 +103,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (recipient) {
           const resend = new Resend(process.env.RESEND_API_KEY);
           const from = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
+          const isCoffee = updated.agreement_type === "coffee_supply";
           await resend.emails.send({
             from,
             to: recipient,
-            subject: `${template.title} — fully executed`,
-            html: `<p>Your ${template.title} has been fully executed by Vending Connector. A copy is attached below.</p>${html}`,
+            subject: isCoffee
+              ? `Your Coffee Supply Agreement is fully executed`
+              : `${template.title} — fully executed`,
+            html: isCoffee
+              ? `<p>Your Coffee Supply Agreement is now fully executed by Vending Connector. Thanks again for signing — we look forward to serving you. A copy of the executed agreement is included below; please keep it for your records.</p>${html}<p style="margin-top:24px">Thanks!<br />Vending Connector</p>`
+              : `<p>Your ${template.title} has been fully executed by Vending Connector. A copy is attached below.</p>${html}`,
           });
         }
       } catch (e) {

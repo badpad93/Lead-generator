@@ -185,6 +185,16 @@ export async function spawnFromCoffeeAgreement(
     application: application ? snapshotSourceIntake(application) : null,
   };
 
+  // Suppress the workflow.created customer email for both coffee
+  // spawns. The customer has already received:
+  //   1. A signed-copy email from /api/coffee/agreement/sign at sign
+  //      time (with the customer-signed PDF attached).
+  //   2. A fully-executed email from the countersign endpoint (with
+  //      the executed HTML doc + PDF).
+  // Firing the generic "workflow.created / Thanks for your order"
+  // template a third time — once per spawned workflow, so twice for
+  // coffee — reads as spam and uses order wording that doesn't fit
+  // a signed service agreement.
   const equipmentResult = await safeCreate({
     customerId,
     workflowType: "coffee_equipment",
@@ -201,6 +211,7 @@ export async function spawnFromCoffeeAgreement(
       source_intake: coffeeIntake,
     },
     actorType: "system",
+    suppressInitialCustomerEmail: true,
   });
   if (equipmentResult) spawned.push(equipmentResult);
 
@@ -222,6 +233,7 @@ export async function spawnFromCoffeeAgreement(
       source_intake: coffeeIntake,
     },
     actorType: "system",
+    suppressInitialCustomerEmail: true,
   });
   if (serviceResult) spawned.push(serviceResult);
 

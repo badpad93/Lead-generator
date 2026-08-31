@@ -303,6 +303,18 @@ const TEMPLATES: Record<string, TemplateFn> = {
         ctaLabel: "Open workflow",
       };
     }
+    // Coffee workflows come from a signed agreement, not a product
+    // "order" — customer sees the agreement PDF from the sign endpoint
+    // and a fully-executed copy from countersign. Fallback wording
+    // here uses that framing in case any coffee spawn ever fires
+    // this template (spawnFromCoffeeAgreement currently suppresses it).
+    if (w.workflow_type.startsWith("coffee_")) {
+      return {
+        title: `Thanks for signing — welcome to Vending Connector Coffee`,
+        body: `<p>Thanks for signing the Coffee Supply Agreement — we're looking forward to serving you.</p><p style="margin-top:8px">A copy of the signed agreement was sent to you separately. Please keep it for your records.</p>`,
+        ctaLabel: "View details",
+      };
+    }
     return {
       title: `${w.title} — we're getting started`,
       body: `<p>Thanks for your order! We've received your <strong>${escape(w.title)}</strong> and started tracking it. You can follow progress at any time from the link below.</p>${
