@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getMarketplaceSettings } from "./settings";
+import { TIER_PRICES } from "@/lib/pricing/locationPricing";
 
 /**
  * Auto-bridge a location_services workflow to a placement_contracts
@@ -24,7 +25,11 @@ import { getMarketplaceSettings } from "./settings";
  * defaults just get the bridge out of the way.
  */
 
-const OPERATOR_PRICE_DOLLARS = 500; // $500 — matches /api/request-location assumption
+// Baseline operator-per-location fee. Uses TIER_PRICES[1] (the
+// "Basic" tier) as the shared source of truth with the customer-
+// facing location pricing engine so a tier price change lands in
+// both places. Admin can override per-contract afterwards.
+const OPERATOR_PRICE_DOLLARS = TIER_PRICES[1];
 
 export async function ensureContractForLocationServicesWorkflow(
   workflowId: string,

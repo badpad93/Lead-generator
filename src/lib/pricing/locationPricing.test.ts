@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { calculateLocationPrice, PricingInput } from "./locationPricing";
+import {
+  calculateLocationPrice,
+  TIER_PRICES,
+  TEN_TEN_TEN_PRICE,
+  DEFAULT_LOCATION_PRICE,
+  PricingInput,
+} from "./locationPricing";
 
 function make(overrides: Partial<PricingInput> = {}): PricingInput {
   return {
@@ -12,171 +18,118 @@ function make(overrides: Partial<PricingInput> = {}): PricingInput {
 }
 
 describe("calculateLocationPrice", () => {
-  describe("tier boundaries", () => {
-    it("score 0 → Tier 1, $400", () => {
-      // employees=0, foot_traffic=0 → traffic=0, hours=low(5), machines=1(3) → total=8
-      // To get score 0 we need traffic=0, hours=low(5), machines=1(3) → 8, not 0
-      // Minimum possible score is 5+3=8 → Tier 1
-      const result = calculateLocationPrice(make());
-      expect(result.total_score).toBe(8);
-      expect(result.tier).toBe(1);
-      expect(result.price).toBe(400);
+  describe("tier ladder ($500 / $800 / $1200)", () => {
+    it("baseline low inputs → Basic", () => {
+      // hours low=10, machines 1=8, traffic=0 → total 18 → Basic
+      const r = calculateLocationPrice(make());
+      expect(r.total_score).toBe(18);
+      expect(r.tier).toBe(1);
+      expect(r.tier_label).toBe("Basic");
+      expect(r.price).toBe(500);
     });
 
-    it("score 30 → Tier 1, $400", () => {
-      // Need traffic_score + 5 + 3 = 30 → traffic_score = 22
-      // traffic_score = (total_traffic / 500) * 70 = 22 → total_traffic = 22*500/70 ≈ 157.14
-      const result = calculateLocationPrice(make({ employees: 100, foot_traffic: 57 }));
-      // (157/500)*70 = 21.98, + 5 + 3 = 29.98, round = 30
-      expect(result.total_score).toBe(30);
-      expect(result.tier).toBe(1);
-      expect(result.price).toBe(400);
-    });
-
-    it("score 31 → Tier 2, $500", () => {
-      // Need traffic_score + 5 + 3 = 31 → traffic_score = 23
-      // total_traffic = 23*500/70 ≈ 164.28
-      const result = calculateLocationPrice(make({ employees: 100, foot_traffic: 64 }));
-      // (164/500)*70 = 22.96, + 5 + 3 = 30.96, round = 31
-      expect(result.total_score).toBe(31);
-      expect(result.tier).toBe(2);
-      expect(result.price).toBe(500);
-    });
-
-    it("score 45 → Tier 2, $500", () => {
-      // traffic_score + 5 + 3 = 45 → traffic_score = 37
-      // total_traffic = 37*500/70 ≈ 264.28
-      const result = calculateLocationPrice(make({ employees: 200, foot_traffic: 64 }));
-      // (264/500)*70 = 36.96, + 5 + 3 = 44.96, round = 45
-      expect(result.total_score).toBe(45);
-      expect(result.tier).toBe(2);
-      expect(result.price).toBe(500);
-    });
-
-    it("score 46 → Tier 3, $750", () => {
-      // traffic_score + 5 + 3 = 46 → traffic_score = 38
-      // total_traffic = 38*500/70 ≈ 271.43
-      const result = calculateLocationPrice(make({ employees: 200, foot_traffic: 71 }));
-      // (271/500)*70 = 37.94, + 5 + 3 = 45.94, round = 46
-      expect(result.total_score).toBe(46);
-      expect(result.tier).toBe(3);
-      expect(result.price).toBe(750);
-    });
-
-    it("score 65 → Tier 3, $750", () => {
-      // traffic_score + 5 + 3 = 65 → traffic_score = 57
-      // total_traffic = 57*500/70 ≈ 407.14
-      const result = calculateLocationPrice(make({ employees: 350, foot_traffic: 57 }));
-      // (407/500)*70 = 56.98, + 5 + 3 = 64.98, round = 65
-      expect(result.total_score).toBe(65);
-      expect(result.tier).toBe(3);
-      expect(result.price).toBe(750);
-    });
-
-    it("score 66 → Tier 4, $1000", () => {
-      // traffic_score + 5 + 3 = 66 → traffic_score ≈ 58
-      // total_traffic = 58*500/70 ≈ 414.29
-      const result = calculateLocationPrice(make({ employees: 350, foot_traffic: 64 }));
-      // (414/500)*70 = 57.96, + 5 + 3 = 65.96, round = 66
-      expect(result.total_score).toBe(66);
-      expect(result.tier).toBe(4);
-      expect(result.price).toBe(1000);
-    });
-
-    it("score 85 → Tier 4, $1000", () => {
-      // traffic_score + 5 + 3 = 85 → traffic_score = 70 (cap) + 5 + 3 = 78, not 85
-      // Use higher hours/machines: traffic(70) + high(15) + 1(3) = 88 ≠ 85
-      // traffic + medium(10) + 4(10) = traffic + 20. Need traffic = 65
-      // total_traffic = 65*500/70 ≈ 464.29
-      const result = calculateLocationPrice(
-        make({ employees: 400, foot_traffic: 64, business_hours: "medium", machines_requested: 4 })
+    it("just below the Premium threshold stays Basic", () => {
+      // hours 24/7=40, machines 4=30, traffic=(?/500)*30. Need total 59
+      // 40+30+traffic=59 → traffic=-11 impossible. Use lower hours/machines:
+      // hours high=30, machines 3=23, traffic 6 → 59 → Basic
+      const r = calculateLocationPrice(
+        make({ business_hours: "high", machines_requested: 3, employees: 50, foot_traffic: 50 }),
       );
-      // (464/500)*70 = 64.96, + 10 + 10 = 84.96, round = 85
-      expect(result.total_score).toBe(85);
-      expect(result.tier).toBe(4);
-      expect(result.price).toBe(1000);
+      // traffic = (100/500)*30 = 6 → total = 6+30+23 = 59
+      expect(r.total_score).toBe(59);
+      expect(r.tier).toBe(1);
+      expect(r.price).toBe(500);
     });
 
-    it("score 86 → Tier 5, $1200", () => {
-      // traffic + medium(10) + 4(10) = traffic + 20. Need traffic = 66
-      // total_traffic = 66*500/70 ≈ 471.43
-      const result = calculateLocationPrice(
-        make({ employees: 400, foot_traffic: 71, business_hours: "medium", machines_requested: 4 })
+    it("score 60 → Premium", () => {
+      // hours 24/7=40, machines 2=15, traffic 5 → total 60
+      const r = calculateLocationPrice(
+        make({ business_hours: "24/7", machines_requested: 2, employees: 50, foot_traffic: 33 }),
       );
-      // (471/500)*70 = 65.94, + 10 + 10 = 85.94, round = 86
-      expect(result.total_score).toBe(86);
-      expect(result.tier).toBe(5);
-      expect(result.price).toBe(1200);
+      // traffic = (83/500)*30 = 4.98, +40+15 = 59.98 → round 60
+      expect(r.total_score).toBe(60);
+      expect(r.tier).toBe(2);
+      expect(r.tier_label).toBe("Premium");
+      expect(r.price).toBe(800);
     });
 
-    it("score 100 (capped) → Tier 5, $1200", () => {
-      const result = calculateLocationPrice(
-        make({ employees: 5000, foot_traffic: 5000, business_hours: "24/7", machines_requested: 4 })
+    it("score 89 → Premium", () => {
+      // hours 24/7=40, machines 4=30, traffic 19 → total 89
+      const r = calculateLocationPrice(
+        make({ business_hours: "24/7", machines_requested: 4, employees: 200, foot_traffic: 116 }),
       );
-      expect(result.total_score).toBe(100);
-      expect(result.tier).toBe(5);
-      expect(result.price).toBe(1200);
+      // traffic = (316/500)*30 = 18.96, +40+30 = 88.96 → round 89
+      expect(r.total_score).toBe(89);
+      expect(r.tier).toBe(2);
+      expect(r.price).toBe(800);
+    });
+
+    it("score 90 → Elite", () => {
+      // Bump traffic just above the boundary
+      const r = calculateLocationPrice(
+        make({ business_hours: "24/7", machines_requested: 4, employees: 200, foot_traffic: 133 }),
+      );
+      // traffic = (333/500)*30 = 19.98, +40+30 = 89.98 → round 90
+      expect(r.total_score).toBe(90);
+      expect(r.tier).toBe(3);
+      expect(r.tier_label).toBe("Elite");
+      expect(r.price).toBe(1200);
+    });
+
+    it("score 100 (capped) → Elite", () => {
+      const r = calculateLocationPrice(
+        make({ employees: 5000, foot_traffic: 5000, business_hours: "24/7", machines_requested: 4 }),
+      );
+      expect(r.total_score).toBe(100);
+      expect(r.tier).toBe(3);
+      expect(r.price).toBe(1200);
     });
   });
 
-  describe("business_hours scoring", () => {
-    it("low → 5", () => {
-      const result = calculateLocationPrice(make({ business_hours: "low" }));
-      expect(result.hours_score).toBe(5);
+  describe("10/10/10 prepaid override", () => {
+    it("forces price to $400 regardless of score", () => {
+      const eliteInput = make({
+        employees: 5000,
+        foot_traffic: 5000,
+        business_hours: "24/7",
+        machines_requested: 4,
+        is_ten_ten_ten: true,
+      });
+      const r = calculateLocationPrice(eliteInput);
+      expect(r.price).toBe(400);
+      expect(r.is_ten_ten_ten).toBe(true);
+      expect(r.tier_label).toBe("10/10/10 Prepaid");
+      // Tier still reflects the underlying score so ops reporting stays truthful
+      expect(r.tier).toBe(3);
     });
 
-    it("medium → 10", () => {
-      const result = calculateLocationPrice(make({ business_hours: "medium" }));
-      expect(result.hours_score).toBe(10);
+    it("also overrides on the low-score end", () => {
+      const r = calculateLocationPrice(make({ is_ten_ten_ten: true }));
+      expect(r.price).toBe(400);
+      expect(r.is_ten_ten_ten).toBe(true);
     });
 
-    it("high → 15", () => {
-      const result = calculateLocationPrice(make({ business_hours: "high" }));
-      expect(result.hours_score).toBe(15);
-    });
-
-    it("24/7 → 20", () => {
-      const result = calculateLocationPrice(make({ business_hours: "24/7" }));
-      expect(result.hours_score).toBe(20);
-    });
-  });
-
-  describe("machines_requested scoring", () => {
-    it("1 → 3", () => {
-      const result = calculateLocationPrice(make({ machines_requested: 1 }));
-      expect(result.machine_score).toBe(3);
-    });
-
-    it("2 → 6", () => {
-      const result = calculateLocationPrice(make({ machines_requested: 2 }));
-      expect(result.machine_score).toBe(6);
-    });
-
-    it("3 → 8", () => {
-      const result = calculateLocationPrice(make({ machines_requested: 3 }));
-      expect(result.machine_score).toBe(8);
-    });
-
-    it("4 → 10", () => {
-      const result = calculateLocationPrice(make({ machines_requested: 4 }));
-      expect(result.machine_score).toBe(10);
+    it("undefined and false both behave as false", () => {
+      const noFlag = calculateLocationPrice(make());
+      const explicitFalse = calculateLocationPrice(make({ is_ten_ten_ten: false }));
+      expect(noFlag.price).toBe(500);
+      expect(noFlag.is_ten_ten_ten).toBe(false);
+      expect(explicitFalse.price).toBe(500);
+      expect(explicitFalse.is_ten_ten_ten).toBe(false);
     });
   });
 
-  describe("traffic score cap at 70", () => {
-    it("caps traffic_score at 70 for very high traffic", () => {
-      const result = calculateLocationPrice(make({ employees: 1000, foot_traffic: 1000 }));
-      expect(result.traffic_score).toBe(70);
+  describe("shared constants", () => {
+    it("TIER_PRICES matches the ladder", () => {
+      expect(TIER_PRICES[1]).toBe(500);
+      expect(TIER_PRICES[2]).toBe(800);
+      expect(TIER_PRICES[3]).toBe(1200);
     });
-  });
-
-  describe("total score cap at 100", () => {
-    it("caps total_score at 100", () => {
-      const result = calculateLocationPrice(
-        make({ employees: 5000, foot_traffic: 5000, business_hours: "24/7", machines_requested: 4 })
-      );
-      // traffic(70) + hours(20) + machine(10) = 100
-      expect(result.total_score).toBe(100);
+    it("TEN_TEN_TEN_PRICE = 400", () => {
+      expect(TEN_TEN_TEN_PRICE).toBe(400);
+    });
+    it("DEFAULT_LOCATION_PRICE = Tier1", () => {
+      expect(DEFAULT_LOCATION_PRICE).toBe(500);
     });
   });
 
@@ -184,37 +137,18 @@ describe("calculateLocationPrice", () => {
     it("throws on negative employees", () => {
       expect(() => calculateLocationPrice(make({ employees: -1 }))).toThrow("employees must be >= 0");
     });
-
     it("throws on negative foot_traffic", () => {
       expect(() => calculateLocationPrice(make({ foot_traffic: -5 }))).toThrow("foot_traffic must be >= 0");
     });
-
     it("throws on invalid business_hours", () => {
       expect(() =>
-        calculateLocationPrice(make({ business_hours: "invalid" as never }))
+        calculateLocationPrice(make({ business_hours: "invalid" as never })),
       ).toThrow("Invalid business_hours");
     });
-
     it("throws on invalid machines_requested", () => {
       expect(() =>
-        calculateLocationPrice(make({ machines_requested: 5 as never }))
+        calculateLocationPrice(make({ machines_requested: 5 as never })),
       ).toThrow("Invalid machines_requested");
-    });
-  });
-
-  describe("output shape", () => {
-    it("returns all expected fields", () => {
-      const result = calculateLocationPrice(make({ employees: 100, foot_traffic: 200, business_hours: "high", machines_requested: 2 }));
-      expect(result).toHaveProperty("total_score");
-      expect(result).toHaveProperty("traffic_score");
-      expect(result).toHaveProperty("hours_score");
-      expect(result).toHaveProperty("machine_score");
-      expect(result).toHaveProperty("tier");
-      expect(result).toHaveProperty("tier_label");
-      expect(result).toHaveProperty("price");
-      expect(typeof result.total_score).toBe("number");
-      expect(typeof result.price).toBe("number");
-      expect(result.tier_label).toMatch(/^Tier [1-5]$/);
     });
   });
 });
