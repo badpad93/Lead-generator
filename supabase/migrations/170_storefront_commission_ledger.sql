@@ -163,5 +163,12 @@ SELECT
 FROM public.storefront_commission_ledger
 GROUP BY tenant_id;
 
+-- security_invoker=true so the view runs with the QUERYING user's
+-- permissions, not the view owner's. Without this, RLS on the
+-- underlying ledger table is bypassed and any authenticated user
+-- querying the view would see every tenant's totals — a
+-- cross-tenant financial disclosure.
+ALTER VIEW public.storefront_commission_balances SET (security_invoker = true);
+
 COMMENT ON VIEW public.storefront_commission_balances IS
-  'Per-tenant commission balance roll-up. Sums signed commission_amount grouped by status. Reversal rows are already negative so lifetime_net is truthful.';
+  'Per-tenant commission balance roll-up. Sums signed commission_amount grouped by status. Reversal rows are already negative so lifetime_net is truthful. Runs with security_invoker=true so RLS on storefront_commission_ledger is honored.';
