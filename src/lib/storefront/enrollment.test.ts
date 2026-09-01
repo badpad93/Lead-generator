@@ -24,6 +24,12 @@ interface Table {
 
 const tables: Record<string, Table> = {};
 
+function withId(table: string, base: Row): Row {
+  return (base as { id?: string }).id
+    ? base
+    : { ...base, id: `id-${table}-${(tables[table]?.rows.length ?? 0) + 1}` };
+}
+
 function makeChain(table: string) {
   const t = (tables[table] ??= { rows: [] });
   const state = {
@@ -36,7 +42,8 @@ function makeChain(table: string) {
     updateFilterArgs: [] as Array<{ col: string; val?: unknown; isNull?: boolean }>,
     selectAfterMutation: false,
   };
-  const api: Record<string, (...a: unknown[]) => unknown> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const api: Record<string, any> = {};
   api.select = () => api;
   api.eq = (col: string, val: unknown) => {
     if (state.isUpdate || state.isInsert) {
@@ -67,7 +74,7 @@ function makeChain(table: string) {
       const inserted = Array.isArray(state.insertPayload)
         ? state.insertPayload[0]
         : state.insertPayload;
-      const row = { id: `id-${table}-${t.rows.length + 1}`, ...(inserted as Row) };
+      const row = withId(table, inserted as Row);
       t.rows.push(row);
       t.lastInsert = state.insertPayload ?? undefined;
       return { data: row, error: null };
@@ -89,9 +96,9 @@ function makeChain(table: string) {
     state.isInsert = true;
     state.insertPayload = payload as Row | Row[];
     if (Array.isArray(payload)) {
-      for (const r of payload) t.rows.push({ id: `id-${table}-${t.rows.length + 1}`, ...(r as Row) });
+      for (const r of payload) t.rows.push(withId(table, r as Row));
     } else {
-      t.rows.push({ id: `id-${table}-${t.rows.length + 1}`, ...(payload as Row) });
+      t.rows.push(withId(table, payload as Row));
     }
     t.lastInsert = payload as Row | Row[];
     return api;
@@ -100,9 +107,9 @@ function makeChain(table: string) {
     state.isUpsert = true;
     state.insertPayload = payload as Row | Row[];
     if (Array.isArray(payload)) {
-      for (const r of payload) t.rows.push({ id: `id-${table}-${t.rows.length + 1}`, ...(r as Row) });
+      for (const r of payload) t.rows.push(withId(table, r as Row));
     } else {
-      t.rows.push({ id: `id-${table}-${t.rows.length + 1}`, ...(payload as Row) });
+      t.rows.push(withId(table, payload as Row));
     }
     t.lastInsert = payload as Row | Row[];
     return api;

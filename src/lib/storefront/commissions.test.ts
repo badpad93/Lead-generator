@@ -27,6 +27,11 @@ function nextId(prefix: string) {
   idCounter += 1;
   return `${prefix}-${idCounter}`;
 }
+function withId(prefix: string, base: Row): Row {
+  // Base rows may or may not carry a client-supplied id; only mint
+  // one when they don't (matches Postgres DEFAULT gen_random_uuid()).
+  return base.id ? base : { ...base, id: nextId(prefix) };
+}
 
 function makeChain(table: string) {
   const t = (tables[table] ??= { rows: [] });
@@ -39,7 +44,8 @@ function makeChain(table: string) {
     updatePayload: null as Row | null,
     updateFilters: [] as Array<{ col: string; val?: unknown; isNull?: boolean; inList?: unknown[] }>,
   };
-  const api: Record<string, (...a: unknown[]) => unknown> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const api: Record<string, any> = {};
   api.select = () => api;
   api.eq = (col: string, val: unknown) => {
     if (state.isUpdate) state.updateFilters.push({ col, val });
@@ -61,7 +67,7 @@ function makeChain(table: string) {
   api.single = async () => {
     if (state.isInsert || state.isUpsert) {
       const p = Array.isArray(state.insertPayload) ? state.insertPayload[0] : state.insertPayload!;
-      const row = { id: nextId(table), ...p };
+      const row = withId(table, p);
       // For upsert, replace an existing row with the same idempotency_key.
       if (state.isUpsert && p && (p as Row).idempotency_key) {
         const existing = t.rows.findIndex(
@@ -81,9 +87,9 @@ function makeChain(table: string) {
     state.isInsert = true;
     state.insertPayload = payload as Row | Row[];
     if (Array.isArray(payload)) {
-      for (const r of payload) t.rows.push({ id: nextId(table), ...(r as Row) });
+      for (const r of payload) t.rows.push(withId(table, r as Row));
     } else {
-      t.rows.push({ id: nextId(table), ...(payload as Row) });
+      t.rows.push(withId(table, payload as Row));
     }
     return api;
   };
@@ -100,7 +106,7 @@ function makeChain(table: string) {
           continue;
         }
       }
-      t.rows.push({ id: nextId(table), ...rr });
+      t.rows.push(withId(table, rr));
     }
     return api;
   };
