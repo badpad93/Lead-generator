@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { consumeInvitation, EnrollmentError } from "@/lib/storefront/enrollment";
+import { resolveTenantById } from "@/lib/storefront/tenants";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
  * Consume an invitation token — one-shot enrollment.
@@ -29,6 +31,26 @@ export async function POST(req: NextRequest) {
       ipAddress: ip,
       userAgent: ua,
     });
+    // Best-effort welcome email to the newly-enrolled profile.
+    try {
+      const { data: profileRow } = await supabaseAdmin
+        .from("profiles")
+        .select("id, email, full_name")
+        .eq("id", userId)
+        .maybeSingle();
+      const profile = profileRow as { email: string | null; full_name: string | null } | null;
+      const tenant = await resolveTenantById(result.tenantId);
+      if (profile?.email && tenant) {
+        const { sendEnrollmentWelcomeEmail } = await import("@/lib/storefront/emails");
+        void sendEnrollmentWelcomeEmail({
+          tenant,
+          to: profile.email,
+          displayName: profile.full_name,
+        });
+      }
+    } catch (err) {
+      console.warn("[storefront/enrollment/consume] welcome email failed", err);
+    }
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     if (err instanceof EnrollmentError) {

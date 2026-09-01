@@ -225,6 +225,26 @@ export async function POST(req: NextRequest) {
     console.error("[storefront/checkout] QB invoice failed — order retained for retry", err);
   }
 
+  // Dual-branded receipt to the customer, best-effort.
+  try {
+    const { sendStorefrontOrderReceipt } = await import("@/lib/storefront/emails");
+    void sendStorefrontOrderReceipt({
+      tenant,
+      to: body.billing.email,
+      orderNumber,
+      lines: resolved.lines.map((l) => ({
+        product_name: l.product_name,
+        sku: l.product_sku,
+        quantity: l.quantity,
+        unit_price: l.tenant_price_per_unit,
+        line_total: l.tenant_price_amount,
+      })),
+      total: resolved.totals.order_total,
+    });
+  } catch (err) {
+    console.warn("[storefront/checkout] receipt email failed", err);
+  }
+
   return NextResponse.json({
     order_id: order.id,
     order_number: orderNumber,

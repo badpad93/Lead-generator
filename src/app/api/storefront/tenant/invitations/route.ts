@@ -59,6 +59,17 @@ export async function POST(req: NextRequest) {
       source: body.source ?? "operator_dashboard",
       expiresAt,
     });
+    // Best-effort: email the invitation link if we captured an address.
+    if (invitation.email) {
+      const { sendInvitationEmail } = await import("@/lib/storefront/emails");
+      const origin = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin;
+      void sendInvitationEmail({
+        tenant,
+        to: invitation.email,
+        displayName: invitation.display_name,
+        inviteUrl: `${origin}/coffee/invite/${invitation.token}`,
+      });
+    }
     return NextResponse.json({ invitation });
   } catch (err) {
     if (err instanceof EnrollmentError) {

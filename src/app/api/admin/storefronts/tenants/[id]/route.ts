@@ -60,6 +60,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         actorRole: "admin",
         reason: body.reason,
       });
+      if (tenant.primary_contact_email) {
+        const { sendTenantSuspendedNotice } = await import("@/lib/storefront/emails");
+        void sendTenantSuspendedNotice({
+          tenant,
+          to: tenant.primary_contact_email,
+          reason: body.reason,
+        });
+      }
       return NextResponse.json({ tenant });
     }
     if (body.action === "close") {
