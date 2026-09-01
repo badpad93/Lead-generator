@@ -131,10 +131,14 @@ async function handleQBBillPayment(billPaymentId: string, realmId: string) {
     try {
       const { data: rows } = await supabaseAdmin
         .from("storefront_commission_ledger")
-        .select("id, tenant_id")
+        .select("id, tenant_id, commission_amount")
         .eq("qb_bill_id", billId)
         .eq("status", "scheduled");
-      const arr = (rows ?? []) as Array<{ id: string; tenant_id: string }>;
+      const arr = (rows ?? []) as Array<{
+        id: string;
+        tenant_id: string;
+        commission_amount: number;
+      }>;
       if (arr.length > 0) {
         const { markCommissionsPaid } = await import(
           "@/lib/storefront/commissions"
@@ -144,6 +148,28 @@ async function handleQBBillPayment(billPaymentId: string, realmId: string) {
           qbBillPaymentId: billPaymentId,
           tenantId: arr[0].tenant_id,
         });
+        // Operator "payout sent" notification. Total = sum of the rows
+        // we just cleared. First-time only (subsequent replays won't
+        // see any 'scheduled' rows).
+        try {
+          const [{ resolveTenantById }, { sendOperatorPayoutSent }] = await Promise.all([
+            import("@/lib/storefront/tenants"),
+            import("@/lib/storefront/emails"),
+          ]);
+          const tenant = await resolveTenantById(arr[0].tenant_id);
+          const total = arr.reduce((acc, r) => acc + Number(r.commission_amount), 0);
+          if (tenant?.primary_contact_email && total > 0) {
+            void sendOperatorPayoutSent({
+              tenant,
+              to: tenant.primary_contact_email,
+              amount: Number(total.toFixed(2)),
+              rowCount: arr.length,
+              qbBillPaymentId: billPaymentId,
+            });
+          }
+        } catch (mailErr) {
+          console.warn("[qb-webhook] payout-sent email failed:", mailErr);
+        }
       }
     } catch (e) {
       console.error("[qb-webhook] storefront BillPayment sync failed:", e);
@@ -373,12 +399,46 @@ async function handleQBPayment(paymentId: string, realmId: string) {
           const { settleCommissionsForPayment } = await import(
             "@/lib/storefront/commissions"
           );
-          await settleCommissionsForPayment({
+          const settledRows = await settleCommissionsForPayment({
             orderId: coffeeOrder.id,
             paymentId,
             settledPaymentRefId: payment.PaymentRefNum ?? paymentId,
             qbInvoiceId: invoiceId,
           });
+          // Fire the operator "commission payable" notification once
+          // per settlement batch. settledRows is empty on replay so
+          // this only sends the first time.
+          if (settledRows.length > 0) {
+            try {
+              const total = settledRows.reduce(
+                (acc, r) => acc + Number(r.commission_amount),
+                0,
+              );
+              const [{ resolveTenantById }, { sendOperatorCommissionPayable }, { data: orderDetail }] =
+                await Promise.all([
+                  import("@/lib/storefront/tenants"),
+                  import("@/lib/storefront/emails"),
+                  supabaseAdmin
+                    .from("coffee_orders")
+                    .select("order_number")
+                    .eq("id", coffeeOrder.id)
+                    .maybeSingle(),
+                ]);
+              const tenant = await resolveTenantById(settledRows[0].tenant_id);
+              if (tenant?.primary_contact_email && total > 0) {
+                void sendOperatorCommissionPayable({
+                  tenant,
+                  to: tenant.primary_contact_email,
+                  amount: Number(total.toFixed(2)),
+                  orderNumber:
+                    (orderDetail as { order_number: string } | null)?.order_number ??
+                    coffeeOrder.id,
+                });
+              }
+            } catch (mailErr) {
+              console.warn("[qb-webhook] payable email failed:", mailErr);
+            }
+          }
         } catch (settleErr) {
           console.error(
             "[qb-webhook] storefront commission settlement failed:",
