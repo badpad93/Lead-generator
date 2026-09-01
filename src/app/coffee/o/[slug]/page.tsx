@@ -1,10 +1,44 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 import { resolveTenantBySlug } from "@/lib/storefront/tenants";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import CustomerShop from "./CustomerShop";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+
+async function currentEnrolledCustomer(tenantId: string): Promise<boolean> {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: () => {},
+        },
+      },
+    );
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return false;
+    const { data: profileRow } = await supabaseAdmin
+      .from("profiles")
+      .select("storefront_tenant_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    return (
+      (profileRow as { storefront_tenant_id: string | null } | null)?.storefront_tenant_id ===
+      tenantId
+    );
+  } catch {
+    return false;
+  }
+}
 
 interface Product {
   id: string;
@@ -47,6 +81,8 @@ export default async function StorefrontPage({
     .eq("active", true)
     .order("sort_order", { ascending: true });
   const products = (productData ?? []) as Product[];
+
+  const isEnrolled = await currentEnrolledCustomer(tenant.id);
 
   const brand = tenant.brand ?? {};
   const publicPage = tenant.public_page ?? {};
@@ -112,43 +148,55 @@ export default async function StorefrontPage({
             {publicPage.catalog_intro as string}
           </p>
         ) : null}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((p) => (
-            <div
-              key={p.id}
-              className="rounded-lg overflow-hidden border border-gray-200 bg-white flex flex-col"
-            >
-              {p.image_url ? (
-                <img src={p.image_url} alt={p.name} className="w-full h-40 object-cover" />
-              ) : (
-                <div className="w-full h-40 flex items-center justify-center bg-gray-100 text-gray-400 text-sm">
-                  No image
-                </div>
-              )}
-              <div className="p-4 flex-1 flex flex-col">
-                <div className="text-xs text-gray-500 uppercase tracking-wide">
-                  {p.sku}
-                </div>
-                <div className="font-semibold text-gray-900">{p.name}</div>
-                {p.description ? (
-                  <div className="mt-1 text-sm text-gray-600 flex-1">
-                    {p.description}
+        {isEnrolled ? (
+          <CustomerShop
+            tenantId={tenant.id}
+            tenantSlug={tenant.slug}
+            products={products}
+            primary={primary}
+            accent={accent}
+          />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {products.map((p) => (
+                <div
+                  key={p.id}
+                  className="rounded-lg overflow-hidden border border-gray-200 bg-white flex flex-col"
+                >
+                  {p.image_url ? (
+                    <img src={p.image_url} alt={p.name} className="w-full h-40 object-cover" />
+                  ) : (
+                    <div className="w-full h-40 flex items-center justify-center bg-gray-100 text-gray-400 text-sm">
+                      No image
+                    </div>
+                  )}
+                  <div className="p-4 flex-1 flex flex-col">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">
+                      {p.sku}
+                    </div>
+                    <div className="font-semibold text-gray-900">{p.name}</div>
+                    {p.description ? (
+                      <div className="mt-1 text-sm text-gray-600 flex-1">
+                        {p.description}
+                      </div>
+                    ) : (
+                      <div className="flex-1" />
+                    )}
+                    <div className="mt-3 text-sm text-gray-500">
+                      Sign in to see your price
+                    </div>
                   </div>
-                ) : (
-                  <div className="flex-1" />
-                )}
-                <div className="mt-3 text-sm text-gray-500">
-                  Sign in to see your price
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-        {products.length === 0 ? (
-          <div className="text-center text-gray-500 py-16">
-            No products available.
-          </div>
-        ) : null}
+            {products.length === 0 ? (
+              <div className="text-center text-gray-500 py-16">
+                No products available.
+              </div>
+            ) : null}
+          </>
+        )}
       </main>
 
       <footer
