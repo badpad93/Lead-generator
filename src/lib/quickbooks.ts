@@ -147,6 +147,18 @@ async function qbFetch(path: string, options: RequestInit = {}): Promise<Respons
   return res;
 }
 
+/**
+ * Storefront modules need a shared low-level QBO fetch — exported
+ * so the storefront helpers can query custom entities (Item,
+ * SalesReceipt, TaxCode) without duplicating token / realm plumbing.
+ */
+export async function qbApi(path: string, options: RequestInit = {}): Promise<Response> {
+  return qbFetch(path, options);
+}
+export function isQbProduction(): boolean {
+  return isProduction();
+}
+
 // ─── Customer Management ───
 
 export interface QBCustomer {
