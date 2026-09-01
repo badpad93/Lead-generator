@@ -125,6 +125,29 @@ async function handleQBBillPayment(billPaymentId: string, realmId: string) {
         .update({ status: "paid", paid_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq("id", payout.id);
     }
+
+    // Storefront payout closeout — every scheduled commission row that
+    // referenced this Bill flips to 'paid' with the Bill Payment id.
+    try {
+      const { data: rows } = await supabaseAdmin
+        .from("storefront_commission_ledger")
+        .select("id, tenant_id")
+        .eq("qb_bill_id", billId)
+        .eq("status", "scheduled");
+      const arr = (rows ?? []) as Array<{ id: string; tenant_id: string }>;
+      if (arr.length > 0) {
+        const { markCommissionsPaid } = await import(
+          "@/lib/storefront/commissions"
+        );
+        await markCommissionsPaid({
+          rowIds: arr.map((r) => r.id),
+          qbBillPaymentId: billPaymentId,
+          tenantId: arr[0].tenant_id,
+        });
+      }
+    } catch (e) {
+      console.error("[qb-webhook] storefront BillPayment sync failed:", e);
+    }
   }
 }
 
@@ -325,7 +348,7 @@ async function handleQBPayment(paymentId: string, realmId: string) {
     // Check coffee_orders
     const { data: coffeeOrder } = await supabaseAdmin
       .from("coffee_orders")
-      .select("id, operator_id")
+      .select("id, operator_id, storefront_tenant_id")
       .eq("qb_invoice_id", invoiceId)
       .maybeSingle();
 
@@ -341,6 +364,28 @@ async function handleQBPayment(paymentId: string, realmId: string) {
         .from("coffee_orders")
         .update({ qb_payment_id: paymentId })
         .eq("id", coffeeOrder.id);
+
+      // If this is a storefront order, flip its commission ledger rows
+      // from pending -> payable so the operator's next payout batch
+      // picks them up. Non-storefront coffee orders skip this call.
+      if ((coffeeOrder as { storefront_tenant_id: string | null }).storefront_tenant_id) {
+        try {
+          const { settleCommissionsForPayment } = await import(
+            "@/lib/storefront/commissions"
+          );
+          await settleCommissionsForPayment({
+            orderId: coffeeOrder.id,
+            paymentId,
+            settledPaymentRefId: payment.PaymentRefNum ?? paymentId,
+            qbInvoiceId: invoiceId,
+          });
+        } catch (settleErr) {
+          console.error(
+            "[qb-webhook] storefront commission settlement failed:",
+            settleErr,
+          );
+        }
+      }
       // Mark the corresponding workflow_order_items sub-item fulfilled.
       try {
         const { syncCoffeeOrderPaid } = await import("@/lib/workflows/paymentSync");
@@ -627,10 +672,59 @@ async function handleQBRefundReceipt(refundReceiptId: string, realmId: string) {
       amountCents: Math.round(Number(rr.TotalAmt || 0) * 100),
       reason: rr.PrivateNote || "QuickBooks RefundReceipt",
     });
+    // Storefront commission reversal — walk from the QB invoice id
+    // back to a storefront order and reverse the commission lines.
+    try {
+      await reverseStorefrontCommissionsForQbInvoice(qbInvoiceId, refundReceiptId, "QB RefundReceipt");
+    } catch (e) {
+      console.error("[qb-webhook] storefront commission reversal failed:", e);
+    }
     return;
   }
 
   console.log(`[qb-webhook] RefundReceipt ${refundReceiptId} — no matching payment/invoice`);
+}
+
+/**
+ * Given a QBO invoice id (from a RefundReceipt or CreditMemo), find
+ * the storefront coffee order it belongs to and issue a proportional
+ * commission reversal for every line item. Idempotent — the refund
+ * id is part of the ledger idempotency_key so re-delivered webhook
+ * events collapse to one reversal row per line.
+ */
+async function reverseStorefrontCommissionsForQbInvoice(
+  qbInvoiceId: string,
+  refundEventId: string,
+  reason: string,
+): Promise<void> {
+  const { data: coffeeOrderRow } = await supabaseAdmin
+    .from("coffee_orders")
+    .select("id, storefront_tenant_id")
+    .eq("qb_invoice_id", qbInvoiceId)
+    .maybeSingle();
+  const order = coffeeOrderRow as {
+    id: string;
+    storefront_tenant_id: string | null;
+  } | null;
+  if (!order || !order.storefront_tenant_id) return;
+  const { data: items } = await supabaseAdmin
+    .from("coffee_order_items")
+    .select("id, quantity")
+    .eq("order_id", order.id);
+  const rowsToReverse = ((items ?? []) as Array<{ id: string; quantity: number }>).map((r) => ({
+    coffeeOrderItemId: r.id,
+    refundQuantity: Number(r.quantity),
+  }));
+  if (rowsToReverse.length === 0) return;
+  const { reverseCommissionsForRefund } = await import(
+    "@/lib/storefront/commissions"
+  );
+  await reverseCommissionsForRefund({
+    orderId: order.id,
+    refundId: refundEventId,
+    reason,
+    lines: rowsToReverse,
+  });
 }
 
 async function handleQBCreditMemo(creditMemoId: string, realmId: string) {
@@ -692,6 +786,15 @@ async function handleQBCreditMemo(creditMemoId: string, realmId: string) {
       amountCents: Math.round(Number(cm.TotalAmt || 0) * 100),
       reason: cm.PrivateNote || "QuickBooks CreditMemo",
     });
+    try {
+      await reverseStorefrontCommissionsForQbInvoice(
+        qbInvoiceId,
+        `credit_memo_${creditMemoId}`,
+        "QB CreditMemo",
+      );
+    } catch (e) {
+      console.error("[qb-webhook] storefront commission reversal (CM) failed:", e);
+    }
     return;
   }
 }
