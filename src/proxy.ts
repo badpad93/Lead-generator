@@ -55,6 +55,10 @@ const PUBLIC_PREFIXES = [
   "/coffee/claim",           // token-based coffee brewer claim
   "/coffee/guest-checkout",
   "/coffee/guest-track/",
+  "/coffee/o/",              // public branded storefront tenant pages
+  "/coffee/invite/",          // storefront enrollment landing pages
+  "/api/storefront/public/",  // anonymous storefront reads (product list, tenant hero)
+  "/api/storefront/enrollment/", // token-verify + consume from the invite page
   "/financing/",             // /financing/complete-application + any future step
   "/images/",
   "/fonts/",
