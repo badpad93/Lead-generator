@@ -101,6 +101,50 @@ export default function Navbar() {
   // the CSS classes below, so pointer users see no behavior change.
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const navGroupsRef = useRef<HTMLUListElement | null>(null);
+  const [storefrontNav, setStorefrontNav] = useState<{
+    owner_tenant: { slug: string; display_name: string; status: string } | null;
+    can_own_storefront?: boolean;
+    enrolled_tenant: { slug: string; display_name: string } | null;
+  } | null>(null);
+
+  // Effective nav groups: base NAV_GROUPS + storefront items injected
+  // into the "Services" group under "Coffee Program". Signed-out
+  // visitors and users with no storefront relationship see the
+  // base groups only.
+  const effectiveNavGroups: NavGroup[] = NAV_GROUPS.map((group) => {
+    if (group.label !== "Services") return group;
+    const extras: Array<{ label: string; href: string; description?: string }> = [];
+    if (storefrontNav?.owner_tenant) {
+      const t = storefrontNav.owner_tenant;
+      extras.push({
+        label: `My Storefront${t.status !== "approved" ? ` (${t.status})` : ""}`,
+        href: "/coffee/storefront",
+        description: `Manage ${t.display_name} — pricing, customers, invitations, brand`,
+      });
+    } else if (
+      // Fallback for signed-in users who could own a storefront but
+      // haven't created one yet (or where nav-context didn't load).
+      // Same permissive semantic as the dashboard fallback tile —
+      // /coffee/storefront handles who can actually create.
+      sessionUser
+    ) {
+      extras.push({
+        label: "Set up my storefront",
+        href: "/coffee/storefront",
+        description: "Launch a branded coffee page for your customers",
+      });
+    }
+    if (storefrontNav?.enrolled_tenant) {
+      const t = storefrontNav.enrolled_tenant;
+      extras.push({
+        label: `Order from ${t.display_name}`,
+        href: `/coffee/o/${t.slug}`,
+        description: "Your enrolled storefront — real prices, one-click checkout",
+      });
+    }
+    if (extras.length === 0) return group;
+    return { ...group, items: [...group.items, ...extras] };
+  });
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -149,6 +193,17 @@ export default function Navbar() {
               return;
             }
           }
+          // Fetch storefront nav-context so the Services dropdown
+          // can add "My Storefront" (owner) and/or "Order from
+          // {tenant}" (enrolled customer) alongside the existing
+          // "Coffee Program" link. Best-effort — a failure just
+          // means the dynamic items don't appear.
+          try {
+            const nRes = await fetch("/api/coffee/nav-context", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            if (nRes.ok) setStorefrontNav(await nRes.json());
+          } catch {}
         } catch {
           // ignore — sessionUser still shows logged-in state
         }
@@ -301,7 +356,7 @@ export default function Navbar() {
                 path also stops iOS Safari from swallowing the first tap
                 on the trigger. */}
           <ul ref={navGroupsRef} className="hidden items-center gap-0.5 xl:flex">
-            {NAV_GROUPS.map((group) => {
+            {effectiveNavGroups.map((group) => {
               const isOpen = openGroup === group.label;
               return (
                 <li key={group.label} className="relative group">
