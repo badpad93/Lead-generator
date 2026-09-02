@@ -238,6 +238,10 @@ export default function DashboardPage() {
   const [token, setToken] = useState<string>("");
   const [authLoading, setAuthLoading] = useState(true);
   const [notLoggedIn, setNotLoggedIn] = useState(false);
+  const [storefrontNav, setStorefrontNav] = useState<{
+    owner_tenant: { slug: string; display_name: string; status: string } | null;
+    enrolled_tenant: { slug: string; display_name: string } | null;
+  } | null>(null);
 
   /* ---- Data ---- */
   const [requests, setRequests] = useState<VendingRequest[]>([]);
@@ -283,6 +287,15 @@ export default function DashboardPage() {
           }
           setProfile(data);
           setToken(session.access_token);
+          // Pull storefront nav context so the tile row can offer
+          // "My Storefront" (operator owns a tenant) and/or
+          // "Order from {tenant}" (customer enrolled + approved).
+          try {
+            const nRes = await fetch("/api/coffee/nav-context", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            if (nRes.ok) setStorefrontNav(await nRes.json());
+          } catch {}
         } catch {
           setNotLoggedIn(true);
         } finally {
@@ -765,6 +778,51 @@ export default function DashboardPage() {
             Equipment Loan & Beverage Supply Agreement; brewer is
             provided at no charge in exchange for the supply agreement.
           */}
+          {storefrontNav?.owner_tenant ? (
+            <Link
+              href="/coffee/storefront"
+              className="group flex items-center gap-4 rounded-2xl border-2 border-amber-600 bg-amber-50 p-5 shadow-md transition-all hover:-translate-y-0.5 hover:bg-amber-100"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 transition-colors group-hover:bg-amber-800 group-hover:text-white">
+                <Coffee className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-semibold text-black-primary">
+                  My Coffee Storefront
+                  {storefrontNav.owner_tenant.status !== "approved" ? (
+                    <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-medium uppercase text-amber-800">
+                      {storefrontNav.owner_tenant.status}
+                    </span>
+                  ) : null}
+                </p>
+                <p className="text-sm text-black-primary/50">
+                  Manage {storefrontNav.owner_tenant.display_name} — pricing, customers, invitations, payouts
+                </p>
+              </div>
+              <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-800" />
+            </Link>
+          ) : null}
+
+          {storefrontNav?.enrolled_tenant ? (
+            <Link
+              href={`/coffee/o/${storefrontNav.enrolled_tenant.slug}`}
+              className="group flex items-center gap-4 rounded-2xl border-2 border-green-600 bg-green-50 p-5 shadow-md transition-all hover:-translate-y-0.5 hover:bg-green-100"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-800 transition-colors group-hover:bg-green-800 group-hover:text-white">
+                <Coffee className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-semibold text-black-primary">
+                  Order from {storefrontNav.enrolled_tenant.display_name}
+                </p>
+                <p className="text-sm text-black-primary/50">
+                  Coffee, cups, and supplies at your enrolled prices
+                </p>
+              </div>
+              <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-green-800" />
+            </Link>
+          ) : null}
+
           <Link
             href="/coffee/apply"
             className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
