@@ -60,6 +60,7 @@ export default function CoffeeMarketplacePage() {
   const [agreementStatus, setAgreementStatus] = useState<string | null>(null);
   const [navContext, setNavContext] = useState<{
     owner_tenant: { slug: string; display_name: string; status: string } | null;
+    can_own_storefront?: boolean;
     enrolled_tenant: { slug: string; display_name: string } | null;
   } | null>(null);
 
@@ -345,6 +346,10 @@ export default function CoffeeMarketplacePage() {
                       {navContext.owner_tenant.status}
                     </span>
                   ) : null}
+                </Link>
+              ) : navContext?.can_own_storefront ? (
+                <Link href="/coffee/storefront" className="inline-flex items-center gap-1.5 rounded-lg bg-gray-800 border border-dashed border-amber-500 px-4 py-2 text-sm font-medium text-amber-200 hover:bg-gray-700 transition-colors">
+                  Set up my storefront
                 </Link>
               ) : null}
               {navContext?.enrolled_tenant ? (
