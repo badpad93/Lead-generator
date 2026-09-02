@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { resolveTenantBySlug } from "@/lib/storefront/tenants";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isStorefrontFlagEnabled } from "@/lib/storefront/flags";
 import CustomerShop from "./CustomerShop";
 import type { Metadata } from "next";
 
@@ -57,6 +58,9 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  if (!(await isStorefrontFlagEnabled("storefront.public_pages_enabled"))) {
+    return { title: "Storefront" };
+  }
   const tenant = await resolveTenantBySlug(slug);
   if (!tenant || tenant.status !== "approved") return { title: "Storefront" };
   return {
@@ -72,6 +76,9 @@ export default async function StorefrontPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  // Kill switch — indistinguishable from tenant-not-found so a
+  // disabled storefront cannot be enumerated via the public URL.
+  if (!(await isStorefrontFlagEnabled("storefront.public_pages_enabled"))) notFound();
   const tenant = await resolveTenantBySlug(slug);
   if (!tenant || tenant.status !== "approved") notFound();
 

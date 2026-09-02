@@ -10,7 +10,7 @@
 
 import type Stripe from "stripe";
 import { supabaseAdmin } from "./supabaseAdmin";
-import { getConnection } from "./quickbooks";
+import { getConnection, getAccountingApiBase } from "./quickbooks";
 import { upsertInvoice, upsertPayment, recordRefund } from "./paymentLedger";
 
 function toCents(amount: number | string | null | undefined): number {
@@ -263,9 +263,7 @@ export async function ingestQbPaymentEvent(
   const conn = await getConnection();
   if (conn.realm_id !== realmId) return;
 
-  const base = process.env.QB_ENVIRONMENT === "production"
-    ? "https://quickbooks.api.intuit.com"
-    : "https://sandbox-quickbooks.api.intuit.com";
+  const base = getAccountingApiBase();
 
   const res = await fetch(`${base}/v3/company/${realmId}/payment/${paymentId}`, {
     headers: {

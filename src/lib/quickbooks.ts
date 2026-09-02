@@ -3,15 +3,54 @@ import { createHmac } from "crypto";
 
 const QB_SANDBOX_BASE = "https://sandbox-quickbooks.api.intuit.com";
 const QB_PRODUCTION_BASE = "https://quickbooks.api.intuit.com";
+const QB_PAYMENTS_SANDBOX_BASE = "https://sandbox.api.intuit.com";
+const QB_PAYMENTS_PRODUCTION_BASE = "https://api.intuit.com";
 const QB_TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
 const QB_AUTH_URL = "https://appcenter.intuit.com/connect/oauth2";
 
 function isProduction(): boolean {
+  // Preview and local dev must never touch the production QBO realm.
+  // QB_ENVIRONMENT is a single Vercel entry scoped Production+Preview
+  // (historically), which means Preview inherited the Production value
+  // byte-for-byte — there was no way to override just Preview through
+  // that env alone. This guard closes the exposure at the code layer
+  // regardless of what QB_ENVIRONMENT holds. If you ever need a preview
+  // branch to write to production accounting (you almost certainly
+  // don't), you're deleting this guard on purpose — do it with an
+  // audit trail.
+  // VERCEL_ENV is injected per-deployment by Vercel; when it's absent
+  // (non-Vercel runtime) we fall through to QB_ENVIRONMENT so
+  // self-hosted or production-like runs still work.
+  if (
+    process.env.VERCEL_ENV === "preview" ||
+    process.env.VERCEL_ENV === "development"
+  ) {
+    return false;
+  }
   return process.env.QB_ENVIRONMENT === "production";
 }
 
 function getApiBase(): string {
   return isProduction() ? QB_PRODUCTION_BASE : QB_SANDBOX_BASE;
+}
+
+/**
+ * Accounting API host — the base URL for /v3/company/{realmId}/...
+ * Exported so every caller uses one guarded reader instead of
+ * reconstructing the ternary inline. Do NOT read QB_ENVIRONMENT
+ * directly anywhere else in the codebase; use this helper.
+ */
+export function getAccountingApiBase(): string {
+  return getApiBase();
+}
+
+/**
+ * Payments API host — the base URL for /quickbooks/v4/payments/...
+ * A distinct API from Accounting, with a distinct host. Same guard
+ * applies via isProduction().
+ */
+export function getPaymentsApiBase(): string {
+  return isProduction() ? QB_PAYMENTS_PRODUCTION_BASE : QB_PAYMENTS_SANDBOX_BASE;
 }
 
 export function getOAuthUrl(redirectUri: string, state: string): string {
@@ -376,9 +415,7 @@ export async function createCharge(params: {
   description?: string;
 }): Promise<QBCharge> {
   const conn = await getConnection();
-  const base = isProduction()
-    ? "https://api.intuit.com"
-    : "https://sandbox.api.intuit.com";
+  const base = getPaymentsApiBase();
 
   const res = await fetch(`${base}/quickbooks/v4/payments/charges`, {
     method: "POST",

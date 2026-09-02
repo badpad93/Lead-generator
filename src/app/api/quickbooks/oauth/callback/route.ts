@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exchangeCodeForTokens } from "@/lib/quickbooks";
+import { exchangeCodeForTokens, getAccountingApiBase } from "@/lib/quickbooks";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function GET(req: NextRequest) {
@@ -23,9 +23,7 @@ export async function GET(req: NextRequest) {
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
 
     // Fetch company info
-    const base = process.env.QB_ENVIRONMENT === "production"
-      ? "https://quickbooks.api.intuit.com"
-      : "https://sandbox-quickbooks.api.intuit.com";
+    const base = getAccountingApiBase();
 
     let companyName = "";
     try {

@@ -3,6 +3,7 @@ import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { consumeInvitation, EnrollmentError } from "@/lib/storefront/enrollment";
 import { resolveTenantById } from "@/lib/storefront/tenants";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isStorefrontFlagEnabled } from "@/lib/storefront/flags";
 
 /**
  * Consume an invitation token — one-shot enrollment.
@@ -13,6 +14,15 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
  * write).
  */
 export async function POST(req: NextRequest) {
+  // Fail-closed kill switch. 503 (not 404): the caller has proven
+  // they know a specific token, so hiding "the service is off" as
+  // "not found" would be a lie they can trivially disprove.
+  if (!(await isStorefrontFlagEnabled("storefront.enrollment_enabled"))) {
+    return NextResponse.json(
+      { error: "Storefront enrollment is temporarily unavailable" },
+      { status: 503 },
+    );
+  }
   const userId = await getUserIdFromRequest(req);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

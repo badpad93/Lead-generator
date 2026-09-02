@@ -186,6 +186,34 @@ See `.env.example`. Storefront-relevant keys:
 - `QB_STOREFRONT_ASSET_ACCOUNT_ID`
 - `QB_STOREFRONT_EXPENSE_ACCOUNT_ID`
 
+### NEXT_PUBLIC_SITE_URL vs NEXT_PUBLIC_APP_URL
+
+Both exist in this codebase and neither is fully canonical. The
+loose convention that emerged is: email-composing helpers
+(`agreementEmail.ts`, `welcomeEmail.ts`, `locationAgreementEmail.ts`,
+storefront `emails.ts`, and the storefront invitation route) read
+`NEXT_PUBLIC_APP_URL`; almost everything else — auth redirects,
+OAuth callbacks, checkout return URLs, cron notification bodies —
+reads `NEXT_PUBLIC_SITE_URL`. Both fall back to
+`https://vendingconnector.com` if unset. Set both to the same value
+in Production unless you have a reason not to. New code should
+prefer `NEXT_PUBLIC_SITE_URL` (the older, more widely-used name)
+until the two are consolidated.
+
+### QuickBooks environment scoping (audit note)
+
+`QB_ENVIRONMENT` picks the QBO API host (production vs sandbox) but
+does NOT decide which company file writes land in — that's
+governed by `quickbooks_connection.realm_id` in Supabase, which is
+shared across environments. If `QB_ENVIRONMENT=production` in a
+Preview or Development env and the shared connection points at the
+production company, writes from any QBO-touching code path in that
+env land in your real books. Recommended: set
+`QB_ENVIRONMENT=sandbox` on Preview so the transport layer refuses
+production-realm writes even if the stored connection is
+production-scoped. A fully isolated preview environment requires a
+separate sandbox QBO company + separate OAuth connection row.
+
 ## Testing
 
 `src/lib/storefront/*.test.ts` — 34 vitest tests across
