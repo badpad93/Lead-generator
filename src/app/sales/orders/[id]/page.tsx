@@ -393,6 +393,15 @@ export default function OrderDetailPage() {
           }
           break;
         }
+        case "source_locations": {
+          // No API side-effect — the "action" is for the rep to add
+          // sourced locations to the order. Scroll to the Sourced
+          // Locations card so the input is in view.
+          const target = document.getElementById("sourced-locations");
+          if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+          ok = true;
+          break;
+        }
         case "send_agreement":
         case "mark_deposit_paid":
         case "mark_paid":

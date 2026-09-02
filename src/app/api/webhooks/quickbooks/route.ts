@@ -238,7 +238,24 @@ async function handleQBPayment(paymentId: string, realmId: string) {
         payment_status: "paid",
         updated_at: new Date().toISOString(),
       };
-      if (!isRemaining) patch.order_status = "paid";
+      if (!isRemaining) {
+        // Primary invoice cleared → the whole order is paid. Flip the
+        // downstream flags too, otherwise the CRM keeps showing
+        // "Deposit (Pending)" on a fully-paid order and the
+        // Invoice status pill stays "Sent." The webhook was writing
+        // only payment_status + order_status, which left deposit_paid
+        // false and invoice_status='sent' — a lying-status bug that
+        // matches the screenshot for order #90.
+        patch.order_status = "paid";
+        patch.deposit_paid = true;
+        patch.invoice_status = "paid";
+      } else {
+        // Remaining-balance invoice cleared — the deposit was already
+        // covered by an earlier payment. Just note the remaining
+        // status; keep order_status alone (order should already be
+        // beyond 'paid' by the time this fires).
+        patch.location_remaining_invoice_status = "paid";
+      }
       await supabaseAdmin.from("sales_orders").update(patch).eq("id", salesOrder.id);
       await supabaseAdmin.from("order_activity_log").insert({
         order_id: salesOrder.id,
