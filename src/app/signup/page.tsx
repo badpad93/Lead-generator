@@ -10,6 +10,7 @@ import {
   storeSignupRole,
   storeSignupLead,
   storeRedirectAfterLogin,
+  storeInviteToken,
   ensureSignedOut,
 } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
@@ -42,6 +43,17 @@ function SignupContent() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/dashboard";
   const roleParam = searchParams.get("role");
+  // Storefront invitation flow (Option B). When a signed-out visitor
+  // hits Accept on /coffee/invite/{token} they land here with
+  // ?invite_token=… so the auth callback can consume it after the
+  // session lands. Stash into localStorage + cookie so it survives
+  // /check-email + OAuth redirects. Server-validated at consume
+  // time — the query string is trusted here only to know we should
+  // TRY the consume, not to grant enrollment.
+  const inviteTokenParam = searchParams.get("invite_token");
+  useEffect(() => {
+    if (inviteTokenParam) storeInviteToken(inviteTokenParam);
+  }, [inviteTokenParam]);
   const presetRole: Role =
     roleParam === "locator"
       ? "locator"

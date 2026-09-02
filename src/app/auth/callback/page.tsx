@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
-import { consumeSignupRole, consumeRedirectAfterLogin, consumeAuthFlow, consumeSignupLead } from "@/lib/auth";
+import { consumeSignupRole, consumeRedirectAfterLogin, consumeAuthFlow, consumeSignupLead, consumeInviteToken } from "@/lib/auth";
 
 function CallbackContent() {
   const searchParams = useSearchParams();
@@ -208,18 +208,80 @@ function CallbackContent() {
       // Always verify profile is complete — for BOTH signup and login.
       // localStorage data can be lost during OAuth redirect (domain mismatch,
       // browser clearing storage, etc.), so the signup PATCH may silently fail.
+      let profileForInvite: {
+        storefront_tenant_id?: string | null;
+      } | null = null;
       try {
         const profileRes = await fetch("/api/auth/me", {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         if (profileRes.ok) {
           const profile = await profileRes.json();
+          profileForInvite = profile;
           if (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip) {
+            // NOTE: don't consume the invite here; /complete-profile
+            // will forward the user back and the callback runs again
+            // when they land on any protected page after completing.
+            // If we consumed here, they'd finish profile-completion
+            // and go to /dashboard instead of the storefront.
             window.location.href = "/complete-profile";
             return;
           }
         }
       } catch {}
+
+      // Storefront invite Option B: if a token was stashed via
+      // /coffee/invite/{token} → /signup?invite_token=… flow,
+      // consume it now that the session is live. Server-validates
+      // and applies the same different-tenant guardrail; on any
+      // failure we fall back to the invite page's error state
+      // rather than blocking the login/signup flow.
+      const inviteToken = consumeInviteToken();
+      if (inviteToken) {
+        try {
+          // Guardrail: if the account is already linked to a
+          // different tenant, don't attempt the auto-consume —
+          // send them to the invite page which renders the
+          // explicit-confirm warning.
+          const existingTenantId = profileForInvite?.storefront_tenant_id ?? null;
+          if (existingTenantId) {
+            // Might be same or different tenant — the invite page
+            // will resolve which and render appropriately.
+            window.location.href = `/coffee/invite/${inviteToken}`;
+            return;
+          }
+          const consumeRes = await fetch("/api/storefront/enrollment/consume", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ token: inviteToken }),
+          });
+          if (consumeRes.ok) {
+            // Consume succeeded — the profile now has
+            // storefront_tenant_id set. The dashboard's enrolled-
+            // customer auto-route (added earlier) will resolve the
+            // tenant slug from nav-context and forward straight to
+            // /coffee/o/{slug}. One extra hop, but avoids
+            // duplicating slug-resolution logic here.
+            window.location.href = "/dashboard";
+            return;
+          } else {
+            // Token invalid / expired / revoked. Don't block the
+            // account creation — send them to the invite page which
+            // will show its normal error state.
+            window.location.href = `/coffee/invite/${inviteToken}`;
+            return;
+          }
+        } catch {
+          // Network or other failure — fall back to invite page
+          // which will show a clear error rather than silently
+          // dropping them on a random dashboard tile.
+          window.location.href = `/coffee/invite/${inviteToken}`;
+          return;
+        }
+      }
 
       const savedRedirect = consumeRedirectAfterLogin();
       window.location.href = savedRedirect || (isEmployeeSignup ? "/sales" : "/dashboard");
