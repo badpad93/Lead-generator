@@ -26,6 +26,7 @@ import {
   Clock,
   Activity,
   Ban,
+  ScrollText,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -97,6 +98,34 @@ interface Agreement {
   customer_notes: string | null;
   // Legal
   legal_overrides: Record<string, string>;
+  // Line-item snapshot + coffee supply gate (migration 176). All
+  // three fields are nullable — legacy agreements created before
+  // 176 have them as null and render nothing new. New agreements
+  // populate them from the source order at creation.
+  line_items_snapshot: Array<{
+    item_type: string | null;
+    service_name: string | null;
+    description: string | null;
+    quantity: number | null;
+    unit_price: number | null;
+    discount_percent: number | null;
+    total_price: number | null;
+    deposit_required: boolean | null;
+    location_deposit_amount: number | null;
+    location_service_price: number | null;
+    product_id: string | null;
+  }> | null;
+  coffee_supply_required: boolean;
+  coffee_supply_snapshot: {
+    template_id: string;
+    agreement_type: string;
+    version: number;
+    title: string;
+    content_html: string;
+    content_hash: string | null;
+    effective_date: string | null;
+    captured_at: string;
+  } | null;
   // Files
   pdf_url: string | null;
   signed_pdf_url: string | null;
@@ -779,6 +808,134 @@ export default function AgreementEditorPage() {
               ? "This agreement has been fully signed and is read-only."
               : "This agreement has been cancelled and is read-only."}
           </p>
+        </div>
+      )}
+
+      {/* Full item snapshot — added by migration 176 so the FULL
+          set of source-order lines survives the agreement conversion,
+          not just the machine_sale/location_services subset the
+          legacy scalar columns cover. Legacy agreements created
+          before 176 have a null snapshot and this panel doesn't
+          render for them. */}
+      {agreement.line_items_snapshot && agreement.line_items_snapshot.length > 0 && (
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-900">
+              Source-order line items ({agreement.line_items_snapshot.length})
+            </h3>
+            <span className="text-xs text-gray-500">
+              Snapshot from the order at agreement creation. Legacy scalar
+              columns above are computed from these lines.
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-100 text-gray-500 uppercase tracking-wide">
+                  <th className="py-2 text-left font-medium">Type</th>
+                  <th className="py-2 text-left font-medium">Item</th>
+                  <th className="py-2 text-right font-medium">Qty</th>
+                  <th className="py-2 text-right font-medium">Unit</th>
+                  <th className="py-2 text-right font-medium">Discount</th>
+                  <th className="py-2 text-right font-medium">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {agreement.line_items_snapshot.map((line, idx) => (
+                  <tr key={idx} className="border-b border-gray-50 last:border-0">
+                    <td className="py-2 pr-4 text-gray-500 font-mono text-[10px] uppercase">
+                      {line.item_type ?? "—"}
+                    </td>
+                    <td className="py-2 pr-4">
+                      <div className="text-gray-900">{line.service_name ?? "—"}</div>
+                      {line.description ? (
+                        <div className="text-[10px] text-gray-500 truncate max-w-xs">
+                          {line.description}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="py-2 pr-4 text-right text-gray-700">
+                      {line.quantity ?? "—"}
+                    </td>
+                    <td className="py-2 pr-4 text-right text-gray-700">
+                      {line.unit_price != null
+                        ? `$${Number(line.unit_price).toFixed(2)}`
+                        : "—"}
+                    </td>
+                    <td className="py-2 pr-4 text-right text-gray-700">
+                      {line.discount_percent != null && line.discount_percent > 0
+                        ? `${line.discount_percent}%`
+                        : "—"}
+                    </td>
+                    <td className="py-2 text-right text-gray-900 font-medium">
+                      {line.total_price != null
+                        ? `$${Number(line.total_price).toFixed(2)}`
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Coffee supply gate — surfaces the Equipment Loan & Beverage
+          Supply Agreement requirement when the source order includes
+          a coffee_program (brewer) line. The snapshot is the SPECIFIC
+          version the customer signed for; if the template updates
+          later, this row still holds what was actually agreed. */}
+      {agreement.coffee_supply_required && (
+        <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-5">
+          <div className="flex items-start gap-3">
+            <ScrollText className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-amber-900">
+                Includes Equipment Loan &amp; Beverage Supply Agreement
+              </h3>
+              <p className="text-xs text-amber-800 mt-1">
+                This order contains a coffee brewer line item. The customer's
+                signature on this purchase agreement covers the terms of the
+                Equipment Loan &amp; Beverage Supply Agreement shown below.
+                {agreement.coffee_supply_snapshot ? (
+                  <>
+                    {" "}
+                    Version{" "}
+                    <strong>{agreement.coffee_supply_snapshot.version}</strong>{" "}
+                    (effective{" "}
+                    {agreement.coffee_supply_snapshot.effective_date ?? "—"}),
+                    captured{" "}
+                    {new Date(
+                      agreement.coffee_supply_snapshot.captured_at,
+                    ).toLocaleDateString()}
+                    .
+                  </>
+                ) : (
+                  <>
+                    {" "}
+                    <span className="font-semibold text-red-700">
+                      No active coffee_supply template was found at creation
+                      time — the supply agreement text could not be snapshot.
+                      Admin action required.
+                    </span>
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+          {agreement.coffee_supply_snapshot ? (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs font-medium text-amber-900 hover:underline">
+                Show full agreement text
+              </summary>
+              <div
+                className="mt-3 rounded border border-amber-200 bg-white p-4 text-xs text-gray-800 max-h-96 overflow-y-auto prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{
+                  __html: agreement.coffee_supply_snapshot.content_html,
+                }}
+              />
+            </details>
+          ) : null}
         </div>
       )}
 

@@ -101,6 +101,75 @@ export async function POST(
   // --- Totals ---
   const totalDuePriorToProcurement = equipmentSubtotal + freightTotal;
 
+  // Full line-item snapshot — every order_items row verbatim so
+  // coffee/cooler/financing/other lines survive the conversion.
+  // The scalar columns above (machine_quantity, equipment_subtotal
+  // etc.) stay populated for backwards compat but this is the
+  // authoritative source of truth going forward. Copy shape kept
+  // deliberately shallow so a future PATCH can round-trip cleanly.
+  const lineItemsSnapshot = items.map((i) => ({
+    item_type: i.item_type ?? null,
+    service_name: i.service_name ?? null,
+    description: i.description ?? null,
+    quantity: i.quantity ?? null,
+    unit_price: i.unit_price ?? i.price ?? null,
+    discount_percent: i.discount_percent ?? null,
+    total_price: i.total_price ?? null,
+    deposit_required: i.deposit_required ?? null,
+    location_deposit_amount: i.location_deposit_amount ?? null,
+    location_service_price: i.location_service_price ?? null,
+    product_id: i.product_id ?? null,
+  }));
+
+  // Coffee-supply gate. If any coffee_program line is on the order,
+  // this agreement covers a brewer/supply relationship and the
+  // customer must accept the Equipment Loan & Beverage Supply
+  // Agreement. Snapshot the currently-active coffee_supply template
+  // onto the row so the customer signs a specific, immutable
+  // version — if the template is updated later, historical
+  // agreements preserve what was actually agreed to.
+  const coffeeSupplyRequired = items.some(
+    (i) => i.item_type === "coffee_program",
+  );
+  let coffeeSupplySnapshot: Record<string, unknown> | null = null;
+  if (coffeeSupplyRequired) {
+    const { data: tpl } = await supabaseAdmin
+      .from("agreement_templates")
+      .select("id, agreement_type, version, title, content_html, content_hash, effective_date")
+      .eq("agreement_type", "coffee_supply")
+      .eq("is_active", true)
+      .maybeSingle();
+    if (tpl) {
+      const t = tpl as {
+        id: string;
+        agreement_type: string;
+        version: number;
+        title: string;
+        content_html: string;
+        content_hash: string | null;
+        effective_date: string | null;
+      };
+      coffeeSupplySnapshot = {
+        template_id: t.id,
+        agreement_type: t.agreement_type,
+        version: t.version,
+        title: t.title,
+        content_html: t.content_html,
+        content_hash: t.content_hash,
+        effective_date: t.effective_date,
+        captured_at: new Date().toISOString(),
+      };
+    } else {
+      // No active coffee_supply template — this is a data/config
+      // problem the admin needs to fix, but don't block agreement
+      // creation. Record required=true; the UI surfaces the missing
+      // snapshot as a banner so the sales team knows to escalate.
+      console.warn(
+        "[orders/agreement] coffee_program line on order but no active coffee_supply agreement_templates row — supply agreement snapshot will be null",
+      );
+    }
+  }
+
   const agreementPayload = {
     order_id: orderId,
     account_id: order.account_id || null,
@@ -120,7 +189,8 @@ export async function POST(
     apex_representative_name: repProfile?.full_name || "",
     apex_representative_email: repProfile?.email || "",
 
-    // Equipment
+    // Equipment (legacy scalars — see line_items_snapshot for the
+    // full, non-lossy record)
     machine_model: machineModel,
     machine_quantity: machineQuantity || 1,
     machine_unit_price: machineUnitPrice,
@@ -140,6 +210,11 @@ export async function POST(
 
     // Dates
     effective_date: new Date().toISOString().slice(0, 10),
+
+    // Full snapshot + coffee-supply attachment
+    line_items_snapshot: lineItemsSnapshot,
+    coffee_supply_required: coffeeSupplyRequired,
+    coffee_supply_snapshot: coffeeSupplySnapshot,
   };
 
   const { data: agreement, error: insertErr } = await supabaseAdmin

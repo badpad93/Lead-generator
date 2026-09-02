@@ -124,6 +124,16 @@ export async function PATCH(
     "include_shipping_storage",
     "auto_send_invoice_on_signing",
     "send_to_marketplace",
+    // Line-item snapshot — the full order_items snapshot at
+    // agreement-creation time. Editable so a change to the source
+    // order or a manual line addition is reflected without needing
+    // to regenerate the whole agreement.
+    "line_items_snapshot",
+    // Coffee-supply gate — required flag + immutable template
+    // snapshot. `required` is normally set at creation and stays;
+    // if an operator needs to override (rare) it's here.
+    "coffee_supply_required",
+    "coffee_supply_snapshot",
     // Location Placement Agreement — location contact
     "location_business_name",
     "location_contact_name",
