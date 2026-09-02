@@ -27,6 +27,33 @@ import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 
 type Period = "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "ytd" | "custom";
 
+const VALID_PERIODS: readonly Period[] = [
+  "daily",
+  "weekly",
+  "monthly",
+  "quarterly",
+  "yearly",
+  "ytd",
+  "custom",
+];
+
+/**
+ * Normalize a raw string (from a URL param) to a Period, falling back
+ * to "monthly" for unknown values instead of failing the request.
+ * Previously the route did `as Period` — a compile-time cast that
+ * silently allowed an unknown string through. When that value hit
+ * periodStart's exhaustive switch it fell through every case with
+ * no `default`, returned undefined, and the subsequent
+ * `.toISOString()` threw TypeError: Cannot read properties of
+ * undefined (reading 'toISOString'). Fail-forward normalization
+ * matches the endpoint's role as a reporting surface — a stale
+ * bookmark shouldn't 500 a dashboard.
+ */
+function normalizePeriod(raw: string | null): Period {
+  if (raw && (VALID_PERIODS as readonly string[]).includes(raw)) return raw as Period;
+  return "monthly";
+}
+
 function periodStart(period: Period): Date {
   const now = new Date();
   const d = new Date(now);
@@ -51,6 +78,12 @@ function periodStart(period: Period): Date {
       return new Date(d.getFullYear(), 0, 1);
     case "custom":
       return new Date(d.getFullYear(), 0, 1);
+    default:
+      // Belt-and-braces: normalizePeriod above should keep us out of
+      // here, but if a new enum value is ever added without updating
+      // this switch, return a truthful sentinel (today) instead of
+      // returning undefined and crashing on toISOString later.
+      return new Date();
   }
 }
 
@@ -62,7 +95,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const url = new URL(req.url);
-  const period = (url.searchParams.get("period") || "monthly") as Period;
+  const period = normalizePeriod(url.searchParams.get("period"));
   const marketId = url.searchParams.get("market_id") || null;
   const elevated = isElevatedRole(user.role);
 
@@ -112,9 +145,16 @@ export async function GET(req: NextRequest) {
     const startDate = url.searchParams.get("start_date");
     const endDate = url.searchParams.get("end_date");
     if (!startDate) return NextResponse.json({ error: "start_date required" }, { status: 400 });
-    since = new Date(startDate).toISOString();
+    const parsedStart = new Date(startDate);
+    if (Number.isNaN(parsedStart.getTime())) {
+      return NextResponse.json({ error: "start_date is not a valid date" }, { status: 400 });
+    }
+    since = parsedStart.toISOString();
     if (endDate) {
       const end = new Date(endDate);
+      if (Number.isNaN(end.getTime())) {
+        return NextResponse.json({ error: "end_date is not a valid date" }, { status: 400 });
+      }
       end.setHours(23, 59, 59, 999);
       until = end.toISOString();
     }

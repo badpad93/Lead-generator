@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getCoffeeUser, forbiddenResponse } from "@/lib/coffeeAuth";
 import { isQuickBooks } from "@/lib/paymentProvider";
-import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
+import { createInvoice, sendInvoiceEmail, getInvoice, QbTimeoutError } from "@/lib/quickbooks";
 import { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } from "@/lib/coffeeEmail";
 import { requireExecutedCoffeeSupplyAgreement } from "@/lib/placementAgreements";
 import { resolveCoffeeProductsPricing } from "@/lib/coffeePricing";
@@ -143,44 +143,117 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: order, error: orderError } = await supabaseAdmin
+    // Retry idempotency: if the user already has an awaiting_payment
+    // order with no qb_invoice_id (i.e. the previous submit reached
+    // the DB but the QBO leg failed or timed out), reuse it instead
+    // of inserting a new one. Prevents the "smash the button 5 times
+    // during an Intuit outage → 5 duplicate orders + 5 email pairs"
+    // failure mode that surfaced in the Sep 1 outage.
+    // The reuse window is short (10 minutes) so a truly abandoned
+    // order the user came back to a day later isn't recycled without
+    // fresh shipping/billing input.
+    const REUSE_WINDOW_MS = 10 * 60 * 1000;
+    const reuseCutoff = new Date(Date.now() - REUSE_WINDOW_MS).toISOString();
+    const { data: reusable } = await supabaseAdmin
       .from("coffee_orders")
-      .insert({
-        operator_id: user.id,
-        order_number: orderNumber,
-        status: "awaiting_payment",
-        // Ship-to
-        shipping_business_name: trim(body.shipping_business_name),
-        shipping_name: trim(body.shipping_name),
-        shipping_address: trim(body.shipping_address),
-        shipping_city: trim(body.shipping_city),
-        shipping_state: trim(body.shipping_state),
-        shipping_zip: trim(body.shipping_zip),
-        shipping_phone: trim(body.shipping_phone),
-        // Bill-to
-        billing_business_name: trim(body.billing_business_name),
-        billing_contact_name: trim(body.billing_contact_name),
-        billing_email: trim(body.billing_email),
-        billing_phone: trim(body.billing_phone),
-        billing_address: trim(body.billing_address),
-        billing_city: trim(body.billing_city),
-        billing_state: trim(body.billing_state),
-        billing_zip: trim(body.billing_zip),
-        subtotal,
-        shipping_estimate: shippingTotal,
-        total,
-        notes: body.notes ?? null,
-      })
       .select("*")
-      .single();
+      .eq("operator_id", user.id)
+      .eq("status", "awaiting_payment")
+      .is("qb_invoice_id", null)
+      .gte("created_at", reuseCutoff)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (orderError) {
-      return NextResponse.json({ error: orderError.message }, { status: 500 });
+    let order: Record<string, unknown> | null = null;
+    let reused = false;
+
+    if (reusable) {
+      // Refresh the addresses + totals on the reused row so a user
+      // who edited their cart or address between attempts gets the
+      // current values persisted before we mint the invoice.
+      const { data: refreshed, error: refreshErr } = await supabaseAdmin
+        .from("coffee_orders")
+        .update({
+          shipping_business_name: trim(body.shipping_business_name),
+          shipping_name: trim(body.shipping_name),
+          shipping_address: trim(body.shipping_address),
+          shipping_city: trim(body.shipping_city),
+          shipping_state: trim(body.shipping_state),
+          shipping_zip: trim(body.shipping_zip),
+          shipping_phone: trim(body.shipping_phone),
+          billing_business_name: trim(body.billing_business_name),
+          billing_contact_name: trim(body.billing_contact_name),
+          billing_email: trim(body.billing_email),
+          billing_phone: trim(body.billing_phone),
+          billing_address: trim(body.billing_address),
+          billing_city: trim(body.billing_city),
+          billing_state: trim(body.billing_state),
+          billing_zip: trim(body.billing_zip),
+          subtotal,
+          shipping_estimate: shippingTotal,
+          total,
+          notes: body.notes ?? null,
+        })
+        .eq("id", (reusable as { id: string }).id)
+        .select("*")
+        .single();
+      if (refreshErr) {
+        return NextResponse.json({ error: refreshErr.message }, { status: 500 });
+      }
+      order = refreshed as Record<string, unknown>;
+      reused = true;
+      // Wipe old line items so the retry writes fresh ones matching
+      // the current cart.
+      await supabaseAdmin
+        .from("coffee_order_items")
+        .delete()
+        .eq("order_id", (order as { id: string }).id);
+    } else {
+      const { data: inserted, error: orderError } = await supabaseAdmin
+        .from("coffee_orders")
+        .insert({
+          operator_id: user.id,
+          order_number: orderNumber,
+          status: "awaiting_payment",
+          // Ship-to
+          shipping_business_name: trim(body.shipping_business_name),
+          shipping_name: trim(body.shipping_name),
+          shipping_address: trim(body.shipping_address),
+          shipping_city: trim(body.shipping_city),
+          shipping_state: trim(body.shipping_state),
+          shipping_zip: trim(body.shipping_zip),
+          shipping_phone: trim(body.shipping_phone),
+          // Bill-to
+          billing_business_name: trim(body.billing_business_name),
+          billing_contact_name: trim(body.billing_contact_name),
+          billing_email: trim(body.billing_email),
+          billing_phone: trim(body.billing_phone),
+          billing_address: trim(body.billing_address),
+          billing_city: trim(body.billing_city),
+          billing_state: trim(body.billing_state),
+          billing_zip: trim(body.billing_zip),
+          subtotal,
+          shipping_estimate: shippingTotal,
+          total,
+          notes: body.notes ?? null,
+        })
+        .select("*")
+        .single();
+      if (orderError) {
+        return NextResponse.json({ error: orderError.message }, { status: 500 });
+      }
+      order = inserted as Record<string, unknown>;
     }
+
+    // Downstream code expects the same variable name.
+    const orderRow = order as { id: string; status: string; order_number?: string };
+    // Keep the caller-visible orderNumber in sync with the reused row.
+    const effectiveOrderNumber = (orderRow.order_number as string) ?? orderNumber;
 
     const itemsWithOrderId = orderItems.map(({ shipping_cost: _, ...item }) => ({
       ...item,
-      order_id: order.id,
+      order_id: orderRow.id,
     }));
 
     // Insert order lines. pricing_tier_id was added in migration 118 —
@@ -200,55 +273,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
     }
 
-    // Clear the cart as soon as the order + items are committed. Payment
-    // hasn't landed yet — but the order lives in awaiting_payment with the
-    // invoice/checkout URL, so if the customer bounces before paying they
-    // can still complete payment from /coffee/orders. Meanwhile the cart
-    // is empty for their next order (previous behavior only cleared cart
-    // on paid webhook, which meant QB customers who bounced before paying
-    // saw stale items on their next visit).
-    await supabaseAdmin
-      .from("coffee_cart_items")
-      .delete()
-      .eq("user_id", user.id);
-
-    // Fire "order placed" emails immediately at checkout submission so the
-    // buyer and fulfillment mailbox both see it right away — invoice link
-    // follows on the same page. handleCoffeeOrderCompleted fires a second
-    // confirmation once payment lands (via QB webhook).
-    try {
-      const emailParams = {
-        orderNumber,
-        operatorName: user.full_name || "Operator",
-        operatorEmail: user.email || "",
-        items: orderItems.map(({ shipping_cost: _, ...i }) => i),
-        subtotal,
-        shippingEstimate: shippingTotal,
-        total,
-        shippingBusinessName: trim(body.shipping_business_name),
-        shippingName: trim(body.shipping_name),
-        shippingAddress: trim(body.shipping_address),
-        shippingCity: trim(body.shipping_city),
-        shippingState: trim(body.shipping_state),
-        shippingZip: trim(body.shipping_zip),
-        shippingPhone: trim(body.shipping_phone),
-        billingBusinessName: trim(body.billing_business_name),
-        billingContactName: trim(body.billing_contact_name),
-        billingEmail: trim(body.billing_email),
-        billingPhone: trim(body.billing_phone),
-        billingAddress: trim(body.billing_address),
-        billingCity: trim(body.billing_city),
-        billingState: trim(body.billing_state),
-        billingZip: trim(body.billing_zip),
-      };
-      await Promise.all([
-        sendCoffeeOrderNotification(emailParams),
-        sendCoffeeOrderConfirmation(emailParams),
-      ]);
-    } catch {
-      // Email failures should not block the order
-    }
-
     // Attach this order to the customer's coffee_service workflow as a
     // fulfillment sub-item. Best-effort — never blocks checkout. If the
     // customer has no coffee_service workflow yet (legacy customers who
@@ -258,16 +282,64 @@ export async function POST(req: NextRequest) {
       const { attachCoffeeOrderToServiceWorkflow } = await import("@/lib/workflows/hooks");
       await attachCoffeeOrderToServiceWorkflow({
         customerId: user.id,
-        coffeeOrderId: order.id,
-        orderNumber,
+        coffeeOrderId: orderRow.id,
+        orderNumber: effectiveOrderNumber,
         orderTotal: total,
-        orderStatus: order.status,
+        orderStatus: orderRow.status,
       });
     } catch (workflowErr) {
       console.error("[coffee-checkout] workflow attach failed:", workflowErr);
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
+
+    // Cart-clear + "order placed" emails deliberately run AFTER the
+    // payment session or invoice succeeds. Previously they fired
+    // immediately after the DB inserts, so an Intuit outage that
+    // hung createInvoice for 5 minutes still wiped the user's cart
+    // and emailed them + fulfillment for every retry. See helper
+    // below.
+    const emailParams = {
+      orderNumber: effectiveOrderNumber,
+      operatorName: user.full_name || "Operator",
+      operatorEmail: user.email || "",
+      items: orderItems.map(({ shipping_cost: _, ...i }) => i),
+      subtotal,
+      shippingEstimate: shippingTotal,
+      total,
+      shippingBusinessName: trim(body.shipping_business_name),
+      shippingName: trim(body.shipping_name),
+      shippingAddress: trim(body.shipping_address),
+      shippingCity: trim(body.shipping_city),
+      shippingState: trim(body.shipping_state),
+      shippingZip: trim(body.shipping_zip),
+      shippingPhone: trim(body.shipping_phone),
+      billingBusinessName: trim(body.billing_business_name),
+      billingContactName: trim(body.billing_contact_name),
+      billingEmail: trim(body.billing_email),
+      billingPhone: trim(body.billing_phone),
+      billingAddress: trim(body.billing_address),
+      billingCity: trim(body.billing_city),
+      billingState: trim(body.billing_state),
+      billingZip: trim(body.billing_zip),
+    };
+    // Capture into a const so the nested closure below doesn't lose
+    // the earlier narrow-to-not-null on `user`.
+    const userIdForCart = user.id;
+    async function finalizeSideEffects() {
+      await supabaseAdmin
+        .from("coffee_cart_items")
+        .delete()
+        .eq("user_id", userIdForCart);
+      try {
+        await Promise.all([
+          sendCoffeeOrderNotification(emailParams),
+          sendCoffeeOrderConfirmation(emailParams),
+        ]);
+      } catch {
+        // Email failures should not block the order
+      }
+    }
 
     if (isQuickBooks()) {
       const qbLineItems = orderItems.map((item) => ({
@@ -280,28 +352,70 @@ export async function POST(req: NextRequest) {
         qbLineItems.push({ description: "Shipping", amount: shippingTotal, quantity: 1 });
       }
 
-      const invoice = await createInvoice({
-        customerEmail: user.email || "",
-        customerName: user.full_name || user.email || "Customer",
-        lineItems: qbLineItems,
-        memo: `Coffee order ${orderNumber}`,
-        metadata: { type: "coffee_order", order_id: order.id, order_number: orderNumber, user_id: user.id },
-      });
+      let invoice: Awaited<ReturnType<typeof createInvoice>>;
+      try {
+        invoice = await createInvoice({
+          customerEmail: user.email || "",
+          customerName: user.full_name || user.email || "Customer",
+          lineItems: qbLineItems,
+          memo: `Coffee order ${effectiveOrderNumber}`,
+          metadata: {
+            type: "coffee_order",
+            order_id: orderRow.id,
+            order_number: effectiveOrderNumber,
+            user_id: user.id,
+          },
+        });
+      } catch (err) {
+        if (err instanceof QbTimeoutError) {
+          // Intuit is slow/down. The order row exists in
+          // awaiting_payment with no qb_invoice_id — the retry
+          // idempotency block above will pick it up cleanly on the
+          // customer's next attempt (or admin retry), and the cart
+          // is still intact for them. Don't send "order placed"
+          // emails since there's no invoice link to send.
+          console.warn(
+            `[coffee-checkout] QBO createInvoice timed out for order ${orderRow.id}; returning invoice_pending. Reused=${reused}. Cause:`,
+            err.message,
+          );
+          return NextResponse.json({
+            url: `${siteUrl}/coffee/orders/${orderRow.id}?invoice_pending=true`,
+            invoicePending: true,
+            orderId: orderRow.id,
+            orderNumber: effectiveOrderNumber,
+            message:
+              "QuickBooks is slow right now — your order is saved. We'll email you the invoice as soon as it clears.",
+          });
+        }
+        throw err;
+      }
 
       await supabaseAdmin
         .from("coffee_orders")
         .update({ qb_invoice_id: invoice.Id, payment_provider: "quickbooks" })
-        .eq("id", order.id);
+        .eq("id", orderRow.id);
 
-      await sendInvoiceEmail(invoice.Id, user.email || undefined);
-
-      const fullInvoice = await getInvoice(invoice.Id);
-      if (fullInvoice.InvoiceLink) {
-        return NextResponse.json({ url: fullInvoice.InvoiceLink });
+      // sendInvoiceEmail + getInvoice also touch QBO; guard both so
+      // a late-stage Intuit hiccup doesn't leave the customer without
+      // the pending page and doesn't strand the function.
+      try {
+        await sendInvoiceEmail(invoice.Id, user.email || undefined);
+      } catch (mailErr) {
+        console.warn("[coffee-checkout] QB invoice email failed (non-fatal):", mailErr);
       }
 
+      let invoiceUrl: string | null = null;
+      try {
+        const fullInvoice = await getInvoice(invoice.Id);
+        if (fullInvoice.InvoiceLink) invoiceUrl = fullInvoice.InvoiceLink;
+      } catch (getErr) {
+        console.warn("[coffee-checkout] QB getInvoice failed (non-fatal):", getErr);
+      }
+
+      await finalizeSideEffects();
+
       return NextResponse.json({
-        url: `${siteUrl}/coffee/orders/${order.id}?invoice_sent=true`,
+        url: invoiceUrl ?? `${siteUrl}/coffee/orders/${orderRow.id}?invoice_sent=true`,
         invoiceSent: true,
         invoiceId: invoice.Id,
       });
@@ -340,19 +454,21 @@ export async function POST(req: NextRequest) {
       line_items: stripeLineItems,
       metadata: {
         type: "coffee_order",
-        order_id: order.id,
-        order_number: orderNumber,
+        order_id: orderRow.id,
+        order_number: effectiveOrderNumber,
         user_id: user.id,
       },
       customer_email: user.email || undefined,
-      success_url: `${siteUrl}/coffee/orders/${order.id}?paid=true`,
+      success_url: `${siteUrl}/coffee/orders/${orderRow.id}?paid=true`,
       cancel_url: `${siteUrl}/coffee/checkout?canceled=true`,
     });
 
     await supabaseAdmin
       .from("coffee_orders")
       .update({ stripe_checkout_session_id: session.id })
-      .eq("id", order.id);
+      .eq("id", orderRow.id);
+
+    await finalizeSideEffects();
 
     return NextResponse.json({ url: session.url });
   } catch (e) {
