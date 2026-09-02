@@ -338,6 +338,12 @@ export default function CoffeeMarketplacePage() {
               <Link href="/coffee/pricing-calculator" className="inline-flex items-center gap-1.5 rounded-lg bg-gray-800 border border-gray-700 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
                 Pricing Calculator
               </Link>
+              {/*
+                Falls back to profile.role when nav-context hasn't
+                loaded (or the /api/coffee/nav-context call failed
+                silently) so an operator or admin still discovers
+                the create flow.
+              */}
               {navContext?.owner_tenant ? (
                 <Link href="/coffee/storefront" className="inline-flex items-center gap-1.5 rounded-lg bg-amber-800/80 border border-amber-600 px-4 py-2 text-sm font-medium text-amber-100 hover:bg-amber-700 transition-colors">
                   My Storefront
@@ -347,7 +353,7 @@ export default function CoffeeMarketplacePage() {
                     </span>
                   ) : null}
                 </Link>
-              ) : navContext?.can_own_storefront ? (
+              ) : profile?.role === "operator" || profile?.role === "admin" ? (
                 <Link href="/coffee/storefront" className="inline-flex items-center gap-1.5 rounded-lg bg-gray-800 border border-dashed border-amber-500 px-4 py-2 text-sm font-medium text-amber-200 hover:bg-gray-700 transition-colors">
                   Set up my storefront
                 </Link>

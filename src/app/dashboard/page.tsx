@@ -779,6 +779,23 @@ export default function DashboardPage() {
             Equipment Loan & Beverage Supply Agreement; brewer is
             provided at no charge in exchange for the supply agreement.
           */}
+          {/*
+            Storefront-owner CTA. Rendering conditions in order of
+            preference:
+              (a) nav-context loaded AND owner_tenant present → rich
+                  "Manage" tile with the tenant name + status badge.
+              (b) profile.role qualifies (operator or admin) AND
+                  no owner_tenant → dashed "Set up my storefront"
+                  tile.
+            Case (b) does NOT gate on storefrontNav being loaded —
+            the previous version required storefrontNav.can_own_storefront
+            to be truthy, which meant a silently-failed /api/coffee/nav-context
+            fetch (my try/catch swallowed all errors) hid the CTA
+            entirely. profile is guaranteed to be loaded by the time
+            this renders (auth block sets it before render), so
+            profile-based fallback works even when nav-context is
+            broken, cached-stale, or in flight.
+          */}
           {storefrontNav?.owner_tenant ? (
             <Link
               href="/coffee/storefront"
@@ -802,10 +819,7 @@ export default function DashboardPage() {
               </div>
               <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-800" />
             </Link>
-          ) : storefrontNav?.can_own_storefront ? (
-            // Operator with no tenant yet — get-started tile. Without
-            // this, the operator couldn't discover /coffee/storefront
-            // to run the create flow.
+          ) : profile?.role === "operator" || profile?.role === "admin" ? (
             <Link
               href="/coffee/storefront"
               className="group flex items-center gap-4 rounded-2xl border-2 border-dashed border-amber-500 bg-amber-50/60 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-100"
