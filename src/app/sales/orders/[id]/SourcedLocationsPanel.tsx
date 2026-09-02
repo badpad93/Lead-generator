@@ -2,31 +2,25 @@
 
 /**
  * Sourced Locations panel — mounts on the order detail page for
- * order_type='location_services' orders (after the deposit is
- * paid, per the Next Step verb 'source_locations').
+ * order_type='location_services' orders after the deposit is paid
+ * (per the "source_locations" Next Step verb).
  *
- * Two input modes:
- *   1. Link an existing lead (search bar of sales_leads where
- *      entity_type='location'). Denormalized fields are copied
- *      server-side at attach time.
- *   2. Add manually — the rep types a location that has no lead
- *      row yet.
+ * Locations can only be attached from existing sales_leads (with
+ * entity_type='location'). Manual "type it in" attach was removed
+ * so every sourced location goes through the CRM pricing engine
+ * end-to-end — attach pulls the tier + price from the lead's
+ * linked locations row and locks it as the snapshot; secure just
+ * flips status. A rep who needs to attach a location that doesn't
+ * exist yet has to create it as a lead first.
  *
- * Each attached location shows a status pill, a Secure control
- * (opens a small tier picker inline), and a Detach control (only
- * while the row is still 'sourced'). Securing stamps the pricing
- * snapshot from src/lib/pricing/locationPricing.ts and pro-rata
- * credits the deposit against the accumulated placement fees.
- *
- * "Invoice remaining balance" is the manual fallback the ask
- * called out — a rep can fire the remainder invoice against the
- * currently-secured rows regardless of whether the quota was
- * met. Auto-fire on quota-reached happens server-side when the
- * final secure lands.
+ * "Invoice remaining balance" is the manual fallback the product
+ * ask called out — fire the remainder invoice against currently-
+ * secured rows regardless of quota. Auto-fire on quota-reached
+ * still happens server-side when the final secure lands.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MapPin, CheckCircle2, XCircle, Search, Plus, Loader2, DollarSign } from "lucide-react";
+import { MapPin, CheckCircle2, XCircle, Search, Loader2, DollarSign } from "lucide-react";
 
 interface OrderSummary {
   deposit_amount: number;
@@ -66,8 +60,6 @@ interface LeadOption {
   entity_type: string | null;
 }
 
-type Mode = "link" | "manual";
-
 export default function SourcedLocationsPanel({
   orderId,
   token,
@@ -82,33 +74,12 @@ export default function SourcedLocationsPanel({
   const [locations, setLocations] = useState<SourcedLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<Mode>("link");
   const [busy, setBusy] = useState<string | null>(null);
 
-  // Link-mode state.
   const [leadSearch, setLeadSearch] = useState("");
   const [leads, setLeads] = useState<LeadOption[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState<string>("");
-
-  // Manual-mode state.
-  const [manual, setManual] = useState({
-    business_name: "",
-    contact_name: "",
-    contact_email: "",
-    contact_phone: "",
-    address: "",
-    city: "",
-    state: "",
-    zip: "",
-    machine_count: 1,
-    machine_type: "AI",
-  });
-
-  // Secure-mode inline picker per row.
-  const [securingRow, setSecuringRow] = useState<string | null>(null);
-  const [secureTier, setSecureTier] = useState<1 | 2 | 3>(1);
-  const [priceOverride, setPriceOverride] = useState<string>("");
 
   const fetchLocations = useCallback(async () => {
     setLoading(true);
@@ -131,12 +102,11 @@ export default function SourcedLocationsPanel({
     fetchLocations();
   }, [fetchLocations]);
 
-  // Pull the lead pool once on mount — filter to entity_type='location'
-  // client-side. The list route already caps at 500 rows which is
-  // enough for a searchable dropdown; if a market ever outgrows that
-  // cap we can add a server-side search parameter.
+  // Pull the lead pool once. Server-side visibility rules already
+  // scope this per the rep's role; the list route caps at 500 rows
+  // which is plenty for a searchable dropdown.
   useEffect(() => {
-    if (mode !== "link" || leads.length > 0) return;
+    if (leads.length > 0) return;
     setLeadsLoading(true);
     fetch(`/api/sales/leads`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
@@ -155,7 +125,7 @@ export default function SourcedLocationsPanel({
       })
       .catch(() => setLeads([]))
       .finally(() => setLeadsLoading(false));
-  }, [mode, leads.length, token]);
+  }, [leads.length, token]);
 
   const filteredLeads = useMemo(() => {
     const q = leadSearch.trim().toLowerCase();
@@ -182,9 +152,10 @@ export default function SourcedLocationsPanel({
     order.location_remaining_invoice_status === "sent" ||
     order.location_remaining_invoice_status === "paid";
 
-  async function attachExistingLead() {
+  async function attachLead() {
     if (!selectedLeadId) return;
     setBusy("attach");
+    setError(null);
     try {
       const res = await fetch(`/api/sales/orders/${orderId}/locations`, {
         method: "POST",
@@ -203,64 +174,18 @@ export default function SourcedLocationsPanel({
     }
   }
 
-  async function attachManual() {
-    if (!manual.business_name.trim()) {
-      setError("Business name is required");
-      return;
-    }
-    setBusy("attach");
-    try {
-      const res = await fetch(`/api/sales/orders/${orderId}/locations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(manual),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Attach failed");
-      setManual({
-        business_name: "",
-        contact_name: "",
-        contact_email: "",
-        contact_phone: "",
-        address: "",
-        city: "",
-        state: "",
-        zip: "",
-        machine_count: 1,
-        machine_type: "AI",
-      });
-      await fetchLocations();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(null);
-    }
-  }
-
   async function secure(row: SourcedLocation) {
     setBusy(`secure:${row.id}`);
+    setError(null);
     try {
-      const payload: Record<string, unknown> = { auto_invoice: true };
-      if (order.is_ten_ten_ten) {
-        payload.is_ten_ten_ten = true;
-      } else {
-        payload.tier = secureTier;
-      }
-      const override = Number(priceOverride);
-      if (!Number.isNaN(override) && override > 0) payload.price_override = override;
-
       const res = await fetch(`/api/sales/orders/${orderId}/locations/${row.id}/secure`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ auto_invoice: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Secure failed");
-      setSecuringRow(null);
-      setPriceOverride("");
       await fetchLocations();
-      // If auto-invoice fired, refresh the parent order so the
-      // "Location Services Remaining Balance" pills update.
       if (data.auto_invoice) onOrderRefresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -272,6 +197,7 @@ export default function SourcedLocationsPanel({
   async function detach(row: SourcedLocation) {
     if (!confirm(`Remove ${row.business_name} from this order?`)) return;
     setBusy(`detach:${row.id}`);
+    setError(null);
     try {
       const res = await fetch(`/api/sales/orders/${orderId}/locations/${row.id}`, {
         method: "DELETE",
@@ -290,6 +216,7 @@ export default function SourcedLocationsPanel({
   async function decline(row: SourcedLocation) {
     if (!confirm(`Mark ${row.business_name} declined?`)) return;
     setBusy(`decline:${row.id}`);
+    setError(null);
     try {
       const res = await fetch(`/api/sales/orders/${orderId}/locations/${row.id}`, {
         method: "PATCH",
@@ -310,6 +237,7 @@ export default function SourcedLocationsPanel({
     if (alreadyInvoiced) return;
     if (!confirm(`Invoice remaining balance of $${estimatedRemaining.toFixed(2)}?`)) return;
     setBusy("invoice");
+    setError(null);
     try {
       const res = await fetch(`/api/sales/orders/${orderId}/locations/invoice-remaining`, {
         method: "POST",
@@ -338,7 +266,6 @@ export default function SourcedLocationsPanel({
         </div>
       </div>
 
-      {/* Deposit / credit summary strip */}
       <div className="mb-4 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 flex items-center gap-3 text-xs">
         <DollarSign className="h-3.5 w-3.5 text-blue-500" />
         <span className="text-blue-800">
@@ -360,14 +287,13 @@ export default function SourcedLocationsPanel({
         </div>
       )}
 
-      {/* List */}
       {loading ? (
         <div className="flex justify-center py-4">
           <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
         </div>
       ) : locations.length === 0 ? (
         <p className="text-xs text-gray-400 py-2">
-          No locations attached yet. Link an existing lead below, or add one manually.
+          No locations attached yet. Link an existing location lead below.
         </p>
       ) : (
         <ul className="space-y-2 mb-4">
@@ -384,8 +310,9 @@ export default function SourcedLocationsPanel({
                     </span>
                     <StatusPill status={row.status} />
                     {row.tier_label && (
-                      <span className="text-[10px] rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">
+                      <span className="text-[10px] rounded bg-blue-50 px-1.5 py-0.5 text-blue-700 ring-1 ring-inset ring-blue-100">
                         {row.tier_label}
+                        {typeof row.secured_price === "number" && <> · ${Number(row.secured_price).toFixed(2)}</>}
                       </span>
                     )}
                   </div>
@@ -396,23 +323,20 @@ export default function SourcedLocationsPanel({
                   )}
                   {row.status === "secured" && (
                     <p className="text-xs text-emerald-700 mt-0.5">
-                      ${Number(row.secured_price ?? 0).toFixed(2)} secured price · deposit credit ${Number(row.deposit_credit_applied ?? 0).toFixed(2)}
+                      Secured · deposit credit ${Number(row.deposit_credit_applied ?? 0).toFixed(2)}
                     </p>
                   )}
                 </div>
 
                 <div className="flex-shrink-0 flex flex-col gap-1 items-end">
-                  {row.status === "sourced" && securingRow !== row.id && (
+                  {row.status === "sourced" && (
                     <>
                       <button
-                        onClick={() => {
-                          setSecuringRow(row.id);
-                          setPriceOverride("");
-                        }}
+                        onClick={() => secure(row)}
                         disabled={busy !== null}
-                        className="rounded px-2 py-1 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
+                        className="rounded px-3 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
                       >
-                        Secure
+                        {busy === `secure:${row.id}` ? "Securing…" : "Secure"}
                       </button>
                       <button
                         onClick={() => detach(row)}
@@ -434,60 +358,13 @@ export default function SourcedLocationsPanel({
                   )}
                 </div>
               </div>
-
-              {securingRow === row.id && (
-                <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2 flex-wrap">
-                  {order.is_ten_ten_ten ? (
-                    <span className="text-xs text-gray-600">
-                      10/10/10 prepaid — $400 fixed
-                    </span>
-                  ) : (
-                    <>
-                      <label className="text-xs text-gray-600">Tier:</label>
-                      <select
-                        value={secureTier}
-                        onChange={(e) => setSecureTier(Number(e.target.value) as 1 | 2 | 3)}
-                        className="rounded border border-gray-200 px-2 py-1 text-xs"
-                      >
-                        <option value={1}>Basic — $500</option>
-                        <option value={2}>Premium — $800</option>
-                        <option value={3}>Elite — $1200</option>
-                      </select>
-                    </>
-                  )}
-                  <label className="text-xs text-gray-600">Or override $:</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={priceOverride}
-                    onChange={(e) => setPriceOverride(e.target.value)}
-                    className="w-20 rounded border border-gray-200 px-2 py-1 text-xs"
-                    placeholder="0.00"
-                  />
-                  <button
-                    onClick={() => secure(row)}
-                    disabled={busy === `secure:${row.id}`}
-                    className="rounded px-3 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer disabled:opacity-50"
-                  >
-                    {busy === `secure:${row.id}` ? "Saving…" : "Confirm secure"}
-                  </button>
-                  <button
-                    onClick={() => setSecuringRow(null)}
-                    className="rounded px-2 py-1 text-xs text-gray-500 hover:text-gray-700 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
             </li>
           ))}
         </ul>
       )}
 
-      {/* Manual invoice fallback — sits above the add-form because
-          this is the payoff for the panel; a rep who's ready to
-          bill shouldn't hunt past the input widgets for it. */}
+      {/* Manual invoice fallback — sits above the search so a rep
+          ready to bill doesn't scroll past the lookup for it. */}
       {securedCount > 0 && !alreadyInvoiced && (
         <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 flex items-center justify-between">
           <div className="text-xs text-purple-800">
@@ -515,155 +392,69 @@ export default function SourcedLocationsPanel({
         </div>
       )}
 
-      {/* Add form */}
+      {/* Attach form — search location leads and pick one. Pricing
+          snapshot is stamped server-side from the lead's linked
+          locations row (employee_count / traffic_count / hours /
+          machines) so tier + $ price are known the moment the row
+          appears in the list above. */}
       <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-        <div className="flex items-center gap-1 mb-2">
-          <button
-            onClick={() => setMode("link")}
-            className={`rounded px-2 py-1 text-xs font-medium cursor-pointer ${mode === "link" ? "bg-white ring-1 ring-blue-300 text-blue-700" : "text-gray-500 hover:text-gray-700"}`}
-          >
-            <Search className="inline h-3 w-3 mr-1" />
-            Link existing lead
-          </button>
-          <button
-            onClick={() => setMode("manual")}
-            className={`rounded px-2 py-1 text-xs font-medium cursor-pointer ${mode === "manual" ? "bg-white ring-1 ring-blue-300 text-blue-700" : "text-gray-500 hover:text-gray-700"}`}
-          >
-            <Plus className="inline h-3 w-3 mr-1" />
-            Add manually
-          </button>
+        <div className="flex items-center gap-2 mb-2 text-xs font-medium text-gray-700">
+          <Search className="h-3 w-3" />
+          Link an existing location lead
         </div>
-
-        {mode === "link" ? (
-          <div className="space-y-2">
-            <input
-              type="search"
-              value={leadSearch}
-              onChange={(e) => setLeadSearch(e.target.value)}
-              placeholder="Search leads by name, address, city…"
-              className="w-full rounded border border-gray-200 px-2 py-1.5 text-xs"
-            />
-            <div className="max-h-40 overflow-y-auto rounded border border-gray-200 bg-white divide-y divide-gray-100">
-              {leadsLoading ? (
-                <div className="px-2 py-2 text-xs text-gray-400">Loading leads…</div>
-              ) : filteredLeads.length === 0 ? (
-                <div className="px-2 py-2 text-xs text-gray-400">
-                  {leadSearch ? "No matching location leads." : "No location leads available."}
-                </div>
-              ) : (
-                filteredLeads.map((l) => (
-                  <label
-                    key={l.id}
-                    className={`flex items-start gap-2 px-2 py-1.5 text-xs cursor-pointer hover:bg-blue-50 ${selectedLeadId === l.id ? "bg-blue-50" : ""}`}
-                  >
-                    <input
-                      type="radio"
-                      name="lead-choice"
-                      checked={selectedLeadId === l.id}
-                      onChange={() => setSelectedLeadId(l.id)}
-                      className="mt-0.5"
-                    />
-                    <span className="flex-1 min-w-0">
-                      <span className="font-medium text-gray-800 truncate">{l.business_name}</span>
-                      {(l.address || l.city || l.state) && (
-                        <span className="block text-gray-500 truncate">
-                          {[l.address, l.city, l.state].filter(Boolean).join(", ")}
-                        </span>
-                      )}
-                    </span>
-                  </label>
-                ))
-              )}
-            </div>
-            <button
-              onClick={attachExistingLead}
-              disabled={!selectedLeadId || busy === "attach"}
-              className="w-full rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-50"
-            >
-              {busy === "attach" ? "Attaching…" : "Attach selected lead"}
-            </button>
+        <div className="space-y-2">
+          <input
+            type="search"
+            value={leadSearch}
+            onChange={(e) => setLeadSearch(e.target.value)}
+            placeholder="Search by name, address, city…"
+            className="w-full rounded border border-gray-200 px-2 py-1.5 text-xs"
+          />
+          <div className="max-h-40 overflow-y-auto rounded border border-gray-200 bg-white divide-y divide-gray-100">
+            {leadsLoading ? (
+              <div className="px-2 py-2 text-xs text-gray-400">Loading leads…</div>
+            ) : filteredLeads.length === 0 ? (
+              <div className="px-2 py-2 text-xs text-gray-400">
+                {leadSearch
+                  ? "No matching location leads."
+                  : "No location leads available. Create one in the Leads section first."}
+              </div>
+            ) : (
+              filteredLeads.map((l) => (
+                <label
+                  key={l.id}
+                  className={`flex items-start gap-2 px-2 py-1.5 text-xs cursor-pointer hover:bg-blue-50 ${selectedLeadId === l.id ? "bg-blue-50" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="lead-choice"
+                    checked={selectedLeadId === l.id}
+                    onChange={() => setSelectedLeadId(l.id)}
+                    className="mt-0.5"
+                  />
+                  <span className="flex-1 min-w-0">
+                    <span className="font-medium text-gray-800 truncate">{l.business_name}</span>
+                    {(l.address || l.city || l.state) && (
+                      <span className="block text-gray-500 truncate">
+                        {[l.address, l.city, l.state].filter(Boolean).join(", ")}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              ))
+            )}
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              value={manual.business_name}
-              onChange={(e) => setManual({ ...manual, business_name: e.target.value })}
-              placeholder="Business name *"
-              className="col-span-2 rounded border border-gray-200 px-2 py-1.5 text-xs"
-            />
-            <input
-              value={manual.address}
-              onChange={(e) => setManual({ ...manual, address: e.target.value })}
-              placeholder="Street address"
-              className="col-span-2 rounded border border-gray-200 px-2 py-1.5 text-xs"
-            />
-            <input
-              value={manual.city}
-              onChange={(e) => setManual({ ...manual, city: e.target.value })}
-              placeholder="City"
-              className="rounded border border-gray-200 px-2 py-1.5 text-xs"
-            />
-            <div className="flex gap-2">
-              <input
-                value={manual.state}
-                onChange={(e) => setManual({ ...manual, state: e.target.value })}
-                placeholder="State"
-                maxLength={2}
-                className="w-1/2 rounded border border-gray-200 px-2 py-1.5 text-xs uppercase"
-              />
-              <input
-                value={manual.zip}
-                onChange={(e) => setManual({ ...manual, zip: e.target.value })}
-                placeholder="ZIP"
-                className="w-1/2 rounded border border-gray-200 px-2 py-1.5 text-xs"
-              />
-            </div>
-            <input
-              value={manual.contact_name}
-              onChange={(e) => setManual({ ...manual, contact_name: e.target.value })}
-              placeholder="Contact name"
-              className="rounded border border-gray-200 px-2 py-1.5 text-xs"
-            />
-            <input
-              value={manual.contact_phone}
-              onChange={(e) => setManual({ ...manual, contact_phone: e.target.value })}
-              placeholder="Phone"
-              className="rounded border border-gray-200 px-2 py-1.5 text-xs"
-            />
-            <input
-              value={manual.contact_email}
-              onChange={(e) => setManual({ ...manual, contact_email: e.target.value })}
-              placeholder="Contact email"
-              className="col-span-2 rounded border border-gray-200 px-2 py-1.5 text-xs"
-            />
-            <select
-              value={manual.machine_type}
-              onChange={(e) => setManual({ ...manual, machine_type: e.target.value })}
-              className="rounded border border-gray-200 px-2 py-1.5 text-xs"
-            >
-              <option value="AI">AI</option>
-              <option value="Snack">Snack</option>
-              <option value="Drink">Drink</option>
-              <option value="Combo">Combo</option>
-              <option value="Coffee">Coffee</option>
-            </select>
-            <input
-              type="number"
-              min="1"
-              value={manual.machine_count}
-              onChange={(e) => setManual({ ...manual, machine_count: Number(e.target.value) || 1 })}
-              placeholder="Machines"
-              className="rounded border border-gray-200 px-2 py-1.5 text-xs"
-            />
-            <button
-              onClick={attachManual}
-              disabled={!manual.business_name.trim() || busy === "attach"}
-              className="col-span-2 w-full rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-50"
-            >
-              {busy === "attach" ? "Adding…" : "Add location"}
-            </button>
-          </div>
-        )}
+          <button
+            onClick={attachLead}
+            disabled={!selectedLeadId || busy === "attach"}
+            className="w-full rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-50"
+          >
+            {busy === "attach" ? "Attaching…" : "Attach selected lead"}
+          </button>
+          <p className="text-[11px] text-gray-500">
+            Need a location that isn&apos;t a lead yet? Create it in the Leads section first so the pricing engine can price it.
+          </p>
+        </div>
       </div>
     </div>
   );
