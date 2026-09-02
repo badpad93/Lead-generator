@@ -109,7 +109,10 @@ export default function StorefrontDashboardPage() {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+        <DashCard href="/coffee/storefront/brand" title="Brand & appearance">
+          Logo, colors, hero copy — what customers see at /coffee/o/{tenant.slug}.
+        </DashCard>
         <DashCard href="/coffee/storefront/pricing" title="Pricing">
           Set your customer-facing prices and per-customer overrides.
         </DashCard>
