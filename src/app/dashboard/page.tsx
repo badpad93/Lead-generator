@@ -286,17 +286,35 @@ export default function DashboardPage() {
             window.location.href = "/complete-profile";
             return;
           }
-          setProfile(data);
-          setToken(session.access_token);
-          // Pull storefront nav context so the tile row can offer
-          // "My Storefront" (operator owns a tenant) and/or
-          // "Order from {tenant}" (customer enrolled + approved).
+          // Enrolled-customer auto-route. If this account is a
+          // permanent-linked customer of an approved storefront
+          // tenant, take them straight to that storefront —
+          // ordering is the only reason their account exists in
+          // the parent app. We do this ONCE per session (a query
+          // param sentinel) so an enrolled customer can still
+          // navigate back to /dashboard on purpose.
+          let navCtx: {
+            owner_tenant: { slug: string; display_name: string; status: string } | null;
+            can_own_storefront?: boolean;
+            enrolled_tenant: { slug: string; display_name: string } | null;
+          } | null = null;
           try {
             const nRes = await fetch("/api/coffee/nav-context", {
               headers: { Authorization: `Bearer ${session.access_token}` },
             });
-            if (nRes.ok) setStorefrontNav(await nRes.json());
+            if (nRes.ok) navCtx = await nRes.json();
           } catch {}
+          if (
+            navCtx?.enrolled_tenant &&
+            !navCtx.owner_tenant &&
+            !window.location.search.includes("nostorefront=1")
+          ) {
+            window.location.href = `/coffee/o/${navCtx.enrolled_tenant.slug}`;
+            return;
+          }
+          setProfile(data);
+          setToken(session.access_token);
+          setStorefrontNav(navCtx);
         } catch {
           setNotLoggedIn(true);
         } finally {
@@ -844,7 +862,15 @@ export default function DashboardPage() {
               </div>
               <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-800" />
             </Link>
-          ) : (
+          ) : storefrontNav?.enrolled_tenant ? (
+            // Enrolled customer — they buy through a parent tenant,
+            // they shouldn't be offered a "set up your own"
+            // secondary path. The "Order from …" tile below is
+            // their entry point.
+            null
+          ) : storefrontNav?.can_own_storefront ||
+            profile?.role === "operator" ||
+            profile?.role === "admin" ? (
             // Fall-through CTA — always render for a signed-in user
             // when we don't have a positive owner_tenant hit. Prefers
             // the server-side nav-context signal (which knows about
@@ -870,7 +896,7 @@ export default function DashboardPage() {
               </div>
               <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-700" />
             </Link>
-          )}
+          ) : null}
 
           {storefrontNav?.enrolled_tenant ? (
             <Link
