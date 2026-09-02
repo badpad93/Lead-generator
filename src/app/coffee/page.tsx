@@ -353,11 +353,15 @@ export default function CoffeeMarketplacePage() {
                     </span>
                   ) : null}
                 </Link>
-              ) : profile?.role === "operator" || profile?.role === "admin" ? (
+              ) : (
+                // Fall-through: always offer the entry point for
+                // signed-in users; /coffee/storefront handles who
+                // can actually create a tenant. See dashboard
+                // page.tsx for the fuller rationale.
                 <Link href="/coffee/storefront" className="inline-flex items-center gap-1.5 rounded-lg bg-gray-800 border border-dashed border-amber-500 px-4 py-2 text-sm font-medium text-amber-200 hover:bg-gray-700 transition-colors">
                   Set up my storefront
                 </Link>
-              ) : null}
+              )}
               {navContext?.enrolled_tenant ? (
                 <Link
                   href={`/coffee/o/${navContext.enrolled_tenant.slug}`}
