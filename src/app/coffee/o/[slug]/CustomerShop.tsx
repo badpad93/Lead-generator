@@ -18,7 +18,6 @@ import { createBrowserClient } from "@/lib/supabase";
 interface Product {
   id: string;
   name: string;
-  slug: string | null;
   sku: string;
   description: string | null;
   price: number;

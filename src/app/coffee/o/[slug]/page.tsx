@@ -44,7 +44,6 @@ async function currentEnrolledCustomer(tenantId: string): Promise<boolean> {
 interface Product {
   id: string;
   name: string;
-  slug: string | null;
   sku: string;
   description: string | null;
   price: number;
@@ -82,12 +81,25 @@ export default async function StorefrontPage({
   const tenant = await resolveTenantBySlug(slug);
   if (!tenant || tenant.status !== "approved") notFound();
 
-  const { data: productData } = await supabaseAdmin
+  // Deliberately NOT destructuring `data` alone here anymore — the
+  // previous shape silently swallowed Postgres errors and rendered
+  // "No products available." A missing column (like the earlier
+  // `slug` reference against a coffee_products schema that has
+  // never had one) surfaced as an empty catalog with no signal.
+  // Log the error server-side so operator/admin log tailing catches
+  // the class of bug next time.
+  const productsRes = await supabaseAdmin
     .from("coffee_products")
-    .select("id, name, slug, sku, description, price, image_url, active, sort_order")
+    .select("id, name, sku, description, price, image_url, active, sort_order")
     .eq("active", true)
     .order("sort_order", { ascending: true });
-  const products = (productData ?? []) as Product[];
+  if (productsRes.error) {
+    console.error(
+      `[storefront/${slug}] coffee_products select failed:`,
+      productsRes.error,
+    );
+  }
+  const products = (productsRes.data ?? []) as Product[];
 
   const isEnrolled = await currentEnrolledCustomer(tenant.id);
 
