@@ -58,6 +58,10 @@ export default function CoffeeMarketplacePage() {
   const [guides, setGuides] = useState<Guide[]>([]);
   const [selectedGuide, setSelectedGuide] = useState<Guide | null>(null);
   const [agreementStatus, setAgreementStatus] = useState<string | null>(null);
+  const [navContext, setNavContext] = useState<{
+    owner_tenant: { slug: string; display_name: string; status: string } | null;
+    enrolled_tenant: { slug: string; display_name: string } | null;
+  } | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -72,6 +76,16 @@ export default function CoffeeMarketplacePage() {
           if (res.ok) {
             const data = await res.json();
             setProfile(data);
+            // Fetch storefront nav context — one roundtrip that
+            // tells us whether to show "My Storefront" (operator
+            // owns a tenant) or "Order from {name}" (customer
+            // enrolled with an approved tenant), or neither.
+            try {
+              const nRes = await fetch("/api/coffee/nav-context", {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              });
+              if (nRes.ok) setNavContext(await nRes.json());
+            } catch {}
             // If the operator is already coffee-enabled, fetch their
             // coffee supply agreement status so the banner can offer the
             // sign flow. Admin's coffee_access_enabled grant is the
@@ -323,6 +337,24 @@ export default function CoffeeMarketplacePage() {
               <Link href="/coffee/pricing-calculator" className="inline-flex items-center gap-1.5 rounded-lg bg-gray-800 border border-gray-700 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
                 Pricing Calculator
               </Link>
+              {navContext?.owner_tenant ? (
+                <Link href="/coffee/storefront" className="inline-flex items-center gap-1.5 rounded-lg bg-amber-800/80 border border-amber-600 px-4 py-2 text-sm font-medium text-amber-100 hover:bg-amber-700 transition-colors">
+                  My Storefront
+                  {navContext.owner_tenant.status !== "approved" ? (
+                    <span className="ml-1 text-[10px] uppercase text-amber-300">
+                      {navContext.owner_tenant.status}
+                    </span>
+                  ) : null}
+                </Link>
+              ) : null}
+              {navContext?.enrolled_tenant ? (
+                <Link
+                  href={`/coffee/o/${navContext.enrolled_tenant.slug}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-green-800/80 border border-green-600 px-4 py-2 text-sm font-medium text-green-100 hover:bg-green-700 transition-colors"
+                >
+                  Order from {navContext.enrolled_tenant.display_name}
+                </Link>
+              ) : null}
             </div>
           )}
 
