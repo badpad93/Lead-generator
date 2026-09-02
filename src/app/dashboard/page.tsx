@@ -438,27 +438,52 @@ export default function DashboardPage() {
   const firstName = profile.full_name?.split(" ")[0] || "there";
   const isOperator = profile.role === "operator";
 
-  // Operators must provide a public service address before using the dashboard.
+  // Operators must provide a public service address before using the
+  // dashboard. When that gate is active we still want the storefront
+  // CTA visible — a brand-new operator with no address should be
+  // able to find /coffee/storefront without first completing the
+  // address form.
   if (
     isOperator &&
     (!profile.address || !profile.city || !profile.state || !profile.zip)
   ) {
     return (
-      <OperatorOnboarding
-        token={token}
-        initial={{
-          address: profile.address || "",
-          city: profile.city || "",
-          state: profile.state || "",
-          zip: profile.zip || "",
-        }}
-        onComplete={async () => {
-          const res = await fetch("/api/auth/me", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) setProfile(await res.json());
-        }}
-      />
+      <>
+        <div className="mx-auto max-w-3xl px-4 pt-6">
+          <Link
+            href="/coffee/storefront"
+            className="group flex items-center gap-3 rounded-2xl border-2 border-dashed border-amber-500 bg-amber-50/60 p-4 shadow-sm transition-all hover:bg-amber-100"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 transition-colors group-hover:bg-amber-700 group-hover:text-white">
+              <Coffee className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-black-primary">
+                Set up my coffee storefront
+              </p>
+              <p className="text-xs text-black-primary/50">
+                Also available while you finish your address below
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-black-primary/30 transition-colors group-hover:text-amber-700" />
+          </Link>
+        </div>
+        <OperatorOnboarding
+          token={token}
+          initial={{
+            address: profile.address || "",
+            city: profile.city || "",
+            state: profile.state || "",
+            zip: profile.zip || "",
+          }}
+          onComplete={async () => {
+            const res = await fetch("/api/auth/me", {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) setProfile(await res.json());
+          }}
+        />
+      </>
     );
   }
 
