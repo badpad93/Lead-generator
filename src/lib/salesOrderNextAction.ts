@@ -316,6 +316,13 @@ export function deriveNextAction(order: OrderForNextAction): string | null {
   }
 
   if (status === "paid") {
+    // Location-services orders have no machine to order — the
+    // deposit is a placement-service deposit and the physical
+    // next step is sourcing locations. Every other paid order
+    // proceeds to machine procurement. Matches the split in
+    // deriveNextStep() so the yellow banner and the emerald
+    // Next Step card agree on what the rep should do next.
+    if (isLocationServicesOnly) return "Start sourcing locations — link a lead or add one manually";
     if (needsAgreement) return "Convert to agreement and get it signed";
     return "Order machine(s) from supplier";
   }
