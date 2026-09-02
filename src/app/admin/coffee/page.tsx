@@ -76,6 +76,10 @@ interface Order {
   created_at: string;
   profiles: OrderProfile | null;
   coffee_order_items?: { id: string; product_name: string; quantity: number; unit_price: number; line_total: number }[];
+  qb_invoice_id?: string | null;
+  invoice_retry_attempts?: number | null;
+  invoice_last_attempt_at?: string | null;
+  invoice_retry_failed_reason?: string | null;
 }
 
 interface Application {
@@ -648,6 +652,45 @@ export default function AdminCoffeePage() {
       }
     } catch {
       showToast("Failed to update order", "error");
+    } finally {
+      setUpdatingOrder(null);
+    }
+  }
+
+  async function handleRetryInvoice(orderId: string) {
+    setUpdatingOrder(orderId);
+    try {
+      const res = await fetch(`/api/admin/coffee/orders/${orderId}/retry-invoice`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        result?: { outcome: string; qbInvoiceId?: string; reason?: string };
+        error?: string;
+      };
+      if (!res.ok) {
+        showToast(body.error || "Retry failed", "error");
+      } else if (body.result?.outcome === "adopted") {
+        showToast(
+          `Adopted existing QBO invoice (no double-bill). Id: ${body.result.qbInvoiceId ?? "?"}`,
+          "success",
+        );
+        fetchOrders();
+      } else if (body.result?.outcome === "created") {
+        showToast(
+          `Invoice created and emailed. Id: ${body.result.qbInvoiceId ?? "?"}`,
+          "success",
+        );
+        fetchOrders();
+      } else {
+        showToast(
+          `Retry ${body.result?.outcome ?? "failed"}: ${body.result?.reason ?? "no reason"}`,
+          "error",
+        );
+        fetchOrders();
+      }
+    } catch {
+      showToast("Retry failed", "error");
     } finally {
       setUpdatingOrder(null);
     }
@@ -1534,14 +1577,34 @@ export default function AdminCoffeePage() {
                           </div>
                         </td>
                         <td className="px-5 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
-                            className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 cursor-pointer ml-auto"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            {expandedOrder === order.id ? "Hide" : "View"}
-                          </button>
+                          <div className="flex items-center gap-2 justify-end">
+                            {order.status === "awaiting_payment" && !order.qb_invoice_id ? (
+                              <button
+                                type="button"
+                                onClick={() => handleRetryInvoice(order.id)}
+                                disabled={updatingOrder === order.id}
+                                title={
+                                  order.invoice_retry_failed_reason
+                                    ? `Last failure: ${order.invoice_retry_failed_reason}`
+                                    : `Attempts so far: ${order.invoice_retry_attempts ?? 0}`
+                                }
+                                className="rounded-lg px-3 py-1.5 text-xs font-medium bg-amber-100 text-amber-800 hover:bg-amber-200 disabled:opacity-50"
+                              >
+                                Retry invoice
+                                {order.invoice_retry_attempts
+                                  ? ` (${order.invoice_retry_attempts})`
+                                  : ""}
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
+                              className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 cursor-pointer"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              {expandedOrder === order.id ? "Hide" : "View"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                       {expandedOrder === order.id && order.coffee_order_items && (
