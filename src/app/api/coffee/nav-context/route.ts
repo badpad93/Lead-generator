@@ -46,13 +46,17 @@ export async function GET(req: NextRequest) {
   const enrolledId = profile?.storefront_tenant_id ?? null;
   const enrolled = enrolledId ? await resolveTenantById(enrolledId) : null;
 
-  // can_own = eligible-to-become-a-tenant-owner. Today that's every
-  // operator profile. The client uses this to show a "Set up my
-  // storefront" CTA even when owned is null, so the operator can
-  // FIND the create flow without being told the URL. Once they
-  // create a row, `owner_tenant` fills in and the CTA becomes
-  // "Manage my storefront."
-  const canOwn = profile?.role === "operator";
+  // can_own = eligible-to-become-a-tenant-owner. Operators are the
+  // intended audience, but admins also qualify — the initial test
+  // account (jamespadden93x@gmail.com) is role='admin' and needs to
+  // be able to create + drive a tenant end-to-end during rollout,
+  // otherwise the admin sees no "Set up my storefront" CTA at all
+  // and the get-started flow is undiscoverable to the very account
+  // running the pilot.
+  // The DB has no CHECK on owner_profile_id.role, so this is purely
+  // a UI-eligibility gate; the actual write goes through the same
+  // createTenant helper with the same audit trail.
+  const canOwn = profile?.role === "operator" || profile?.role === "admin";
 
   return NextResponse.json({
     owner_tenant: owned
