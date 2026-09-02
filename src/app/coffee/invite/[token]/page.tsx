@@ -40,7 +40,26 @@ export default function InvitePage() {
     (async () => {
       try {
         const res = await fetch(`/api/storefront/enrollment/preview?token=${token}`);
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) {
+          // Map the API response to a human-readable message. 404
+          // is deliberately ambiguous server-side (either an
+          // invalid token OR the enrollment flag is off) — the copy
+          // reflects that ambiguity honestly instead of asserting
+          // one or the other. 503 signals "service temporarily
+          // unavailable" (currently unreachable from preview but
+          // reserved for future gating).
+          if (res.status === 404) {
+            throw new Error(
+              "This invitation isn't currently valid. It may have been used, revoked, expired, or the storefront may not yet be open to enrollment.",
+            );
+          }
+          if (res.status === 503) {
+            throw new Error(
+              "Enrollment is temporarily unavailable. Please try again in a few minutes.",
+            );
+          }
+          throw new Error(`Preview failed with status ${res.status}`);
+        }
         const data = (await res.json()) as PreviewResponse;
         setPreview(data);
         const supabase = createBrowserClient();
