@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import AttributionPanel from "./AttributionPanel";
 import CommissionOverridePanel from "./CommissionOverridePanel";
-import { deriveNextAction, orderNeedsAgreement } from "@/lib/salesOrderNextAction";
+import { deriveNextAction, deriveNextStep, orderNeedsAgreement } from "@/lib/salesOrderNextAction";
 
 interface OrderItem {
   id: string;
@@ -345,6 +345,80 @@ export default function OrderDetailPage() {
   // to produce the correct nudge every render, so there's no stored
   // value that can go stale.
   const derivedNextAction = order ? deriveNextAction(order) : null;
+  const nextStep = order ? deriveNextStep(order) : null;
+
+  // Single dispatcher for the ONE next-step button that replaces
+  // the grid of 12 STATUS_ACTIONS. Verbs map to the right route
+  // per the deriveNextStep JSDoc; unknown verbs no-op so a schema
+  // drift can't strand the UI on a broken button.
+  async function handleNextStep() {
+    if (!nextStep || !token) return;
+    setActionLoading(nextStep.verb);
+    try {
+      const isQuote = order?.document_type === "quote";
+      let ok = false;
+      switch (nextStep.verb) {
+        case "send_quote":
+        case "send_invoice": {
+          // Same /send route serves both. It reads document_type
+          // and decides quote-email vs QBO-invoice-vs-Resend-order
+          // internally, then stamps the correct order_status.
+          const res = await fetch(`/api/sales/orders/${id}/send`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          ok = res.ok;
+          break;
+        }
+        case "convert_to_order": {
+          const res = await fetch(`/api/sales/orders/${id}/convert-to-order`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          ok = res.ok;
+          break;
+        }
+        case "generate_agreement": {
+          const res = await fetch(`/api/sales/orders/${id}/agreement`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (res.ok) {
+            const agreement = await res.json();
+            router.push(`/sales/orders/${id}/agreement?aid=${agreement.id}`);
+            return; // don't fetchOrder — we're navigating away
+          }
+          break;
+        }
+        case "send_agreement":
+        case "mark_deposit_paid":
+        case "mark_paid":
+        case "mark_machine_ordered":
+        case "mark_shipped":
+        case "mark_delivered":
+        case "mark_completed": {
+          const res = await fetch(`/api/sales/orders/${id}/status`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ action: nextStep.verb }),
+          });
+          ok = res.ok;
+          break;
+        }
+      }
+      if (ok) await fetchOrder();
+      // isQuote unused after switch, keep reference to satisfy no-unused warning
+      void isQuote;
+    } finally {
+      setActionLoading("");
+    }
+  }
 
   if (loading) {
     return (
@@ -760,39 +834,52 @@ export default function OrderDetailPage() {
           </div>
           )}
 
-          {/* Actions */}
-          {order.order_status !== "completed" && order.order_status !== "cancelled" && (
-            <div className="rounded-xl border border-gray-200 bg-white p-5">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Actions</h3>
-              <div className="grid grid-cols-1 gap-2">
-                {STATUS_ACTIONS.map((sa) => (
-                  <button
-                    key={sa.action}
-                    onClick={() => handleStatusAction(sa.action)}
-                    disabled={actionLoading === sa.action}
-                    className={`w-full rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors cursor-pointer disabled:opacity-50 ${sa.color}`}
-                  >
-                    {actionLoading === sa.action ? "..." : sa.label}
-                  </button>
-                ))}
-                {/* Manual fallback for the auto-spawn path — only
-                    shows on location_services orders today since
-                    that's the type the send-to-workflow endpoint
-                    supports. Idempotent — clicking on an already-
-                    linked order returns the existing workflow. */}
-                {order.order_type === "location_services" && (
-                  <button
-                    onClick={handleSendToWorkflow}
-                    disabled={actionLoading === "send_to_workflow"}
-                    className="w-full rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors cursor-pointer disabled:opacity-50 bg-amber-600 hover:bg-amber-700"
-                    title="Manually create a workflow from this order — use as a fallback if the auto-spawn didn't fire"
-                  >
-                    {actionLoading === "send_to_workflow" ? "..." : "Send to Workflows"}
-                  </button>
-                )}
-              </div>
+          {/* Next Step — ONE button per state, computed by
+              deriveNextStep(order). Replaces the grid of 12
+              STATUS_ACTIONS so a rep doesn't have to pick from a
+              list of state transitions or accidentally skip a
+              step. Verb → route mapping lives in handleNextStep()
+              above. Terminal states (completed / cancelled) get no
+              card. The "Send to Workflows" manual-fallback button
+              is preserved separately for location_services orders
+              — it's not part of the linear lifecycle.
+              Rep can always cancel the order via the Danger Zone
+              card below if the deal falls through. */}
+          {nextStep && (
+            <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-5">
+              <h3 className="text-sm font-semibold text-emerald-900 mb-1">Next Step</h3>
+              <p className="text-xs text-emerald-800 mb-3">{nextStep.copy}</p>
+              <button
+                onClick={handleNextStep}
+                disabled={actionLoading === nextStep.verb}
+                className="w-full rounded-lg px-3 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {actionLoading === nextStep.verb ? "Working…" : nextStep.buttonLabel}
+              </button>
             </div>
           )}
+          {order.order_type === "location_services" &&
+            order.order_status !== "completed" &&
+            order.order_status !== "cancelled" && (
+              <div className="rounded-xl border border-amber-200 bg-white p-5">
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                  Location services fallback
+                </h3>
+                <p className="text-xs text-gray-500 mb-3">
+                  The workflow is auto-created when the deposit is paid. Use
+                  this only if the auto-spawn didn't fire.
+                </p>
+                <button
+                  onClick={handleSendToWorkflow}
+                  disabled={actionLoading === "send_to_workflow"}
+                  className="w-full rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors cursor-pointer disabled:opacity-50 bg-amber-600 hover:bg-amber-700"
+                >
+                  {actionLoading === "send_to_workflow"
+                    ? "..."
+                    : "Send to Workflows (fallback)"}
+                </button>
+              </div>
+            )}
 
           {/* Location Services Remaining Balance */}
           {(() => {
