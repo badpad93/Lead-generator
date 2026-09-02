@@ -28,6 +28,12 @@ export interface OrderForNextAction {
   order_type?: string | null;
   is_ten_ten_ten?: boolean | null;
   order_items?: Array<{ item_type?: string | null }>;
+  // invoice_status distinguishes "agreement was signed and we're
+  // waiting to send the invoice" from "invoice went out, waiting on
+  // the deposit." Both land at order_status='awaiting_payment' today,
+  // so the next-step derivation needs invoice_status to pick the
+  // correct button. Values: null / 'not_sent' / 'sent' / 'paid'.
+  invoice_status?: string | null;
 }
 
 /**
@@ -108,8 +114,20 @@ export function deriveNextStep(order: OrderForNextAction): NextStep | null {
         };
   }
 
-  // Quote sent → next step is convert to order (customer said yes)
+  // Quote sent — the customer accepted. Branch on whether this
+  // sale type needs a signed agreement:
+  //   coffee OR 10/10/10 → Generate Agreement first (the signed
+  //     agreement is the actual commitment; the order flip happens
+  //     downstream when the agreement is marked signed).
+  //   otherwise → Convert to Order directly.
   if (status === "quote_sent") {
+    if (needsAgreement) {
+      return {
+        verb: "generate_agreement",
+        buttonLabel: "Generate Agreement",
+        copy: "Customer accepted the quote — generate the agreement and send for signature. The quote flips to an order automatically when the agreement is signed.",
+      };
+    }
     return {
       verb: "convert_to_order",
       buttonLabel: "Convert to Order",
@@ -126,28 +144,12 @@ export function deriveNextStep(order: OrderForNextAction): NextStep | null {
     };
   }
 
-  // For an active order (post-quote conversion, pre-agreement) that
-  // NEEDS an agreement, gate on the agreement step first — nothing
-  // else happens until the agreement is generated + sent + signed.
-  if (needsAgreement && status !== "awaiting_signature" && status !== "agreement_sent") {
-    // No agreement created yet at this stage: agreement generation
-    // is the actual next physical step even if status is invoice_sent
-    // or awaiting_payment.
-    if (
-      status === "invoice_sent" ||
-      status === "awaiting_payment" ||
-      status === "deposit_paid" ||
-      status === "paid"
-    ) {
-      // Order has advanced; agreement should have happened by now.
-      // Emit the "generate" button as the correcting nudge.
-      return {
-        verb: "generate_agreement",
-        buttonLabel: "Generate Agreement",
-        copy: "This order needs a signed agreement — generate it and send for signature",
-      };
-    }
-  }
+  // In the new flow agreements are generated BEFORE the quote is
+  // converted to an order, so a post-conversion order that needs
+  // an agreement should be impossible via the linear path. The
+  // corrective nudge that used to live here for that legacy state
+  // is intentionally gone — if a rep somehow gets there via manual
+  // status editing, the natural derivations below still apply.
 
   if (status === "invoice_sent") {
     return {
@@ -160,6 +162,23 @@ export function deriveNextStep(order: OrderForNextAction): NextStep | null {
   }
 
   if (status === "awaiting_payment") {
+    // awaiting_payment lands here two ways:
+    //   1. Agreement was marked signed (STATUS_ACTIONS sets
+    //      order_status='awaiting_payment' on mark_agreement_signed).
+    //      In this case, invoice_status is likely 'not_sent' or null
+    //      because the customer hasn't been invoiced yet.
+    //   2. Invoice was already sent and we're waiting on the
+    //      deposit (invoice_status='sent').
+    // Split the next step accordingly so the button matches reality.
+    const invoiceOut =
+      order.invoice_status === "sent" || order.invoice_status === "paid";
+    if (!invoiceOut) {
+      return {
+        verb: "send_invoice",
+        buttonLabel: "Send Invoice",
+        copy: "Agreement signed — send the invoice so the customer can pay",
+      };
+    }
     return {
       verb: "mark_deposit_paid",
       buttonLabel: isLocationServicesOnly ? "Mark Paid" : "Mark Deposit Paid",
@@ -186,13 +205,9 @@ export function deriveNextStep(order: OrderForNextAction): NextStep | null {
   }
 
   if (status === "paid") {
-    if (needsAgreement) {
-      return {
-        verb: "generate_agreement",
-        buttonLabel: "Generate Agreement",
-        copy: "Payment complete — generate the purchase agreement and send for signature",
-      };
-    }
+    // Agreement is upstream in the new flow — a 'paid' state
+    // implies the agreement (if required) has already been signed,
+    // so the next physical step is always fulfillment.
     return {
       verb: "mark_machine_ordered",
       buttonLabel: "Process Order",

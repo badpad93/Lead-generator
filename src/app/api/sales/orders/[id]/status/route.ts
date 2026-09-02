@@ -60,6 +60,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     updates.deposit_paid = true;
   }
 
+  // Agreement-before-order lifecycle: for coffee / 10-10-10 sales the
+  // quote → agreement → signed → order path skips the manual
+  // "Convert to Order" click. When a rep marks the agreement signed
+  // on a row that's still a quote, flip document_type='order' in the
+  // same write so the CRM immediately reflects reality (and the
+  // Next Step button jumps straight to "Send Invoice").
+  let didFlipQuoteToOrder = false;
+  let flipOrderNumber: string | null = null;
+  if (action === "mark_agreement_signed") {
+    const { data: orderPeek } = await supabaseAdmin
+      .from("sales_orders")
+      .select("document_type, order_number")
+      .eq("id", id)
+      .maybeSingle();
+    if (orderPeek?.document_type === "quote") {
+      updates.document_type = "order";
+      didFlipQuoteToOrder = true;
+      flipOrderNumber = (orderPeek as { order_number?: string | null }).order_number ?? null;
+    }
+  }
+
   const { data, error } = await supabaseAdmin
     .from("sales_orders")
     .update(updates)
@@ -76,6 +97,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     activity_type: "status_change",
     description: description.charAt(0).toUpperCase() + description.slice(1),
   });
+
+  if (didFlipQuoteToOrder) {
+    await supabaseAdmin.from("order_activity_log").insert({
+      order_id: id,
+      user_id: user.id,
+      activity_type: "quote_converted_to_order",
+      description: `Quote ${flipOrderNumber ?? id.slice(0, 8)} converted to order (agreement signed)`,
+    });
+  }
 
   // Financial spine — write a manual payment row so this collection flows
   // through the ledger and fires the commission auto-earn hook. Non-fatal:
