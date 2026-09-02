@@ -14,11 +14,22 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
   if (!tenant || tenant.status !== "approved") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const { data: products } = await supabaseAdmin
+  // Same defensive shape as the SSR /coffee/o/[slug] page: don't
+  // swallow the response error via a data-only destructure, log it
+  // and return an empty list so a bad column name in the select
+  // doesn't silently render "no products" everywhere.
+  const productsRes = await supabaseAdmin
     .from("coffee_products")
-    .select("id, name, slug, sku, description, price, image_url, active, sort_order")
+    .select("id, name, sku, description, price, image_url, active, sort_order")
     .eq("active", true)
     .order("sort_order", { ascending: true });
+  if (productsRes.error) {
+    console.error(
+      `[api/storefront/public/${slug}] coffee_products select failed:`,
+      productsRes.error,
+    );
+  }
+  const products = productsRes.data ?? [];
 
   return NextResponse.json({
     tenant: {
