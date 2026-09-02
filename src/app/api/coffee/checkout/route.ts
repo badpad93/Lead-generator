@@ -365,6 +365,11 @@ export async function POST(req: NextRequest) {
             order_number: effectiveOrderNumber,
             user_id: user.id,
           },
+          // Deterministic DocNumber so the invoice-retry sweep can
+          // recover an orphaned invoice (one Intuit created before
+          // our request timed out) via findInvoiceByDocNumber and
+          // avoid a double-bill.
+          docNumber: effectiveOrderNumber,
         });
       } catch (err) {
         if (err instanceof QbTimeoutError) {

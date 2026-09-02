@@ -343,6 +343,16 @@ export interface CreateInvoiceParams {
   memo?: string;
   dueDate?: string;
   metadata?: Record<string, string>;
+  /**
+   * Optional deterministic DocNumber to stamp on the invoice. Pass
+   * this so callers can look up the same invoice again via
+   * findInvoiceByDocNumber() if a create call succeeded on Intuit's
+   * side but our function died before recording the response
+   * (exactly what a 15s timeout during Intuit degradation produces).
+   * Must be unique per QBO company; the coffee flow uses
+   * order.order_number (VC-<timestamp>) which is already unique.
+   */
+  docNumber?: string;
 }
 
 export async function createInvoice(params: CreateInvoiceParams): Promise<QBInvoice> {
@@ -372,6 +382,9 @@ export async function createInvoice(params: CreateInvoiceParams): Promise<QBInvo
     CustomerMemo: params.memo ? { value: params.memo } : undefined,
     PrivateNote: params.metadata ? JSON.stringify(params.metadata) : undefined,
   };
+  if (params.docNumber) {
+    invoiceBody.DocNumber = params.docNumber;
+  }
 
   const res = await qbFetch("/invoice", {
     method: "POST",
@@ -380,11 +393,60 @@ export async function createInvoice(params: CreateInvoiceParams): Promise<QBInvo
 
   if (!res.ok) {
     const text = await res.text();
+    // 6140 = "Duplicate Document Number" — a prior create call
+    // succeeded on Intuit's side (typically a mid-flight timeout on
+    // our side). Look the existing invoice up by DocNumber and
+    // return it as the caller expects — this is the double-invoice
+    // safety net at the API layer, complementing the pre-check in
+    // findInvoiceByDocNumber. Only fires when docNumber was set.
+    if (
+      params.docNumber &&
+      (text.includes("6140") || text.toLowerCase().includes("duplicate document number"))
+    ) {
+      const existing = await findInvoiceByDocNumber(params.docNumber);
+      if (existing) return existing;
+    }
     throw new Error(`QB create invoice failed: ${text}`);
   }
 
   const data = await res.json();
   return data.Invoice;
+}
+
+/**
+ * Look up an invoice by its DocNumber. Used as the pre-check in the
+ * invoice-retry sweep + admin retry paths — if the previous attempt
+ * succeeded on Intuit's side but we didn't record the response,
+ * this returns the orphaned invoice so we don't double-bill.
+ * Returns null on any lookup failure; callers must decide how to
+ * treat that (the sweep treats an ambiguous lookup as unsafe and
+ * skips the retry rather than risk a duplicate).
+ */
+export async function findInvoiceByDocNumber(
+  docNumber: string,
+): Promise<QBInvoice | null> {
+  const escaped = docNumber.replace(/'/g, "\\'");
+  const query = `SELECT * FROM Invoice WHERE DocNumber = '${escaped}'`;
+  const res = await qbFetch(`/query?query=${encodeURIComponent(query)}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  const invoices = data?.QueryResponse?.Invoice as QBInvoice[] | undefined;
+  return invoices && invoices.length > 0 ? invoices[0] : null;
+}
+
+/**
+ * Cheap canary call — used by the invoice-retry sweep to detect an
+ * Intuit outage before iterating over every candidate order. Reads
+ * the company info row (small, indexed, always available when QBO
+ * is healthy). Throws QbTimeoutError on abort so the sweep can
+ * short-circuit the whole run instead of accumulating N timeouts.
+ */
+export async function pingQuickBooks(): Promise<void> {
+  const conn = await getConnection();
+  const res = await qbFetch(`/companyinfo/${conn.realm_id}`);
+  if (!res.ok) {
+    throw new Error(`QB ping failed with status ${res.status}`);
+  }
 }
 
 export async function sendInvoiceEmail(invoiceId: string, email?: string): Promise<void> {
