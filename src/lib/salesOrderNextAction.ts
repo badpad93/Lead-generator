@@ -80,6 +80,7 @@ export type NextStepVerb =
   | "mark_deposit_paid"
   | "mark_paid"
   | "mark_machine_ordered"
+  | "source_locations"
   | "mark_shipped"
   | "mark_delivered"
   | "mark_completed";
@@ -205,6 +206,17 @@ export function deriveNextStep(order: OrderForNextAction): NextStep | null {
   }
 
   if (status === "paid") {
+    // Location-services orders don't have machines to order — the
+    // deposit is a placement-service deposit and the next physical
+    // step is sourcing locations. Every other paid order proceeds
+    // to "order machine(s) from supplier."
+    if (isLocationServicesOnly) {
+      return {
+        verb: "source_locations",
+        buttonLabel: "Source Locations",
+        copy: "Deposit received — start sourcing locations. Link a location lead or add one manually below; each secured location applies against the deposit.",
+      };
+    }
     // Agreement is upstream in the new flow — a 'paid' state
     // implies the agreement (if required) has already been signed,
     // so the next physical step is always fulfillment.

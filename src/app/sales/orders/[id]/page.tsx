@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import AttributionPanel from "./AttributionPanel";
 import CommissionOverridePanel from "./CommissionOverridePanel";
+import SourcedLocationsPanel from "./SourcedLocationsPanel";
 import { deriveNextAction, deriveNextStep, orderNeedsAgreement } from "@/lib/salesOrderNextAction";
 
 interface OrderItem {
@@ -62,6 +63,8 @@ interface OrderDetail {
   fulfillment_status: string;
   location_remaining_invoice_status?: string;
   location_remaining_invoice_sent_at?: string | null;
+  is_ten_ten_ten?: boolean | null;
+  locations_purchased?: number | null;
   receipt_status?: string;
   receipt_sent_at?: string | null;
   deposit_receipt_status?: string;
@@ -393,6 +396,15 @@ export default function OrderDetailPage() {
           }
           break;
         }
+        case "source_locations": {
+          // No API side-effect — the "action" is for the rep to add
+          // sourced locations to the order. Scroll to the Sourced
+          // Locations card so the input is in view.
+          const target = document.getElementById("sourced-locations");
+          if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+          ok = true;
+          break;
+        }
         case "send_agreement":
         case "mark_deposit_paid":
         case "mark_paid":
@@ -673,6 +685,27 @@ export default function OrderDetailPage() {
 
           {/* Commission override (Phase 4 — admin only, non-admins see read-only summary if set) */}
           {token && <CommissionOverridePanel orderId={id} token={token} />}
+
+          {/* Sourced Locations — only for location_services orders.
+              Mounted here (main column, below attribution) so the
+              rep-facing sourcing workflow gets first-class real
+              estate. The Next Step "Source Locations" button
+              scrolls the page to the #sourced-locations anchor on
+              this card. */}
+          {token && order.order_type === "location_services" && (
+            <SourcedLocationsPanel
+              orderId={id}
+              token={token}
+              order={{
+                deposit_amount: Number(order.deposit_amount) || 0,
+                locations_purchased: order.locations_purchased ?? null,
+                is_ten_ten_ten: order.is_ten_ten_ten ?? null,
+                location_remaining_invoice_status:
+                  order.location_remaining_invoice_status ?? null,
+              }}
+              onOrderRefresh={fetchOrder}
+            />
+          )}
 
           {/* Documents */}
           <div className="rounded-xl border border-gray-200 bg-white p-5">
