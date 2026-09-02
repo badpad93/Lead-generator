@@ -213,18 +213,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  // Update order status and log activity
+  // Update order status and log activity.
+  //
+  // Truth-in-status: the previous code stamped order_status='invoice_sent'
+  // whenever emailSent was true, even for QUOTES and for orders where
+  // the QB createInvoice call was skipped/failed and we fell back to a
+  // plain Resend email. Result was rows on the CRM list saying "Invoice
+  // Sent" when no invoice existed.
+  //
+  // The correct signal:
+  //   - Quote emailed         → 'quote_sent'
+  //   - Order emailed, real QB invoice created → 'invoice_sent'
+  //   - Order emailed, no QB invoice (Resend fallback) → 'order_sent'
+  // Same three shapes on the activity log so downstream indicators
+  // that drive off the log stay consistent.
   if (emailSent) {
+    let newStatus: string;
+    let activityType: string;
+    let logNote: string;
+    if (isQuote) {
+      newStatus = "quote_sent";
+      activityType = "quote_sent";
+      logNote = `Quote emailed to ${recipientEmail}`;
+    } else if (qbInvoiceId) {
+      newStatus = "invoice_sent";
+      activityType = "invoice_sent";
+      logNote = `Invoice ${qbInvoiceId} sent to ${recipientEmail} via QuickBooks`;
+    } else {
+      newStatus = "order_sent";
+      activityType = "order_sent";
+      logNote = `Order emailed to ${recipientEmail} (Resend — no QB invoice created)`;
+    }
+    if (ccEmails.length > 0) logNote += ` (CC: ${ccEmails.join(", ")})`;
+
     await supabaseAdmin
       .from("sales_orders")
-      .update({ status: "sent", order_status: "invoice_sent", updated_at: new Date().toISOString() })
+      .update({ status: "sent", order_status: newStatus, updated_at: new Date().toISOString() })
       .eq("id", orderId);
 
     await supabaseAdmin.from("order_activity_log").insert({
       order_id: orderId,
       user_id: user.id,
-      activity_type: isQuote ? "quote_sent" : "order_sent",
-      description: `${isQuote ? "Quote" : "Order"} emailed to ${recipientEmail}` + (ccEmails.length > 0 ? ` (CC: ${ccEmails.join(", ")})` : ""),
+      activity_type: activityType,
+      description: logNote,
     });
 
     // Phase 3 — lock sales attribution once the quote/order goes out.

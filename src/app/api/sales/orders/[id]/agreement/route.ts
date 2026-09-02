@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
 import { DEFAULT_LOCATION_PRICE } from "@/lib/pricing/locationPricing";
+import { orderNeedsAgreement } from "@/lib/salesOrderNextAction";
 
 /* ------------------------------------------------------------------ */
 /*  POST — Create a purchase agreement from an order                  */
@@ -26,6 +27,30 @@ export async function POST(
 
   const account = order.sales_accounts;
   const items: Array<Record<string, unknown>> = order.order_items || [];
+
+  // Gate: purchase_agreements exist only for the two sale types that
+  // legally need a written agreement:
+  //   1. Coffee sales (Equipment Loan & Beverage Supply Agreement
+  //      required — a coffee_program line on the order means a
+  //      brewer/supply relationship the customer must sign for)
+  //   2. 10/10/10 package sales (is_ten_ten_ten=true — the
+  //      10-machine / 10-location / 10-year financing bundle
+  //      that has its own terms)
+  // Generic machine-only sales do NOT get an agreement. Refuse
+  // creation here so a rep can't accidentally spin one up and then
+  // send it to a customer who wasn't supposed to sign anything.
+  // The UI also hides the button in these cases, but this is the
+  // authoritative check.
+  if (!orderNeedsAgreement(order as Parameters<typeof orderNeedsAgreement>[0])) {
+    return NextResponse.json(
+      {
+        error:
+          "Agreements are only for coffee sales or 10/10/10 package orders. This order qualifies for neither.",
+        code: "AGREEMENT_NOT_REQUIRED",
+      },
+      { status: 409 },
+    );
+  }
 
   // Look up the assigned rep's profile
   const { data: repProfile } = await supabaseAdmin

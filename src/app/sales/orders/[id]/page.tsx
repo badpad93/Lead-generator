@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import AttributionPanel from "./AttributionPanel";
 import CommissionOverridePanel from "./CommissionOverridePanel";
+import { deriveNextAction, orderNeedsAgreement } from "@/lib/salesOrderNextAction";
 
 interface OrderItem {
   id: string;
@@ -338,14 +339,12 @@ export default function OrderDetailPage() {
     e.target.value = "";
   }
 
-  async function handleNextAction(value: string) {
-    await fetch(`/api/sales/orders/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ next_required_action: value }),
-    });
-    fetchOrder();
-  }
+  // Deriving next action from state — the previous
+  // handleNextAction() free-text update is intentionally removed;
+  // deriveNextAction() reads order_status + items + is_ten_ten_ten
+  // to produce the correct nudge every render, so there's no stored
+  // value that can go stale.
+  const derivedNextAction = order ? deriveNextAction(order) : null;
 
   if (loading) {
     return (
@@ -400,25 +399,27 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Next Required Action */}
-      {order.next_required_action && order.order_status !== "completed" && order.order_status !== "cancelled" && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
-          <div className="flex-1">
-            <p className="text-xs font-medium text-amber-600 uppercase">Next Required Action</p>
-            <p className="text-sm font-semibold text-amber-800">{order.next_required_action}</p>
+      {/*
+        Next Required Action — derived from the order's actual state
+        via deriveNextAction() so a stale click-to-edit value can no
+        longer strand the row on the wrong nudge. Terminal states
+        (completed / cancelled) return null and the banner hides.
+        The old free-text sales_orders.next_required_action column
+        is still on the DB but is no longer read by the UI; a follow-
+        up migration can drop it once nothing else references it.
+      */}
+      {(() => {
+        const nextAction = derivedNextAction;
+        return nextAction ? (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs font-medium text-amber-600 uppercase">Next Required Action</p>
+              <p className="text-sm font-semibold text-amber-800">{nextAction}</p>
+            </div>
           </div>
-          <button
-            onClick={() => {
-              const val = prompt("Update next action:", order.next_required_action || "");
-              if (val !== null) handleNextAction(val);
-            }}
-            className="text-xs text-amber-600 hover:text-amber-800 underline cursor-pointer"
-          >
-            Edit
-          </button>
-        </div>
-      )}
+        ) : null;
+      })()}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column */}
@@ -685,7 +686,12 @@ export default function OrderDetailPage() {
             )}
           </div>
 
-          {/* Purchase Agreement */}
+          {/* Purchase Agreement — only surfaces for orders that
+              actually need one (coffee sales or 10/10/10 packages).
+              Everything else has no written agreement, so we hide
+              the card entirely rather than show a disabled button.
+              The API refuses the same set with a 409 for safety. */}
+          {orderNeedsAgreement(order) && (
           <div className="rounded-xl border border-gray-200 bg-white p-5">
             <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
               <ScrollText className="h-4 w-4 text-gray-400" />
@@ -752,6 +758,7 @@ export default function OrderDetailPage() {
               </div>
             )}
           </div>
+          )}
 
           {/* Actions */}
           {order.order_status !== "completed" && order.order_status !== "cancelled" && (
