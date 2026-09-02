@@ -1,49 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
-import {
-  TIER_PRICES,
-  TEN_TEN_TEN_PRICE,
-  DEFAULT_LOCATION_PRICE,
-  type LocationTier,
-} from "@/lib/pricing/locationPricing";
 
 /**
  * POST /api/sales/orders/[id]/locations/[locId]/secure
  *
- * Flip a sourced location to 'secured' and stamp the pricing
- * snapshot that will govern the eventual remaining-balance
- * invoice. This is the money-touching endpoint — securing means
- * "we've booked a placement, count it against the deposit."
+ * Flip a sourced location to 'secured'. The pricing snapshot
+ * (tier, tier_label, secured_price) was already stamped at attach
+ * time from the lead's pricing engine result, so this endpoint no
+ * longer asks the rep to pick a tier or a price. It just:
+ *   - marks the row secured (secured_at / secured_by)
+ *   - applies the pro-rata deposit credit
+ *   - optionally fires the remaining-balance invoice when the
+ *     secured count hits the order's locations_purchased quota
  *
- * Body:
- *   { tier?: 1|2|3, is_ten_ten_ten?: boolean, price_override?: number }
- *
- * Price resolution (first match wins):
- *   1. price_override — explicit dollar amount from the rep
- *   2. order.is_ten_ten_ten OR body.is_ten_ten_ten → TEN_TEN_TEN_PRICE
- *   3. body.tier → TIER_PRICES[tier]
- *   4. fall back to DEFAULT_LOCATION_PRICE ($500) — same default
- *      the legacy pricing engine uses for tier-less line items.
- *
- * Deposit credit: each secured location consumes a pro-rata
- * share of the paid deposit
- *   deposit_credit_applied = deposit_amount / locations_purchased
- * capped at secured_price. The credit is informational — the
- * remaining-balance invoice sums (Σ secured_price − deposit_amount)
- * so per-row credit doesn't have to be exact.
- *
- * When this secure flip lands the row that makes secured count
- * equal to the order's locations_purchased quota, the caller can
- * pass auto_invoice=true to fire the invoice-remaining route
- * inline. The UI's "Invoice remaining balance" button does the
- * same thing on demand for the manual fallback path.
+ * Deposit credit: deposit_amount / locations_purchased per row,
+ * capped at secured_price. Informational — the remaining-balance
+ * invoice sums (Σ secured_price − deposit_amount) at bill time
+ * regardless of per-row credit.
  */
 
 interface SecureBody {
-  tier?: LocationTier;
-  is_ten_ten_ten?: boolean;
-  price_override?: number;
   auto_invoice?: boolean;
 }
 
@@ -58,7 +35,7 @@ export async function POST(
 
   const { data: row, error: rowErr } = await supabaseAdmin
     .from("sales_order_locations")
-    .select("id, order_id, status, business_name")
+    .select("id, order_id, status, business_name, tier_label, secured_price")
     .eq("id", locId)
     .eq("order_id", id)
     .maybeSingle();
@@ -71,42 +48,26 @@ export async function POST(
       { status: 409 },
     );
   }
+  const securedPrice = Number(row.secured_price);
+  if (!Number.isFinite(securedPrice) || securedPrice <= 0) {
+    return NextResponse.json(
+      {
+        error:
+          "This location has no pricing snapshot — detach and re-attach it so the pricing engine can run against the lead's inputs.",
+      },
+      { status: 409 },
+    );
+  }
 
   const { data: order, error: orderErr } = await supabaseAdmin
     .from("sales_orders")
-    .select("id, deposit_amount, is_ten_ten_ten, locations_purchased, order_type")
+    .select("id, deposit_amount, locations_purchased")
     .eq("id", id)
     .maybeSingle();
   if (orderErr || !order) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  // Resolve the secured price.
-  const isTenTenTen = order.is_ten_ten_ten === true || body.is_ten_ten_ten === true;
-  let securedPrice: number;
-  let tierValue: LocationTier | null = null;
-  let tierLabel: string;
-  if (typeof body.price_override === "number" && body.price_override > 0) {
-    securedPrice = Math.round(body.price_override * 100) / 100;
-    tierLabel = "Custom";
-    tierValue = body.tier ?? null;
-  } else if (isTenTenTen) {
-    securedPrice = TEN_TEN_TEN_PRICE;
-    tierLabel = "10/10/10 Prepaid";
-  } else if (body.tier && TIER_PRICES[body.tier] !== undefined) {
-    securedPrice = TIER_PRICES[body.tier];
-    tierValue = body.tier;
-    tierLabel = body.tier === 1 ? "Basic" : body.tier === 2 ? "Premium" : "Elite";
-  } else {
-    securedPrice = DEFAULT_LOCATION_PRICE;
-    tierValue = 1;
-    tierLabel = "Basic";
-  }
-
-  // Pro-rata deposit credit — deposit ÷ quota. For orders without
-  // a locations_purchased set (deposit-only intake path stamps
-  // deposit_amount but leaves locations_purchased null), fall back
-  // to using the order's own machine_count from the linked lead.
   const depositAmount = Number(order.deposit_amount) || 0;
   const quota = Number(order.locations_purchased) || 0;
   const perLocationCredit = quota > 0 ? depositAmount / quota : 0;
@@ -117,9 +78,6 @@ export async function POST(
     .from("sales_order_locations")
     .update({
       status: "secured",
-      tier: tierValue,
-      tier_label: tierLabel,
-      secured_price: securedPrice,
       deposit_credit_applied: creditApplied,
       secured_by: user.id,
       secured_at: nowIso,
@@ -134,13 +92,12 @@ export async function POST(
     order_id: id,
     user_id: user.id,
     activity_type: "location_secured",
-    description: `Location secured: ${row.business_name} — ${tierLabel} @ $${securedPrice.toFixed(2)} (deposit credit $${creditApplied.toFixed(2)})`,
+    description: `Location secured: ${row.business_name} — ${row.tier_label ?? "Tier"} @ $${securedPrice.toFixed(2)} (deposit credit $${creditApplied.toFixed(2)})`,
   });
 
-  // Auto-invoice when secured count hits the quota. Only fires if
-  // the caller opted in — the manual "Invoice remaining balance"
-  // button is the fallback path when a rep wants to bill early
-  // (partial quota) or defer past the quota.
+  // Auto-invoice when the secured count hits the quota. Opt-out
+  // via auto_invoice=false; the manual "Invoice remaining balance"
+  // button on the panel serves the same route on demand.
   let autoInvoiceResult: unknown = null;
   if (body.auto_invoice !== false && quota > 0) {
     const { count: securedCount } = await supabaseAdmin
