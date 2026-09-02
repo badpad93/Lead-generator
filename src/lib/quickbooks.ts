@@ -169,21 +169,67 @@ export async function getConnection(): Promise<QBConnection> {
   return data;
 }
 
+/**
+ * All QBO API calls time out at QB_FETCH_TIMEOUT_MS. Intuit runs
+ * intermittent multi-minute stalls (their status page owns it) —
+ * without a bounded timeout a single stall holds the caller for
+ * Vercel's full 300s maxDuration, strands the customer on a
+ * spinner, and burns compute. 15s covers a healthy QBO round-trip
+ * (typical is under 2s) with generous headroom; anything longer
+ * is almost certainly Intuit hanging.
+ *
+ * On timeout we throw a QbTimeoutError so callers can distinguish
+ * "Intuit is down" from "credentials are bad" — the correct
+ * response to the former is "order retained, admin will retry",
+ * to the latter is "surface the auth failure".
+ */
+const QB_FETCH_TIMEOUT_MS = 15_000;
+
+export class QbTimeoutError extends Error {
+  public readonly cause?: unknown;
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.name = "QbTimeoutError";
+    this.cause = cause;
+  }
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if ((err as { name?: string } | null)?.name === "AbortError") {
+      throw new QbTimeoutError(`QBO request exceeded ${timeoutMs}ms and was aborted`, err);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function qbFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const conn = await getConnection();
   const url = `${getApiBase()}/v3/company/${conn.realm_id}${path}`;
 
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${conn.access_token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...options.headers,
+  return fetchWithTimeout(
+    url,
+    {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${conn.access_token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...options.headers,
+      },
     },
-  });
-
-  return res;
+    QB_FETCH_TIMEOUT_MS,
+  );
 }
 
 /**
@@ -417,24 +463,28 @@ export async function createCharge(params: {
   const conn = await getConnection();
   const base = getPaymentsApiBase();
 
-  const res = await fetch(`${base}/quickbooks/v4/payments/charges`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${conn.access_token}`,
-      "Content-Type": "application/json",
-      "Request-Id": crypto.randomUUID(),
-    },
-    body: JSON.stringify({
-      amount: (params.amountCents / 100).toFixed(2),
-      currency: params.currency || "USD",
-      token: params.cardToken,
-      description: params.description,
-      context: {
-        mobile: false,
-        isEcommerce: true,
+  const res = await fetchWithTimeout(
+    `${base}/quickbooks/v4/payments/charges`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${conn.access_token}`,
+        "Content-Type": "application/json",
+        "Request-Id": crypto.randomUUID(),
       },
-    }),
-  });
+      body: JSON.stringify({
+        amount: (params.amountCents / 100).toFixed(2),
+        currency: params.currency || "USD",
+        token: params.cardToken,
+        description: params.description,
+        context: {
+          mobile: false,
+          isEcommerce: true,
+        },
+      }),
+    },
+    QB_FETCH_TIMEOUT_MS,
+  );
 
   if (!res.ok) {
     const text = await res.text();
