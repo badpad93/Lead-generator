@@ -34,19 +34,31 @@ export async function GET(req: NextRequest) {
     resolveTenantByOwner(userId),
     supabaseAdmin
       .from("profiles")
-      .select("storefront_tenant_id")
+      .select("role, storefront_tenant_id")
       .eq("id", userId)
       .maybeSingle(),
   ]);
-  const profile = profileRow.data as { storefront_tenant_id: string | null } | null;
+  const profile = profileRow.data as {
+    role: string | null;
+    storefront_tenant_id: string | null;
+  } | null;
 
   const enrolledId = profile?.storefront_tenant_id ?? null;
   const enrolled = enrolledId ? await resolveTenantById(enrolledId) : null;
+
+  // can_own = eligible-to-become-a-tenant-owner. Today that's every
+  // operator profile. The client uses this to show a "Set up my
+  // storefront" CTA even when owned is null, so the operator can
+  // FIND the create flow without being told the URL. Once they
+  // create a row, `owner_tenant` fills in and the CTA becomes
+  // "Manage my storefront."
+  const canOwn = profile?.role === "operator";
 
   return NextResponse.json({
     owner_tenant: owned
       ? { slug: owned.slug, display_name: owned.display_name, status: owned.status }
       : null,
+    can_own_storefront: canOwn,
     enrolled_tenant:
       enrolled && enrolled.status === "approved"
         ? { slug: enrolled.slug, display_name: enrolled.display_name }

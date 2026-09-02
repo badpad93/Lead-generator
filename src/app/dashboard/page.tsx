@@ -240,6 +240,7 @@ export default function DashboardPage() {
   const [notLoggedIn, setNotLoggedIn] = useState(false);
   const [storefrontNav, setStorefrontNav] = useState<{
     owner_tenant: { slug: string; display_name: string; status: string } | null;
+    can_own_storefront?: boolean;
     enrolled_tenant: { slug: string; display_name: string } | null;
   } | null>(null);
 
@@ -800,6 +801,27 @@ export default function DashboardPage() {
                 </p>
               </div>
               <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-800" />
+            </Link>
+          ) : storefrontNav?.can_own_storefront ? (
+            // Operator with no tenant yet — get-started tile. Without
+            // this, the operator couldn't discover /coffee/storefront
+            // to run the create flow.
+            <Link
+              href="/coffee/storefront"
+              className="group flex items-center gap-4 rounded-2xl border-2 border-dashed border-amber-500 bg-amber-50/60 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-100"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 transition-colors group-hover:bg-amber-700 group-hover:text-white">
+                <Coffee className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-semibold text-black-primary">
+                  Set up my coffee storefront
+                </p>
+                <p className="text-sm text-black-primary/50">
+                  Launch a branded page at /coffee/o/&#123;slug&#125; and start reselling coffee to your customers
+                </p>
+              </div>
+              <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-700" />
             </Link>
           ) : null}
 
