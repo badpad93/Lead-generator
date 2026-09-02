@@ -131,9 +131,15 @@ export default function CustomerShop({
               className="rounded-lg overflow-hidden border border-gray-200 bg-white flex flex-col"
             >
               {p.image_url ? (
-                <img src={p.image_url} alt={p.name} className="w-full h-40 object-cover" />
+                <div className="w-full aspect-square bg-white flex items-center justify-center p-3">
+                  <img
+                    src={p.image_url}
+                    alt={p.name}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
               ) : (
-                <div className="w-full h-40 flex items-center justify-center bg-gray-100 text-gray-400 text-sm">
+                <div className="w-full aspect-square flex items-center justify-center bg-gray-100 text-gray-400 text-sm">
                   No image
                 </div>
               )}
@@ -182,7 +188,11 @@ export default function CustomerShop({
       </div>
 
       {cartCount > 0 ? (
-        <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded-lg border border-gray-200 p-4 w-80">
+        // Bottom-LEFT so we never collide with the site-wide
+        // "Get Financing" floating button, which lives at
+        // bottom-right and would otherwise cover the Checkout
+        // button in this panel.
+        <div className="fixed bottom-4 left-4 bg-white shadow-lg rounded-lg border border-gray-200 p-4 w-80 z-40">
           <div className="flex items-center justify-between">
             <div className="font-medium">
               Cart ({cartCount} item{cartCount === 1 ? "" : "s"})

@@ -10,7 +10,9 @@ import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 
-async function currentEnrolledCustomer(tenantId: string): Promise<boolean> {
+async function sessionContext(
+  tenantId: string,
+): Promise<{ signedIn: boolean; isEnrolled: boolean }> {
   try {
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -26,18 +28,18 @@ async function currentEnrolledCustomer(tenantId: string): Promise<boolean> {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return false;
+    if (!user) return { signedIn: false, isEnrolled: false };
     const { data: profileRow } = await supabaseAdmin
       .from("profiles")
       .select("storefront_tenant_id")
       .eq("id", user.id)
       .maybeSingle();
-    return (
+    const isEnrolled =
       (profileRow as { storefront_tenant_id: string | null } | null)?.storefront_tenant_id ===
-      tenantId
-    );
+      tenantId;
+    return { signedIn: true, isEnrolled };
   } catch {
-    return false;
+    return { signedIn: false, isEnrolled: false };
   }
 }
 
@@ -101,7 +103,7 @@ export default async function StorefrontPage({
   }
   const products = (productsRes.data ?? []) as Product[];
 
-  const isEnrolled = await currentEnrolledCustomer(tenant.id);
+  const { signedIn, isEnrolled } = await sessionContext(tenant.id);
 
   const brand = tenant.brand ?? {};
   const publicPage = tenant.public_page ?? {};
@@ -140,13 +142,18 @@ export default async function StorefrontPage({
                 Contact
               </a>
             ) : null}
-            <Link
-              href="/login"
-              className="rounded-md px-4 py-2 text-sm font-medium"
-              style={{ background: accent, color: primary }}
-            >
-              Sign in to order
-            </Link>
+            {/* "Sign in to order" is for anonymous visitors only.
+                Signed-in customers already see the shop below (or a
+                request-invitation nudge if they're not enrolled). */}
+            {!signedIn ? (
+              <Link
+                href="/login"
+                className="rounded-md px-4 py-2 text-sm font-medium"
+                style={{ background: accent, color: primary }}
+              >
+                Sign in to order
+              </Link>
+            ) : null}
           </div>
         </div>
         <div className="max-w-6xl mx-auto mt-10">
@@ -184,9 +191,15 @@ export default async function StorefrontPage({
                   className="rounded-lg overflow-hidden border border-gray-200 bg-white flex flex-col"
                 >
                   {p.image_url ? (
-                    <img src={p.image_url} alt={p.name} className="w-full h-40 object-cover" />
+                    <div className="w-full aspect-square bg-white flex items-center justify-center p-3">
+                      <img
+                        src={p.image_url}
+                        alt={p.name}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
                   ) : (
-                    <div className="w-full h-40 flex items-center justify-center bg-gray-100 text-gray-400 text-sm">
+                    <div className="w-full aspect-square flex items-center justify-center bg-gray-100 text-gray-400 text-sm">
                       No image
                     </div>
                   )}
