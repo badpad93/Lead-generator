@@ -107,6 +107,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
   }
 
+  // Auto-send the customer invoice the moment the agreement is
+  // marked signed, reflecting the amounts on the agreement itself.
+  // Rep no longer clicks Send Invoice as a separate step for the
+  // CRM signing flow — signing is the payment trigger. Idempotent
+  // via invoice_status; if a prior invoice was already sent, this
+  // is a no-op. Non-fatal — status update already succeeded, so a
+  // failing invoice send lands in the activity log and the rep
+  // can retry via the Send Invoice button.
+  if (action === "mark_agreement_signed") {
+    try {
+      const { data: linkedAgreement } = await supabaseAdmin
+        .from("purchase_agreements")
+        .select("id")
+        .eq("order_id", id)
+        .eq("agreement_status", "signed")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (linkedAgreement?.id) {
+        const { sendInvoiceForSignedAgreement } = await import(
+          "@/lib/agreementInvoicing"
+        );
+        const result = await sendInvoiceForSignedAgreement(linkedAgreement.id);
+        if (!result.ok) {
+          await supabaseAdmin.from("order_activity_log").insert({
+            order_id: id,
+            user_id: user.id,
+            activity_type: "invoice_auto_send_failed",
+            description: `Auto-invoice on signing failed: ${result.reason ?? "unknown"}`,
+          });
+        }
+      }
+    } catch (invoiceErr) {
+      console.error("[status.mark_agreement_signed] auto-invoice failed:", invoiceErr);
+      await supabaseAdmin.from("order_activity_log").insert({
+        order_id: id,
+        user_id: user.id,
+        activity_type: "invoice_auto_send_failed",
+        description: `Auto-invoice on signing threw: ${invoiceErr instanceof Error ? invoiceErr.message : String(invoiceErr)}`,
+      });
+    }
+  }
+
   // Financial spine — write a manual payment row so this collection flows
   // through the ledger and fires the commission auto-earn hook. Non-fatal:
   // if the ledger write fails we still let the receipt + status update
