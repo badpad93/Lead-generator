@@ -5,6 +5,7 @@ const SIGNUP_ROLE_KEY = "vc_signup_role";
 const REDIRECT_KEY = "vc_redirect_after_login";
 const FLOW_KEY = "vc_auth_flow";
 const SIGNUP_LEAD_KEY = "vc_signup_lead";
+const INVITE_TOKEN_KEY = "vc_storefront_invite_token";
 
 /** Store where to redirect after login completes */
 export function storeRedirectAfterLogin(path: string): void {
@@ -59,6 +60,37 @@ export function consumeSignupLead(): SignupLeadData | null {
   const raw = localStorage.getItem(SIGNUP_LEAD_KEY);
   if (raw) localStorage.removeItem(SIGNUP_LEAD_KEY);
   try { return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+
+/**
+ * Storefront invite token pass-through. When a signed-out visitor
+ * clicks Accept on /coffee/invite/{token} the button routes them
+ * to /signup?invite_token=..., which stashes the token here so it
+ * survives the /check-email round-trip and the OAuth redirect.
+ * The auth callback consumes it after the session lands and, if
+ * the invitation is still valid, calls
+ * /api/storefront/enrollment/consume then redirects to the
+ * storefront — no second Accept click.
+ *
+ * Uses BOTH localStorage and a short-lived cookie (10 min) so the
+ * value survives an OAuth redirect that could clear localStorage
+ * on a different subdomain. Same pattern as storeSignupRole.
+ */
+export function storeInviteToken(token: string): void {
+  if (!token) return;
+  try { localStorage.setItem(INVITE_TOKEN_KEY, token); } catch {}
+  document.cookie = `${INVITE_TOKEN_KEY}=${encodeURIComponent(token)};path=/;max-age=600;SameSite=Lax`;
+}
+
+export function consumeInviteToken(): string | null {
+  const cookieMatch = document.cookie.match(new RegExp(`(?:^|;\\s*)${INVITE_TOKEN_KEY}=([^;]*)`));
+  const cookieVal = cookieMatch ? decodeURIComponent(cookieMatch[1]) : null;
+  let lsVal: string | null = null;
+  try { lsVal = localStorage.getItem(INVITE_TOKEN_KEY); } catch {}
+  const token = cookieVal || lsVal;
+  try { localStorage.removeItem(INVITE_TOKEN_KEY); } catch {}
+  document.cookie = `${INVITE_TOKEN_KEY}=;path=/;max-age=0`;
+  return token;
 }
 
 /** Store the auth flow type so the callback can distinguish login vs signup */
