@@ -97,21 +97,31 @@ export default function AdminStorefrontDetailPage() {
         ← Storefronts
       </Link>
       <div>
-        <h1 className="text-2xl font-semibold">{tenant.display_name}</h1>
-        <div className="text-sm text-gray-600">{tenant.legal_name}</div>
-        <div className="text-sm mt-1">
-          Slug: <code>{tenant.slug}</code> · Status:{" "}
-          <span
-            className={
-              tenant.status === "approved"
-                ? "text-green-700"
-                : tenant.status === "suspended"
-                  ? "text-red-700"
-                  : "text-amber-700"
-            }
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold">{tenant.display_name}</h1>
+            <div className="text-sm text-gray-600">{tenant.legal_name}</div>
+            <div className="text-sm mt-1">
+              Slug: <code>{tenant.slug}</code> · Status:{" "}
+              <span
+                className={
+                  tenant.status === "approved"
+                    ? "text-green-700"
+                    : tenant.status === "suspended"
+                      ? "text-red-700"
+                      : "text-amber-700"
+                }
+              >
+                {tenant.status}
+              </span>
+            </div>
+          </div>
+          <Link
+            href={`/admin/storefronts/${params.id}/brand`}
+            className="shrink-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50"
           >
-            {tenant.status}
-          </span>
+            Edit brand & appearance
+          </Link>
         </div>
       </div>
 
