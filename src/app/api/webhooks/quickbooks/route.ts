@@ -96,9 +96,8 @@ async function handleQBBillPayment(billPaymentId: string, realmId: string) {
   const conn = await getConnection();
   if (conn.realm_id !== realmId) return;
 
-  const base = process.env.QB_ENVIRONMENT === "production"
-    ? "https://quickbooks.api.intuit.com"
-    : "https://sandbox-quickbooks.api.intuit.com";
+  const { getAccountingApiBase } = await import("@/lib/quickbooks");
+  const base = getAccountingApiBase();
 
   const res = await fetch(`${base}/v3/company/${realmId}/billpayment/${billPaymentId}`, {
     headers: { Authorization: `Bearer ${conn.access_token}`, Accept: "application/json" },
@@ -187,9 +186,8 @@ async function handleQBPayment(paymentId: string, realmId: string) {
     return;
   }
 
-  const base = process.env.QB_ENVIRONMENT === "production"
-    ? "https://quickbooks.api.intuit.com"
-    : "https://sandbox-quickbooks.api.intuit.com";
+  const { getAccountingApiBase } = await import("@/lib/quickbooks");
+  const base = getAccountingApiBase();
 
   const res = await fetch(`${base}/v3/company/${realmId}/payment/${paymentId}`, {
     headers: {
@@ -663,9 +661,8 @@ async function handleQBRefundReceipt(refundReceiptId: string, realmId: string) {
   const conn = await getConnection();
   if (conn.realm_id !== realmId) return;
 
-  const base = process.env.QB_ENVIRONMENT === "production"
-    ? "https://quickbooks.api.intuit.com"
-    : "https://sandbox-quickbooks.api.intuit.com";
+  const { getAccountingApiBase } = await import("@/lib/quickbooks");
+  const base = getAccountingApiBase();
 
   const res = await fetch(`${base}/v3/company/${realmId}/refundreceipt/${refundReceiptId}`, {
     headers: { Authorization: `Bearer ${conn.access_token}`, Accept: "application/json" },
@@ -792,9 +789,8 @@ async function handleQBCreditMemo(creditMemoId: string, realmId: string) {
   const conn = await getConnection();
   if (conn.realm_id !== realmId) return;
 
-  const base = process.env.QB_ENVIRONMENT === "production"
-    ? "https://quickbooks.api.intuit.com"
-    : "https://sandbox-quickbooks.api.intuit.com";
+  const { getAccountingApiBase } = await import("@/lib/quickbooks");
+  const base = getAccountingApiBase();
 
   const res = await fetch(`${base}/v3/company/${realmId}/creditmemo/${creditMemoId}`, {
     headers: { Authorization: `Bearer ${conn.access_token}`, Accept: "application/json" },
