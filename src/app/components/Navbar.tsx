@@ -107,11 +107,37 @@ export default function Navbar() {
     enrolled_tenant: { slug: string; display_name: string } | null;
   } | null>(null);
 
+  // Enrolled-customer restricted nav: an account whose only
+  // purpose is to order through a parent operator's storefront
+  // doesn't need the general marketplace / community / most
+  // services surface. They see one Services group with just
+  // "Order from {tenant}" and nothing else. Auth pages, profile,
+  // orders remain reachable via direct URL / user menu — this
+  // trim only affects the top-nav dropdowns.
+  const isEnrolledCustomerOnly =
+    !!storefrontNav?.enrolled_tenant &&
+    !storefrontNav?.owner_tenant &&
+    !isAdmin;
+
   // Effective nav groups: base NAV_GROUPS + storefront items injected
   // into the "Services" group under "Coffee Program". Signed-out
   // visitors and users with no storefront relationship see the
   // base groups only.
-  const effectiveNavGroups: NavGroup[] = NAV_GROUPS.map((group) => {
+  const baseNavGroups: NavGroup[] = isEnrolledCustomerOnly
+    ? [
+        {
+          label: "Services",
+          items: [
+            {
+              label: "Coffee Program",
+              href: "/coffee",
+              description: "Commercial coffee with qualifying free brewer",
+            },
+          ],
+        },
+      ]
+    : NAV_GROUPS;
+  const effectiveNavGroups: NavGroup[] = baseNavGroups.map((group) => {
     if (group.label !== "Services") return group;
     const extras: Array<{ label: string; href: string; description?: string }> = [];
     if (storefrontNav?.owner_tenant) {
@@ -121,12 +147,20 @@ export default function Navbar() {
         href: "/coffee/storefront",
         description: `Manage ${t.display_name} — pricing, customers, invitations, brand`,
       });
+    } else if (storefrontNav?.enrolled_tenant) {
+      // Enrolled customer — no "set up" secondary path. The
+      // "Order from …" item is rendered below and is their only
+      // storefront entry.
     } else if (
-      // Fallback for signed-in users who could own a storefront but
-      // haven't created one yet (or where nav-context didn't load).
-      // Same permissive semantic as the dashboard fallback tile —
-      // /coffee/storefront handles who can actually create.
-      sessionUser
+      // Only offer the create path to accounts eligible to own one
+      // (operator role, admin role, or ADMIN_EMAILS via
+      // nav-context.can_own_storefront). Regular customers
+      // (requestor, location_manager) don't see this at all — the
+      // previous "any signed-in user" fallback was surfacing it to
+      // enrolled customers as well.
+      storefrontNav?.can_own_storefront ||
+      profile?.role === "operator" ||
+      profile?.role === "admin"
     ) {
       extras.push({
         label: "Set up my storefront",
