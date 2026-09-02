@@ -9,6 +9,7 @@ import {
   FileSpreadsheet, Trash2,
 } from "lucide-react";
 import { exportRowsToCsv } from "@/lib/spreadsheetExport";
+import { deriveNextAction } from "@/lib/salesOrderNextAction";
 
 interface OrderItem {
   id: string;
@@ -42,6 +43,8 @@ const STATUS_FILTERS = [
   { key: "all", label: "All" },
   { key: "draft", label: "Draft" },
   { key: "awaiting_customer_info", label: "Awaiting Info" },
+  { key: "quote_sent", label: "Quote Sent" },
+  { key: "order_sent", label: "Order Sent" },
   { key: "invoice_sent", label: "Invoice Sent" },
   { key: "awaiting_signature", label: "Awaiting Signature" },
   { key: "awaiting_payment", label: "Awaiting Payment" },
@@ -55,6 +58,11 @@ const STATUS_FILTERS = [
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-50 text-gray-600 ring-gray-200",
   awaiting_customer_info: "bg-yellow-50 text-yellow-700 ring-yellow-200",
+  // quote_sent / order_sent distinguish the "email went out" states
+  // from the "real QuickBooks invoice was created" state, so the
+  // pill on the row stops lying about invoices that never happened.
+  quote_sent: "bg-slate-50 text-slate-700 ring-slate-200",
+  order_sent: "bg-slate-50 text-slate-700 ring-slate-200",
   invoice_sent: "bg-blue-50 text-blue-700 ring-blue-200",
   agreement_sent: "bg-indigo-50 text-indigo-700 ring-indigo-200",
   awaiting_signature: "bg-indigo-50 text-indigo-700 ring-indigo-200",
@@ -259,7 +267,7 @@ export default function OrdersPage() {
                   // creation stays with the creator.
                   { header: "Sales Person", value: (r) => r.created_by_profile?.full_name ?? r.created_by_profile?.email },
                   { header: "Assigned To", value: (r) => r.assigned_profile?.full_name },
-                  { header: "Next Action", value: (r) => r.next_required_action },
+                  { header: "Next Action", value: (r) => deriveNextAction(r) },
                   { header: "Created", value: (r) => r.created_at ? new Date(r.created_at) : null },
                   { header: "Updated", value: (r) => r.updated_at ? new Date(r.updated_at) : null },
                 ],
@@ -428,13 +436,18 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                {/* Next action */}
-                {order.next_required_action && (
-                  <div className="hidden md:flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 max-w-[220px]">
-                    <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                    <span className="text-xs font-medium text-amber-700 truncate">{order.next_required_action}</span>
-                  </div>
-                )}
+                {/* Next action — derived from state, not the stored
+                    free-text field. See src/lib/salesOrderNextAction.ts.
+                    Terminal states return null so the pill hides. */}
+                {(() => {
+                  const nextAction = deriveNextAction(order);
+                  return nextAction ? (
+                    <div className="hidden md:flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 max-w-[220px]">
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <span className="text-xs font-medium text-amber-700 truncate">{nextAction}</span>
+                    </div>
+                  ) : null;
+                })()}
 
                 {/* Status */}
                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${STATUS_COLORS[order.order_status] || STATUS_COLORS.draft}`}>

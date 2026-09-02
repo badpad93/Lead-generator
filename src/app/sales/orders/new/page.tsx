@@ -315,14 +315,14 @@ function NewOrderContent() {
           />
           <p className="text-[10px] text-gray-400 mt-1">Leave blank to use the account&apos;s email on file. Use this to send to someone not in the system.</p>
         </div>
-        <div className="mt-3">
-          <label className="text-xs text-gray-500 mb-1 block">Next Required Action</label>
-          <input
-            value={form.next_required_action}
-            onChange={(e) => setForm((f) => ({ ...f, next_required_action: e.target.value }))}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
-          />
-        </div>
+        {/*
+          "Next Required Action" input intentionally removed. It's
+          now derived from state (order_status + items + is_ten_ten_ten)
+          via src/lib/salesOrderNextAction.ts, so no rep can strand
+          a stale nudge on a row anymore. The New Order POST still
+          sends a default value for backwards compat with the API,
+          but the UI never surfaces it.
+        */}
         <div className="mt-3">
           <label className="text-xs text-gray-500 mb-1 block">Notes</label>
           <textarea
