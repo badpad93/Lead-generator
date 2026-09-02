@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveCart, PricingResolutionError } from "@/lib/storefront/pricing";
+import { isStorefrontFlagEnabled } from "@/lib/storefront/flags";
 
 /**
  * Preview pricing for an enrolled customer's cart — same resolver
@@ -23,6 +24,15 @@ interface QuoteBody {
 }
 
 export async function POST(req: NextRequest) {
+  // Gated on the checkout flag, not a separate one — pricing a
+  // cart the customer can't buy is a worse UX than not showing
+  // prices at all. Same 503 shape as /api/storefront/checkout.
+  if (!(await isStorefrontFlagEnabled("storefront.checkout_enabled"))) {
+    return NextResponse.json(
+      { error: "Storefront checkout is temporarily unavailable" },
+      { status: 503 },
+    );
+  }
   const userId = await getUserIdFromRequest(req);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = (await req.json().catch(() => null)) as QuoteBody | null;

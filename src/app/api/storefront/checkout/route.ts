@@ -13,6 +13,7 @@ import {
   createStorefrontInvoice,
 } from "@/lib/storefront/quickbooksStorefront";
 import { sendInvoiceEmail } from "@/lib/quickbooks";
+import { isStorefrontFlagEnabled } from "@/lib/storefront/flags";
 
 /**
  * Storefront checkout — dedicated route for customers buying through
@@ -58,6 +59,15 @@ interface CheckoutBody {
 }
 
 export async function POST(req: NextRequest) {
+  // Fail-closed kill switch on the money path. 503 is the honest
+  // answer: the caller is a real enrolled user who can prove the
+  // route usually works. No point pretending.
+  if (!(await isStorefrontFlagEnabled("storefront.checkout_enabled"))) {
+    return NextResponse.json(
+      { error: "Storefront checkout is temporarily unavailable" },
+      { status: 503 },
+    );
+  }
   const userId = await getUserIdFromRequest(req);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
