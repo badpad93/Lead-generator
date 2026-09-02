@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import AttributionPanel from "./AttributionPanel";
 import CommissionOverridePanel from "./CommissionOverridePanel";
-import { deriveNextAction } from "@/lib/salesOrderNextAction";
+import { deriveNextAction, orderNeedsAgreement } from "@/lib/salesOrderNextAction";
 
 interface OrderItem {
   id: string;
@@ -686,7 +686,12 @@ export default function OrderDetailPage() {
             )}
           </div>
 
-          {/* Purchase Agreement */}
+          {/* Purchase Agreement — only surfaces for orders that
+              actually need one (coffee sales or 10/10/10 packages).
+              Everything else has no written agreement, so we hide
+              the card entirely rather than show a disabled button.
+              The API refuses the same set with a 409 for safety. */}
+          {orderNeedsAgreement(order) && (
           <div className="rounded-xl border border-gray-200 bg-white p-5">
             <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
               <ScrollText className="h-4 w-4 text-gray-400" />
@@ -753,6 +758,7 @@ export default function OrderDetailPage() {
               </div>
             )}
           </div>
+          )}
 
           {/* Actions */}
           {order.order_status !== "completed" && order.order_status !== "cancelled" && (
