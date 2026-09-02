@@ -58,6 +58,25 @@ export interface BrandEditorProps {
     brand: Brand;
     public_page: PublicPage;
   }) => Promise<Tenant>;
+  /**
+   * Upload a logo/favicon file and return its public URL. The
+   * editor calls this when the operator picks a file, then writes
+   * the returned URL into brand.logo_url / brand.favicon_url in
+   * local state. Save persists it via saveBrand — upload and save
+   * are deliberately two steps so a failed save doesn't strand
+   * the wrong image in the bucket AND so the operator can preview
+   * before committing.
+   *
+   * Owner variant should call POST /api/storefront/tenant/brand-asset
+   * with the file only. Admin variant should pass tenant_id in the
+   * form body. Callers are expected to include the right auth
+   * headers and (for admin) the tenant_id in the request they
+   * construct here.
+   */
+  uploadAsset: (
+    file: File,
+    assetType: "logo" | "favicon",
+  ) => Promise<{ url: string }>;
   backHref: string;
   backLabel?: string;
   headline?: string;
@@ -67,11 +86,39 @@ export interface BrandEditorProps {
 export default function BrandEditor({
   loadTenant,
   saveBrand,
+  uploadAsset,
   backHref,
   backLabel = "Back",
   headline = "Brand & appearance",
   editingContextNote,
 }: BrandEditorProps) {
+  const [uploading, setUploading] = useState<"logo" | "favicon" | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  async function handleFilePick(
+    e: React.ChangeEvent<HTMLInputElement>,
+    assetType: "logo" | "favicon",
+  ) {
+    const file = e.target.files?.[0];
+    // Reset the input so a subsequent pick of the same filename
+    // still fires onChange.
+    e.target.value = "";
+    if (!file) return;
+    setUploading(assetType);
+    setUploadError(null);
+    try {
+      const { url } = await uploadAsset(file, assetType);
+      // Write the fresh URL into local brand state so the preview
+      // reflects it immediately and the next Save persists it.
+      setBrand((b) =>
+        assetType === "logo" ? { ...b, logo_url: url } : { ...b, favicon_url: url },
+      );
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(null);
+    }
+  }
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [brand, setBrand] = useState<Brand>({});
   const [publicPage, setPublicPage] = useState<PublicPage>({});
@@ -173,21 +220,32 @@ export default function BrandEditor({
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-6">
           <Section title="Logo & favicon">
-            <TextField
-              label="Logo URL (PNG or SVG, ~200px tall)"
-              value={brand.logo_url ?? ""}
-              onChange={(v) => setBrand({ ...brand, logo_url: v || null })}
-              placeholder="https://…/logo.png"
+            <AssetUploader
+              label="Logo"
+              hint="PNG, JPEG, WebP, or SVG. Up to 2 MB. Displays around 40px tall in the header."
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              currentUrl={brand.logo_url ?? null}
+              busy={uploading === "logo"}
+              onPick={(e) => handleFilePick(e, "logo")}
+              onClear={() => setBrand({ ...brand, logo_url: null })}
             />
-            <TextField
-              label="Favicon URL (ICO/PNG, 32×32)"
-              value={brand.favicon_url ?? ""}
-              onChange={(v) => setBrand({ ...brand, favicon_url: v || null })}
-              placeholder="https://…/favicon.png"
+            <AssetUploader
+              label="Favicon"
+              hint="PNG, ICO, JPEG, or SVG. Up to 500 KB. Should be square (32×32 or 64×64)."
+              accept="image/png,image/jpeg,image/svg+xml,image/x-icon,image/vnd.microsoft.icon,.ico"
+              currentUrl={brand.favicon_url ?? null}
+              busy={uploading === "favicon"}
+              onPick={(e) => handleFilePick(e, "favicon")}
+              onClear={() => setBrand({ ...brand, favicon_url: null })}
             />
+            {uploadError ? (
+              <div className="text-sm text-red-700">{uploadError}</div>
+            ) : null}
             <p className="text-xs text-gray-500">
-              Host these on your own CDN. Vending Connector doesn't yet provide
-              an upload endpoint.
+              Uploads go into the public storefront-brand bucket and become
+              live at their public URL. Save persists the reference on your
+              tenant; discard = don't save. Old images stay in the bucket for
+              now (orphan cleanup is a future job).
             </p>
           </Section>
 
@@ -423,6 +481,73 @@ function TextAreaField({
         className="mt-1 w-full border rounded px-3 py-2 text-sm"
       />
     </label>
+  );
+}
+
+function AssetUploader({
+  label,
+  hint,
+  accept,
+  currentUrl,
+  busy,
+  onPick,
+  onClear,
+}: {
+  label: string;
+  hint: string;
+  accept: string;
+  currentUrl: string | null;
+  busy: boolean;
+  onPick: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div>
+      <div className="text-xs text-gray-600 mb-1">{label}</div>
+      <div className="flex items-center gap-3">
+        <div className="h-14 w-14 shrink-0 rounded border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+          {currentUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={currentUrl}
+              alt=""
+              className="max-h-full max-w-full object-contain"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ) : (
+            <span className="text-[10px] text-gray-400">none</span>
+          )}
+        </div>
+        <label className="cursor-pointer inline-flex items-center rounded border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50">
+          <input
+            type="file"
+            accept={accept}
+            className="hidden"
+            disabled={busy}
+            onChange={onPick}
+          />
+          {busy ? "Uploading…" : currentUrl ? "Replace…" : "Upload…"}
+        </label>
+        {currentUrl ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-xs text-red-700 hover:underline"
+            disabled={busy}
+          >
+            Remove
+          </button>
+        ) : null}
+      </div>
+      <p className="mt-1 text-xs text-gray-500">{hint}</p>
+      {currentUrl ? (
+        <p className="mt-1 text-[10px] font-mono break-all text-gray-400">
+          {currentUrl}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

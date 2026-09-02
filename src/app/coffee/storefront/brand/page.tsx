@@ -49,6 +49,23 @@ export default function OwnerBrandEditorPage() {
         const body = (await res.json()) as { tenant: Tenant };
         return body.tenant;
       }}
+      uploadAsset={async (file, assetType) => {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("asset_type", assetType);
+        // Owner uploads infer tenant from session; no tenant_id needed.
+        const res = await fetch("/api/storefront/tenant/brand-asset", {
+          method: "POST",
+          headers: await authHeader(),
+          body: form,
+        });
+        if (!res.ok) {
+          const b = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(b.error ?? `Upload failed (${res.status})`);
+        }
+        const body = (await res.json()) as { url: string };
+        return { url: body.url };
+      }}
     />
   );
 }
