@@ -844,7 +844,15 @@ export default function DashboardPage() {
               </div>
               <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-800" />
             </Link>
-          ) : profile?.role === "operator" || profile?.role === "admin" ? (
+          ) : (
+            // Fall-through CTA — always render for a signed-in user
+            // when we don't have a positive owner_tenant hit. Prefers
+            // the server-side nav-context signal (which knows about
+            // ADMIN_EMAILS allowlisting) but doesn't hide the entry
+            // point on nav-context failure or a role-mismatch case
+            // like "admin via email allowlist but DB role='requestor'".
+            // The /coffee/storefront page + createTenant helper are
+            // the actual gates; this is discoverability only.
             <Link
               href="/coffee/storefront"
               className="group flex items-center gap-4 rounded-2xl border-2 border-dashed border-amber-500 bg-amber-50/60 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-100"
@@ -862,7 +870,7 @@ export default function DashboardPage() {
               </div>
               <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-700" />
             </Link>
-          ) : null}
+          )}
 
           {storefrontNav?.enrolled_tenant ? (
             <Link
