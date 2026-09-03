@@ -38,6 +38,7 @@ import type {
 } from "@/lib/types";
 import { MACHINE_TYPES } from "@/lib/types";
 import { createBrowserClient } from "@/lib/supabase";
+import ProductJourney, { DASHBOARD_FEATURES } from "@/app/components/homepage/ProductJourney";
 import LocationTypeIcon from "@/app/components/LocationTypeIcon";
 import MachineTypeBadge from "@/app/components/MachineTypeBadge";
 import UrgencyBadge from "@/app/components/UrgencyBadge";
@@ -1241,6 +1242,27 @@ export default function DashboardPage() {
               })}
             </div>
           )}
+        </section>
+
+        {/* ------- PRODUCT JOURNEY (scroll depth) -------
+            Same scroll-through tour as the public homepage, in its
+            signed-in variant. Deliberate redundancy with the Quick
+            Actions tiles above: tiles are the fast path for users
+            who know what they want; the journey gives scrollers the
+            full story on each offering with a CTA per panel. */}
+        <section className="-mx-4 sm:-mx-6 lg:-mx-8">
+          <div className="px-4 pt-4 text-center sm:px-6 lg:px-8">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-green-primary">
+              Explore the Platform
+            </p>
+            <h2 className="text-xl font-bold text-black-primary sm:text-2xl">
+              Everything You Can Do on Vending Connector
+            </h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm text-gray-500">
+              Keep scrolling — every product and service, and the button that takes you there.
+            </p>
+          </div>
+          <ProductJourney features={DASHBOARD_FEATURES} />
         </section>
       </div>
     </div>
