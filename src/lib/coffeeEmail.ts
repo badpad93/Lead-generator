@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { trackingEmailBlockHtml } from "@/lib/orderTracking";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 const ADMIN_EMAIL = process.env.COFFEE_ADMIN_EMAIL || "james@apexaivending.com";
@@ -52,6 +53,11 @@ interface OrderNotificationParams {
   // creating a password.
   claimUrl?: string | null;
   trackingUrl?: string | null;
+  // Customer-facing tracking number (coffee_orders.tracking_number) —
+  // rendered prominently with the delivery window + support-call
+  // instructions. Always set for new orders; optional so legacy call
+  // sites don't break.
+  trackingNumber?: string | null;
 }
 
 function addressBlockHtml(label: string, business: string | null | undefined, contact: string | null | undefined, address: string | null | undefined, city: string | null | undefined, state: string | null | undefined, zip: string | null | undefined, phone: string | null | undefined, email: string | null | undefined): string {
@@ -126,6 +132,7 @@ export async function sendCoffeeOrderNotification(params: OrderNotificationParam
       <div style="background: #f9fafb; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
         <h2 style="margin: 0 0 16px; font-size: 18px; color: #111827;">Order ${orderNumber}</h2>
         <p style="margin: 0 0 8px; font-size: 14px; color: #374151;"><strong>Placed by:</strong> ${operatorName} (${operatorEmail})</p>
+        ${params.trackingNumber ? `<p style="margin: 0 0 8px; font-size: 14px; color: #374151;"><strong>Tracking #:</strong> ${params.trackingNumber} <span style="color:#6b7280;">(what the customer quotes when they call support)</span></p>` : ""}
         ${addressRow}
 
         <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px;">
@@ -226,6 +233,7 @@ export async function sendCoffeeOrderConfirmation(params: OrderNotificationParam
       <div style="background: #f9fafb; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
         <h2 style="margin: 0 0 16px; font-size: 18px; color: #111827;">Thank you for your order!</h2>
         <p style="margin: 0 0 16px; font-size: 14px; color: #374151;">Your order <strong>${orderNumber}</strong> has been received and is being processed.</p>
+        ${params.trackingNumber ? trackingEmailBlockHtml(params.trackingNumber) : ""}
         ${addressRow}
 
         <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px;">

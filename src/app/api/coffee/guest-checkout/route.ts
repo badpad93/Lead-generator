@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { generateTrackingNumber } from "@/lib/orderTracking";
 import { isQuickBooks } from "@/lib/paymentProvider";
 import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 import { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } from "@/lib/coffeeEmail";
@@ -195,6 +196,7 @@ export async function POST(req: NextRequest) {
       .insert({
         operator_id: account.userId,
         order_number: orderNumber,
+        tracking_number: generateTrackingNumber(),
         status: "awaiting_payment",
         shipping_business_name: trim(body.shipping_business_name),
         shipping_name: trim(body.shipping_name),
@@ -284,6 +286,7 @@ export async function POST(req: NextRequest) {
     try {
       const baseParams = {
         orderNumber,
+        trackingNumber: (order as { tracking_number?: string | null }).tracking_number ?? null,
         operatorName: trim(body.billing_contact_name) || "Customer",
         operatorEmail: billingEmail,
         items: orderItems.map(({ shipping_cost: _, ...i }) => i),

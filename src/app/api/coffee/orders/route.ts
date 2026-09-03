@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { generateTrackingNumber } from "@/lib/orderTracking";
 import { getCoffeeUser, forbiddenResponse } from "@/lib/coffeeAuth";
 import {
   sendCoffeeOrderNotification,
@@ -127,6 +128,7 @@ export async function POST(req: NextRequest) {
       .insert({
         operator_id: user.id,
         order_number: orderNumber,
+        tracking_number: generateTrackingNumber(),
         // Ship-to
         shipping_business_name: trim(body.shipping_business_name),
         shipping_name: trim(body.shipping_name),
@@ -182,6 +184,7 @@ export async function POST(req: NextRequest) {
 
     const emailParams = {
       orderNumber,
+      trackingNumber: (order as { tracking_number?: string | null }).tracking_number ?? null,
       operatorName: user.full_name || "Operator",
       operatorEmail: user.email || "",
       items: orderItems,

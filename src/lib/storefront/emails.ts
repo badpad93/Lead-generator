@@ -15,6 +15,7 @@
  */
 import { Resend } from "resend";
 import type { StorefrontTenant } from "@/lib/storefront/tenants";
+import { trackingEmailBlockHtml } from "@/lib/orderTracking";
 
 const FROM_EMAIL = process.env.STOREFRONT_FROM_EMAIL || process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 
@@ -146,6 +147,8 @@ export async function sendStorefrontOrderReceipt(params: {
   orderNumber: string;
   lines: Array<{ product_name: string; sku: string; quantity: number; unit_price: number; line_total: number }>;
   total: number;
+  /** coffee_orders.tracking_number — support-call reference. */
+  trackingNumber?: string | null;
 }): Promise<void> {
   const resend = getResend();
   if (!resend) return;
@@ -162,7 +165,8 @@ export async function sendStorefrontOrderReceipt(params: {
     .join("");
   const body = `
     <h1 style="margin:0 0 12px 0;font-size:22px;">Order ${escapeHtml(params.orderNumber)}</h1>
-    <p style="margin:0 0 12px 0;color:#333;">Thanks for your order. We'll email tracking as soon as it ships.</p>
+    <p style="margin:0 0 12px 0;color:#333;">Thanks for your order.</p>
+    ${params.trackingNumber ? trackingEmailBlockHtml(escapeHtml(params.trackingNumber)) : ""}
     <table style="width:100%;border-collapse:collapse;font-size:14px;">
       <thead><tr style="text-align:left;color:#666;font-size:11px;text-transform:uppercase;">
         <th>Item</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Unit</th><th style="text-align:right;">Total</th>

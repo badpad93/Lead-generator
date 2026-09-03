@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { generateTrackingNumber } from "@/lib/orderTracking";
 import {
   resolveCart,
   PricingResolutionError,
@@ -129,6 +130,7 @@ export async function POST(req: NextRequest) {
       operator_id: userId,
       storefront_tenant_id: body.tenant_id,
       order_number: orderNumber,
+      tracking_number: generateTrackingNumber(),
       status: "awaiting_payment",
       shipping_business_name: trim(body.shipping.business_name),
       shipping_name: trim(body.shipping.name),
@@ -159,7 +161,7 @@ export async function POST(req: NextRequest) {
   if (orderErr) {
     return NextResponse.json({ error: orderErr.message }, { status: 500 });
   }
-  const order = orderRow as { id: string };
+  const order = orderRow as { id: string; tracking_number?: string | null };
 
   const itemRows = resolved.lines.map((l) => ({
     order_id: order.id,
@@ -256,6 +258,7 @@ export async function POST(req: NextRequest) {
       tenant,
       to: body.billing.email,
       orderNumber,
+      trackingNumber: order.tracking_number ?? null,
       lines: resolved.lines.map((l) => ({
         product_name: l.product_name,
         sku: l.product_sku,

@@ -85,6 +85,7 @@ export async function POST(
 
       const emailParams = {
         orderNumber: updated.order_number,
+        trackingNumber: (updated as { tracking_number?: string | null }).tracking_number ?? null,
         operatorName: profile?.full_name || "Operator",
         operatorEmail: profile?.email || user.email || "",
         items: (updated.coffee_order_items || []).map((i: Record<string, unknown>) => ({

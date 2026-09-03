@@ -528,6 +528,7 @@ export async function handleCoffeeOrderCompleted(params: {
 
     const emailParams = {
       orderNumber: order.order_number,
+      trackingNumber: (order as { tracking_number?: string | null }).tracking_number ?? null,
       operatorName: profile?.full_name || "Operator",
       operatorEmail: profile?.email || buyerEmail || "",
       items: (order.coffee_order_items || []).map((i: Record<string, unknown>) => ({
