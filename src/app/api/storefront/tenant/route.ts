@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
   // Signed coffee agreement = pre-qualified owner. Those tenants
   // are approved at creation — no admin gate. Owners who haven't
   // signed still land in `pending` for an admin to review.
+  // Storefront customers (role='customer' — invited shoppers of an
+  // operator's storefront) can never own a storefront themselves.
   let coffeeSigned = false;
   try {
     const { data: profile } = await supabaseAdmin
@@ -52,6 +54,12 @@ export async function POST(req: NextRequest) {
       .select("coffee_agreement_signed, role")
       .eq("id", userId)
       .maybeSingle();
+    if (profile?.role === "customer") {
+      return NextResponse.json(
+        { error: "Storefront customer accounts cannot create a storefront" },
+        { status: 403 },
+      );
+    }
     coffeeSigned =
       profile?.coffee_agreement_signed === true || profile?.role === "admin";
   } catch (e) {
