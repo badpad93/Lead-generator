@@ -274,6 +274,19 @@ async function handleQBPayment(paymentId: string, realmId: string) {
       } catch (e) {
         console.error("[qb-webhook] workflow payment sync failed:", e);
       }
+      // Auto-complete the sales_order on primary-invoice payment.
+      // Location-services intake orders are skipped by the helper
+      // (their remaining-balance flow finishes them). For the
+      // remaining-balance invoice event (isRemaining), don't flip —
+      // that event is handled by the location-services path.
+      if (!isRemaining) {
+        try {
+          const { autoCompleteFullyPaidOrder } = await import("@/lib/orderAutoComplete");
+          await autoCompleteFullyPaidOrder(salesOrder.id, "qb_webhook");
+        } catch (e) {
+          console.error("[qb-webhook] auto-complete failed (non-fatal):", e);
+        }
+      }
       continue;
     }
 

@@ -34,6 +34,24 @@ export interface OrderForNextAction {
   // so the next-step derivation needs invoice_status to pick the
   // correct button. Values: null / 'not_sent' / 'sent' / 'paid'.
   invoice_status?: string | null;
+  // agreement_status lets a draft order with a fully-signed
+  // agreement short-circuit the "fill in customer info" copy — the
+  // signing already committed the customer, so the next step is to
+  // send the invoice ("Place order").
+  agreement_status?: string | null;
+  // deposit_amount + total_value drive whether the CRM should
+  // prompt Mark Deposit Paid vs Mark Paid. Orders where the whole
+  // invoice is due upfront (deposit=0 or deposit>=total) don't
+  // have a deposit split, so the deposit_paid intermediate state
+  // is skipped entirely.
+  deposit_amount?: number | string | null;
+  total_value?: number | string | null;
+}
+
+function hasDepositSplit(order: OrderForNextAction): boolean {
+  const deposit = Number(order.deposit_amount) || 0;
+  const total = Number(order.total_value) || 0;
+  return deposit > 0 && deposit < total;
 }
 
 /**
@@ -101,7 +119,18 @@ export function deriveNextStep(order: OrderForNextAction): NextStep | null {
   if (status === "completed" || status === "cancelled") return null;
 
   // Draft — the whole point of a draft is to fill items + send.
+  // Special case: a draft order with a fully-signed agreement means
+  // the commitment is already made and only the invoice is outstanding.
+  // Skip the "fill in customer info" copy and jump straight to
+  // "Place Order" (send invoice).
   if (status === "draft" || status === "awaiting_customer_info" || status === null) {
+    if (!isQuote && order.agreement_status === "signed") {
+      return {
+        verb: "send_invoice",
+        buttonLabel: "Place Order",
+        copy: "Agreement is signed — send the invoice to place the order",
+      };
+    }
     return isQuote
       ? {
           verb: "send_quote",
@@ -153,12 +182,23 @@ export function deriveNextStep(order: OrderForNextAction): NextStep | null {
   // status editing, the natural derivations below still apply.
 
   if (status === "invoice_sent") {
+    // Only orders with a real deposit split (partial deposit,
+    // remaining balance owed later) prompt Mark Deposit Paid.
+    // Everything else — location_services intake orders, plus any
+    // purchase order where the whole invoice is due upfront — jumps
+    // straight to Mark Paid so the CRM doesn't strand the rep on a
+    // deposit_paid intermediate state that never applied.
+    if (isLocationServicesOnly || !hasDepositSplit(order)) {
+      return {
+        verb: "mark_paid",
+        buttonLabel: "Mark Paid",
+        copy: "Invoice sent — mark paid once the customer's payment lands (or wait for the QuickBooks webhook to auto-flip)",
+      };
+    }
     return {
       verb: "mark_deposit_paid",
-      buttonLabel: isLocationServicesOnly ? "Mark Paid" : "Mark Deposit Paid",
-      copy: isLocationServicesOnly
-        ? "Deposit received — mark paid to move to fulfillment"
-        : "Deposit received — mark deposit paid",
+      buttonLabel: "Mark Deposit Paid",
+      copy: "Deposit received — mark deposit paid",
     };
   }
 
@@ -168,8 +208,7 @@ export function deriveNextStep(order: OrderForNextAction): NextStep | null {
     //      order_status='awaiting_payment' on mark_agreement_signed).
     //      In this case, invoice_status is likely 'not_sent' or null
     //      because the customer hasn't been invoiced yet.
-    //   2. Invoice was already sent and we're waiting on the
-    //      deposit (invoice_status='sent').
+    //   2. Invoice was already sent and we're waiting on payment.
     // Split the next step accordingly so the button matches reality.
     const invoiceOut =
       order.invoice_status === "sent" || order.invoice_status === "paid";
@@ -180,12 +219,19 @@ export function deriveNextStep(order: OrderForNextAction): NextStep | null {
         copy: "Agreement signed — send the invoice so the customer can pay",
       };
     }
+    // Skip the deposit_paid step when no split applies (full-payment
+    // orders and location_services intake) — go straight to Mark Paid.
+    if (isLocationServicesOnly || !hasDepositSplit(order)) {
+      return {
+        verb: "mark_paid",
+        buttonLabel: "Mark Paid",
+        copy: "Payment received — mark paid",
+      };
+    }
     return {
       verb: "mark_deposit_paid",
-      buttonLabel: isLocationServicesOnly ? "Mark Paid" : "Mark Deposit Paid",
-      copy: isLocationServicesOnly
-        ? "Payment received — mark paid"
-        : "Deposit payment received — mark deposit paid",
+      buttonLabel: "Mark Deposit Paid",
+      copy: "Deposit payment received — mark deposit paid",
     };
   }
 
@@ -206,10 +252,8 @@ export function deriveNextStep(order: OrderForNextAction): NextStep | null {
   }
 
   if (status === "paid") {
-    // Location-services orders don't have machines to order — the
-    // deposit is a placement-service deposit and the next physical
-    // step is sourcing locations. Every other paid order proceeds
-    // to "order machine(s) from supplier."
+    // Location-services intake orders keep the paid state alive so
+    // the Sourced Locations panel can finish before completion.
     if (isLocationServicesOnly) {
       return {
         verb: "source_locations",
@@ -217,13 +261,17 @@ export function deriveNextStep(order: OrderForNextAction): NextStep | null {
         copy: "Deposit received — start sourcing locations. Link a location lead or add one manually below; each secured location applies against the deposit.",
       };
     }
-    // Agreement is upstream in the new flow — a 'paid' state
-    // implies the agreement (if required) has already been signed,
-    // so the next physical step is always fulfillment.
+    // Every other paid order auto-completes via the webhook or the
+    // status-route helper (autoCompleteFullyPaidOrder). Reaching
+    // this branch means the auto-complete didn't fire — expose the
+    // manual complete escape hatch so the rep can hand off to
+    // fulfillment workflows in one click. The legacy machine_ordered
+    // / shipped / delivered flow is gone; those states now live on
+    // the workflow that spawns off the payment event.
     return {
-      verb: "mark_machine_ordered",
-      buttonLabel: "Process Order",
-      copy: "Payment complete — order machine(s) from supplier",
+      verb: "mark_completed",
+      buttonLabel: "Complete Order",
+      copy: "Payment received — mark completed to hand off fulfillment to workflows",
     };
   }
 
@@ -281,8 +329,14 @@ export function deriveNextAction(order: OrderForNextAction): string | null {
   // Terminal states — nothing to nudge.
   if (status === "completed" || status === "cancelled") return null;
 
-  // Draft / brand-new — same nudge whether quote or order.
+  // Draft / brand-new — same nudge whether quote or order, unless
+  // the agreement is already signed, in which case only the invoice
+  // is outstanding. Match deriveNextStep so the yellow banner and
+  // the emerald Next Step card agree.
   if (status === "draft" || status === "awaiting_customer_info" || status === null) {
+    if (!isQuote && order.agreement_status === "signed") {
+      return "Agreement is signed — send the invoice to place the order";
+    }
     return isQuote
       ? "Fill in customer info + line items, then send the quote"
       : "Fill in customer info + line items, then send the order";
@@ -316,15 +370,13 @@ export function deriveNextAction(order: OrderForNextAction): string | null {
   }
 
   if (status === "paid") {
-    // Location-services orders have no machine to order — the
-    // deposit is a placement-service deposit and the physical
-    // next step is sourcing locations. Every other paid order
-    // proceeds to machine procurement. Matches the split in
-    // deriveNextStep() so the yellow banner and the emerald
-    // Next Step card agree on what the rep should do next.
+    // Location-services intake orders keep the paid state alive
+    // while the Sourced Locations panel finishes. Every other paid
+    // order auto-completes via autoCompleteFullyPaidOrder; reaching
+    // this branch means auto-complete didn't fire, so nudge the rep
+    // to complete manually. Matches the split in deriveNextStep().
     if (isLocationServicesOnly) return "Start sourcing locations — link a lead or add one manually";
-    if (needsAgreement) return "Convert to agreement and get it signed";
-    return "Order machine(s) from supplier";
+    return "Payment received — mark completed to hand off to fulfillment workflows";
   }
 
   // Agreement lifecycle.

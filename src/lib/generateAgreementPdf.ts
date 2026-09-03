@@ -860,7 +860,8 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
     description: `Fully signed PDF generated, emailed to ${recipientSummary}, and saved to account documents.`,
   });
 
-  // Auto-create order + invoice for purchase agreements
+  // Auto-create order + invoice for purchase agreements that don't
+  // have a linked order yet (this is the e-sign-from-scratch path).
   if (!isLocationPlacement && ag.auto_send_invoice_on_signing && !ag.order_id) {
     try {
       await autoCreateOrderAndSendInvoice(ag);
@@ -870,6 +871,46 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
         agreement_id: agreementId,
         activity_type: "auto_invoice_failed",
         description: `Auto-invoice failed: ${msg}`,
+      });
+    }
+  }
+
+  // For agreements that WERE generated from an existing order
+  // (ag.order_id set), sync the order into awaiting_payment on
+  // full execution and fire the invoice. This is the CRM path
+  // where the customer + rep sign an agreement that already has
+  // its target sales_order — before this, the order sat in draft
+  // with agreement_status='signed' and the rep had to click
+  // Send Invoice by hand. Signing is now the payment trigger.
+  if (!isLocationPlacement && ag.order_id) {
+    try {
+      await supabaseAdmin
+        .from("sales_orders")
+        .update({
+          order_status: "awaiting_payment",
+          agreement_status: "signed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", ag.order_id)
+        // Only advance a draft order; don't clobber a state past
+        // awaiting_payment (invoice already out, deposit paid, etc.)
+        .in("order_status", ["draft", "awaiting_customer_info"]);
+
+      const { sendInvoiceForSignedAgreement } = await import("./agreementInvoicing");
+      const result = await sendInvoiceForSignedAgreement(agreementId);
+      if (!result.ok) {
+        await supabaseAdmin.from("agreement_activity_log").insert({
+          agreement_id: agreementId,
+          activity_type: "auto_invoice_failed",
+          description: `Auto-invoice on signing failed: ${result.reason ?? "unknown"}`,
+        });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await supabaseAdmin.from("agreement_activity_log").insert({
+        agreement_id: agreementId,
+        activity_type: "auto_invoice_failed",
+        description: `Auto-invoice on signing threw: ${msg}`,
       });
     }
   }
