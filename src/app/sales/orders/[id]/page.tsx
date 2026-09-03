@@ -307,6 +307,33 @@ export default function OrderDetailPage() {
     setAgreementLoading(false);
   }
 
+  // Manual quote → order fallback. The linear Next Step for a
+  // coffee / 10-10-10 quote points at Generate Agreement (agreement
+  // is the intended commitment); this button is the escape hatch
+  // for a rep who needs to convert a quote to an order without
+  // going through the agreement step first — e.g. an on-file
+  // customer, a legacy quote, or a signed paper agreement they
+  // don't want to reproduce in the CRM.
+  async function handleManualConvertQuote() {
+    if (!token) return;
+    if (!confirm("Convert this quote to an order? Line items and totals are preserved.")) return;
+    setActionLoading("manual_convert_quote");
+    try {
+      const res = await fetch(`/api/sales/orders/${id}/convert-to-order`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        await fetchOrder();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Convert failed");
+      }
+    } finally {
+      setActionLoading("");
+    }
+  }
+
   async function handleDeleteItem(itemId: string) {
     if (!confirm("Remove this item?")) return;
     await fetch(`/api/sales/orders/${id}/items/${itemId}`, {
@@ -891,6 +918,34 @@ export default function OrderDetailPage() {
               </button>
             </div>
           )}
+          {/* Manual quote → order fallback. Only visible for a quote
+              that isn't already terminal. Sits alongside the Next
+              Step so a rep who wants to jump the linear path
+              (skip Generate Agreement, or convert a legacy quote)
+              can do it in one click. */}
+          {order.document_type === "quote" &&
+            order.order_status !== "completed" &&
+            order.order_status !== "cancelled" && (
+              <div className="rounded-xl border border-indigo-200 bg-white p-5">
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                  Convert quote to order (manual)
+                </h3>
+                <p className="text-xs text-gray-500 mb-3">
+                  Skip the linear path. Line items and totals carry
+                  over; the quote flips to a full order and the next
+                  step becomes Send Invoice.
+                </p>
+                <button
+                  onClick={handleManualConvertQuote}
+                  disabled={actionLoading === "manual_convert_quote"}
+                  className="w-full rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors cursor-pointer disabled:opacity-50 bg-indigo-600 hover:bg-indigo-700"
+                >
+                  {actionLoading === "manual_convert_quote"
+                    ? "Converting…"
+                    : "Convert to Order"}
+                </button>
+              </div>
+            )}
           {order.order_type === "location_services" &&
             order.order_status !== "completed" &&
             order.order_status !== "cancelled" && (
