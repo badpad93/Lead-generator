@@ -30,6 +30,7 @@ export type StorefrontAuditAction =
   | "tenant.owner_reassigned"
   | "customer.invited"
   | "customer.invitation_revoked"
+  | "customer.invitation_resent"
   | "customer.enrolled"
   | "customer.transferred"
   | "customer.suspended"

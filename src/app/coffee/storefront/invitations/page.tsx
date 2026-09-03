@@ -87,6 +87,38 @@ export default function InvitationsPage() {
     await load();
   }
 
+  const [resending, setResending] = useState<string | null>(null);
+  const [resendMsg, setResendMsg] = useState<string | null>(null);
+
+  // Re-email the SAME invite link to the address on the invitation.
+  // Server refuses accepted/revoked/expired invites with a clear
+  // reason so a stale link is never re-sent.
+  async function resend(id: string) {
+    setResending(id);
+    setResendMsg(null);
+    try {
+      const supabase = createBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch(`/api/storefront/tenant/invitations/resend`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({ id }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { sent_to?: string; error?: string };
+      setResendMsg(res.ok ? `Invite re-sent to ${body.sent_to}` : body.error || "Resend failed");
+    } catch {
+      setResendMsg("Resend failed");
+    } finally {
+      setResending(null);
+      setTimeout(() => setResendMsg(null), 5000);
+    }
+  }
+
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
   return (
@@ -95,6 +127,11 @@ export default function InvitationsPage() {
         ← Storefront
       </Link>
       <h1 className="text-2xl font-semibold mt-1">Invitations</h1>
+      {resendMsg ? (
+        <div className="mt-3 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+          {resendMsg}
+        </div>
+      ) : null}
 
       <form onSubmit={issue} className="mt-6 border rounded p-4 bg-gray-50 flex gap-3 items-end">
         <div className="flex-1">
@@ -184,12 +221,23 @@ export default function InvitationsPage() {
                   </td>
                   <td className="py-2 text-right">
                     {status === "active" ? (
-                      <button
-                        onClick={() => revoke(inv.id)}
-                        className="text-xs text-red-700 hover:underline"
-                      >
-                        Revoke
-                      </button>
+                      <span className="inline-flex items-center gap-3">
+                        {inv.email ? (
+                          <button
+                            onClick={() => resend(inv.id)}
+                            disabled={resending === inv.id}
+                            className="text-xs text-green-700 hover:underline disabled:opacity-50 cursor-pointer"
+                          >
+                            {resending === inv.id ? "Sending…" : "Resend email"}
+                          </button>
+                        ) : null}
+                        <button
+                          onClick={() => revoke(inv.id)}
+                          className="text-xs text-red-700 hover:underline cursor-pointer"
+                        >
+                          Revoke
+                        </button>
+                      </span>
                     ) : null}
                   </td>
                 </tr>
