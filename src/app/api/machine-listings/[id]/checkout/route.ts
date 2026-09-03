@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         city: body.business_city ?? null,
         state: body.business_state ?? null,
         zip: body.business_zip ?? null,
-        marketing_consent: body.marketing_consent === false ? false : true,
+        marketing_consent: body.marketing_consent !== false,
       });
       if ("existing" in provisionResult && provisionResult.existing) {
         return NextResponse.json(
@@ -194,7 +194,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         password_token_expires_at: guestTokenExpiry(7).toISOString(),
         tracking_token: trackingToken,
         tracking_token_expires_at: guestTokenExpiry(30).toISOString(),
-        marketing_consent: body.marketing_consent === false ? false : true,
+        marketing_consent: body.marketing_consent !== false,
       });
       trackingUrl = `${origin}/coffee/track/${trackingToken}`;
       // Fire a quick confirmation email that includes the claim link so

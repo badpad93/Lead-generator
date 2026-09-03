@@ -447,7 +447,7 @@ export async function notifyOperatorSubmissionReady(submissionId: string): Promi
 
   // Resolve operator email — profile first, then agreement fallback.
   let operatorEmail: string | null = null;
-  let operatorProfileId: string | null = contract.operator_profile_id || null;
+  const operatorProfileId: string | null = contract.operator_profile_id || null;
   if (operatorProfileId) {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
@@ -515,7 +515,7 @@ export async function notifyOperatorSubmissionCreated(submissionId: string): Pro
 
   // Resolve operator email — profile first, then agreement fallback.
   let operatorEmail: string | null = null;
-  let operatorProfileId: string | null = contract.operator_profile_id || null;
+  const operatorProfileId: string | null = contract.operator_profile_id || null;
   if (operatorProfileId) {
     const { data: profile } = await supabaseAdmin
       .from("profiles")

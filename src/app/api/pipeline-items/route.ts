@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         value: value || 0,
         lead_id: lead_id || null,
         account_id: account_id || null,
-        pipeline_id: pipeline_id,
+        pipeline_id,
       })
       .select("id")
       .single();
