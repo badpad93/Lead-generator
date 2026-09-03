@@ -153,6 +153,9 @@ function CreateStorefrontPanel({ onCreated }: { onCreated: () => void }) {
   const [owners, setOwners] = useState<OwnerOption[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(false);
   const [ownerId, setOwnerId] = useState("");
+  // Remember the picked user's label so refining the search (which
+  // replaces the owners list) doesn't blank the "Selected:" line.
+  const [ownerLabel, setOwnerLabel] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [legalName, setLegalName] = useState("");
   const [slug, setSlug] = useState("");
@@ -213,6 +216,7 @@ function CreateStorefrontPanel({ onCreated }: { onCreated: () => void }) {
       if (!res.ok) throw new Error(body.error || "Create failed");
       setOpen(false);
       setOwnerId("");
+      setOwnerLabel("");
       setOwnerSearch("");
       setDisplayName("");
       setLegalName("");
@@ -256,36 +260,52 @@ function CreateStorefrontPanel({ onCreated }: { onCreated: () => void }) {
         placeholder="Name or email…"
         className="w-full rounded border border-gray-200 px-2 py-1.5 text-sm mb-2"
       />
-      <div className="max-h-36 overflow-y-auto rounded border border-gray-200 divide-y divide-gray-100 mb-3">
-        {ownersLoading ? (
-          <div className="px-2 py-2 text-xs text-gray-400">Searching…</div>
-        ) : owners.length === 0 ? (
-          <div className="px-2 py-2 text-xs text-gray-400">No matching users.</div>
+      {/* Native listbox — built-in selection, keyboard support, and
+          scrolling. The previous custom radio-label rows in a short
+          overflow div made selection flaky and browsing the full
+          user list impossible; a real <select size> is bulletproof. */}
+      {ownersLoading && owners.length === 0 ? (
+        <div className="mb-3 rounded border border-gray-200 px-2 py-2 text-xs text-gray-400">
+          Loading users…
+        </div>
+      ) : owners.length === 0 ? (
+        <div className="mb-3 rounded border border-gray-200 px-2 py-2 text-xs text-gray-400">
+          No matching users.
+        </div>
+      ) : (
+        <select
+          size={10}
+          value={ownerId}
+          onChange={(e) => {
+            setOwnerId(e.target.value);
+            const sel = owners.find((o) => o.id === e.target.value);
+            setOwnerLabel(sel ? (sel.full_name ?? sel.email ?? sel.id) : e.target.value);
+          }}
+          className="mb-1 w-full rounded border border-gray-200 text-sm [&>option]:px-2 [&>option]:py-1.5"
+        >
+          {owners.map((o) => (
+            <option key={o.id} value={o.id} disabled={o.owns_storefront}>
+              {(o.full_name ?? o.email ?? o.id) +
+                (o.email && o.full_name ? ` — ${o.email}` : "") +
+                (o.owns_storefront
+                  ? "  (already owns a storefront)"
+                  : o.coffee_agreement_signed
+                    ? "  (coffee signed)"
+                    : "")}
+            </option>
+          ))}
+        </select>
+      )}
+      <div className="mb-3 text-xs text-gray-600">
+        {ownerId ? (
+          <>
+            Selected:{" "}
+            <span className="font-medium text-gray-900">{ownerLabel || ownerId}</span>
+          </>
         ) : (
-          owners.map((o) => (
-            <label
-              key={o.id}
-              className={`flex items-center gap-2 px-2 py-1.5 text-xs ${o.owns_storefront ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-blue-50"} ${ownerId === o.id ? "bg-blue-50" : ""}`}
-            >
-              <input
-                type="radio"
-                name="owner-choice"
-                disabled={o.owns_storefront}
-                checked={ownerId === o.id}
-                onChange={() => setOwnerId(o.id)}
-              />
-              <span className="flex-1 min-w-0">
-                <span className="font-medium text-gray-800">{o.full_name ?? o.email}</span>
-                <span className="block text-gray-500 truncate">{o.email}</span>
-              </span>
-              {o.owns_storefront ? (
-                <span className="text-[10px] text-gray-500">owns one</span>
-              ) : o.coffee_agreement_signed ? (
-                <span className="text-[10px] text-green-700">coffee signed</span>
-              ) : null}
-            </label>
-          ))
+          "Click a user above to select the owner"
         )}
+        {ownersLoading ? <span className="ml-2 text-gray-400">Refreshing…</span> : null}
       </div>
       <div className="grid grid-cols-2 gap-2 mb-3">
         <input
