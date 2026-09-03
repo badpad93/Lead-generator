@@ -5,14 +5,26 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 
 /**
- * Enrolled-customer shop widget. Mounted inside the branded
- * storefront page for signed-in customers whose
- * profiles.storefront_tenant_id equals this tenant's id.
+ * Tenant storefront shop — mounted on the branded storefront page
+ * for BOTH audiences:
+ *   enrolled=true  → signed-in customer whose
+ *     profiles.storefront_tenant_id equals this tenant's id. Live
+ *     tenant pricing (server-quoted), cart, checkout.
+ *   enrolled=false → anonymous / not-yet-enrolled visitor. The
+ *     identical catalog layout, with "Sign in to see your price"
+ *     in place of prices + qty controls.
  *
- * Every price shown comes from a server-side /api/storefront/quote
- * roundtrip — we re-quote whenever the cart changes so per-line
- * commission math matches the checkout call exactly. Nothing about
- * price ever originates in the browser.
+ * Layout intentionally mirrors the main coffee marketplace
+ * (src/app/coffee/page.tsx): category pill bar (fed by the same
+ * coffee_categories + m2m memberships), search box, 4-column
+ * product grid with stock badges, and a product-detail modal — so
+ * customers sort through categories the same way in both places.
+ *
+ * Every price shown to an enrolled customer comes from a
+ * server-side /api/storefront/quote roundtrip — we re-quote
+ * whenever the cart changes so per-line commission math matches
+ * the checkout call exactly. Nothing about price ever originates
+ * in the browser.
  */
 
 interface Product {
@@ -23,6 +35,16 @@ interface Product {
   price: number;
   image_url: string | null;
   active: boolean;
+  stock_status: string | null;
+  unit: string | null;
+  min_order_qty: number | null;
+  category_ids: string[];
+}
+
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 interface QuoteLine {
@@ -41,16 +63,45 @@ interface Quote {
   };
 }
 
+function StockBadge({ status }: { status: string | null }) {
+  switch (status) {
+    case "low_stock":
+      return (
+        <span className="inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700">
+          Low Stock
+        </span>
+      );
+    case "out_of_stock":
+      return (
+        <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
+          Out of Stock
+        </span>
+      );
+    case "in_stock":
+      return (
+        <span className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+          In Stock
+        </span>
+      );
+    default:
+      return null;
+  }
+}
+
 export default function CustomerShop({
   tenantId,
   tenantSlug,
   products,
+  categories,
+  enrolled,
   primary,
   accent,
 }: {
   tenantId: string;
   tenantSlug: string;
   products: Product[];
+  categories: Category[];
+  enrolled: boolean;
   primary: string;
   accent: string;
 }) {
@@ -60,6 +111,9 @@ export default function CustomerShop({
   const [quoting, setQuoting] = useState(false);
   const [quoteErr, setQuoteErr] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [search, setSearch] = useState("");
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
 
   const cartLines = useMemo(
     () =>
@@ -70,8 +124,29 @@ export default function CustomerShop({
   );
   const cartCount = cartLines.reduce((a, l) => a + l.quantity, 0);
 
+  // Categories that actually have products — an empty pill teaches
+  // customers nothing, so hide it.
+  const visibleCategories = useMemo(
+    () =>
+      categories.filter((c) => products.some((p) => p.category_ids.includes(c.id))),
+    [categories, products],
+  );
+
+  const filteredProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return products.filter((p) => {
+      if (selectedCategory && !p.category_ids.includes(selectedCategory)) return false;
+      if (!q) return true;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.description ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [products, selectedCategory, search]);
+
   const refreshQuote = useCallback(async () => {
-    if (cartLines.length === 0) {
+    if (!enrolled || cartLines.length === 0) {
       setQuote(null);
       setQuoteErr(null);
       return;
@@ -103,7 +178,7 @@ export default function CustomerShop({
     } finally {
       setQuoting(false);
     }
-  }, [cartLines, tenantId]);
+  }, [cartLines, tenantId, enrolled]);
 
   useEffect(() => {
     void refreshQuote();
@@ -118,17 +193,119 @@ export default function CustomerShop({
     });
   }
 
+  function renderCardControls(p: Product) {
+    if (!enrolled) {
+      return <div className="mt-3 text-sm text-gray-500">Sign in to see your price</div>;
+    }
+    const qty = cart[p.id] ?? 0;
+    const line = quote?.lines.find((l) => l.product_id === p.id);
+    const unit = line?.tenant_price_per_unit;
+    const outOfStock = p.stock_status === "out_of_stock";
+    const minQty = Math.max(1, Number(p.min_order_qty) || 1);
+    return (
+      <div className="mt-3 flex items-center justify-between">
+        <div className="text-sm font-medium">
+          {unit != null ? `$${unit.toFixed(2)}` : "—"}
+          <span className="text-xs text-gray-500 ml-1">/{p.unit || "ea"}</span>
+        </div>
+        {outOfStock ? (
+          <span className="text-xs text-gray-400">Unavailable</span>
+        ) : (
+          <div
+            className="flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setQty(p.id, qty <= minQty ? 0 : qty - 1)}
+              className="w-7 h-7 border rounded text-sm cursor-pointer"
+              aria-label="Decrease"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              min={0}
+              className="w-14 border rounded px-2 py-1 text-sm text-center"
+              value={qty}
+              onChange={(e) => {
+                const v = Math.max(0, Number(e.target.value));
+                setQty(p.id, v > 0 && v < minQty ? minQty : v);
+              }}
+            />
+            <button
+              onClick={() => setQty(p.id, qty === 0 ? minQty : qty + 1)}
+              className="w-7 h-7 border rounded text-sm cursor-pointer"
+              style={{ background: accent, color: primary, borderColor: accent }}
+              aria-label="Increase"
+            >
+              +
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map((p) => {
-          const qty = cart[p.id] ?? 0;
-          const line = quote?.lines.find((l) => l.product_id === p.id);
-          const unit = line?.tenant_price_per_unit;
-          return (
+      {/* Search — same server-agnostic client filter the shopper
+          expects from the marketplace search box. */}
+      <div className="mb-4">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search products…"
+          className="w-full max-w-md rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
+        />
+      </div>
+
+      {/* Category pill bar — mirrors the marketplace's. Active pill
+          takes the tenant's brand colors. */}
+      {visibleCategories.length > 0 && (
+        <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
+          <button
+            type="button"
+            onClick={() => setSelectedCategory("")}
+            className="flex-shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors cursor-pointer"
+            style={
+              !selectedCategory
+                ? { background: primary, color: accent }
+                : { background: "#e7e3da", color: "#444" }
+            }
+          >
+            All
+          </button>
+          {visibleCategories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setSelectedCategory(cat.id)}
+              className="flex-shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors cursor-pointer"
+              style={
+                selectedCategory === cat.id
+                  ? { background: primary, color: accent }
+                  : { background: "#e7e3da", color: "#444" }
+              }
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {filteredProducts.length === 0 && products.length > 0 ? (
+        <div className="text-center text-gray-500 py-16">
+          <p className="text-lg font-medium">No products found</p>
+          <p className="text-sm mt-1">Try adjusting your search or category filter</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredProducts.map((p) => (
             <div
               key={p.id}
-              className="rounded-lg overflow-hidden border border-gray-200 bg-white flex flex-col"
+              className="rounded-lg overflow-hidden border border-gray-200 bg-white flex flex-col cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => setDetailProduct(p)}
             >
               {p.image_url ? (
                 <div className="w-full aspect-square bg-white flex items-center justify-center p-3">
@@ -144,50 +321,78 @@ export default function CustomerShop({
                 </div>
               )}
               <div className="p-4 flex-1 flex flex-col">
+                <div className="mb-1">
+                  <StockBadge status={p.stock_status} />
+                </div>
                 <div className="text-xs text-gray-500 uppercase tracking-wide">{p.sku}</div>
                 <div className="font-semibold text-gray-900">{p.name}</div>
                 {p.description ? (
-                  <div className="mt-1 text-sm text-gray-600 flex-1">{p.description}</div>
+                  <div className="mt-1 text-sm text-gray-600 flex-1 line-clamp-2">
+                    {p.description}
+                  </div>
                 ) : (
                   <div className="flex-1" />
                 )}
-                <div className="mt-3 flex items-center justify-between">
-                  <div className="text-sm font-medium">
-                    {unit != null ? `$${unit.toFixed(2)}` : "—"}
-                    <span className="text-xs text-gray-500 ml-1">/ea</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setQty(p.id, Math.max(0, qty - 1))}
-                      className="w-7 h-7 border rounded text-sm"
-                      aria-label="Decrease"
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      min={0}
-                      className="w-14 border rounded px-2 py-1 text-sm text-center"
-                      value={qty}
-                      onChange={(e) => setQty(p.id, Math.max(0, Number(e.target.value)))}
-                    />
-                    <button
-                      onClick={() => setQty(p.id, qty + 1)}
-                      className="w-7 h-7 border rounded text-sm"
-                      style={{ background: accent, color: primary, borderColor: accent }}
-                      aria-label="Increase"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
+                {renderCardControls(p)}
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {cartCount > 0 ? (
+      {/* Product detail modal — same interaction as the marketplace
+          card click-through. */}
+      {detailProduct ? (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setDetailProduct(null)}
+        >
+          <div
+            className="bg-white rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide">
+                  {detailProduct.sku}
+                </div>
+                <div className="text-lg font-semibold text-gray-900">{detailProduct.name}</div>
+                <div className="mt-1">
+                  <StockBadge status={detailProduct.stock_status} />
+                </div>
+              </div>
+              <button
+                onClick={() => setDetailProduct(null)}
+                className="text-gray-500 hover:text-gray-800 text-sm cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+            {detailProduct.image_url ? (
+              <div className="mt-4 w-full aspect-square bg-white flex items-center justify-center p-3 border border-gray-100 rounded">
+                <img
+                  src={detailProduct.image_url}
+                  alt={detailProduct.name}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+            ) : null}
+            {detailProduct.description ? (
+              <p className="mt-4 text-sm text-gray-700 whitespace-pre-line">
+                {detailProduct.description}
+              </p>
+            ) : null}
+            {Number(detailProduct.min_order_qty) > 1 ? (
+              <p className="mt-2 text-xs text-gray-500">
+                Minimum order: {detailProduct.min_order_qty} {detailProduct.unit || "ea"}
+              </p>
+            ) : null}
+            <div className="mt-4">{renderCardControls(detailProduct)}</div>
+          </div>
+        </div>
+      ) : null}
+
+      {enrolled && cartCount > 0 ? (
         // Bottom-LEFT so we never collide with the site-wide
         // "Get Financing" floating button, which lives at
         // bottom-right and would otherwise cover the Checkout
@@ -220,7 +425,7 @@ export default function CustomerShop({
               </div>
               <button
                 onClick={() => setCheckoutOpen(true)}
-                className="mt-3 w-full rounded-md text-white text-sm py-2 font-medium"
+                className="mt-3 w-full rounded-md text-white text-sm py-2 font-medium cursor-pointer"
                 style={{ background: primary, color: accent }}
               >
                 Checkout

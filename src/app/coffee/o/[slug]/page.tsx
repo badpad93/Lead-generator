@@ -51,6 +51,11 @@ interface Product {
   price: number;
   image_url: string | null;
   active: boolean;
+  stock_status: string | null;
+  unit: string | null;
+  min_order_qty: number | null;
+  category_id: string | null;
+  category_ids: string[];
 }
 
 export async function generateMetadata({
@@ -92,16 +97,54 @@ export default async function StorefrontPage({
   // the class of bug next time.
   const productsRes = await supabaseAdmin
     .from("coffee_products")
-    .select("id, name, sku, description, price, image_url, active, sort_order")
+    .select(
+      "id, name, sku, description, price, image_url, active, sort_order, stock_status, unit, min_order_qty, category_id",
+    )
     .eq("active", true)
-    .order("sort_order", { ascending: true });
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
   if (productsRes.error) {
     console.error(
       `[storefront/${slug}] coffee_products select failed:`,
       productsRes.error,
     );
   }
-  const products = (productsRes.data ?? []) as Product[];
+  const rawProducts = (productsRes.data ?? []) as Array<Omit<Product, "category_ids">>;
+
+  // Categories + m2m memberships — same data the main coffee
+  // marketplace filters on, so the tenant storefront can offer the
+  // identical category pill bar. Junction fetch is best-effort
+  // (mirrors /api/coffee/products): a missing junction table falls
+  // back to the legacy single category_id per product.
+  const categoriesRes = await supabaseAdmin
+    .from("coffee_categories")
+    .select("id, name, slug, sort_order")
+    .order("sort_order", { ascending: true });
+  const categories = (categoriesRes.data ?? []) as Array<{
+    id: string;
+    name: string;
+    slug: string;
+  }>;
+
+  const categoryIdsByProduct = new Map<string, string[]>();
+  if (rawProducts.length > 0) {
+    const { data: junctionRows } = await supabaseAdmin
+      .from("coffee_product_categories")
+      .select("product_id, category_id")
+      .in("product_id", rawProducts.map((p) => p.id));
+    for (const row of (junctionRows ?? []) as Array<{ product_id: string; category_id: string }>) {
+      const list = categoryIdsByProduct.get(row.product_id) ?? [];
+      list.push(row.category_id);
+      categoryIdsByProduct.set(row.product_id, list);
+    }
+  }
+  const products: Product[] = rawProducts.map((p) => {
+    const linked = categoryIdsByProduct.get(p.id) ?? [];
+    return {
+      ...p,
+      category_ids: linked.length > 0 ? linked : p.category_id ? [p.category_id] : [],
+    };
+  });
 
   const { signedIn, isEnrolled } = await sessionContext(tenant.id);
 
@@ -174,61 +217,26 @@ export default async function StorefrontPage({
             {publicPage.catalog_intro as string}
           </p>
         ) : null}
-        {isEnrolled ? (
-          <CustomerShop
-            tenantId={tenant.id}
-            tenantSlug={tenant.slug}
-            products={products}
-            primary={primary}
-            accent={accent}
-          />
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {products.map((p) => (
-                <div
-                  key={p.id}
-                  className="rounded-lg overflow-hidden border border-gray-200 bg-white flex flex-col"
-                >
-                  {p.image_url ? (
-                    <div className="w-full aspect-square bg-white flex items-center justify-center p-3">
-                      <img
-                        src={p.image_url}
-                        alt={p.name}
-                        className="max-h-full max-w-full object-contain"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-full aspect-square flex items-center justify-center bg-gray-100 text-gray-400 text-sm">
-                      No image
-                    </div>
-                  )}
-                  <div className="p-4 flex-1 flex flex-col">
-                    <div className="text-xs text-gray-500 uppercase tracking-wide">
-                      {p.sku}
-                    </div>
-                    <div className="font-semibold text-gray-900">{p.name}</div>
-                    {p.description ? (
-                      <div className="mt-1 text-sm text-gray-600 flex-1">
-                        {p.description}
-                      </div>
-                    ) : (
-                      <div className="flex-1" />
-                    )}
-                    <div className="mt-3 text-sm text-gray-500">
-                      Sign in to see your price
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {products.length === 0 ? (
-              <div className="text-center text-gray-500 py-16">
-                No products available.
-              </div>
-            ) : null}
-          </>
-        )}
+        {/* One shop component for both audiences — enrolled
+            customers get live tenant pricing + cart + checkout;
+            everyone else browses the identical catalog (same
+            category pills, search, grid, product modal as the main
+            coffee marketplace) with "Sign in to see your price"
+            in place of the price + qty controls. */}
+        <CustomerShop
+          tenantId={tenant.id}
+          tenantSlug={tenant.slug}
+          products={products}
+          categories={categories}
+          enrolled={isEnrolled}
+          primary={primary}
+          accent={accent}
+        />
+        {products.length === 0 ? (
+          <div className="text-center text-gray-500 py-16">
+            No products available.
+          </div>
+        ) : null}
       </main>
 
       <footer
