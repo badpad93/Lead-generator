@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { trackEvent, HomepageEvents } from "@/lib/analytics";
 
-interface Feature {
+export interface JourneyFeature {
   icon: LucideIcon;
   kicker: string;
   title: string;
@@ -43,6 +43,8 @@ interface Feature {
   ctaLabel: string;
   eventName?: string;
 }
+
+type Feature = JourneyFeature;
 
 const FEATURES: Feature[] = [
   {
@@ -212,10 +214,144 @@ function Reveal({
   );
 }
 
-export default function ProductJourney() {
+/**
+ * Signed-in variant of the tour — same offerings, but the copy and
+ * CTAs speak to an existing account: coffee goes straight to the
+ * marketplace, storefronts go straight to setup, no signup detours.
+ * Mounted at the bottom of the dashboard so the tiles stay the
+ * fast path and the scroll adds depth ("redundancy in a scroll
+ * format", per product direction).
+ */
+export const DASHBOARD_FEATURES: JourneyFeature[] = [
+  {
+    icon: Package,
+    kicker: "Equipment",
+    title: "Add Machines to Your Route",
+    description:
+      "Browse AI-powered coolers, snack and drink machines, combos, and specialty equipment listed nationwide. Compare, buy, and get machines shipped to your route.",
+    highlights: [
+      "AI smart coolers and traditional vending",
+      "New and operator-listed equipment",
+      "Nationwide shipping and freight support",
+    ],
+    href: "/machines-for-sale",
+    ctaLabel: "Shop Machines",
+    eventName: HomepageEvents.machines,
+  },
+  {
+    icon: Banknote,
+    kicker: "Financing",
+    title: "Finance Your Next Machines",
+    description:
+      "Qualifying operators can finance vending equipment on long-term plans — including 10-year terms — so new machines pay for themselves from day one.",
+    highlights: [
+      "Long-term plans up to 10 years",
+      "Finance single machines or whole fleets",
+      "Simple application, fast decisions",
+    ],
+    href: "/financing",
+    ctaLabel: "Explore Financing",
+    eventName: HomepageEvents.financing,
+  },
+  {
+    icon: Coffee,
+    kicker: "Coffee Program",
+    title: "Order Coffee, Cups & Supplies",
+    description:
+      "Shop the coffee marketplace at operator pricing — and if you haven't joined yet, qualifying operators get a free commercial brewer with the supply agreement.",
+    highlights: [
+      "Wholesale coffee, cups, and supplies",
+      "Free brewer with the supply agreement",
+      "Order online, pay at checkout",
+    ],
+    href: "/coffee",
+    ctaLabel: "Open the Coffee Marketplace",
+    eventName: HomepageEvents.coffee,
+  },
+  {
+    icon: Store,
+    kicker: "Coffee Storefronts",
+    title: "Resell Coffee Under Your Brand",
+    description:
+      "Launch a branded online coffee shop for your own customers. Your logo, your colors, your prices — we handle fulfillment and invoicing, and you earn commission on every order.",
+    highlights: [
+      "Branded page at your own storefront link",
+      "Set your customer pricing, earn the margin",
+      "Signed the coffee agreement? You're live instantly",
+    ],
+    href: "/coffee/storefront",
+    ctaLabel: "Set Up My Storefront",
+    eventName: HomepageEvents.getStarted,
+  },
+  {
+    icon: MapPin,
+    kicker: "Location Services",
+    title: "Let Us Source Your Locations",
+    description:
+      "Tell us your market and machine types, and our team sources qualified placements for you — priced by traffic, hours, and machine count.",
+    highlights: [
+      "Qualified placements in your service area",
+      "Transparent per-location pricing tiers",
+      "Deposit-based start, pay as locations land",
+    ],
+    href: "/request-location",
+    ctaLabel: "Request Locations",
+    eventName: HomepageEvents.location,
+  },
+  {
+    icon: Globe,
+    kicker: "Web Presence",
+    title: "Get a Professional Vending Website",
+    description:
+      "Win more accounts with a website that makes your operation look as professional as it runs — credibility, lead capture, and your services front and center.",
+    highlights: [
+      "Designed for vending operators",
+      "Lead capture built in",
+      "Launch fast, no tech skills needed",
+    ],
+    href: "/website-services",
+    ctaLabel: "View Website Services",
+    eventName: HomepageEvents.website,
+  },
+  {
+    icon: Briefcase,
+    kicker: "Placement Marketplace",
+    title: "Buy & Sell Placements",
+    description:
+      "Find locations listed by Placement Providers, or list your own placements and keep 100% of your locator commission — no platform cut.",
+    highlights: [
+      "No platform commission",
+      "Transact directly with operators",
+      "Monetize your placement network",
+    ],
+    href: "/placement",
+    ctaLabel: "Open the Placement Marketplace",
+    eventName: HomepageEvents.placementProvider,
+  },
+  {
+    icon: Route,
+    kicker: "Routes",
+    title: "Expand With Established Routes",
+    description:
+      "Skip the cold start. Browse routes with existing locations and cash flow, or list your own route when it's time to sell.",
+    highlights: [
+      "Routes with locations already producing",
+      "Buy to expand or list yours to exit",
+      "Connect directly with sellers",
+    ],
+    href: "/routes-for-sale",
+    ctaLabel: "Browse Routes",
+  },
+];
+
+export default function ProductJourney({
+  features = FEATURES,
+}: {
+  features?: JourneyFeature[];
+} = {}) {
   return (
     <div className="space-y-4 sm:space-y-0">
-      {FEATURES.map((feature, i) => {
+      {features.map((feature, i) => {
         const flipped = i % 2 === 1;
         const Icon = feature.icon;
         const number = String(i + 1).padStart(2, "0");
