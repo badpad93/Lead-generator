@@ -26,6 +26,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
+import Reveal from "@/app/components/Reveal";
 import ScrollProgress from "@/app/components/ScrollProgress";
 import MarketingGondola from "@/app/components/marketing/MarketingGondola";
 import PathCard from "@/app/components/homepage/PathCard";
@@ -252,14 +253,17 @@ export default function HomePageClient() {
             </p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {PATH_CARDS.map((card) => (
-              <PathCard key={card.title} {...card} />
+            {PATH_CARDS.map((card, i) => (
+              <Reveal key={card.title} delay={(i % 4) * 80}>
+                <PathCard {...card} />
+              </Reveal>
             ))}
             {/* 8th tile — rounds out the xl:grid-cols-4 row.
                 Not itself clickable so the two sub-CTAs can each own
                 their intent (login vs. signup). Styled to match
                 PathCard from the outside. */}
-            <div className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+            <Reveal delay={3 * 80}>
+            <div className="flex h-full items-start gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-primary">
                 <LogIn className="h-5 w-5" strokeWidth={2} />
               </span>
@@ -287,6 +291,7 @@ export default function HomePageClient() {
                 </div>
               </div>
             </div>
+            </Reveal>
           </div>
         </div>
       </section>
@@ -300,17 +305,19 @@ export default function HomePageClient() {
       {/* ============================================================ */}
       <section className="bg-white pt-16 sm:pt-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-green-primary">
-              One Platform. Multiple Growth Solutions.
-            </p>
-            <h2 className="text-2xl font-bold text-black-primary sm:text-3xl lg:text-4xl">
-              Everything Vending Connector Offers
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm text-gray-500 sm:text-base">
-              Keep scrolling — every product and service, and the button that takes you there.
-            </p>
-          </div>
+          <Reveal>
+            <div className="text-center">
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-green-primary">
+                One Platform. Multiple Growth Solutions.
+              </p>
+              <h2 className="text-2xl font-bold text-black-primary sm:text-3xl lg:text-4xl">
+                Everything Vending Connector Offers
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm text-gray-500 sm:text-base">
+                Keep scrolling — every product and service, and the button that takes you there.
+              </p>
+            </div>
+          </Reveal>
         </div>
       </section>
       <ProductJourney />
@@ -320,14 +327,18 @@ export default function HomePageClient() {
       {/* ============================================================ */}
       <section className="bg-light-warm py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-10 text-center">
-            <h2 className="text-2xl font-bold text-black-primary sm:text-3xl lg:text-4xl">
-              Built for Every Side of the Vending Industry
-            </h2>
-          </div>
+          <Reveal>
+            <div className="mb-10 text-center">
+              <h2 className="text-2xl font-bold text-black-primary sm:text-3xl lg:text-4xl">
+                Built for Every Side of the Vending Industry
+              </h2>
+            </div>
+          </Reveal>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {AUDIENCE_CARDS.map((card) => (
-              <AudienceCard key={card.title} {...card} />
+            {AUDIENCE_CARDS.map((card, i) => (
+              <Reveal key={card.title} delay={i * 90}>
+                <AudienceCard {...card} />
+              </Reveal>
             ))}
           </div>
         </div>
@@ -338,6 +349,7 @@ export default function HomePageClient() {
       {/* ============================================================ */}
       <section className="bg-white py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <Reveal direction="scale">
           <div className="relative overflow-hidden rounded-3xl border border-green-200 bg-gradient-to-br from-green-50 via-white to-green-50 p-8 shadow-sm sm:p-12">
             <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-green-100/60 blur-3xl" />
             <div className="relative grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-center">
@@ -389,6 +401,7 @@ export default function HomePageClient() {
               </ul>
             </div>
           </div>
+          </Reveal>
         </div>
       </section>
 
@@ -398,8 +411,10 @@ export default function HomePageClient() {
       <section className="bg-light-warm py-10 sm:py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 lg:grid-cols-7">
-            {GROWTH_SOLUTIONS.map((item) => (
-              <GrowthSolutionItem key={item.label} {...item} />
+            {GROWTH_SOLUTIONS.map((item, i) => (
+              <Reveal key={item.label} delay={i * 60} className="flex-shrink-0 sm:flex-shrink">
+                <GrowthSolutionItem {...item} />
+              </Reveal>
             ))}
           </div>
         </div>
@@ -410,27 +425,28 @@ export default function HomePageClient() {
       {/* ============================================================ */}
       <section className="bg-white py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-10 text-center">
-            <h2 className="text-2xl font-bold text-black-primary sm:text-3xl lg:text-4xl">
-              How Vending Connector Works
-            </h2>
-            <p className="mt-2 text-sm text-gray-500 sm:text-base">
-              Start with what you need. Vending Connector helps connect the next steps.
-            </p>
-          </div>
+          <Reveal>
+            <div className="mb-10 text-center">
+              <h2 className="text-2xl font-bold text-black-primary sm:text-3xl lg:text-4xl">
+                How Vending Connector Works
+              </h2>
+              <p className="mt-2 text-sm text-gray-500 sm:text-base">
+                Start with what you need. Vending Connector helps connect the next steps.
+              </p>
+            </div>
+          </Reveal>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {HOW_STEPS.map((step, i) => (
-              <div
-                key={step.title}
-                className="relative rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
-              >
-                <div className="absolute -top-3 left-6 flex h-7 w-7 items-center justify-center rounded-full bg-green-primary text-xs font-bold text-white shadow">
-                  {i + 1}
+              <Reveal key={step.title} delay={i * 120}>
+                <div className="relative h-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="absolute -top-3 left-6 flex h-7 w-7 items-center justify-center rounded-full bg-green-primary text-xs font-bold text-white shadow">
+                    {i + 1}
+                  </div>
+                  <step.icon className="mb-3 h-5 w-5 text-green-primary" strokeWidth={2} />
+                  <h3 className="text-base font-semibold text-black-primary">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-600">{step.description}</p>
                 </div>
-                <step.icon className="mb-3 h-5 w-5 text-green-primary" strokeWidth={2} />
-                <h3 className="text-base font-semibold text-black-primary">{step.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600">{step.description}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -441,49 +457,49 @@ export default function HomePageClient() {
       {/* ============================================================ */}
       <section className="bg-light-warm py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-10 text-center">
-            <h2 className="text-2xl font-bold text-black-primary sm:text-3xl">
-              Built to Help Vending Businesses Grow
-            </h2>
-            <p className="mt-2 text-sm text-gray-500">
-              A platform designed around what modern vending operators actually need.
-            </p>
-          </div>
+          <Reveal>
+            <div className="mb-10 text-center">
+              <h2 className="text-2xl font-bold text-black-primary sm:text-3xl">
+                Built to Help Vending Businesses Grow
+              </h2>
+              <p className="mt-2 text-sm text-gray-500">
+                A platform designed around what modern vending operators actually need.
+              </p>
+            </div>
+          </Reveal>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {TRUST_POINTS.map((point) => (
-              <div
-                key={point.label}
-                className="flex flex-col items-center gap-2 rounded-xl border border-gray-100 bg-white p-4 text-center shadow-sm"
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-50 text-green-primary">
-                  <point.icon className="h-4 w-4" strokeWidth={2} />
-                </span>
-                <span className="text-xs font-semibold text-black-primary sm:text-sm">
-                  {point.label}
-                </span>
-              </div>
+            {TRUST_POINTS.map((point, i) => (
+              <Reveal key={point.label} delay={i * 60}>
+                <div className="flex h-full flex-col items-center gap-2 rounded-xl border border-gray-100 bg-white p-4 text-center shadow-sm">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-50 text-green-primary">
+                    <point.icon className="h-4 w-4" strokeWidth={2} />
+                  </span>
+                  <span className="text-xs font-semibold text-black-primary sm:text-sm">
+                    {point.label}
+                  </span>
+                </div>
+              </Reveal>
             ))}
           </div>
 
           {/* Testimonials — preserved from prior homepage */}
           <div className="mt-14 grid grid-cols-1 gap-5 lg:grid-cols-3">
-            {TESTIMONIALS.map((t) => (
-              <figure
-                key={t.name}
-                className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
-              >
-                <div className="mb-3 flex gap-0.5 text-green-primary" aria-hidden>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-current" />
-                  ))}
-                </div>
-                <blockquote className="text-sm leading-relaxed text-gray-700">
-                  &ldquo;{t.quote}&rdquo;
-                </blockquote>
-                <figcaption className="mt-4 text-xs text-gray-500">
-                  <span className="font-semibold text-black-primary">{t.name}</span> · {t.role}
-                </figcaption>
-              </figure>
+            {TESTIMONIALS.map((t, i) => (
+              <Reveal key={t.name} delay={i * 120}>
+                <figure className="h-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="mb-3 flex gap-0.5 text-green-primary" aria-hidden>
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <Star key={j} className="h-4 w-4 fill-current" />
+                    ))}
+                  </div>
+                  <blockquote className="text-sm leading-relaxed text-gray-700">
+                    &ldquo;{t.quote}&rdquo;
+                  </blockquote>
+                  <figcaption className="mt-4 text-xs text-gray-500">
+                    <span className="font-semibold text-black-primary">{t.name}</span> · {t.role}
+                  </figcaption>
+                </figure>
+              </Reveal>
             ))}
           </div>
         </div>
