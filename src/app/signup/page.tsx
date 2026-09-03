@@ -226,6 +226,10 @@ function SignupContent() {
           zip: zip.trim(),
           password,
           role,
+          // Storefront mode: brands the verification email + the
+          // check-email/verify/login pages with the operator's
+          // identity end to end.
+          storefront_slug: storefront?.slug ?? null,
         }),
       });
 
@@ -256,7 +260,7 @@ function SignupContent() {
         } catch {}
       }
 
-      window.location.href = `/check-email?email=${encodeURIComponent(email.trim().toLowerCase())}`;
+      window.location.href = `/check-email?email=${encodeURIComponent(email.trim().toLowerCase())}${storefront ? `&storefront=${encodeURIComponent(storefront.slug)}` : ""}`;
     } catch {
       setError("Failed to create account. Please try again.");
       setLoading(null);

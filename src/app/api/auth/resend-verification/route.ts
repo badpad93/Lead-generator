@@ -29,10 +29,15 @@ export async function POST(req: NextRequest) {
     }
 
     const firstName = profile?.full_name?.split(" ")[0];
+    // Optional storefront slug — keeps the re-sent verification
+    // email in the operator's brand for invited tenants.
+    const slugRaw = String(body.storefront_slug || "").trim().toLowerCase();
+    const storefrontSlug = /^[a-z0-9][a-z0-9-]{1,60}[a-z0-9]$/.test(slugRaw) ? slugRaw : null;
     const result = await createAndSendVerificationEmail({
       userId: user.id,
       email,
       firstName,
+      storefrontSlug,
     });
 
     if (!result.ok) {
