@@ -125,14 +125,6 @@ export default function StorefrontDashboardPage() {
         </DashCard>
       </div>
 
-      <div className="mt-8 rounded-md border border-gray-200 p-4">
-        <div className="font-medium">Tax onboarding</div>
-        <div className="text-sm text-gray-600 mt-1">
-          Payouts require a W-9 on file with Vending Connector.
-          Current status: <strong>{tenant.tax_status}</strong>. Contact
-          support@apexaivending.com to update.
-        </div>
-      </div>
     </div>
   );
 }

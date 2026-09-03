@@ -228,23 +228,10 @@ export default function AdminStorefrontDetailPage() {
         </div>
       </section>
 
-      <section className="rounded border border-gray-200 p-4">
-        <div className="font-medium">Tax onboarding</div>
-        <div className="mt-3 flex gap-2 items-center">
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            value={tenant.tax_status}
-            onChange={(e) =>
-              action({ patch: { tax_status: e.target.value } })
-            }
-          >
-            <option value="not_started">Not started</option>
-            <option value="submitted">W-9 submitted</option>
-            <option value="approved">W-9 approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
-      </section>
+      {/* Tax-onboarding UI intentionally removed — storefront sales
+          are hard-coded resale-exempt (tax always $0 in the pricing
+          engine) so there is no sales-tax workflow to manage here.
+          The tax_status / w9_* columns stay on the table untouched. */}
 
       <CommissionsPanel tenantId={params.id} />
     </div>

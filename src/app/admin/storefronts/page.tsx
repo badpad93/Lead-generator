@@ -85,19 +85,18 @@ export default function AdminStorefrontsPage() {
             <th className="py-2">Owner</th>
             <th className="py-2">Slug</th>
             <th className="py-2">Status</th>
-            <th className="py-2">Tax</th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={5} className="py-4 text-gray-500">
+              <td colSpan={4} className="py-4 text-gray-500">
                 Loading…
               </td>
             </tr>
           ) : tenants.length === 0 ? (
             <tr>
-              <td colSpan={5} className="py-4 text-gray-500">
+              <td colSpan={4} className="py-4 text-gray-500">
                 No tenants.
               </td>
             </tr>
@@ -133,7 +132,6 @@ export default function AdminStorefrontsPage() {
                     {t.status}
                   </span>
                 </td>
-                <td className="py-2">{t.tax_status}</td>
               </tr>
             ))
           )}
