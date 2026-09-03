@@ -4,7 +4,13 @@ import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { signInWithGoogle, signInWithMicrosoft, signInWithYahoo, storeRedirectAfterLogin } from "@/lib/auth";
+import {
+  signInWithGoogle,
+  signInWithMicrosoft,
+  signInWithYahoo,
+  storeRedirectAfterLogin,
+  consumeInviteToken,
+} from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabase";
 
 function LoginContent() {
@@ -21,6 +27,36 @@ function LoginContent() {
   // public tenant endpoint. Cosmetic only — auth flow is identical,
   // and an invalid slug silently falls back to the generic page.
   const storefrontSlug = searchParams.get("storefront");
+
+  // Storefront invite consumption for EMAIL/PASSWORD tenants. The
+  // invite token stashed at signup was only ever consumed by the
+  // OAuth /auth/callback — email signups verify → land here → sign
+  // in, and the token sat unconsumed, so the tenant never enrolled
+  // and fell into the generic operator flow. Consume it here after
+  // a successful sign-in and land them directly on the storefront.
+  async function tryConsumeInvite(accessToken: string): Promise<string | null> {
+    const inviteToken = consumeInviteToken();
+    if (!inviteToken) return null;
+    try {
+      const res = await fetch("/api/storefront/enrollment/consume", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ token: inviteToken }),
+      });
+      if (res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { tenant_slug?: string | null };
+        return data.tenant_slug ? `/coffee/o/${data.tenant_slug}` : "/dashboard";
+      }
+      // Invalid / expired / linked-to-another-tenant — the invite
+      // page renders the correct explanatory state for each.
+      return `/coffee/invite/${inviteToken}`;
+    } catch {
+      return `/coffee/invite/${inviteToken}`;
+    }
+  }
   const [storefront, setStorefront] = useState<{
     display_name: string;
     logo_url: string | null;
@@ -82,6 +118,11 @@ function LoginContent() {
             }
           }
         } catch {}
+        const inviteRedirect = await tryConsumeInvite(session.access_token);
+        if (inviteRedirect) {
+          window.location.href = inviteRedirect;
+          return;
+        }
         const redirect = searchParams.get("redirect") || "/dashboard";
         window.location.href = redirect;
       } else {
@@ -171,6 +212,11 @@ function LoginContent() {
         }
       }
 
+      const inviteRedirect = await tryConsumeInvite(data.session.access_token);
+      if (inviteRedirect) {
+        window.location.href = inviteRedirect;
+        return;
+      }
       const redirect = searchParams.get("redirect") || "/dashboard";
       window.location.href = redirect;
     } catch (e) {

@@ -17,6 +17,12 @@ export async function POST(req: NextRequest) {
     const zip = String(body.zip || "").trim();
     const password = String(body.password || "");
     const role = String(body.role || "operator").trim();
+    // Storefront-invite signups carry the tenant slug so the whole
+    // verification leg (email + pages) wears the operator's brand.
+    const storefrontSlugRaw = String(body.storefront_slug || "").trim().toLowerCase();
+    const storefrontSlug = /^[a-z0-9][a-z0-9-]{1,60}[a-z0-9]$/.test(storefrontSlugRaw)
+      ? storefrontSlugRaw
+      : null;
 
     if (!firstName) return NextResponse.json({ error: "First name is required" }, { status: 400 });
     if (!lastName) return NextResponse.json({ error: "Last name is required" }, { status: 400 });
@@ -111,6 +117,7 @@ export async function POST(req: NextRequest) {
       userId,
       email,
       firstName,
+      storefrontSlug,
     });
 
     if (!verifyResult.ok) {

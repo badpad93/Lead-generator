@@ -226,6 +226,10 @@ function SignupContent() {
           zip: zip.trim(),
           password,
           role,
+          // Storefront mode: brands the verification email + the
+          // check-email/verify/login pages with the operator's
+          // identity end to end.
+          storefront_slug: storefront?.slug ?? null,
         }),
       });
 
@@ -256,7 +260,7 @@ function SignupContent() {
         } catch {}
       }
 
-      window.location.href = `/check-email?email=${encodeURIComponent(email.trim().toLowerCase())}`;
+      window.location.href = `/check-email?email=${encodeURIComponent(email.trim().toLowerCase())}${storefront ? `&storefront=${encodeURIComponent(storefront.slug)}` : ""}`;
     } catch {
       setError("Failed to create account. Please try again.");
       setLoading(null);
@@ -443,18 +447,23 @@ function SignupContent() {
               <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} disabled={!!loading} placeholder="Your company name" className={inputClass} autoComplete="organization" />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Name of Sales Rep <span className="text-gray-400 text-[10px]">(optional)</span>
-              </label>
-              <input
-                value={salesRepName}
-                onChange={(e) => setSalesRepName(e.target.value)}
-                disabled={!!loading}
-                placeholder="Who told you about us?"
-                className={inputClass}
-              />
-            </div>
+            {/* Sales-rep attribution is a Vending Connector lead-gen
+                field — meaningless for a storefront customer invited
+                by their operator, so it's hidden in storefront mode. */}
+            {!storefrontMode && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Name of Sales Rep <span className="text-gray-400 text-[10px]">(optional)</span>
+                </label>
+                <input
+                  value={salesRepName}
+                  onChange={(e) => setSalesRepName(e.target.value)}
+                  disabled={!!loading}
+                  placeholder="Who told you about us?"
+                  className={inputClass}
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email <span className="text-red-500">*</span></label>

@@ -30,7 +30,12 @@ function ResendContent() {
       const res = await fetch("/api/auth/resend-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          // Keeps the re-sent email in the operator's brand for
+          // invited storefront tenants.
+          storefront_slug: searchParams.get("storefront") || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {

@@ -23,8 +23,16 @@ export async function createAndSendVerificationEmail(params: {
   userId: string;
   email: string;
   firstName?: string;
+  /**
+   * Storefront-invite signups: the tenant slug. Brands the email
+   * with the operator's identity (name, logo, colors) and appends
+   * &storefront= to the verify link so the landing page + login
+   * stay branded too. Invalid/unknown/unapproved slugs fall back
+   * to the generic Vending Connector email.
+   */
+  storefrontSlug?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
-  const { userId, email, firstName } = params;
+  const { userId, email, firstName, storefrontSlug } = params;
   if (!process.env.RESEND_API_KEY) {
     return { ok: false, error: "Email service not configured" };
   }
@@ -71,29 +79,75 @@ export async function createAndSendVerificationEmail(params: {
     return { ok: false, error: "Failed to create verification token" };
   }
 
-  const verifyUrl = `${SITE_URL}/verify-email?token=${rawToken}`;
+  // Storefront branding — invited tenants should see their
+  // operator's identity through the entire verification leg, not
+  // Vending Connector's. Best-effort: any resolution failure falls
+  // back to the generic template.
+  let tenantBrand: {
+    slug: string;
+    display_name: string;
+    logo_url: string | null;
+    primary: string;
+    accent: string;
+  } | null = null;
+  if (storefrontSlug) {
+    try {
+      const { resolveTenantBySlug } = await import("@/lib/storefront/tenants");
+      const tenant = await resolveTenantBySlug(storefrontSlug);
+      if (tenant && tenant.status === "approved") {
+        const b = tenant.brand ?? {};
+        tenantBrand = {
+          slug: tenant.slug,
+          display_name: tenant.display_name,
+          logo_url: (b.logo_url as string) || null,
+          primary: (b.primary_color as string) || "#1a1a1a",
+          accent: (b.accent_color as string) || "#c4a877",
+        };
+      }
+    } catch {
+      // fall through to generic
+    }
+  }
+
+  const verifyUrl = `${SITE_URL}/verify-email?token=${rawToken}${tenantBrand ? `&storefront=${encodeURIComponent(tenantBrand.slug)}` : ""}`;
   const greeting = firstName ? `Hi ${firstName}` : "Hello";
+
+  const brandName = tenantBrand ? tenantBrand.display_name : "Vending Connector";
+  const buttonBg = tenantBrand ? tenantBrand.primary : "#16a34a";
+  const buttonColor = tenantBrand ? tenantBrand.accent : "#ffffff";
+  const headerHtml = tenantBrand
+    ? `${tenantBrand.logo_url ? `<img src="${tenantBrand.logo_url}" alt="${brandName}" style="height:48px;width:auto;margin-bottom:12px;"/><br/>` : ""}<h1 style="color:#111827;font-size:24px;margin:0;">${brandName}</h1>
+    <p style="color:#6b7280;font-size:14px;margin:8px 0 0;">Verify your email address</p>`
+    : `<h1 style="color:#16a34a;font-size:24px;margin:0;">Vending Connector</h1>
+    <p style="color:#6b7280;font-size:14px;margin:8px 0 0;">Verify your email address</p>`;
+  const bodyCopy = tenantBrand
+    ? `Thanks for creating your ${brandName} account. Verify your email address to finish setting up and start ordering.`
+    : `Thanks for creating your Vending Connector account. Please verify your email address by clicking the button below.`;
+  const footerHtml = tenantBrand
+    ? `<p style="text-align:center;font-size:12px;color:#9ca3af;margin-top:24px;">${brandName} &bull; Powered by Vending Connector</p>`
+    : `<p style="text-align:center;font-size:12px;color:#9ca3af;margin-top:24px;">Vending Connector &bull; vendingconnector.com</p>`;
 
   try {
     await getResend().emails.send({
       from: FROM_EMAIL,
       to: email,
-      subject: "Verify your Vending Connector account",
+      subject: tenantBrand
+        ? `Verify your ${brandName} account`
+        : "Verify your Vending Connector account",
       html: `
 <div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:40px 24px;color:#111827;">
   <div style="text-align:center;margin-bottom:32px;">
-    <h1 style="color:#16a34a;font-size:24px;margin:0;">Vending Connector</h1>
-    <p style="color:#6b7280;font-size:14px;margin:8px 0 0;">Verify your email address</p>
+    ${headerHtml}
   </div>
 
   <p style="font-size:14px;color:#374151;">${greeting},</p>
 
   <p style="font-size:14px;color:#374151;line-height:1.6;">
-    Thanks for creating your Vending Connector account. Please verify your email address by clicking the button below.
+    ${bodyCopy}
   </p>
 
   <div style="text-align:center;margin:32px 0;">
-    <a href="${verifyUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Verify Email</a>
+    <a href="${verifyUrl}" style="display:inline-block;background:${buttonBg};color:${buttonColor};text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Verify Email</a>
   </div>
 
   <p style="font-size:13px;color:#6b7280;">If the button doesn't work, copy and paste this link into your browser:</p>
@@ -103,7 +157,7 @@ export async function createAndSendVerificationEmail(params: {
 
   <p style="font-size:12px;color:#9ca3af;">This link expires in 24 hours. If you didn't create an account, you can safely ignore this email.</p>
 
-  <p style="text-align:center;font-size:12px;color:#9ca3af;margin-top:24px;">Vending Connector &bull; vendingconnector.com</p>
+  ${footerHtml}
 </div>
       `.trim(),
     });
