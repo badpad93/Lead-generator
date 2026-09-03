@@ -4270,7 +4270,7 @@
   },
   "src/proxy.ts": {
     "complexity": {
-      "count": 1
+      "count": 2
     },
     "max-depth": {
       "count": 1
