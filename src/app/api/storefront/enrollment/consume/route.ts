@@ -41,7 +41,11 @@ export async function POST(req: NextRequest) {
       ipAddress: ip,
       userAgent: ua,
     });
-    // Best-effort welcome email to the newly-enrolled profile.
+    // Resolve the tenant once — the slug goes back to the caller so
+    // the signup/auth-callback flow can land the new customer
+    // directly on /coffee/o/{slug} without a dashboard hop, and the
+    // same row feeds the best-effort welcome email below.
+    let tenantSlug: string | null = null;
     try {
       const { data: profileRow } = await supabaseAdmin
         .from("profiles")
@@ -50,6 +54,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       const profile = profileRow as { email: string | null; full_name: string | null } | null;
       const tenant = await resolveTenantById(result.tenantId);
+      tenantSlug = tenant?.slug ?? null;
       if (profile?.email && tenant) {
         const { sendEnrollmentWelcomeEmail } = await import("@/lib/storefront/emails");
         void sendEnrollmentWelcomeEmail({
@@ -61,7 +66,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.warn("[storefront/enrollment/consume] welcome email failed", err);
     }
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, tenant_slug: tenantSlug, ...result });
   } catch (err) {
     if (err instanceof EnrollmentError) {
       const status =

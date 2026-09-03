@@ -65,8 +65,9 @@ export default function StorefrontDashboardPage() {
         <h1 className="text-2xl font-semibold">My storefront</h1>
         <p className="mt-3 text-gray-700">
           You don't have a coffee storefront yet. Create one to get a public
-          branded page at <code>/coffee/o/&#123;slug&#125;</code>. It stays
-          pending until a Vending Connector admin approves.
+          branded page at <code>/coffee/o/&#123;slug&#125;</code>. If you've
+          signed the coffee agreement, your storefront goes live immediately —
+          no admin approval needed.
         </p>
         <CreateTenantForm onCreated={setTenant} />
       </div>

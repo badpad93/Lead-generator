@@ -260,12 +260,17 @@ function CallbackContent() {
           });
           if (consumeRes.ok) {
             // Consume succeeded — the profile now has
-            // storefront_tenant_id set. The dashboard's enrolled-
-            // customer auto-route (added earlier) will resolve the
-            // tenant slug from nav-context and forward straight to
-            // /coffee/o/{slug}. One extra hop, but avoids
-            // duplicating slug-resolution logic here.
-            window.location.href = "/dashboard";
+            // storefront_tenant_id set. The consume response carries
+            // the tenant slug, so land the new customer DIRECTLY on
+            // their operator's storefront — no dashboard hop. Fall
+            // back to /dashboard (whose enrolled-customer auto-route
+            // still resolves the slug) only if the slug is missing.
+            const consumed = (await consumeRes.json().catch(() => ({}))) as {
+              tenant_slug?: string | null;
+            };
+            window.location.href = consumed.tenant_slug
+              ? `/coffee/o/${consumed.tenant_slug}`
+              : "/dashboard";
             return;
           } else {
             // Token invalid / expired / revoked. Don't block the
