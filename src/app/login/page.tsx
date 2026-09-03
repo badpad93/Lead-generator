@@ -67,7 +67,16 @@ function LoginContent() {
           });
           if (res.ok) {
             const profile = await res.json();
-            if (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip) {
+            // Storefront customers skip the completeness gate —
+            // their shipping info is collected at checkout, and
+            // /complete-profile would strand them away from the
+            // shop they were invited to.
+            const isStorefrontCustomer =
+              profile.role === "customer" || !!profile.storefront_tenant_id;
+            if (
+              !isStorefrontCustomer &&
+              (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip)
+            ) {
               window.location.href = "/complete-profile";
               return;
             }
@@ -149,7 +158,14 @@ function LoginContent() {
           window.location.href = "/verify-email-required";
           return;
         }
-        if (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip) {
+        // Storefront customers skip the completeness gate — see the
+        // session-restore check above for the reasoning.
+        const isStorefrontCustomer =
+          profile.role === "customer" || !!profile.storefront_tenant_id;
+        if (
+          !isStorefrontCustomer &&
+          (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip)
+        ) {
           window.location.href = "/complete-profile";
           return;
         }

@@ -50,6 +50,14 @@ export default function CompleteProfilePage() {
         });
         if (res.ok) {
           const profile = await res.json();
+          // Storefront customers never belong on this page — their
+          // shipping info is collected at checkout. Send them to the
+          // dashboard, whose enrolled auto-route forwards straight
+          // to their operator's storefront.
+          if (profile.role === "customer" || profile.storefront_tenant_id) {
+            window.location.href = "/dashboard";
+            return;
+          }
           // Any authenticated user with a real role + full contact info can
           // proceed straight to the dashboard. The old "hasRole" check
           // excluded operators (the OAuth-auto-created default role), which

@@ -205,11 +205,24 @@ function CallbackContent() {
         }
       }
 
-      // Always verify profile is complete — for BOTH signup and login.
-      // localStorage data can be lost during OAuth redirect (domain mismatch,
-      // browser clearing storage, etc.), so the signup PATCH may silently fail.
+      // Capture the invite token BEFORE the completeness gate. The
+      // old order checked completeness first and bounced to
+      // /complete-profile without consuming the invite — an invited
+      // tenant with any blank profile field got stranded there and
+      // never enrolled, so their next login also had no storefront
+      // to land on. Storefront customers are exempt from the gate
+      // entirely: profile completeness is an operator concept, and
+      // customers' shipping/billing info is collected at checkout.
+      const inviteToken = consumeInviteToken();
+
+      // Verify profile completeness — for BOTH signup and login.
+      // localStorage data can be lost during OAuth redirect (domain
+      // mismatch, browser clearing storage, etc.), so the signup
+      // PATCH may silently fail. Skipped for invite-carrying
+      // visitors and already-enrolled customers per above.
       let profileForInvite: {
         storefront_tenant_id?: string | null;
+        role?: string | null;
       } | null = null;
       try {
         const profileRes = await fetch("/api/auth/me", {
@@ -218,12 +231,13 @@ function CallbackContent() {
         if (profileRes.ok) {
           const profile = await profileRes.json();
           profileForInvite = profile;
-          if (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip) {
-            // NOTE: don't consume the invite here; /complete-profile
-            // will forward the user back and the callback runs again
-            // when they land on any protected page after completing.
-            // If we consumed here, they'd finish profile-completion
-            // and go to /dashboard instead of the storefront.
+          const isStorefrontCustomer =
+            profile.role === "customer" || !!profile.storefront_tenant_id;
+          if (
+            !inviteToken &&
+            !isStorefrontCustomer &&
+            (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip)
+          ) {
             window.location.href = "/complete-profile";
             return;
           }
@@ -236,7 +250,6 @@ function CallbackContent() {
       // and applies the same different-tenant guardrail; on any
       // failure we fall back to the invite page's error state
       // rather than blocking the login/signup flow.
-      const inviteToken = consumeInviteToken();
       if (inviteToken) {
         try {
           // Guardrail: if the account is already linked to a
