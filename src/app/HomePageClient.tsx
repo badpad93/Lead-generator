@@ -29,7 +29,7 @@ import { createBrowserClient } from "@/lib/supabase";
 import ScrollProgress from "@/app/components/ScrollProgress";
 import MarketingGondola from "@/app/components/marketing/MarketingGondola";
 import PathCard from "@/app/components/homepage/PathCard";
-import ServiceCard from "@/app/components/homepage/ServiceCard";
+import ProductJourney from "@/app/components/homepage/ProductJourney";
 import AudienceCard from "@/app/components/homepage/AudienceCard";
 import GrowthSolutionItem from "@/app/components/homepage/GrowthSolutionItem";
 import { trackEvent, HomepageEvents } from "@/lib/analytics";
@@ -90,60 +90,9 @@ const PATH_CARDS = [
   },
 ];
 
-const SERVICE_CARDS = [
-  {
-    icon: Banknote,
-    title: "10-Year Machine Financing",
-    description: "Make growth more affordable with long-term financing options for qualifying vending equipment purchases.",
-    href: "/financing",
-    ctaLabel: "Explore Financing",
-    eventName: HomepageEvents.financing,
-  },
-  {
-    icon: Coffee,
-    title: "Free Coffee Program",
-    description: "Add another revenue stream with commercial coffee solutions and qualifying free brewer programs.",
-    href: "/coffee",
-    ctaLabel: "Learn About Coffee",
-    eventName: HomepageEvents.coffee,
-  },
-  {
-    icon: MapPin,
-    title: "Location Services",
-    description: "Need help placing machines? Connect with location opportunities and placement resources designed for vending operators.",
-    href: "/request-location",
-    ctaLabel: "Request Locations",
-    eventName: HomepageEvents.location,
-  },
-  {
-    icon: Globe,
-    title: "Website Services",
-    description: "Build credibility and generate more opportunities with a professional website designed for your vending business.",
-    href: "/website-services",
-    ctaLabel: "View Website Services",
-    eventName: HomepageEvents.website,
-  },
-  {
-    icon: Briefcase,
-    title: "Placement Provider Marketplace",
-    description: "List placements, transact with operators, and grow your placement business through the Vending Connector marketplace.",
-    href: "/placement",
-    ctaLabel: "For Placement Providers",
-    eventName: HomepageEvents.placementProvider,
-    highlights: [
-      "No platform commission for Placement Providers",
-      "Keep 100% of your locator commission",
-    ],
-  },
-  {
-    icon: Package,
-    title: "Machines & Operator Growth",
-    description: "Browse vending equipment and growth solutions designed for modern vending operators.",
-    href: "/machines-for-sale",
-    ctaLabel: "Shop Machines",
-    eventName: HomepageEvents.machines,
-  },
-];
+// SERVICE_CARDS grid retired — the scroll-through ProductJourney
+// (components/homepage/ProductJourney.tsx) now carries every
+// product/service as a full feature panel with its own CTA.
 
 const AUDIENCE_CARDS = [
   {
@@ -343,25 +292,28 @@ export default function HomePageClient() {
       </section>
 
       {/* ============================================================ */}
-      {/*  3. EVERYTHING WE OFFER                                      */}
+      {/*  3. PRODUCT JOURNEY — scroll-through tour of every product   */}
+      {/*     and service. Replaces the compact ServiceCard grid per   */}
+      {/*     customer feedback: visitors like to scroll, so each      */}
+      {/*     offering gets a full alternating feature panel with a    */}
+      {/*     CTA button to its page.                                  */}
       {/* ============================================================ */}
-      <section className="bg-white py-16 sm:py-24">
+      <section className="bg-white pt-16 sm:pt-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-10 text-center">
+          <div className="text-center">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-green-primary">
               One Platform. Multiple Growth Solutions.
             </p>
             <h2 className="text-2xl font-bold text-black-primary sm:text-3xl lg:text-4xl">
               Everything Vending Connector Offers
             </h2>
-          </div>
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {SERVICE_CARDS.map((card) => (
-              <ServiceCard key={card.title} {...card} />
-            ))}
+            <p className="mx-auto mt-3 max-w-xl text-sm text-gray-500 sm:text-base">
+              Keep scrolling — every product and service, and the button that takes you there.
+            </p>
           </div>
         </div>
       </section>
+      <ProductJourney />
 
       {/* ============================================================ */}
       {/*  4. BUILT FOR EVERY SIDE                                     */}
