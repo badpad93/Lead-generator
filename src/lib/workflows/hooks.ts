@@ -466,10 +466,17 @@ export async function attachCoffeeOrderToServiceWorkflow(args: {
   // here rather than pushing them through the call signature so every
   // call site benefits.
   try {
-    const { data: items } = await supabaseAdmin
-      .from("coffee_order_items")
-      .select("product_name, product_sku, quantity, unit_price, line_total")
-      .eq("order_id", args.coffeeOrderId);
+    const [{ data: items }, { data: orderMeta }] = await Promise.all([
+      supabaseAdmin
+        .from("coffee_order_items")
+        .select("product_name, product_sku, quantity, unit_price, line_total")
+        .eq("order_id", args.coffeeOrderId),
+      supabaseAdmin
+        .from("coffee_orders")
+        .select("tracking_number")
+        .eq("id", args.coffeeOrderId)
+        .maybeSingle(),
+    ]);
     const lines = (items ?? []).map((i) => {
       const sku = i.product_sku ? ` (${i.product_sku})` : "";
       const unit = i.unit_price != null ? ` @ $${Number(i.unit_price).toFixed(2)}` : "";
@@ -477,10 +484,15 @@ export async function attachCoffeeOrderToServiceWorkflow(args: {
       return `• ${i.quantity ?? 1}× ${i.product_name ?? "Item"}${sku}${unit}${line}`;
     });
     const header = `Coffee order #${args.orderNumber ?? args.coffeeOrderId.slice(0, 8)} placed`;
+    // Tracking number the customer was emailed — support asks for it
+    // on the phone, so fulfillment needs it on the workflow too.
+    const trackingLine = (orderMeta as { tracking_number?: string | null } | null)?.tracking_number
+      ? `Tracking #: ${(orderMeta as { tracking_number: string }).tracking_number} (customer quotes this when calling support; delivery window 3–5 business days)`
+      : "";
     const totalLine = args.orderTotal != null
       ? `Total: $${Number(args.orderTotal).toFixed(2)}`
       : "";
-    const body = [header, "", ...lines, totalLine].filter(Boolean).join("\n");
+    const body = [header, trackingLine, "", ...lines, totalLine].filter(Boolean).join("\n");
     await addNote({
       workflowId,
       body,

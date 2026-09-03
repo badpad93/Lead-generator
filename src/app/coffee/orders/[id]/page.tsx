@@ -20,6 +20,7 @@ interface Order {
   order_number: string;
   status: string;
   qb_invoice_id?: string | null;
+  tracking_number?: string | null;
   shipping_name: string | null;
   shipping_address: string | null;
   shipping_city: string | null;
@@ -233,6 +234,14 @@ function OrderDetailContent() {
               day: "numeric",
             })}
           </p>
+          {order.tracking_number ? (
+            <p className="mt-1 text-sm text-gray-600">
+              Tracking #: <span className="font-semibold text-gray-900">{order.tracking_number}</span>
+              <span className="ml-2 text-xs text-gray-400">
+                Questions? Call (888) 851-1462 and provide this number. Delivery in 3–5 business days.
+              </span>
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-3">
           <span className={`inline-block rounded-full px-3 py-1 text-sm font-medium capitalize ${STATUS_STYLES[order.status] || "bg-gray-100 text-gray-600"}`}>
