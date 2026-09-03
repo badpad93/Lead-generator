@@ -69,15 +69,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: order, error: orderErr } = await supabaseAdmin
     .from("sales_orders")
-    .select("id, order_type, order_status, is_ten_ten_ten")
+    .select("id, order_type, order_status, is_ten_ten_ten, order_items(item_type)")
     .eq("id", id)
     .maybeSingle();
   if (orderErr || !order) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
-  if (order.order_type !== "location_services") {
+  // Any order carrying location-services content can source
+  // locations — the dedicated location_services intake orders AND
+  // mixed orders (e.g. a 10/10/10 machine purchase with a
+  // location-services line item).
+  const hasLocationServices =
+    order.order_type === "location_services" ||
+    ((order.order_items ?? []) as Array<{ item_type: string | null }>).some(
+      (i) => i.item_type === "location_services",
+    );
+  if (!hasLocationServices) {
     return NextResponse.json(
-      { error: "Only location_services orders can source locations" },
+      { error: "This order has no location-services line — add one before sourcing locations" },
       { status: 400 },
     );
   }

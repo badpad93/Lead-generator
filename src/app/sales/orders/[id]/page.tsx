@@ -713,13 +713,16 @@ export default function OrderDetailPage() {
           {/* Commission override (Phase 4 — admin only, non-admins see read-only summary if set) */}
           {token && <CommissionOverridePanel orderId={id} token={token} />}
 
-          {/* Sourced Locations — only for location_services orders.
-              Mounted here (main column, below attribution) so the
-              rep-facing sourcing workflow gets first-class real
-              estate. The Next Step "Source Locations" button
-              scrolls the page to the #sourced-locations anchor on
-              this card. */}
-          {token && order.order_type === "location_services" && (
+          {/* Sourced Locations — for ANY order carrying
+              location-services content: the dedicated intake orders
+              AND mixed orders (a 10/10/10 machine purchase with a
+              location-services line). Mounted here (main column,
+              below attribution) so the rep-facing sourcing workflow
+              gets first-class real estate. The Next Step "Source
+              Locations" button scrolls to #sourced-locations. */}
+          {token &&
+            (order.order_type === "location_services" ||
+              order.order_items.some((i) => i.item_type === "location_services")) && (
             <SourcedLocationsPanel
               orderId={id}
               token={token}
