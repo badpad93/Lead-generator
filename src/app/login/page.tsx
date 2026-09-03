@@ -15,6 +15,43 @@ function LoginContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // Storefront-branded login. A ?storefront={slug} param (passed by
+  // the storefront's "Sign in to order" button and the invite/signup
+  // cross-links) dresses this page in the operator's brand via the
+  // public tenant endpoint. Cosmetic only — auth flow is identical,
+  // and an invalid slug silently falls back to the generic page.
+  const storefrontSlug = searchParams.get("storefront");
+  const [storefront, setStorefront] = useState<{
+    display_name: string;
+    logo_url: string | null;
+    primary_color: string;
+    accent_color: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!storefrontSlug) return;
+    let cancelled = false;
+    fetch(`/api/storefront/public/${encodeURIComponent(storefrontSlug)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (data: {
+          tenant?: { display_name: string; brand?: Record<string, unknown> };
+        } | null) => {
+          if (cancelled || !data?.tenant) return;
+          const brand = data.tenant.brand ?? {};
+          setStorefront({
+            display_name: data.tenant.display_name,
+            logo_url: (brand.logo_url as string) || null,
+            primary_color: (brand.primary_color as string) || "#1a1a1a",
+            accent_color: (brand.accent_color as string) || "#c4a877",
+          });
+        },
+      )
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [storefrontSlug]);
+
   useEffect(() => {
     const urlError = searchParams.get("error");
     if (urlError) setError(decodeURIComponent(urlError));
@@ -137,11 +174,31 @@ function LoginContent() {
   return (
     <div className="min-h-[calc(100vh-160px)] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-lg">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">Welcome Back</h1>
-          <p className="text-black-primary/60 mt-2">Sign in to your Vending Connector account</p>
-        </div>
+        {/* Header — storefront-branded when ?storefront= resolves */}
+        {storefront ? (
+          <div className="text-center mb-8">
+            {storefront.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={storefront.logo_url}
+                alt={`${storefront.display_name} logo`}
+                className="mx-auto mb-4 h-14 w-auto"
+              />
+            ) : null}
+            <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">
+              Sign in to {storefront.display_name}
+            </h1>
+            <p className="text-black-primary/60 mt-2">
+              Order coffee and supplies at your prices
+            </p>
+            <p className="mt-1 text-xs text-black-primary/40">Powered by Vending Connector</p>
+          </div>
+        ) : (
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">Welcome Back</h1>
+            <p className="text-black-primary/60 mt-2">Sign in to your Vending Connector account</p>
+          </div>
+        )}
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8">
@@ -181,7 +238,14 @@ function LoginContent() {
             <button
               type="submit"
               disabled={!!loading}
-              className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+              className={`w-full py-3 px-4 font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer ${
+                storefront ? "" : "bg-green-primary hover:bg-green-hover text-white"
+              }`}
+              style={
+                storefront
+                  ? { background: storefront.primary_color, color: storefront.accent_color }
+                  : undefined
+              }
             >
               {loading === "email" ? (
                 <>
@@ -198,12 +262,23 @@ function LoginContent() {
             </div>
           </form>
 
-          <p className="mt-4 text-center text-sm text-black-primary/60">
-            Don&apos;t have an account?{" "}
-            <a href="/signup" className="text-green-primary hover:underline font-medium">
-              Create one
-            </a>
-          </p>
+          {storefront ? (
+            // Storefront enrollment is invitation-only — a generic
+            // /signup link here would drop the customer into the
+            // operator signup flow with no way to enroll. Point them
+            // at their operator instead.
+            <p className="mt-4 text-center text-sm text-black-primary/60">
+              Don&apos;t have an account? Ask {storefront.display_name} for an
+              invite link.
+            </p>
+          ) : (
+            <p className="mt-4 text-center text-sm text-black-primary/60">
+              Don&apos;t have an account?{" "}
+              <a href="/signup" className="text-green-primary hover:underline font-medium">
+                Create one
+              </a>
+            </p>
+          )}
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>

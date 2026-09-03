@@ -190,7 +190,7 @@ export default async function StorefrontPage({
                 request-invitation nudge if they're not enrolled). */}
             {!signedIn ? (
               <Link
-                href="/login"
+                href={`/login?storefront=${encodeURIComponent(tenant.slug)}&redirect=${encodeURIComponent(`/coffee/o/${tenant.slug}`)}`}
                 className="rounded-md px-4 py-2 text-sm font-medium"
                 style={{ background: accent, color: primary }}
               >
