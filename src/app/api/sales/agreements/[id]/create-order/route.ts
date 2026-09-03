@@ -123,7 +123,11 @@ export async function POST(
     .filter((i) => i.status !== "pending_fulfillment")
     .reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
 
-  // Create the order
+  // Create the order. Signed agreements start in awaiting_payment
+  // so the CRM's next-step derivation points at Send Invoice (or
+  // Place Order copy) instead of the "fill in customer info" copy
+  // that a draft with a signed agreement used to produce.
+  const startsSigned = ag.agreement_status === "signed";
   const { data: order, error: orderErr } = await supabaseAdmin
     .from("sales_orders")
     .insert({
@@ -134,7 +138,7 @@ export async function POST(
       assigned_rep_id: ag.created_by || user.id,
       total_value: totalValue,
       status: "draft",
-      order_status: "draft",
+      order_status: startsSigned ? "awaiting_payment" : "draft",
       document_type: "order",
       order_type: "machine_purchase",
       deposit_amount: 0,
@@ -142,9 +146,9 @@ export async function POST(
       remaining_balance: totalValue,
       payment_status: "unpaid",
       invoice_status: "not_sent",
-      agreement_status: ag.agreement_status === "signed" ? "signed" : "not_sent",
+      agreement_status: startsSigned ? "signed" : "not_sent",
       fulfillment_status: "pending",
-      next_required_action: ag.agreement_status === "signed"
+      next_required_action: startsSigned
         ? "Send invoice for payment"
         : "Agreement pending signature",
       recipient_email: ag.operator_email || null,
@@ -181,6 +185,28 @@ export async function POST(
     activity_type: "order_created",
     description: `Order created from agreement — Order #${order.order_number || order.id.slice(0, 6)}`,
   });
+
+  // Auto-fire the invoice if the agreement is already signed —
+  // signing is the payment trigger, so a rep who creates the
+  // order after signing shouldn't need to click Send Invoice as
+  // a separate step. Non-fatal — the order + linkage are already
+  // persisted whether or not the invoice send succeeds.
+  if (startsSigned) {
+    try {
+      const { sendInvoiceForSignedAgreement } = await import("@/lib/agreementInvoicing");
+      const result = await sendInvoiceForSignedAgreement(ag.id);
+      if (!result.ok) {
+        await supabaseAdmin.from("agreement_activity_log").insert({
+          agreement_id: ag.id,
+          user_id: user.id,
+          activity_type: "auto_invoice_failed",
+          description: `Auto-invoice after order-from-agreement failed: ${result.reason ?? "unknown"}`,
+        });
+      }
+    } catch (e) {
+      console.error("[create-order] auto-invoice failed (non-fatal):", e);
+    }
+  }
 
   return NextResponse.json({ order_id: order.id, order_number: order.order_number }, { status: 201 });
 }

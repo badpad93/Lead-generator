@@ -30,20 +30,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }
 
-  // Location-services orders are deposit-only — the placement fee is
-  // billed separately per placement, not on this order. So a
-  // "mark_deposit_paid" click on a location_services order should
-  // behave as if the whole order is paid: no "Collect remaining
-  // balance" next action, no deposit-style receipt implying a
-  // balance is owed. Promote the action before the status write.
+  // Promote mark_deposit_paid → mark_paid when there's no deposit
+  // split on the order. Two cases:
+  //   1. Location-services intake orders — the deposit IS the whole
+  //      invoice; placement fees per location bill separately.
+  //   2. Any purchase order where the whole invoice is due upfront
+  //      (deposit_amount is 0 or covers the full total). "Mark
+  //      Deposit Paid" doesn't apply there — the customer paid the
+  //      whole thing in one go, so this should behave as mark_paid.
+  // Prevents the CRM from stranding a fully-paid order in the
+  // deposit_paid state with a phantom "Collect remaining balance"
+  // prompt.
   if (action === "mark_deposit_paid") {
     const { data: orderPeek } = await supabaseAdmin
       .from("sales_orders")
-      .select("order_type")
+      .select("order_type, deposit_amount, total_value")
       .eq("id", id)
       .maybeSingle();
-    if (orderPeek?.order_type === "location_services") {
-      action = "mark_paid";
+    if (orderPeek) {
+      const deposit = Number(orderPeek.deposit_amount) || 0;
+      const total = Number(orderPeek.total_value) || 0;
+      const noSplit = deposit <= 0 || deposit >= total;
+      if (orderPeek.order_type === "location_services" || noSplit) {
+        action = "mark_paid";
+      }
     }
   }
   const statusUpdate = STATUS_ACTIONS[action];
@@ -267,6 +277,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
     } catch (e) {
       console.error("[orders.status] workflow payment sync failed:", e);
+    }
+  }
+
+  // Auto-complete the order on payment. Sales side is done once
+  // cash is in; fulfillment (machine ordering, shipping, delivery)
+  // now lives on the spawned workflow, so the sales_order should
+  // not keep prompting the rep to click Process Order → Mark
+  // Shipped → Mark Delivered → Mark Completed. The helper skips
+  // location_services intake orders so the Sourced Locations
+  // panel can finish before completion.
+  if (action === "mark_paid") {
+    try {
+      const { autoCompleteFullyPaidOrder } = await import("@/lib/orderAutoComplete");
+      await autoCompleteFullyPaidOrder(id, "sales_orders.status.mark_paid");
+    } catch (e) {
+      console.error("[orders.status] auto-complete failed (non-fatal):", e);
     }
   }
 
