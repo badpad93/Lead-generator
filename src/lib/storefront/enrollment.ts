@@ -489,3 +489,139 @@ export async function transferCustomer(input: {
     reason: input.reason,
   });
 }
+
+// ─── Delete a storefront customer entirely ────────────────────────
+
+/**
+ * Remove a customer from a storefront — and, when the account
+ * exists ONLY for the storefront (role='customer'), delete the
+ * account entirely.
+ *
+ * Two outcomes:
+ *   mode 'deleted'  — role='customer': the profile is hard-deleted
+ *     when nothing references it, else soft-deleted (deleted_at +
+ *     PII redacted, mirroring the admin user-delete endpoint) so
+ *     order history keeps its FK; the auth user is deleted either
+ *     way so the login dies immediately.
+ *   mode 'unlinked' — any other role (an operator who also enrolled
+ *     as a shopper): only the storefront link is cleared. A
+ *     storefront owner must never be able to destroy a full
+ *     platform account that exists beyond their shop.
+ *
+ * Pending invitations for the customer's email on this tenant are
+ * revoked in both modes. Audited as customer.deleted.
+ */
+export async function deleteStorefrontCustomer(input: {
+  customerProfileId: string;
+  tenantId: string;
+  actorId: string;
+  actorRole: "operator" | "admin";
+}): Promise<{ mode: "deleted" | "soft_deleted" | "unlinked" }> {
+  const { data: profileRow } = await supabaseAdmin
+    .from("profiles")
+    .select("id, role, email, storefront_tenant_id")
+    .eq("id", input.customerProfileId)
+    .maybeSingle();
+  const profile = profileRow as {
+    id: string;
+    role: string | null;
+    email: string | null;
+    storefront_tenant_id: string | null;
+  } | null;
+  if (!profile) {
+    throw new EnrollmentError("PROFILE_NOT_FOUND", "Customer not found");
+  }
+  if (profile.storefront_tenant_id !== input.tenantId) {
+    throw new EnrollmentError(
+      "PROFILE_NOT_FOUND",
+      "Customer is not enrolled with this storefront",
+    );
+  }
+
+  // Revoke any still-pending invitations for this email on the
+  // tenant so a stale link can't re-enroll a deleted customer.
+  if (profile.email) {
+    await supabaseAdmin
+      .from("storefront_invitations")
+      .update({
+        revoked_at: new Date().toISOString(),
+        revoked_reason: "customer_deleted",
+      })
+      .eq("tenant_id", input.tenantId)
+      .eq("email", profile.email)
+      .is("revoked_at", null)
+      .is("accepted_at", null);
+  }
+
+  let mode: "deleted" | "soft_deleted" | "unlinked";
+
+  if (profile.role === "customer") {
+    // Account exists solely for the storefront — delete entirely.
+    const { error: hardErr } = await supabaseAdmin
+      .from("profiles")
+      .delete()
+      .eq("id", profile.id);
+    if (!hardErr) {
+      mode = "deleted";
+    } else {
+      const isFkBlock =
+        hardErr.code === "23503" ||
+        /foreign key/i.test(hardErr.message) ||
+        /violates.*constraint/i.test(hardErr.message);
+      if (!isFkBlock) throw hardErr;
+      // Soft-delete: keep the row for FK integrity, redact PII,
+      // clear the storefront link.
+      const anonEmail = `deleted+${profile.id.slice(0, 8)}@vendingconnector.local`;
+      const { error: softErr } = await supabaseAdmin
+        .from("profiles")
+        .update({
+          deleted_at: new Date().toISOString(),
+          full_name: "Deleted Customer",
+          email: anonEmail,
+          phone: null,
+          address: null,
+          city: null,
+          state: null,
+          zip: null,
+          storefront_tenant_id: null,
+        })
+        .eq("id", profile.id);
+      if (softErr) throw softErr;
+      mode = "soft_deleted";
+    }
+    // Kill the login either way. Soft auth-delete first (keeps the
+    // auth row flagged deleted), hard as fallback; "not found" is
+    // fine — the hard profile delete may have cascaded it.
+    const softAuth = await supabaseAdmin.auth.admin.deleteUser(profile.id, true);
+    if (softAuth.error && !/not.*found/i.test(softAuth.error.message)) {
+      const hardAuth = await supabaseAdmin.auth.admin.deleteUser(profile.id);
+      if (hardAuth.error && !/not.*found/i.test(hardAuth.error.message)) {
+        console.error(
+          "[deleteStorefrontCustomer] auth delete failed:",
+          hardAuth.error.message,
+        );
+      }
+    }
+  } else {
+    // Non-customer account — unlink only.
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ storefront_tenant_id: null })
+      .eq("id", profile.id);
+    if (error) throw error;
+    mode = "unlinked";
+  }
+
+  await recordAuditEvent({
+    tenantId: input.tenantId,
+    actorId: input.actorId,
+    actorRole: input.actorRole,
+    action: "customer.deleted",
+    entityType: "profile",
+    entityId: profile.id,
+    before: { storefront_tenant_id: input.tenantId, email: profile.email },
+    after: { mode },
+  });
+
+  return { mode };
+}

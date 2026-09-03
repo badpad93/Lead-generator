@@ -34,6 +34,7 @@ export type StorefrontAuditAction =
   | "customer.enrolled"
   | "customer.transferred"
   | "customer.suspended"
+  | "customer.deleted"
   | "pricing.tenant_updated"
   | "pricing.tenant_deleted"
   | "pricing.customer_updated"

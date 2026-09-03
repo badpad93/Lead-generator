@@ -233,6 +233,8 @@ export default function AdminStorefrontDetailPage() {
           engine) so there is no sales-tax workflow to manage here.
           The tax_status / w9_* columns stay on the table untouched. */}
 
+      <CustomersPanel tenantId={params.id} />
+
       <CommissionsPanel tenantId={params.id} />
     </div>
   );
@@ -496,6 +498,123 @@ function Balance({
       <div className={bold ? "font-semibold" : ""}>${Number(amount).toFixed(2)}</div>
       {rows != null ? <div className="text-[10px] text-gray-500">{rows} rows</div> : null}
     </div>
+  );
+}
+
+/**
+ * Enrolled customers of this tenant, with admin delete. Delete is
+ * the shared deleteStorefrontCustomer flow: customer-only accounts
+ * are removed entirely (login killed, soft-delete fallback keeps
+ * order-history FKs), other roles are unlinked from the storefront.
+ */
+function CustomersPanel({ tenantId }: { tenantId: string }) {
+  const [customers, setCustomers] = useState<
+    { id: string; full_name: string | null; email: string | null; role: string | null; storefront_enrolled_at: string | null }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const loadCustomers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const supabase = createBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch(`/api/admin/storefronts/tenants/${tenantId}/customers`, {
+        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+      });
+      const body = (await res.json().catch(() => ({}))) as { customers?: typeof customers };
+      setCustomers(body.customers ?? []);
+    } catch {
+      setCustomers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [tenantId]);
+
+  useEffect(() => {
+    void loadCustomers();
+  }, [loadCustomers]);
+
+  async function remove(c: (typeof customers)[number]) {
+    if (
+      !confirm(
+        `Delete ${c.full_name || c.email} from this storefront?\n\nCustomer-only accounts are deleted entirely; accounts with other roles are just unlinked.`,
+      )
+    )
+      return;
+    setDeleting(c.id);
+    setErr(null);
+    try {
+      const supabase = createBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch(
+        `/api/admin/storefronts/tenants/${tenantId}/customers?profile_id=${encodeURIComponent(c.id)}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+        },
+      );
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(body.error || "Delete failed");
+      await loadCustomers();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  return (
+    <section className="rounded border border-gray-200 p-4">
+      <div className="font-medium">Customers</div>
+      {err ? <div className="mt-2 text-sm text-red-700">{err}</div> : null}
+      {loading ? (
+        <div className="mt-3 text-sm text-gray-500">Loading…</div>
+      ) : customers.length === 0 ? (
+        <div className="mt-3 text-sm text-gray-500">No enrolled customers.</div>
+      ) : (
+        <table className="mt-3 w-full text-sm">
+          <thead className="text-left text-xs text-gray-500 uppercase">
+            <tr>
+              <th className="py-1">Customer</th>
+              <th className="py-1">Role</th>
+              <th className="py-1">Enrolled</th>
+              <th className="py-1 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {customers.map((c) => (
+              <tr key={c.id} className="border-t">
+                <td className="py-2">
+                  <div className="font-medium">{c.full_name || c.email}</div>
+                  <div className="text-xs text-gray-500">{c.email}</div>
+                </td>
+                <td className="py-2 text-gray-600">{c.role ?? "—"}</td>
+                <td className="py-2 text-gray-600">
+                  {c.storefront_enrolled_at
+                    ? new Date(c.storefront_enrolled_at).toLocaleDateString()
+                    : "—"}
+                </td>
+                <td className="py-2 text-right">
+                  <button
+                    onClick={() => remove(c)}
+                    disabled={deleting === c.id}
+                    className="text-xs text-red-700 hover:underline disabled:opacity-50 cursor-pointer"
+                  >
+                    {deleting === c.id ? "Deleting…" : "Delete"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }
 

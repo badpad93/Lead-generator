@@ -24,6 +24,41 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Customer | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  // Delete a customer entirely. Customer-only accounts are removed
+  // outright (login killed); accounts with other platform roles are
+  // just unlinked from the storefront — the server decides.
+  async function handleDelete(c: Customer) {
+    if (
+      !confirm(
+        `Delete ${c.full_name || c.email} from your storefront?\n\nThis removes their access permanently. If their account exists only for your storefront, the account is deleted entirely.`,
+      )
+    )
+      return;
+    setDeleting(c.id);
+    setError(null);
+    try {
+      const supabase = createBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch(
+        `/api/storefront/tenant/customers?profile_id=${encodeURIComponent(c.id)}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+        },
+      );
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(body.error || "Delete failed");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,12 +143,21 @@ export default function CustomersPage() {
                 <td className="py-2 text-right">${c.lifetimeSpend.toFixed(2)}</td>
                 <td className="py-2 text-right">${c.lifetimeCommission.toFixed(2)}</td>
                 <td className="py-2 text-right">
-                  <button
-                    onClick={() => setSelected(c)}
-                    className="text-xs text-blue-700 hover:underline"
-                  >
-                    View & price
-                  </button>
+                  <span className="inline-flex items-center gap-3">
+                    <button
+                      onClick={() => setSelected(c)}
+                      className="text-xs text-blue-700 hover:underline cursor-pointer"
+                    >
+                      View & price
+                    </button>
+                    <button
+                      onClick={() => handleDelete(c)}
+                      disabled={deleting === c.id}
+                      className="text-xs text-red-700 hover:underline disabled:opacity-50 cursor-pointer"
+                    >
+                      {deleting === c.id ? "Deleting…" : "Delete"}
+                    </button>
+                  </span>
                 </td>
               </tr>
             ))

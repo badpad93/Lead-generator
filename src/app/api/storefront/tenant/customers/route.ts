@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveTenantByOwner } from "@/lib/storefront/tenants";
+import { deleteStorefrontCustomer, EnrollmentError } from "@/lib/storefront/enrollment";
 
 /**
  * Owner: list every customer enrolled with this tenant, plus a
@@ -85,4 +86,40 @@ export async function GET(req: NextRequest) {
       }),
     })),
   });
+}
+
+/**
+ * Owner: delete a customer entirely. ?profile_id=…
+ *
+ * role='customer' accounts (exist solely for this storefront) are
+ * deleted outright — login killed, profile removed (soft-deleted
+ * with PII redaction when order history blocks the hard delete).
+ * Accounts with any other platform role are only unlinked from the
+ * storefront; a storefront owner can't destroy a full platform
+ * account. Pending invitations for the email are revoked.
+ */
+export async function DELETE(req: NextRequest) {
+  const userId = await getUserIdFromRequest(req);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const tenant = await resolveTenantByOwner(userId);
+  if (!tenant) return NextResponse.json({ error: "No tenant" }, { status: 404 });
+
+  const profileId = req.nextUrl.searchParams.get("profile_id");
+  if (!profileId) return NextResponse.json({ error: "profile_id required" }, { status: 400 });
+
+  try {
+    const result = await deleteStorefrontCustomer({
+      customerProfileId: profileId,
+      tenantId: tenant.id,
+      actorId: userId,
+      actorRole: "operator",
+    });
+    return NextResponse.json({ ok: true, mode: result.mode });
+  } catch (err) {
+    if (err instanceof EnrollmentError) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 404 });
+    }
+    console.error("[storefront/tenant/customers DELETE] failed", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
 }
