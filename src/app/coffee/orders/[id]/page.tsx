@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, RotateCcw, Package, CheckCircle2 } from "lucide-react";
+import { Loader2, ArrowLeft, RotateCcw, Package, CheckCircle2, CreditCard } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface OrderItem {
@@ -19,6 +19,7 @@ interface Order {
   id: string;
   order_number: string;
   status: string;
+  qb_invoice_id?: string | null;
   shipping_name: string | null;
   shipping_address: string | null;
   shipping_city: string | null;
@@ -111,6 +112,39 @@ function OrderDetailContent() {
     init();
   }, [orderId, router, searchParams]);
 
+  const [paying, setPaying] = useState(false);
+
+  // Open QBO's hosted "review and pay" page. Falls back to
+  // re-sending the invoice email (which carries QBO's own Pay
+  // button) when QBO doesn't expose a link for this invoice.
+  async function handlePay() {
+    setPaying(true);
+    try {
+      const res = await fetch(`/api/coffee/orders/${orderId}/invoice`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.pay_url) {
+        window.open(data.pay_url, "_blank", "noopener");
+        return;
+      }
+      const resend = await fetch(`/api/coffee/orders/${orderId}/invoice`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const resendData = await resend.json().catch(() => ({}));
+      if (resend.ok) {
+        showToast(`Invoice emailed to ${resendData.sent_to} — use its Pay button`, "success");
+      } else {
+        showToast(resendData.error || data.error || "Could not load payment link", "error");
+      }
+    } catch {
+      showToast("Could not load payment link", "error");
+    } finally {
+      setPaying(false);
+    }
+  }
+
   async function handleReorder() {
     setReordering(true);
     try {
@@ -170,6 +204,24 @@ function OrderDetailContent() {
           Payment successful! Your order has been placed and is being processed.
         </div>
       )}
+
+      {!searchParams.get("paid") && order.status === "awaiting_payment" && order.qb_invoice_id ? (
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-orange-800">
+            <span className="font-semibold">Payment due.</span> Pay the invoice
+            to start fulfillment — we also emailed it to your billing address.
+          </div>
+          <button
+            type="button"
+            onClick={handlePay}
+            disabled={paying}
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-green-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+          >
+            {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+            Pay Invoice
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
