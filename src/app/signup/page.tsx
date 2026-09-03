@@ -16,7 +16,12 @@ import {
 import { createBrowserClient } from "@/lib/supabase";
 import { US_STATES } from "@/lib/types";
 
-type Role = "operator" | "locator" | "location_manager" | "employee";
+// "customer" is the storefront-invite role: an invited coffee
+// customer of an operator's storefront. It is never offered as a
+// chip — it's forced when the page runs in storefront mode (an
+// invite_token is present) so a tenant can't accidentally sign up
+// as an operator/locator and unlock the wrong UI.
+type Role = "operator" | "locator" | "location_manager" | "employee" | "customer";
 
 const roles: { value: Role; label: string; icon: typeof Truck }[] = [
   { value: "operator", label: "Operator", icon: Truck },
@@ -24,6 +29,14 @@ const roles: { value: Role; label: string; icon: typeof Truck }[] = [
   { value: "location_manager", label: "Location Manager", icon: Building2 },
   { value: "employee", label: "Employee", icon: Briefcase },
 ];
+
+interface StorefrontBrandSummary {
+  slug: string;
+  display_name: string;
+  logo_url: string | null;
+  primary_color: string;
+  accent_color: string;
+}
 
 export default function SignupPage() {
   return (
@@ -54,8 +67,15 @@ function SignupContent() {
   useEffect(() => {
     if (inviteTokenParam) storeInviteToken(inviteTokenParam);
   }, [inviteTokenParam]);
-  const presetRole: Role =
-    roleParam === "locator"
+  // Storefront mode: an invite token means this visitor is an
+  // operator's coffee customer. No role choice — they're a
+  // "customer", full stop — and the page dresses itself in the
+  // operator's brand (fetched below from the public, token-scoped
+  // preview endpoint).
+  const storefrontMode = !!inviteTokenParam;
+  const presetRole: Role = storefrontMode
+    ? "customer"
+    : roleParam === "locator"
       ? "locator"
       : roleParam === "location_manager"
         ? "location_manager"
@@ -64,6 +84,36 @@ function SignupContent() {
           : "operator";
 
   const [role, setRole] = useState<Role>(presetRole);
+  const [storefront, setStorefront] = useState<StorefrontBrandSummary | null>(null);
+
+  useEffect(() => {
+    if (!inviteTokenParam) return;
+    let cancelled = false;
+    fetch(`/api/storefront/enrollment/preview?token=${encodeURIComponent(inviteTokenParam)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (data: {
+          tenant?: { slug: string; display_name: string; brand?: Record<string, unknown> };
+        } | null) => {
+          if (cancelled || !data?.tenant) return;
+          const brand = data.tenant.brand ?? {};
+          setStorefront({
+            slug: data.tenant.slug,
+            display_name: data.tenant.display_name,
+            logo_url: (brand.logo_url as string) || null,
+            primary_color: (brand.primary_color as string) || "#1a1a1a",
+            accent_color: (brand.accent_color as string) || "#c4a877",
+          });
+        },
+      )
+      .catch(() => {
+        // Preview failure is non-fatal — the page still works as a
+        // customer signup, just without the operator's branding.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteTokenParam]);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -114,7 +164,10 @@ function SignupContent() {
   // Stash whatever we have so the OAuth callback can patch the new profile.
   // Address is required for email/password but may be blank for OAuth users
   // — /complete-profile catches them via the middleware address gate.
+  // Storefront customers are NOT stashed as CRM sales leads — they're an
+  // operator's customer, not a Vending Connector prospect.
   function storeLead() {
+    if (storefrontMode) return;
     storeSignupLead({
       business_name: companyName,
       contact_name: `${firstName} ${lastName}`.trim(),
@@ -185,20 +238,23 @@ function SignupContent() {
 
       storeSignupRole(role);
       storeLead();
-      // Best-effort: stash a minimal lead record (no required fields, so failures are OK)
-      try {
-        await fetch("/api/auth/signup-lead", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            first_name: firstName,
-            last_name: lastName,
-            business_name: companyName,
-            email,
-            role,
-          }),
-        });
-      } catch {}
+      // Best-effort: stash a minimal lead record (no required fields, so
+      // failures are OK). Skipped for storefront customers — not leads.
+      if (!storefrontMode) {
+        try {
+          await fetch("/api/auth/signup-lead", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              first_name: firstName,
+              last_name: lastName,
+              business_name: companyName,
+              email,
+              role,
+            }),
+          });
+        } catch {}
+      }
 
       window.location.href = `/check-email?email=${encodeURIComponent(email.trim().toLowerCase())}`;
     } catch {
@@ -276,11 +332,40 @@ function SignupContent() {
   return (
     <div className="min-h-[calc(100vh-160px)] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-lg">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">Create your account</h1>
-          <p className="text-black-primary/60 mt-2">Join Vending Connector in under a minute</p>
-        </div>
+        {/* Header — storefront mode wears the operator's brand:
+            their logo + name front and center, Vending Connector
+            demoted to a "powered by" footnote. The customer knows
+            and trusts THEIR operator, not us. */}
+        {storefrontMode ? (
+          <div className="text-center mb-8">
+            {storefront?.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={storefront.logo_url}
+                alt={`${storefront.display_name} logo`}
+                className="mx-auto mb-4 h-14 w-auto"
+              />
+            ) : null}
+            <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">
+              {storefront
+                ? `Create your ${storefront.display_name} account`
+                : "Create your account"}
+            </h1>
+            <p className="text-black-primary/60 mt-2">
+              {storefront
+                ? `One account, permanently linked to ${storefront.display_name}'s coffee shop`
+                : "Set up your account to start ordering"}
+            </p>
+            <p className="mt-1 text-xs text-black-primary/40">
+              Powered by Vending Connector
+            </p>
+          </div>
+        ) : (
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">Create your account</h1>
+            <p className="text-black-primary/60 mt-2">Join Vending Connector in under a minute</p>
+          </div>
+        )}
 
         {/* Existing session banner */}
         {existingEmail && (
@@ -308,32 +393,37 @@ function SignupContent() {
             </div>
           )}
 
-          {/* Role chip selector */}
-          <div className="mb-5">
-            <label className="block text-xs font-medium text-gray-600 mb-2">I&apos;m signing up as</label>
-            <div className="flex flex-wrap gap-2">
-              {roles.map((r) => {
-                const Icon = r.icon;
-                const active = role === r.value;
-                return (
-                  <button
-                    key={r.value}
-                    type="button"
-                    onClick={() => setRole(r.value)}
-                    disabled={!!loading}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 ${
-                      active
-                        ? "bg-green-primary text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {r.label}
-                  </button>
-                );
-              })}
+          {/* Role chip selector — NEVER rendered in storefront mode.
+              An invited customer has exactly one identity (customer)
+              and offering Operator/Locator chips here is how tenants
+              ended up with operator roles and the wrong UI. */}
+          {!storefrontMode && (
+            <div className="mb-5">
+              <label className="block text-xs font-medium text-gray-600 mb-2">I&apos;m signing up as</label>
+              <div className="flex flex-wrap gap-2">
+                {roles.map((r) => {
+                  const Icon = r.icon;
+                  const active = role === r.value;
+                  return (
+                    <button
+                      key={r.value}
+                      type="button"
+                      onClick={() => setRole(r.value)}
+                      disabled={!!loading}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 ${
+                        active
+                          ? "bg-green-primary text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {r.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Email/Password Signup (primary) */}
           <form onSubmit={handleEmailSignup} className="space-y-3">
@@ -412,7 +502,14 @@ function SignupContent() {
             <button
               type="submit"
               disabled={!!loading}
-              className="w-full py-3 px-4 bg-green-primary hover:bg-green-hover text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+              className={`w-full py-3 px-4 font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer ${
+                storefront ? "" : "bg-green-primary hover:bg-green-hover text-white"
+              }`}
+              style={
+                storefront
+                  ? { background: storefront.primary_color, color: storefront.accent_color }
+                  : undefined
+              }
             >
               {loading === "email" ? (
                 <><Loader2 className="w-5 h-5 animate-spin" /> Creating account...</>
@@ -428,7 +525,12 @@ function SignupContent() {
 
           <p className="mt-4 text-center text-sm text-black-primary/60">
             Already have an account?{" "}
-            <a href="/login" className="text-green-primary hover:underline font-medium">
+            <a
+              href={
+                storefront ? `/login?storefront=${encodeURIComponent(storefront.slug)}` : "/login"
+              }
+              className="text-green-primary hover:underline font-medium"
+            >
               Sign in
             </a>
           </p>
