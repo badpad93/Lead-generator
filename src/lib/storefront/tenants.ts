@@ -484,6 +484,56 @@ export async function closeTenant(input: TransitionTenantInput): Promise<Storefr
 }
 
 /**
+ * Reassign a tenant's owner (admin-only path). One tenant per
+ * owner is a DB unique constraint — reassigning to a profile that
+ * already owns a storefront surfaces OWNER_HAS_TENANT. Audited as
+ * tenant.owner_reassigned with the before/after owner ids so the
+ * history reads clearly.
+ */
+export async function assignOwner(input: {
+  tenantId: string;
+  ownerProfileId: string;
+  actorId?: string | null;
+  actorRole?: string | null;
+  reason?: string | null;
+}): Promise<StorefrontTenant> {
+  const before = await resolveTenantById(input.tenantId);
+  if (!before) {
+    throw new StorefrontTenantError("TENANT_NOT_FOUND", `Tenant ${input.tenantId} not found`);
+  }
+  if (before.owner_profile_id === input.ownerProfileId) return before;
+
+  const { data, error } = await supabaseAdmin
+    .from("storefront_tenants")
+    .update({ owner_profile_id: input.ownerProfileId })
+    .eq("id", input.tenantId)
+    .select("*")
+    .single();
+  if (error) {
+    if (error.code === "23505") {
+      throw new StorefrontTenantError(
+        "OWNER_HAS_TENANT",
+        `Profile ${input.ownerProfileId} already owns a storefront tenant`,
+      );
+    }
+    throw error;
+  }
+  const after = data as StorefrontTenant;
+  await recordAuditEvent({
+    tenantId: after.id,
+    actorId: input.actorId ?? null,
+    actorRole: input.actorRole ?? null,
+    action: "tenant.owner_reassigned",
+    entityType: "storefront_tenant",
+    entityId: after.id,
+    before: { owner_profile_id: before.owner_profile_id },
+    after: { owner_profile_id: after.owner_profile_id },
+    reason: input.reason ?? null,
+  });
+  return after;
+}
+
+/**
  * Assign / reassign the base pricing tier used by the pricing
  * resolver. Split from generic updateTenant so the audit action is
  * specific ("tenant.tier_assigned") and consumers reading history
