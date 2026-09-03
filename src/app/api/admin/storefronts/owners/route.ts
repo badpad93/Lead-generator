@@ -17,13 +17,22 @@ export async function GET(req: NextRequest) {
 
   const search = (req.nextUrl.searchParams.get("search") ?? "").trim();
 
+  // 200 rows so the picker can actually be browsed without typing —
+  // the old 25 cap made "scroll through all users" impossible.
+  // Search still narrows server-side for larger user bases.
   let q = supabaseAdmin
     .from("profiles")
     .select("id, full_name, email, role, coffee_agreement_signed")
     .order("full_name", { ascending: true })
-    .limit(25);
+    .limit(200);
   if (search) {
-    q = q.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+    // Escape PostgREST or() specials so a search like "a,b" or "(x)"
+    // filters instead of erroring the whole query (which surfaced in
+    // the UI as an empty, unselectable list).
+    const safe = search.replace(/[,()]/g, " ").trim();
+    if (safe) {
+      q = q.or(`full_name.ilike.%${safe}%,email.ilike.%${safe}%`);
+    }
   }
   const { data: profiles, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
