@@ -160,6 +160,26 @@ export default function LeadsPage() {
   // the two inputs the pricing engine actually needs on day one.
   const [convertNumLocations, setConvertNumLocations] = useState<string>("1");
   const [convertTenTenTen, setConvertTenTenTen] = useState(false);
+  // Buyer selection for LOCATION leads — the location is the
+  // commodity being sold, so the order must bill an operator. The
+  // rep either picks an existing sales account or types the
+  // operator's info.
+  const [convertBuyerMode, setConvertBuyerMode] = useState<"account" | "manual">("account");
+  const [convertAccounts, setConvertAccounts] = useState<
+    { id: string; business_name: string | null; contact_name: string | null; email: string | null }[]
+  >([]);
+  const [convertAccountSearch, setConvertAccountSearch] = useState("");
+  const [convertAccountId, setConvertAccountId] = useState("");
+  const [convertOperator, setConvertOperator] = useState({
+    business_name: "",
+    contact_name: "",
+    email: "",
+    phone: "",
+  });
+  const convertingLead = convertingLeadId
+    ? leads.find((l) => l.id === convertingLeadId) ?? null
+    : null;
+  const convertingIsLocation = convertingLead?.entity_type === "location";
   const [salesPipelines, setSalesPipelines] = useState<{ id: string; name: string }[]>([]);
 
   // Lead → Placement Agreement + Publish state
@@ -314,10 +334,42 @@ export default function LeadsPage() {
     setConvertError(null);
     setConvertNumLocations("1");
     setConvertTenTenTen(false);
+    setConvertBuyerMode("account");
+    setConvertAccountId("");
+    setConvertAccountSearch("");
+    setConvertOperator({ business_name: "", contact_name: "", email: "", phone: "" });
+    // Lazy-load accounts for the buyer picker when converting a
+    // location lead. One fetch per page visit is plenty.
+    const lead = leads.find((l) => l.id === id);
+    if (lead?.entity_type === "location" && convertAccounts.length === 0) {
+      fetch("/api/sales/accounts", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          const rows = (d?.accounts ?? d ?? []) as typeof convertAccounts;
+          if (Array.isArray(rows)) setConvertAccounts(rows);
+        })
+        .catch(() => {});
+    }
   }
 
   async function handleConvert() {
     if (!convertingLeadId) return;
+    if (convertingIsLocation) {
+      if (convertBuyerMode === "account" && !convertAccountId) {
+        setConvertError("Select the operator account buying this location.");
+        return;
+      }
+      if (
+        convertBuyerMode === "manual" &&
+        !convertOperator.business_name.trim() &&
+        !convertOperator.email.trim()
+      ) {
+        setConvertError("Enter the operator's business name or email.");
+        return;
+      }
+    }
     setConvertSaving(true);
     setConvertError(null);
     const res = await fetch(`/api/sales/leads/${convertingLeadId}/convert-to-order`, {
@@ -326,6 +378,18 @@ export default function LeadsPage() {
       body: JSON.stringify({
         is_ten_ten_ten: convertTenTenTen,
         num_locations: Math.max(1, Number(convertNumLocations) || 1),
+        ...(convertingIsLocation
+          ? convertBuyerMode === "account"
+            ? { operator_account_id: convertAccountId }
+            : {
+                operator: {
+                  business_name: convertOperator.business_name.trim() || undefined,
+                  contact_name: convertOperator.contact_name.trim() || undefined,
+                  email: convertOperator.email.trim() || undefined,
+                  phone: convertOperator.phone.trim() || undefined,
+                },
+              }
+          : {}),
       }),
     });
     if (res.ok) {
@@ -1705,8 +1769,98 @@ export default function LeadsPage() {
               </button>
             </div>
             <p className="text-sm text-gray-500 mb-4">
-              Creates a new order for this lead and takes you to the order page. Pricing is set by our tier engine — Basic $500, Premium $800, Elite $1,200 — or a flat $400 if the customer took the 10/10/10 prepaid deal.
+              {convertingIsLocation
+                ? `${convertingLead?.business_name ?? "This location"} is the commodity being sold — the order bills the OPERATOR buying the placement. Pricing per location: Basic $500, Premium $800, Elite $1,200, or flat $400 on the 10/10/10 prepaid deal.`
+                : "Creates a new order for this lead and takes you to the order page. Pricing is set by our tier engine — Basic $500, Premium $800, Elite $1,200 — or a flat $400 if the customer took the 10/10/10 prepaid deal."}
             </p>
+
+            {convertingIsLocation && (
+              <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50/50 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wide text-indigo-700">
+                    Sold to (operator)
+                  </span>
+                  <div className="flex gap-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setConvertBuyerMode("account")}
+                      className={`rounded px-2 py-1 cursor-pointer ${convertBuyerMode === "account" ? "bg-white ring-1 ring-indigo-300 text-indigo-700 font-medium" : "text-gray-500"}`}
+                    >
+                      Existing account
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConvertBuyerMode("manual")}
+                      className={`rounded px-2 py-1 cursor-pointer ${convertBuyerMode === "manual" ? "bg-white ring-1 ring-indigo-300 text-indigo-700 font-medium" : "text-gray-500"}`}
+                    >
+                      Enter info
+                    </button>
+                  </div>
+                </div>
+                {convertBuyerMode === "account" ? (
+                  <div className="space-y-2">
+                    <input
+                      type="search"
+                      value={convertAccountSearch}
+                      onChange={(e) => setConvertAccountSearch(e.target.value)}
+                      placeholder="Search accounts by name or email…"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                    />
+                    <select
+                      size={5}
+                      value={convertAccountId}
+                      onChange={(e) => setConvertAccountId(e.target.value)}
+                      className="w-full rounded-lg border border-gray-200 text-sm"
+                    >
+                      {convertAccounts
+                        .filter((a) => {
+                          const q = convertAccountSearch.trim().toLowerCase();
+                          if (!q) return true;
+                          return `${a.business_name ?? ""} ${a.contact_name ?? ""} ${a.email ?? ""}`
+                            .toLowerCase()
+                            .includes(q);
+                        })
+                        .slice(0, 50)
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {(a.business_name || a.contact_name || a.email || a.id) +
+                              (a.email ? ` — ${a.email}` : "")}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      value={convertOperator.business_name}
+                      onChange={(e) => setConvertOperator({ ...convertOperator, business_name: e.target.value })}
+                      placeholder="Operator business *"
+                      className="col-span-2 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                    <input
+                      value={convertOperator.contact_name}
+                      onChange={(e) => setConvertOperator({ ...convertOperator, contact_name: e.target.value })}
+                      placeholder="Contact name"
+                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                    <input
+                      value={convertOperator.phone}
+                      onChange={(e) => setConvertOperator({ ...convertOperator, phone: e.target.value })}
+                      placeholder="Phone"
+                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                    <input
+                      type="email"
+                      value={convertOperator.email}
+                      onChange={(e) => setConvertOperator({ ...convertOperator, email: e.target.value })}
+                      placeholder="Operator email"
+                      className="col-span-2 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="mb-4">
               <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1">Number of locations</label>
               <input
