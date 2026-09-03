@@ -411,7 +411,11 @@ export async function POST(req: NextRequest) {
 
       let invoiceUrl: string | null = null;
       try {
-        const fullInvoice = await getInvoice(invoice.Id);
+        // include=invoiceLink is REQUIRED for QBO to return the
+        // hosted "review and pay" URL — without it InvoiceLink is
+        // absent and every customer fell through to the
+        // invoice_sent page with no way to pay at checkout.
+        const fullInvoice = await getInvoice(invoice.Id, { includeLink: true });
         if (fullInvoice.InvoiceLink) invoiceUrl = fullInvoice.InvoiceLink;
       } catch (getErr) {
         console.warn("[coffee-checkout] QB getInvoice failed (non-fatal):", getErr);
