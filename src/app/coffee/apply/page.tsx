@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, Coffee, CheckCircle2, Clock, ArrowRight, AlertCircle } from "lucide-react";
+import { Loader2, Coffee, CheckCircle2, ArrowRight, AlertCircle } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -132,28 +132,11 @@ export default function CoffeeApplyPage() {
     );
   }
 
-  if (profile?.coffee_application_status === "pending") {
-    return (
-      <div className="min-h-screen bg-gray-950">
-        <div className="flex min-h-[60vh] flex-col items-center justify-center text-center px-4">
-          <div className="rounded-full bg-yellow-900/50 p-4 mb-6">
-            <Clock className="h-12 w-12 text-yellow-400" />
-          </div>
-          <h1 className="text-2xl font-bold text-white">Application Under Review</h1>
-          <p className="mt-2 text-gray-400 max-w-md">
-            Your coffee services application is being reviewed. We&apos;ll notify you once a decision has been made.
-          </p>
-          <Link
-            href="/coffee"
-            className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-green-400 transition-colors hover:text-green-300"
-          >
-            Browse Marketplace
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  // The old "Application Under Review" pending state is gone —
+  // applications auto-approve at submission (no review step), and
+  // migration 178 flips legacy pending profiles to approved. A
+  // legacy-pending account that somehow lands here just falls
+  // through to the form; resubmitting approves them instantly.
 
   if (profile?.coffee_application_status === "rejected") {
     return (
@@ -179,21 +162,24 @@ export default function CoffeeApplyPage() {
   }
 
   if (submitted) {
+    // Applications are auto-approved at submission — no review
+    // step. Send the customer straight into the marketplace.
     return (
       <div className="min-h-screen bg-gray-950">
         <div className="flex min-h-[60vh] flex-col items-center justify-center text-center px-4">
           <div className="rounded-full bg-green-900/50 p-4 mb-6">
             <CheckCircle2 className="h-12 w-12 text-green-400" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Application Submitted!</h1>
+          <h1 className="text-2xl font-bold text-white">You&apos;re In!</h1>
           <p className="mt-2 text-gray-400 max-w-md">
-            Thank you for applying. We&apos;ll review your application and get back to you shortly.
+            Your coffee services access is active — start ordering right away.
+            You&apos;ll sign the supply agreement with your first program setup.
           </p>
           <Link
             href="/coffee"
-            className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-green-400 transition-colors hover:text-green-300"
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700"
           >
-            Browse Marketplace
+            Start Ordering
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

@@ -462,8 +462,15 @@ export async function sendInvoiceEmail(invoiceId: string, email?: string): Promi
   }
 }
 
-export async function getInvoice(invoiceId: string): Promise<QBInvoice> {
-  const res = await qbFetch(`/invoice/${invoiceId}`);
+export async function getInvoice(
+  invoiceId: string,
+  opts?: { includeLink?: boolean },
+): Promise<QBInvoice> {
+  // include=invoiceLink asks QBO to return the hosted "review and
+  // pay" URL (InvoiceLink) for invoices with online payment
+  // enabled — used by the customer-facing Pay button.
+  const suffix = opts?.includeLink ? "?include=invoiceLink" : "";
+  const res = await qbFetch(`/invoice/${invoiceId}${suffix}`);
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`QB get invoice failed: ${text}`);

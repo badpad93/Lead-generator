@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
-import { sendCoffeeApplicationNotification } from "@/lib/coffeeEmail";
+import { sendCoffeeApplicationNotification, sendCoffeeApprovalEmail } from "@/lib/coffeeEmail";
 
+/**
+ * Coffee application — SELF-SERVE, auto-approved.
+ *
+ * Applications used to insert as status='pending' and wait on an
+ * admin PATCH in /api/admin/coffee/applications; operators trying
+ * to order coffee were stranded on an "Application Under Review"
+ * screen. Per product direction, no review step: submitting the
+ * application immediately grants marketplace access
+ * (coffee_access_enabled). The Equipment Loan & Beverage Supply
+ * Agreement stays a real, separate signing step — auto-approval
+ * does NOT fake coffee_agreement_signed; the marketplace's sign
+ * banner still drives that.
+ */
 export async function POST(req: NextRequest) {
   try {
     const userId = await getUserIdFromRequest(req);
@@ -11,6 +24,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+    const nowIso = new Date().toISOString();
 
     const { data: application, error } = await supabaseAdmin
       .from("coffee_applications")
@@ -29,7 +43,12 @@ export async function POST(req: NextRequest) {
         estimated_volume: body.estimated_volume ?? null,
         notes: body.notes ?? null,
         agreement_signed: body.agreement_signed ?? false,
-        agreement_signed_at: body.agreement_signed ? new Date().toISOString() : null,
+        agreement_signed_at: body.agreement_signed ? nowIso : null,
+        // Self-approved at submission — reviewed_by stays null so
+        // the admin console can distinguish auto-approvals from
+        // human reviews.
+        status: "approved",
+        reviewed_at: nowIso,
       })
       .select("*")
       .single();
@@ -40,9 +59,15 @@ export async function POST(req: NextRequest) {
 
     await supabaseAdmin
       .from("profiles")
-      .update({ coffee_application_status: "pending" })
+      .update({
+        coffee_application_status: "approved",
+        coffee_access_enabled: true,
+      })
       .eq("id", userId);
 
+    // Notify admins that someone joined the program (informational,
+    // not a review request) + welcome the applicant with the same
+    // approval email the admin path sent.
     try {
       await sendCoffeeApplicationNotification({
         businessName: body.business_name || "Unknown",
@@ -56,8 +81,19 @@ export async function POST(req: NextRequest) {
     } catch {
       // Email failure should not block the application
     }
+    try {
+      if (body.email) {
+        await sendCoffeeApprovalEmail({
+          to: body.email,
+          contactName: body.contact_name || "",
+          businessName: body.business_name || "",
+        });
+      }
+    } catch {
+      // Email failure should not block the application
+    }
 
-    return NextResponse.json({ application }, { status: 201 });
+    return NextResponse.json({ application, approved: true }, { status: 201 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });

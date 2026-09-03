@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, Package, Eye, RotateCcw, ArrowLeft } from "lucide-react";
+import { Loader2, Package, Eye, RotateCcw, ArrowLeft, CreditCard } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
-import type { Profile } from "@/lib/types";
 
 interface Order {
   id: string;
@@ -16,6 +15,7 @@ interface Order {
   total: number;
   notes: string | null;
   created_at: string;
+  qb_invoice_id?: string | null;
   coffee_order_items?: { id: string }[];
 }
 
@@ -52,17 +52,11 @@ export default function CoffeeOrdersPage() {
       setToken(session.access_token);
 
       try {
-        const profileRes = await fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (profileRes.ok) {
-          const data: Profile = await profileRes.json();
-          if (!data.coffee_access_enabled) {
-            router.push("/coffee/apply");
-            return;
-          }
-        }
-
+        // No coffee_access_enabled gate here — viewing and paying
+        // your OWN orders is not a program-membership privilege.
+        // The old redirect to /coffee/apply stranded storefront
+        // customers (who never apply to the marketplace program)
+        // on the application screen right after placing an order.
         const ordersRes = await fetch("/api/coffee/orders", {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
@@ -79,6 +73,40 @@ export default function CoffeeOrdersPage() {
     }
     init();
   }, [router]);
+
+  const [paying, setPaying] = useState<string | null>(null);
+
+  // Open QBO's hosted "review and pay" page for the order's
+  // invoice. If QBO doesn't expose a pay link for this invoice
+  // (online payments off), fall back to re-sending the invoice
+  // email, which always carries QBO's own Pay button.
+  async function handlePay(orderId: string) {
+    setPaying(orderId);
+    try {
+      const res = await fetch(`/api/coffee/orders/${orderId}/invoice`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.pay_url) {
+        window.open(data.pay_url, "_blank", "noopener");
+        return;
+      }
+      const resend = await fetch(`/api/coffee/orders/${orderId}/invoice`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const resendData = await resend.json().catch(() => ({}));
+      if (resend.ok) {
+        showToast(`Invoice emailed to ${resendData.sent_to} — use its Pay button`, "success");
+      } else {
+        showToast(resendData.error || data.error || "Could not load payment link", "error");
+      }
+    } catch {
+      showToast("Could not load payment link", "error");
+    } finally {
+      setPaying(null);
+    }
+  }
 
   async function handleReorder(orderId: string) {
     setReordering(orderId);
@@ -162,6 +190,21 @@ export default function CoffeeOrdersPage() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-2">
+                          {order.status === "awaiting_payment" && order.qb_invoice_id ? (
+                            <button
+                              type="button"
+                              onClick={() => handlePay(order.id)}
+                              disabled={paying === order.id}
+                              className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+                            >
+                              {paying === order.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <CreditCard className="h-3.5 w-3.5" />
+                              )}
+                              Pay
+                            </button>
+                          ) : null}
                           <Link
                             href={`/coffee/orders/${order.id}`}
                             className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100"
@@ -207,6 +250,21 @@ export default function CoffeeOrdersPage() {
                 </div>
                 <p className="mt-3 text-lg font-bold text-gray-900">${Number(order.total).toFixed(2)}</p>
                 <div className="mt-3 flex gap-2">
+                  {order.status === "awaiting_payment" && order.qb_invoice_id ? (
+                    <button
+                      type="button"
+                      onClick={() => handlePay(order.id)}
+                      disabled={paying === order.id}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+                    >
+                      {paying === order.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <CreditCard className="h-3.5 w-3.5" />
+                      )}
+                      Pay
+                    </button>
+                  ) : null}
                   <Link
                     href={`/coffee/orders/${order.id}`}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
