@@ -70,8 +70,145 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
+/**
+ * Storefront-customer chokepoint.
+ *
+ * Invite-created accounts (role='customer') exist ONLY to shop their
+ * operator's storefront. Two things are enforced here — in middleware,
+ * so EVERY way a session can come into existence (login page, OAuth
+ * callback, password recovery, magic link, future providers) passes
+ * through the same gate instead of each entry path carrying its own
+ * per-page hook (which missed the recovery path in production):
+ *
+ *   1. CLAIM: a signed-in user with no storefront_tenant_id gets one
+ *      claim-by-email attempt (pending invitation matched against
+ *      their own email) before the lock decision is made.
+ *   2. LOCK: enrolled customers (role='customer' + storefront_tenant_id,
+ *      never admins/owners — those keep their platform roles) are
+ *      restricted to the customer allowlist below; everything else
+ *      redirects to /coffee/o/{their-slug}.
+ *
+ * The decision is cached in a short-lived cookie so the profile read
+ * runs at most once per TTL per browser, and so the API leg (which has
+ * no session client) can enforce the lock with zero DB calls. The
+ * cookie only ever RESTRICTS — deleting it merely re-triggers a fresh
+ * DB resolution on the next page load, and privileged APIs all carry
+ * their own role guards regardless.
+ */
+const SF_LOCK_COOKIE = "vc_sf_lock";
+const SF_LOCK_TTL_SECONDS = 600;
+
+/** Pages an enrolled customer may load besides their (public) storefront. */
+function isCustomerAllowedPage(pathname: string): boolean {
+  if (pathname === "/account" || pathname.startsWith("/account/")) return true;
+  if (pathname === "/complete-profile" || pathname.startsWith("/complete-profile/")) return true;
+  if (pathname === "/coffee/orders" || pathname.startsWith("/coffee/orders/")) {
+    return !(pathname === "/coffee/orders/admin" || pathname.startsWith("/coffee/orders/admin/"));
+  }
+  return false;
+}
+
+/** API families an enrolled customer's pages actually use. */
+const CUSTOMER_API_PREFIXES = [
+  "/api/auth/",
+  "/api/storefront/",
+  "/api/coffee/",
+  "/api/account/",
+  "/api/agreements",
+];
+
+/** Parse the lock cookie: `${uid8}.${slug}` locked / `${uid8}.-` unlocked. */
+function parseLockCookie(value: string | undefined): { uidTag: string; slug: string | null } | null {
+  if (!value) return null;
+  const dot = value.indexOf(".");
+  if (dot <= 0) return null;
+  const rest = value.slice(dot + 1);
+  return { uidTag: value.slice(0, dot), slug: rest && rest !== "-" ? rest : null };
+}
+
+/**
+ * CLAIM leg: one attempt at consuming a pending invitation addressed
+ * to the signed-in user's own email. Reuses the existing route
+ * (service-role consume + audit trail + quoted-price copy) via an
+ * internal fetch so the middleware bundle stays lean. Best-effort —
+ * a failure must never block navigation.
+ */
+async function tryClaimPendingInvite(req: NextRequest, accessToken: string | null): Promise<boolean> {
+  if (!accessToken) return false;
+  try {
+    const res = await fetch(
+      new URL("/api/storefront/enrollment/claim-by-email", req.nextUrl.origin),
+      { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Cache-miss resolution of the customer-lock state: read the profile,
+ * run the claim attempt when unenrolled, and return the storefront
+ * slug when (and only when) the account is a locked customer.
+ */
+async function resolveCustomerLockSlug(
+  req: NextRequest,
+  userId: string,
+  accessToken: string | null,
+): Promise<string | null> {
+  const admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+  const readProfile = async () => {
+    const { data } = await admin
+      .from("profiles")
+      .select("role, storefront_tenant_id")
+      .eq("id", userId)
+      .maybeSingle();
+    return data as { role: string | null; storefront_tenant_id: string | null } | null;
+  };
+  let prof = await readProfile();
+  if (prof && !prof.storefront_tenant_id && prof.role !== "admin") {
+    if (await tryClaimPendingInvite(req, accessToken)) {
+      // Consume links the tenant and may upgrade the role — re-read.
+      prof = await readProfile();
+    }
+  }
+  if (prof?.role !== "customer" || !prof.storefront_tenant_id) return null;
+  const { data: tenant } = await admin
+    .from("storefront_tenants")
+    .select("slug")
+    .eq("id", prof.storefront_tenant_id)
+    .maybeSingle();
+  return (tenant?.slug as string | undefined) || null;
+}
+
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // API leg of the storefront-customer lock. API routes were previously
+  // excluded from the matcher entirely; they now flow through ONLY for
+  // this check and are otherwise passed straight through (no canonical
+  // redirect, no auth gate — webhooks and Bearer-auth routes keep their
+  // pre-existing behavior). Browser fetches are same-origin so the lock
+  // cookie rides along automatically; enforcement is cookie-only (zero
+  // DB calls) and defense-in-depth on top of each route's role guards.
+  if (pathname.startsWith("/api/")) {
+    const lock = parseLockCookie(req.cookies.get(SF_LOCK_COOKIE)?.value);
+    if (lock?.slug && !CUSTOMER_API_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))) {
+      return NextResponse.json(
+        {
+          error: "This account only has access to its coffee storefront",
+          code: "CUSTOMER_RESTRICTED",
+          redirect: `/coffee/o/${lock.slug}`,
+        },
+        { status: 403 },
+      );
+    }
+    return NextResponse.next();
+  }
 
   // Enforce canonical domain — redirect Vercel preview URLs to vendingconnector.com
   const host = req.headers.get("host") || "";
@@ -129,18 +266,74 @@ export async function proxy(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (isAuthPage && user) {
-    const dashboardUrl = req.nextUrl.clone();
-    dashboardUrl.pathname = "/dashboard";
-    dashboardUrl.search = "";
-    return NextResponse.redirect(dashboardUrl);
-  }
-
   if (!user && isProtected) {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
+    const res = NextResponse.redirect(loginUrl);
+    // Signed out — drop any stale lock cookie so it can't 403 the next
+    // account's API calls (the API leg can't verify which user it was
+    // stamped for).
+    res.cookies.delete(SF_LOCK_COOKIE);
+    return res;
+  }
+
+  // ---- Storefront-customer chokepoint (see doc above the helpers) ----
+  // Resolve the customer-lock state for EVERY signed-in page request:
+  // cookie cache first, DB on miss — and, on miss, one centralized
+  // claim-by-email attempt so any session-creation path (login,
+  // callback, password recovery, magic link) enrolls a pending invite
+  // without needing its own hook.
+  let customerLockSlug: string | null = null;
+  let lockCookieToSet: string | null = null;
+  if (user) {
+    const uidTag = user.id.slice(0, 8);
+    const cached = parseLockCookie(req.cookies.get(SF_LOCK_COOKIE)?.value);
+    if (cached && cached.uidTag === uidTag) {
+      customerLockSlug = cached.slug;
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      customerLockSlug = await resolveCustomerLockSlug(
+        req,
+        user.id,
+        session?.access_token ?? null,
+      );
+      lockCookieToSet = `${uidTag}.${customerLockSlug ?? "-"}`;
+    }
+  }
+  // Every response that leaves after this point carries the (re)stamped
+  // cache cookie when one was resolved this request.
+  const stampLock = (res: NextResponse): NextResponse => {
+    if (lockCookieToSet) {
+      res.cookies.set(SF_LOCK_COOKIE, lockCookieToSet, {
+        path: "/",
+        maxAge: SF_LOCK_TTL_SECONDS,
+        sameSite: "lax",
+        httpOnly: true,
+      });
+    }
+    return res;
+  };
+
+  if (isAuthPage && user) {
+    const dashboardUrl = req.nextUrl.clone();
+    // Locked customers land on their storefront, never the platform
+    // dashboard.
+    dashboardUrl.pathname = customerLockSlug
+      ? `/coffee/o/${customerLockSlug}`
+      : "/dashboard";
+    dashboardUrl.search = "";
+    return stampLock(NextResponse.redirect(dashboardUrl));
+  }
+
+  // LOCK: enrolled customers only get the customer allowlist. Their
+  // storefront itself (/coffee/o/…) is a public path and never reaches
+  // here; everything else on the platform bounces to it.
+  if (customerLockSlug && isProtected && !isCustomerAllowedPage(pathname)) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/coffee/o/${customerLockSlug}`;
+    url.search = "";
+    return stampLock(NextResponse.redirect(url));
   }
 
   // Placement Partner isolation: block them from CRM/admin/account pages.
@@ -157,7 +350,7 @@ export async function proxy(req: NextRequest) {
         const url = req.nextUrl.clone();
         url.pathname = "/placement";
         url.search = "";
-        return NextResponse.redirect(url);
+        return stampLock(NextResponse.redirect(url));
       }
     }
   }
@@ -222,7 +415,7 @@ export async function proxy(req: NextRequest) {
       const completeUrl = req.nextUrl.clone();
       completeUrl.pathname = "/complete-profile";
       completeUrl.search = "";
-      return NextResponse.redirect(completeUrl);
+      return stampLock(NextResponse.redirect(completeUrl));
     }
   }
 
@@ -248,11 +441,11 @@ export async function proxy(req: NextRequest) {
       const verifyUrl = req.nextUrl.clone();
       verifyUrl.pathname = "/verify-email-required";
       verifyUrl.search = "";
-      return NextResponse.redirect(verifyUrl);
+      return stampLock(NextResponse.redirect(verifyUrl));
     }
   }
 
-  return response;
+  return stampLock(response);
 }
 
 export const config = {
@@ -263,7 +456,10 @@ export const config = {
      * - _next/image (image optimization)
      * - favicon.ico, sitemap.xml, robots.txt
      * - public assets
+     * API routes ARE matched (for the storefront-customer lock's API
+     * leg) but short-circuit at the top of proxy() — no auth gate or
+     * canonical-domain redirect applies to them.
      */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|api/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",
   ],
 };
