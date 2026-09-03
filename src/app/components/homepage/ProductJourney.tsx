@@ -16,8 +16,8 @@
  * prefers-reduced-motion by revealing everything immediately.
  */
 
-import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Reveal from "@/app/components/Reveal";
 import {
   Package,
   Banknote,
@@ -168,52 +168,6 @@ const FEATURES: Feature[] = [
   },
 ];
 
-/** One-shot reveal-on-scroll wrapper. */
-function Reveal({
-  children,
-  delay = 0,
-}: {
-  children: React.ReactNode;
-  delay?: number;
-}) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setShown(true);
-      return;
-    }
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setShown(true);
-            obs.disconnect();
-          }
-        }
-      },
-      { threshold: 0.15 },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      style={{ transitionDelay: `${delay}ms` }}
-      className={`transition-all duration-700 ease-out ${
-        shown ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
-      }`}
-    >
-      {children}
-    </div>
-  );
-}
-
 /**
  * Signed-in variant of the tour — same offerings, but the copy and
  * CTAs speak to an existing account: coffee goes straight to the
@@ -350,89 +304,119 @@ export default function ProductJourney({
   features?: JourneyFeature[];
 } = {}) {
   return (
-    <div className="space-y-4 sm:space-y-0">
+    <div className="py-8 sm:py-12">
       {features.map((feature, i) => {
         const flipped = i % 2 === 1;
         const Icon = feature.icon;
         const number = String(i + 1).padStart(2, "0");
+        const copyDir = flipped ? "right" : "left";
+        const visualDir = flipped ? "left" : "right";
         return (
-          <section
-            key={feature.title}
-            className={`py-10 sm:py-16 ${flipped ? "bg-light-warm" : "bg-white"}`}
-          >
+          <section key={feature.title} className="py-6 sm:py-8">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-              <Reveal>
+              {/* Chapter card — each offering is its own visually
+                  sectioned-off panel: rounded, bordered, gradient
+                  ground, decorative blobs, hover lift. Cards + the
+                  gap between them read as distinct chapters instead
+                  of one continuous band. */}
+              <div
+                className={`relative overflow-hidden rounded-3xl border border-green-100 p-6 shadow-sm transition-shadow duration-500 hover:shadow-xl hover:shadow-green-primary/10 sm:p-10 lg:p-14 ${
+                  flipped
+                    ? "bg-gradient-to-bl from-light-warm via-white to-green-50/60"
+                    : "bg-gradient-to-br from-white via-light-warm to-green-50/60"
+                }`}
+              >
+                <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-green-100/50 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-28 -left-16 h-60 w-60 rounded-full bg-green-200/30 blur-3xl" />
+                {/* Oversized ghost number anchors the chapter feel */}
+                <span
+                  aria-hidden
+                  className={`pointer-events-none absolute -top-6 select-none text-[10rem] font-extrabold leading-none tracking-tighter text-green-primary/[0.06] sm:text-[13rem] ${
+                    flipped ? "left-2" : "right-2"
+                  }`}
+                >
+                  {number}
+                </span>
+
                 <div
-                  className={`grid grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-16 ${
+                  className={`relative grid grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-16 ${
                     flipped ? "lg:[&>*:first-child]:order-2" : ""
                   }`}
                 >
-                  {/* Copy side */}
+                  {/* Copy side — staggered reveal: kicker → headline →
+                      description → bullets (cascading) → CTA. */}
                   <div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-3xl font-extrabold tracking-tight text-green-primary/25 sm:text-4xl">
-                        {number}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-green-primary">
-                        <Icon className="h-3.5 w-3.5" />
-                        {feature.kicker}
-                      </span>
-                    </div>
-                    <h3 className="mt-4 text-2xl font-bold leading-tight text-black-primary sm:text-3xl lg:text-4xl">
-                      {feature.title}
-                    </h3>
-                    <p className="mt-4 max-w-xl text-sm leading-relaxed text-gray-600 sm:text-base">
-                      {feature.description}
-                    </p>
+                    <Reveal direction={copyDir}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl font-extrabold tracking-tight text-green-primary/25 sm:text-4xl">
+                          {number}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-green-primary">
+                          <Icon className="h-3.5 w-3.5" />
+                          {feature.kicker}
+                        </span>
+                      </div>
+                    </Reveal>
+                    <Reveal direction={copyDir} delay={100}>
+                      <h3 className="mt-4 text-2xl font-bold leading-tight text-black-primary sm:text-3xl lg:text-4xl">
+                        {feature.title}
+                      </h3>
+                    </Reveal>
+                    <Reveal direction={copyDir} delay={200}>
+                      <p className="mt-4 max-w-xl text-sm leading-relaxed text-gray-600 sm:text-base">
+                        {feature.description}
+                      </p>
+                    </Reveal>
                     <ul className="mt-5 space-y-2.5">
-                      {feature.highlights.map((point) => (
-                        <li key={point} className="flex items-start gap-2.5">
-                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-primary text-white">
-                            <Check className="h-3 w-3" strokeWidth={3} />
-                          </span>
-                          <span className="text-sm font-medium text-black-primary">
-                            {point}
-                          </span>
-                        </li>
+                      {feature.highlights.map((point, j) => (
+                        <Reveal key={point} direction={copyDir} delay={280 + j * 90}>
+                          <li className="flex items-start gap-2.5">
+                            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-primary text-white">
+                              <Check className="h-3 w-3" strokeWidth={3} />
+                            </span>
+                            <span className="text-sm font-medium text-black-primary">
+                              {point}
+                            </span>
+                          </li>
+                        </Reveal>
                       ))}
                     </ul>
-                    <div className="mt-7">
-                      <Link
-                        href={feature.href}
-                        onClick={() =>
-                          feature.eventName &&
-                          trackEvent(feature.eventName, { source: "product_journey" })
-                        }
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md"
-                      >
-                        {feature.ctaLabel}
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    </div>
+                    <Reveal direction="up" delay={550}>
+                      <div className="mt-7">
+                        <Link
+                          href={feature.href}
+                          onClick={() =>
+                            feature.eventName &&
+                            trackEvent(feature.eventName, { source: "product_journey" })
+                          }
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md"
+                        >
+                          {feature.ctaLabel}
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </div>
+                    </Reveal>
                   </div>
 
-                  {/* Visual side — decorative icon pane. Pure CSS so it
-                      renders instantly; can be swapped for product
-                      screenshots/photos later without touching layout. */}
-                  <div className="relative hidden lg:block">
-                    <div
-                      className={`relative overflow-hidden rounded-3xl border p-12 shadow-sm ${
-                        flipped
-                          ? "border-green-200 bg-gradient-to-bl from-green-50 via-white to-light-warm"
-                          : "border-green-200 bg-gradient-to-br from-green-50 via-white to-light-warm"
-                      }`}
-                    >
+                  {/* Visual side — scales in from the opposite
+                      direction, then the icon tile drifts on a
+                      continuous float. Pure CSS so it renders
+                      instantly; can be swapped for product
+                      screenshots/photos later without touching
+                      layout. */}
+                  <Reveal direction={visualDir} delay={150} className="relative hidden lg:block">
+                    <div className="relative overflow-hidden rounded-3xl border border-green-200 bg-white/70 p-12 shadow-sm backdrop-blur-sm">
                       <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-green-100/70 blur-3xl" />
                       <div className="pointer-events-none absolute -bottom-20 -left-10 h-48 w-48 rounded-full bg-green-200/40 blur-3xl" />
                       <div className="relative flex h-64 items-center justify-center">
-                        <div className="flex h-36 w-36 items-center justify-center rounded-3xl bg-white shadow-lg ring-1 ring-green-100">
+                        <div className="animate-journey-float flex h-36 w-36 items-center justify-center rounded-3xl bg-white shadow-lg ring-1 ring-green-100">
                           <Icon className="h-20 w-20 text-green-primary" strokeWidth={1.5} />
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </Reveal>
                 </div>
-              </Reveal>
+              </div>
             </div>
           </section>
         );
