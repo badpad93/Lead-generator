@@ -65,8 +65,9 @@ export default function StorefrontDashboardPage() {
         <h1 className="text-2xl font-semibold">My storefront</h1>
         <p className="mt-3 text-gray-700">
           You don't have a coffee storefront yet. Create one to get a public
-          branded page at <code>/coffee/o/&#123;slug&#125;</code>. It stays
-          pending until a Vending Connector admin approves.
+          branded page at <code>/coffee/o/&#123;slug&#125;</code>. If you've
+          signed the coffee agreement, your storefront goes live immediately —
+          no admin approval needed.
         </p>
         <CreateTenantForm onCreated={setTenant} />
       </div>
@@ -124,14 +125,6 @@ export default function StorefrontDashboardPage() {
         </DashCard>
       </div>
 
-      <div className="mt-8 rounded-md border border-gray-200 p-4">
-        <div className="font-medium">Tax onboarding</div>
-        <div className="text-sm text-gray-600 mt-1">
-          Payouts require a W-9 on file with Vending Connector.
-          Current status: <strong>{tenant.tax_status}</strong>. Contact
-          support@apexaivending.com to update.
-        </div>
-      </div>
     </div>
   );
 }

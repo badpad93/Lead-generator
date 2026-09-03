@@ -178,13 +178,24 @@ export interface CreateTenantInput {
   basePricingTierId?: string | null;
   actorId?: string | null;
   actorRole?: string | null;
+  /**
+   * Initial lifecycle status. Defaults to `pending` (admin approves
+   * later). Callers pass `approved` when the owner is pre-qualified:
+   * an operator who has already signed the coffee agreement, or an
+   * admin creating the tenant directly from the admin console. When
+   * approved-at-birth, approved_at/approved_by are stamped in the
+   * same insert so the public page and invitation issuing work
+   * immediately.
+   */
+  initialStatus?: Extract<TenantStatus, "pending" | "approved">;
 }
 
 /**
  * Create a tenant row. The DB unique constraints on slug, subdomain,
  * and owner_profile_id are the source of truth; we translate their
  * violations into typed errors so the API layer can 409-with-code.
- * New tenants start in `pending`; an admin flips to `approved`.
+ * Tenants start in `pending` unless the caller pre-qualifies the
+ * owner (signed coffee agreement, or admin-created) via initialStatus.
  */
 export async function createTenant(input: CreateTenantInput): Promise<StorefrontTenant> {
   if (!input.slug || !isValidSlug(input.slug)) {
@@ -206,13 +217,16 @@ export async function createTenant(input: CreateTenantInput): Promise<Storefront
     throw new StorefrontTenantError("MISSING_FIELD", "displayName is required");
   }
 
+  const initialStatus: TenantStatus = input.initialStatus ?? "pending";
   const insert = {
     owner_profile_id: input.ownerProfileId,
     slug: input.slug,
     subdomain: input.subdomain ?? null,
     legal_name: input.legalName.trim(),
     display_name: input.displayName.trim(),
-    status: "pending" as TenantStatus,
+    status: initialStatus,
+    approved_at: initialStatus === "approved" ? new Date().toISOString() : null,
+    approved_by: initialStatus === "approved" ? (input.actorId ?? null) : null,
     primary_contact_name: input.primaryContactName ?? null,
     primary_contact_email: input.primaryContactEmail ?? null,
     primary_contact_phone: input.primaryContactPhone ?? null,
@@ -268,6 +282,7 @@ export async function createTenant(input: CreateTenantInput): Promise<Storefront
       legal_name: created.legal_name,
       display_name: created.display_name,
       owner_profile_id: created.owner_profile_id,
+      status: created.status,
     },
   });
   return created;
@@ -463,6 +478,56 @@ export async function closeTenant(input: TransitionTenantInput): Promise<Storefr
     entityId: after.id,
     before: { status: before.status },
     after: { status: after.status },
+    reason: input.reason ?? null,
+  });
+  return after;
+}
+
+/**
+ * Reassign a tenant's owner (admin-only path). One tenant per
+ * owner is a DB unique constraint — reassigning to a profile that
+ * already owns a storefront surfaces OWNER_HAS_TENANT. Audited as
+ * tenant.owner_reassigned with the before/after owner ids so the
+ * history reads clearly.
+ */
+export async function assignOwner(input: {
+  tenantId: string;
+  ownerProfileId: string;
+  actorId?: string | null;
+  actorRole?: string | null;
+  reason?: string | null;
+}): Promise<StorefrontTenant> {
+  const before = await resolveTenantById(input.tenantId);
+  if (!before) {
+    throw new StorefrontTenantError("TENANT_NOT_FOUND", `Tenant ${input.tenantId} not found`);
+  }
+  if (before.owner_profile_id === input.ownerProfileId) return before;
+
+  const { data, error } = await supabaseAdmin
+    .from("storefront_tenants")
+    .update({ owner_profile_id: input.ownerProfileId })
+    .eq("id", input.tenantId)
+    .select("*")
+    .single();
+  if (error) {
+    if (error.code === "23505") {
+      throw new StorefrontTenantError(
+        "OWNER_HAS_TENANT",
+        `Profile ${input.ownerProfileId} already owns a storefront tenant`,
+      );
+    }
+    throw error;
+  }
+  const after = data as StorefrontTenant;
+  await recordAuditEvent({
+    tenantId: after.id,
+    actorId: input.actorId ?? null,
+    actorRole: input.actorRole ?? null,
+    action: "tenant.owner_reassigned",
+    entityType: "storefront_tenant",
+    entityId: after.id,
+    before: { owner_profile_id: before.owner_profile_id },
+    after: { owner_profile_id: after.owner_profile_id },
     reason: input.reason ?? null,
   });
   return after;

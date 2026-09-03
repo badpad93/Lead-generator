@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   createTenant,
   resolveTenantByOwner,
@@ -41,6 +42,22 @@ export async function POST(req: NextRequest) {
     public_page?: TenantPublicPage;
   };
 
+  // Signed coffee agreement = pre-qualified owner. Those tenants
+  // are approved at creation — no admin gate. Owners who haven't
+  // signed still land in `pending` for an admin to review.
+  let coffeeSigned = false;
+  try {
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("coffee_agreement_signed, role")
+      .eq("id", userId)
+      .maybeSingle();
+    coffeeSigned =
+      profile?.coffee_agreement_signed === true || profile?.role === "admin";
+  } catch (e) {
+    console.error("[storefront/tenant] profile lookup failed (defaults to pending):", e);
+  }
+
   try {
     const tenant = await createTenant({
       ownerProfileId: userId,
@@ -56,6 +73,7 @@ export async function POST(req: NextRequest) {
       publicPage: body.public_page,
       actorId: userId,
       actorRole: "operator",
+      initialStatus: coffeeSigned ? "approved" : "pending",
     });
     return NextResponse.json({ tenant });
   } catch (err) {

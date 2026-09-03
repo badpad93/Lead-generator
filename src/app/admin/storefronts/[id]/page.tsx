@@ -20,11 +20,25 @@ interface Tenant {
   tax_status: string;
   qb_vendor_ref: string | null;
   qb_customer_ref: string | null;
+  owner_profile_id: string;
+}
+
+interface OwnerProfile {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+}
+
+interface OwnerOption extends OwnerProfile {
+  role: string | null;
+  coffee_agreement_signed: boolean;
+  owns_storefront: boolean;
 }
 
 export default function AdminStorefrontDetailPage() {
   const params = useParams<{ id: string }>();
   const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [owner, setOwner] = useState<OwnerProfile | null>(null);
   const [tiers, setTiers] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -43,8 +57,9 @@ export default function AdminStorefrontDetailPage() {
       fetch("/api/coffee/pricing-tiers"),
     ]);
     if (tenantRes.ok) {
-      const body = (await tenantRes.json()) as { tenant: Tenant };
+      const body = (await tenantRes.json()) as { tenant: Tenant; owner?: OwnerProfile | null };
       setTenant(body.tenant);
+      setOwner(body.owner ?? null);
     }
     if (tierRes.ok) {
       const body = (await tierRes.json()) as
@@ -171,6 +186,26 @@ export default function AdminStorefrontDetailPage() {
       </section>
 
       <section className="rounded border border-gray-200 p-4">
+        <div className="font-medium">Owner</div>
+        <div className="mt-2 text-sm text-gray-700">
+          {owner ? (
+            <>
+              {owner.full_name ?? "—"}{" "}
+              <span className="text-gray-500">({owner.email ?? tenant.owner_profile_id})</span>
+            </>
+          ) : (
+            <code className="text-xs">{tenant.owner_profile_id}</code>
+          )}
+        </div>
+        <OwnerReassignPicker
+          busy={busy}
+          onAssign={(ownerProfileId) =>
+            action({ action: "assign_owner", owner_profile_id: ownerProfileId, reason })
+          }
+        />
+      </section>
+
+      <section className="rounded border border-gray-200 p-4">
         <div className="font-medium">Pricing tier</div>
         <div className="mt-3 flex gap-2 items-center">
           <select
@@ -193,23 +228,10 @@ export default function AdminStorefrontDetailPage() {
         </div>
       </section>
 
-      <section className="rounded border border-gray-200 p-4">
-        <div className="font-medium">Tax onboarding</div>
-        <div className="mt-3 flex gap-2 items-center">
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            value={tenant.tax_status}
-            onChange={(e) =>
-              action({ patch: { tax_status: e.target.value } })
-            }
-          >
-            <option value="not_started">Not started</option>
-            <option value="submitted">W-9 submitted</option>
-            <option value="approved">W-9 approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
-      </section>
+      {/* Tax-onboarding UI intentionally removed — storefront sales
+          are hard-coded resale-exempt (tax always $0 in the pricing
+          engine) so there is no sales-tax workflow to manage here.
+          The tax_status / w9_* columns stay on the table untouched. */}
 
       <CommissionsPanel tenantId={params.id} />
     </div>
@@ -473,6 +495,115 @@ function Balance({
       <div className="text-[10px] text-gray-500 uppercase">{label}</div>
       <div className={bold ? "font-semibold" : ""}>${Number(amount).toFixed(2)}</div>
       {rows != null ? <div className="text-[10px] text-gray-500">{rows} rows</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Collapsed-by-default owner reassignment. Searches profiles via
+ * /api/admin/storefronts/owners; users who already own a storefront
+ * are greyed out (one tenant per owner is a DB constraint).
+ */
+function OwnerReassignPicker({
+  busy,
+  onAssign,
+}: {
+  busy: boolean;
+  onAssign: (ownerProfileId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [options, setOptions] = useState<OwnerOption[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const supabase = createBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const res = await fetch(
+          `/api/admin/storefronts/owners?search=${encodeURIComponent(search)}`,
+          { headers: { Authorization: `Bearer ${session?.access_token ?? ""}` } },
+        );
+        const body = (await res.json().catch(() => ({}))) as { owners?: OwnerOption[] };
+        if (!cancelled) setOptions(body.owners ?? []);
+      } catch {
+        if (!cancelled) setOptions([]);
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [open, search]);
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-2 rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 cursor-pointer"
+      >
+        Reassign owner
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-gray-600">Assign a different owner</span>
+        <button
+          onClick={() => setOpen(false)}
+          className="text-xs text-gray-500 hover:text-gray-700 cursor-pointer"
+        >
+          Cancel
+        </button>
+      </div>
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Name or email…"
+        className="w-full rounded border border-gray-200 px-2 py-1.5 text-sm mb-2"
+      />
+      <div className="max-h-36 overflow-y-auto rounded border border-gray-200 divide-y divide-gray-100">
+        {searching ? (
+          <div className="px-2 py-2 text-xs text-gray-400">Searching…</div>
+        ) : options.length === 0 ? (
+          <div className="px-2 py-2 text-xs text-gray-400">No matching users.</div>
+        ) : (
+          options.map((o) => (
+            <button
+              key={o.id}
+              disabled={o.owns_storefront || busy}
+              onClick={() => {
+                if (confirm(`Reassign this storefront to ${o.full_name ?? o.email}?`)) {
+                  onAssign(o.id);
+                  setOpen(false);
+                }
+              }}
+              className={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs ${o.owns_storefront ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-blue-50"}`}
+            >
+              <span className="flex-1 min-w-0">
+                <span className="font-medium text-gray-800">{o.full_name ?? o.email}</span>
+                <span className="block text-gray-500 truncate">{o.email}</span>
+              </span>
+              {o.owns_storefront ? (
+                <span className="text-[10px] text-gray-500">owns one</span>
+              ) : o.coffee_agreement_signed ? (
+                <span className="text-[10px] text-green-700">coffee signed</span>
+              ) : null}
+            </button>
+          ))
+        )}
+      </div>
     </div>
   );
 }

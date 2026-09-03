@@ -27,6 +27,7 @@ export type StorefrontAuditAction =
   | "tenant.tier_assigned"
   | "tenant.contact_updated"
   | "tenant.tax_updated"
+  | "tenant.owner_reassigned"
   | "customer.invited"
   | "customer.invitation_revoked"
   | "customer.enrolled"

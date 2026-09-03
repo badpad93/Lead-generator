@@ -918,23 +918,28 @@ export default function DashboardPage() {
             </Link>
           ) : null}
 
-          <Link
-            href="/coffee/apply"
-            className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
-          >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 transition-colors group-hover:bg-amber-700 group-hover:text-white">
-              <Coffee className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="font-semibold text-black-primary">
-                Get Your Free Coffee Brewer
-              </p>
-              <p className="text-sm text-black-primary/50">
-                Apply for our coffee program — free brewer with the supply agreement
-              </p>
-            </div>
-            <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-700" />
-          </Link>
+          {/* Hidden once the operator has signed the coffee
+              agreement — at that point they're already in the
+              program and the application CTA is noise. */}
+          {profile?.coffee_agreement_signed !== true && (
+            <Link
+              href="/coffee/apply"
+              className="group flex items-center gap-4 rounded-2xl border-2 border-green-primary bg-green-50 p-5 shadow-md shadow-green-primary/10 transition-all hover:-translate-y-0.5 hover:bg-green-100 hover:shadow-lg hover:shadow-green-primary/20"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 transition-colors group-hover:bg-amber-700 group-hover:text-white">
+                <Coffee className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-semibold text-black-primary">
+                  Get Your Free Coffee Brewer
+                </p>
+                <p className="text-sm text-black-primary/50">
+                  Apply for our coffee program — free brewer with the supply agreement
+                </p>
+              </div>
+              <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-700" />
+            </Link>
+          )}
         </div>
 
         {/* ------- RECENT REQUESTS ------- */}
