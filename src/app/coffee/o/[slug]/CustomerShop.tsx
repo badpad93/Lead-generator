@@ -441,10 +441,20 @@ export default function CustomerShop({
           tenantSlug={tenantSlug}
           cart={cartLines}
           onClose={() => setCheckoutOpen(false)}
-          onSuccess={(orderNumber) => {
+          onSuccess={({ orderNumber, payUrl }) => {
             setCart({});
             setCheckoutOpen(false);
-            router.push(`/coffee/orders?just_ordered=${orderNumber}`);
+            // Payment is part of checkout: go straight to QBO's
+            // hosted pay page. The order flips out of
+            // awaiting_payment via the QB webhook once payment
+            // clears. Fallback (no pay link — QBO online payments
+            // off or the link fetch failed): the orders page, whose
+            // Pay button offers the same link / invoice-email path.
+            if (payUrl) {
+              window.location.href = payUrl;
+            } else {
+              router.push(`/coffee/orders?just_ordered=${orderNumber}`);
+            }
           }}
         />
       ) : null}
@@ -463,7 +473,7 @@ function CheckoutModal({
   tenantSlug: string;
   cart: Array<{ product_id: string; quantity: number }>;
   onClose: () => void;
-  onSuccess: (orderNumber: string) => void;
+  onSuccess: (result: { orderNumber: string; payUrl: string | null }) => void;
 }) {
   const [form, setForm] = useState({
     billing_business_name: "",
@@ -546,8 +556,11 @@ function CheckoutModal({
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? "Checkout failed");
       }
-      const body = (await res.json()) as { order_number: string };
-      onSuccess(body.order_number);
+      const body = (await res.json()) as {
+        order_number: string;
+        pay_url?: string | null;
+      };
+      onSuccess({ orderNumber: body.order_number, payUrl: body.pay_url ?? null });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Checkout failed");
     } finally {
@@ -640,12 +653,13 @@ function CheckoutModal({
             disabled={submitting}
             className="rounded-md bg-black text-white px-5 py-2 text-sm disabled:opacity-60"
           >
-            {submitting ? "Placing order…" : "Place order"}
+            {submitting ? "Preparing payment…" : "Continue to payment"}
           </button>
         </div>
         <div className="mt-2 text-xs text-gray-500">
-          You'll receive a QuickBooks invoice by email for payment. Order stays
-          in "awaiting payment" until the invoice is paid.
+          You&apos;ll be taken to the secure payment page to pay now. Your order
+          starts processing as soon as payment clears; the invoice is also
+          emailed for your records.
         </div>
       </form>
     </div>

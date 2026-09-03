@@ -198,7 +198,11 @@ export async function POST(req: NextRequest) {
   });
 
   // QBO invoice — resale-exempt customer + NON tax code lines.
+  // pay_url (QBO's hosted "review and pay" page) goes back to the
+  // client so checkout flows straight into payment: cart → checkout
+  // → PAY → order processes when the QB webhook sees the payment.
   let qbInvoiceId: string | null = null;
+  let payUrl: string | null = null;
   try {
     const qbCustomer = await findOrCreateResaleExemptCustomer({
       displayName: profile.full_name || body.billing.contact_name,
@@ -227,6 +231,16 @@ export async function POST(req: NextRequest) {
       .from("storefront_commission_ledger")
       .update({ qb_invoice_id: invoice.Id })
       .eq("coffee_order_id", order.id);
+    // Hosted pay link — requires include=invoiceLink on the read.
+    // Non-fatal: without it the client falls back to the orders
+    // page, where the Pay button offers the same link/email path.
+    try {
+      const { getInvoice } = await import("@/lib/quickbooks");
+      const fullInvoice = await getInvoice(invoice.Id, { includeLink: true });
+      payUrl = fullInvoice.InvoiceLink ?? null;
+    } catch (linkErr) {
+      console.warn("[storefront/checkout] pay-link fetch failed (non-fatal)", linkErr);
+    }
     // Fire and forget — never block checkout on the email.
     void sendInvoiceEmail(invoice.Id, body.billing.email).catch((err) =>
       console.warn("[storefront/checkout] invoice email failed", err),
@@ -259,6 +273,7 @@ export async function POST(req: NextRequest) {
     order_id: order.id,
     order_number: orderNumber,
     qb_invoice_id: qbInvoiceId,
+    pay_url: payUrl,
     totals: resolved.totals,
   });
 }
