@@ -36,26 +36,43 @@ function LoginContent() {
   // a successful sign-in and land them directly on the storefront.
   async function tryConsumeInvite(accessToken: string): Promise<string | null> {
     const inviteToken = consumeInviteToken();
-    if (!inviteToken) return null;
+    if (inviteToken) {
+      try {
+        const res = await fetch("/api/storefront/enrollment/consume", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ token: inviteToken }),
+        });
+        if (res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { tenant_slug?: string | null };
+          return data.tenant_slug ? `/coffee/o/${data.tenant_slug}` : "/dashboard";
+        }
+        // Invalid / expired / linked-to-another-tenant — the invite
+        // page renders the correct explanatory state for each.
+        return `/coffee/invite/${inviteToken}`;
+      } catch {
+        return `/coffee/invite/${inviteToken}`;
+      }
+    }
+    // No stashed token (lost across redirects / different browser).
+    // Server-side fallback: if a pending invitation is addressed to
+    // this account's email, claim it — authenticating as the email
+    // is proof of ownership. 404 NO_INVITATION just means "not a
+    // storefront customer" and the normal flow continues.
     try {
-      const res = await fetch("/api/storefront/enrollment/consume", {
+      const res = await fetch("/api/storefront/enrollment/claim-by-email", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ token: inviteToken }),
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (res.ok) {
         const data = (await res.json().catch(() => ({}))) as { tenant_slug?: string | null };
-        return data.tenant_slug ? `/coffee/o/${data.tenant_slug}` : "/dashboard";
+        if (data.tenant_slug) return `/coffee/o/${data.tenant_slug}`;
       }
-      // Invalid / expired / linked-to-another-tenant — the invite
-      // page renders the correct explanatory state for each.
-      return `/coffee/invite/${inviteToken}`;
-    } catch {
-      return `/coffee/invite/${inviteToken}`;
-    }
+    } catch {}
+    return null;
   }
   const [storefront, setStorefront] = useState<{
     display_name: string;

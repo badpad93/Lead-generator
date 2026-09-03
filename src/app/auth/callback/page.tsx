@@ -215,6 +215,30 @@ function CallbackContent() {
       // customers' shipping/billing info is collected at checkout.
       const inviteToken = consumeInviteToken();
 
+      // No stashed token (lost across the OAuth/verify redirects,
+      // different browser, privacy mode)? Server-side fallback
+      // BEFORE the completeness gate below can bounce anyone:
+      // claim any pending invitation addressed to this account's
+      // email — authenticating as the email is proof of ownership.
+      // 404 NO_INVITATION = not a storefront customer; continue.
+      if (!inviteToken) {
+        try {
+          const claimRes = await fetch("/api/storefront/enrollment/claim-by-email", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (claimRes.ok) {
+            const claimed = (await claimRes.json().catch(() => ({}))) as {
+              tenant_slug?: string | null;
+            };
+            if (claimed.tenant_slug) {
+              window.location.href = `/coffee/o/${claimed.tenant_slug}`;
+              return;
+            }
+          }
+        } catch {}
+      }
+
       // Verify profile completeness — for BOTH signup and login.
       // localStorage data can be lost during OAuth redirect (domain
       // mismatch, browser clearing storage, etc.), so the signup

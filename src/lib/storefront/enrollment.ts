@@ -32,6 +32,7 @@ import { resolveTenantById } from "@/lib/storefront/tenants";
 export type InvitationTargetRole = "location_manager" | "requestor" | "operator";
 export type EnrollmentSource =
   | "invitation"
+  | "email_claim"
   | "direct_link"
   | "admin_manual"
   | "admin_transfer"

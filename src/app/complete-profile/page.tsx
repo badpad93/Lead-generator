@@ -58,6 +58,26 @@ export default function CompleteProfilePage() {
             window.location.href = "/dashboard";
             return;
           }
+          // Rescue: a pending storefront invitation addressed to
+          // this account's email means they're an invited tenant
+          // whose token stash was lost somewhere in signup →
+          // verify → login. Claim it server-side and land them on
+          // the shop instead of asking for operator fields.
+          try {
+            const claimRes = await fetch("/api/storefront/enrollment/claim-by-email", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            if (claimRes.ok) {
+              const claimed = (await claimRes.json().catch(() => ({}))) as {
+                tenant_slug?: string | null;
+              };
+              if (claimed.tenant_slug) {
+                window.location.href = `/coffee/o/${claimed.tenant_slug}`;
+                return;
+              }
+            }
+          } catch {}
           // Any authenticated user with a real role + full contact info can
           // proceed straight to the dashboard. The old "hasRole" check
           // excluded operators (the OAuth-auto-created default role), which
