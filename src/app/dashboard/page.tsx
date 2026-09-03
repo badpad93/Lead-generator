@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -250,6 +250,23 @@ export default function DashboardPage() {
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [loadingOperators, setLoadingOperators] = useState(false);
   const [locatorListings, setLocatorListings] = useState<{ status: string }[]>([]);
+
+  /* ---- Quick Actions row filler ----
+     The Quick Actions tiles are heavily conditional (role,
+     storefront state, coffee agreement), so the last lg:grid-cols-4
+     row often ends ragged. Rather than replicate every visibility
+     condition in a count expression (guaranteed to drift), measure
+     the rendered grid after paint and pad the remainder with
+     generic locations/machines tiles. Fillers carry data-filler so
+     the re-measure never counts them. */
+  const quickActionsRef = useRef<HTMLDivElement | null>(null);
+  const [fillerCount, setFillerCount] = useState(0);
+  useEffect(() => {
+    const grid = quickActionsRef.current;
+    if (!grid) return;
+    const realTiles = grid.querySelectorAll(":scope > *:not([data-filler])").length;
+    setFillerCount(realTiles > 0 ? (4 - (realTiles % 4)) % 4 : 0);
+  }, [profile, storefrontNav]);
 
   /* ============================================================== */
   /*  Auth                                                           */
@@ -599,7 +616,10 @@ export default function DashboardPage() {
         )}
 
         {/* ------- QUICK ACTIONS ------- */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+        <div
+          ref={quickActionsRef}
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4"
+        >
           {isOperator ? (
             <>
               <Link
@@ -940,6 +960,50 @@ export default function DashboardPage() {
               <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-amber-700" />
             </Link>
           )}
+
+          {/* Row fillers — generic locations/machines tiles that
+              pad the final lg:grid-cols-4 row to a full 4 so the
+              section never ends ragged. Count comes from the
+              measure effect above; data-filler keeps re-measures
+              honest. Pool order matters: most broadly useful first. */}
+          {[
+            {
+              href: "/machines-for-sale",
+              title: "Machines for Sale",
+              copy: "Browse vending machines listed by operators",
+              Icon: Monitor,
+            },
+            {
+              href: "/request-location",
+              title: "Request Location Services",
+              copy: "Let our team source placement locations for you",
+              Icon: MapPin,
+            },
+            {
+              href: "/routes-for-sale",
+              title: "Routes for Sale",
+              copy: "Browse established vending routes for sale",
+              Icon: Route,
+            },
+          ]
+            .slice(0, fillerCount)
+            .map(({ href, title, copy, Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                data-filler
+                className="group flex items-center gap-4 rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-primary hover:bg-green-50"
+              >
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500 transition-colors group-hover:bg-green-primary group-hover:text-white">
+                  <Icon className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="font-semibold text-black-primary">{title}</p>
+                  <p className="text-sm text-black-primary/50">{copy}</p>
+                </div>
+                <ChevronRight className="ml-auto h-5 w-5 text-black-primary/20 transition-colors group-hover:text-green-primary" />
+              </Link>
+            ))}
         </div>
 
         {/* ------- RECENT REQUESTS ------- */}
