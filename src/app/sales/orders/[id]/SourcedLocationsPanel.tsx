@@ -147,7 +147,11 @@ export default function SourcedLocationsPanel({
     .filter((l) => l.status === "secured")
     .reduce((s, l) => s + (Number(l.secured_price) || 0), 0);
   const depositAmount = Number(order.deposit_amount) || 0;
-  const estimatedRemaining = Math.max(0, totalSecuredValue - depositAmount);
+  // 10/10/10 orders prepay the location fees inside the order total
+  // — no deposit-vs-remaining split, and the remaining-balance
+  // invoice never applies.
+  const prepaid = order.is_ten_ten_ten === true;
+  const estimatedRemaining = prepaid ? 0 : Math.max(0, totalSecuredValue - depositAmount);
   const alreadyInvoiced =
     order.location_remaining_invoice_status === "sent" ||
     order.location_remaining_invoice_status === "paid";
@@ -269,14 +273,24 @@ export default function SourcedLocationsPanel({
       <div className="mb-4 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 flex items-center gap-3 text-xs">
         <DollarSign className="h-3.5 w-3.5 text-blue-500" />
         <span className="text-blue-800">
-          Deposit paid <strong>${depositAmount.toFixed(2)}</strong>
-          {" · "}
-          Secured value <strong>${totalSecuredValue.toFixed(2)}</strong>
-          {" · "}
-          {estimatedRemaining > 0 ? (
-            <>Est. remaining <strong>${estimatedRemaining.toFixed(2)}</strong></>
+          {prepaid ? (
+            <>
+              <strong>10/10/10 prepaid</strong> — location fees included in the order total
+              {" · "}
+              Secured value <strong>${totalSecuredValue.toFixed(2)}</strong>
+            </>
           ) : (
-            <>Deposit covers secured value</>
+            <>
+              Deposit paid <strong>${depositAmount.toFixed(2)}</strong>
+              {" · "}
+              Secured value <strong>${totalSecuredValue.toFixed(2)}</strong>
+              {" · "}
+              {estimatedRemaining > 0 ? (
+                <>Est. remaining <strong>${estimatedRemaining.toFixed(2)}</strong></>
+              ) : (
+                <>Deposit covers secured value</>
+              )}
+            </>
           )}
         </span>
       </div>
@@ -364,8 +378,10 @@ export default function SourcedLocationsPanel({
       )}
 
       {/* Manual invoice fallback — sits above the search so a rep
-          ready to bill doesn't scroll past the lookup for it. */}
-      {securedCount > 0 && !alreadyInvoiced && (
+          ready to bill doesn't scroll past the lookup for it.
+          Hidden on prepaid (10/10/10) orders: the location fees
+          were collected in the order total, nothing remains. */}
+      {!prepaid && securedCount > 0 && !alreadyInvoiced && (
         <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 flex items-center justify-between">
           <div className="text-xs text-purple-800">
             {estimatedRemaining > 0
