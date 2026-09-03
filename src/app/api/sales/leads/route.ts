@@ -177,8 +177,8 @@ export async function POST(req: NextRequest) {
         business_name: body.location_name || business_name,
         contact_name: body.decision_maker_name || contact_name,
         email: body.decision_maker_email || email,
-        phone: phone,
-        address: address,
+        phone,
+        address,
       });
     } catch (err) {
       console.error("[leads] Failed to send location agreement on create:", err instanceof Error ? err.message : err);

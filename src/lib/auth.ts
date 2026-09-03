@@ -130,6 +130,39 @@ function getSiteUrl(): string {
 export async function ensureSignedOut(): Promise<boolean> {
   const supabase = createBrowserClient();
   await supabase.auth.signOut();
+  // Belt-and-suspenders: purge EVERY Supabase auth artifact from
+  // both stores. signOut() clears the current client's cookie set,
+  // but stale sets from earlier client generations survive it —
+  // legacy localStorage sessions (plain supabase-js era) and
+  // cookie chunks written with different attributes (e.g. a
+  // Domain=.vendingconnector.com set shadowing today's host-only
+  // set). A stale shadow set means the SERVER keeps authenticating
+  // as a previous account after the browser has switched users —
+  // observed live as an admin cookie session shadowing a freshly
+  // signed-in test customer.
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("sb-") || key === "supabase.auth.token") {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch {}
+  try {
+    const host = window.location.hostname;
+    const domains = [
+      "", // host-only
+      host,
+      host.startsWith("www.") ? host.slice(4) : `.${host}`,
+      `.${host.split(".").slice(-2).join(".")}`, // apex-wide (.vendingconnector.com)
+    ];
+    for (const cookie of document.cookie.split(";")) {
+      const name = cookie.split("=")[0]?.trim();
+      if (!name || !name.startsWith("sb-")) continue;
+      for (const domain of domains) {
+        document.cookie = `${name}=;path=/;max-age=0${domain ? `;domain=${domain}` : ""}`;
+      }
+    }
+  } catch {}
   const { data: { session } } = await supabase.auth.getSession();
   return session === null;
 }

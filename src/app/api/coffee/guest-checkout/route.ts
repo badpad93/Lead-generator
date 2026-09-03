@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
 
     // Marketing consent defaults to true (opt-out per spec — checkbox
     // is pre-checked on the client). Accept explicit false.
-    const marketingConsent = body.marketing_consent === false ? false : true;
+    const marketingConsent = body.marketing_consent !== false;
 
     // Provision (or reuse) an account for this guest. Any existing
     // non-provisional profile short-circuits to a sign-in nudge — we

@@ -245,7 +245,7 @@ async function handleFinish(
       metadata: {
         contractor_email: row.contractor_email,
         signature_type: signatureType,
-        ip: ip,
+        ip,
         recipients_notified: CONTRACTOR_ONBOARDING_NOTIFY,
       },
     });

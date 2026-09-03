@@ -309,13 +309,12 @@ function CallbackContent() {
               ? `/coffee/o/${consumed.tenant_slug}`
               : "/dashboard";
             return;
-          } else {
-            // Token invalid / expired / revoked. Don't block the
-            // account creation — send them to the invite page which
-            // will show its normal error state.
-            window.location.href = `/coffee/invite/${inviteToken}`;
-            return;
           }
+          // Token invalid / expired / revoked. Don't block the
+          // account creation — send them to the invite page which
+          // will show its normal error state.
+          window.location.href = `/coffee/invite/${inviteToken}`;
+          return;
         } catch {
           // Network or other failure — fall back to invite page
           // which will show a clear error rather than silently

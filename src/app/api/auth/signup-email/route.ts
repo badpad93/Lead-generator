@@ -91,8 +91,13 @@ export async function POST(req: NextRequest) {
     const userId = created.user.id;
 
     // Ensure profile row reflects our intended values (handle_new_user trigger
-    // may have inserted a baseline).
-    await supabaseAdmin
+    // may have inserted a baseline). This error MUST be checked: an
+    // unchecked failure here (e.g. the profiles_role_check constraint
+    // rejecting a role value — exactly what happened when 'customer'
+    // shipped before migration 180) leaves the account with the bare
+    // trigger baseline (wrong role, no contact fields) and the user
+    // strands on /complete-profile with no visible cause.
+    const { error: profileErr } = await supabaseAdmin
       .from("profiles")
       .upsert(
         {
@@ -111,6 +116,18 @@ export async function POST(req: NextRequest) {
         },
         { onConflict: "id" },
       );
+    if (profileErr) {
+      console.error("[signup-email] profile upsert failed:", profileErr);
+      // Roll back the half-created auth user so the email isn't
+      // burned on an account with a corrupt profile.
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+      } catch {}
+      return NextResponse.json(
+        { error: `Account setup failed: ${profileErr.message}` },
+        { status: 500 },
+      );
+    }
 
     // Send verification email
     const verifyResult = await createAndSendVerificationEmail({

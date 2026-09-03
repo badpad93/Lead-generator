@@ -55,7 +55,7 @@ function makeChain(table: string) {
   };
   api.is = (col: string, val: unknown) => {
     if (state.isUpdate || state.isInsert) {
-      state.updateFilterArgs.push({ col, val: val, isNull: val === null });
+      state.updateFilterArgs.push({ col, val, isNull: val === null });
     } else {
       state.filter = state.filter.filter((r) => (val === null ? r[col] == null : r[col] === val));
     }

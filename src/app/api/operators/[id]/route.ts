@@ -25,7 +25,7 @@ export async function GET(
   const { stripe_subscription_id: _sid, stripe_customer_id: _cid, ...cleanProfile } = profile;
 
   // Non-featured operators: strip all identifying info
-  let safeProfile = isFeatured
+  const safeProfile = isFeatured
     ? { ...cleanProfile, featured: true }
     : {
         ...cleanProfile,

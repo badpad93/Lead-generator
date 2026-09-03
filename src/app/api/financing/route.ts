@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
         contact_name: body.full_name,
         phone: body.phone,
         address: "",
-        marketing_consent: body.marketing_consent === false ? false : true,
+        marketing_consent: body.marketing_consent !== false,
       });
       if ("existing" in provisionResult && provisionResult.existing) {
         return NextResponse.json(
@@ -362,7 +362,7 @@ export async function POST(req: NextRequest) {
         password_token_expires_at: guestTokenExpiry(7).toISOString(),
         tracking_token: trackingToken,
         tracking_token_expires_at: guestTokenExpiry(30).toISOString(),
-        marketing_consent: body.marketing_consent === false ? false : true,
+        marketing_consent: body.marketing_consent !== false,
       });
 
       const claimUrl = `${origin}/coffee/claim/${passwordToken}`;

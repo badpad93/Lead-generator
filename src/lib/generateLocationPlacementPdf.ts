@@ -27,7 +27,7 @@ export async function generateLocationPlacementPdf(ag: any, signatures: any[], i
   let page: PDFPage = doc.addPage([PAGE_W, PAGE_H]);
   let y = 740;
   let currentSectionNum = 0;
-  let currentScheduleKey: string | null = null;
+  const currentScheduleKey: string | null = null;
 
   function newPage() {
     drawText(page, "Apex AI Vending — Location Placement Agreement", LEFT, 30, helvetica, 7, gray);

@@ -561,7 +561,7 @@ export default function BrowseOperatorsPage() {
 
         // Step 2: Fetch listings for these operators to aggregate data
         const operatorIds = profiles.map((p) => p.id);
-        let listingsByOperator: Record<string, OperatorListing[]> = {};
+        const listingsByOperator: Record<string, OperatorListing[]> = {};
 
         if (operatorIds.length > 0) {
           const listingParams = new URLSearchParams();
