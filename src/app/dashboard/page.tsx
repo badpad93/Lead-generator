@@ -300,7 +300,17 @@ export default function DashboardPage() {
             return;
           }
           const data = await res.json();
-          if (!data.phone || !data.address || !data.city || !data.state || !data.zip) {
+          // Storefront customers skip the completeness gate — their
+          // shipping info is collected at checkout, and this gate
+          // used to fire BEFORE the enrolled auto-route below, so an
+          // invited customer with any blank profile field got parked
+          // on /complete-profile instead of reaching their shop.
+          const isStorefrontCustomer =
+            data.role === "customer" || !!data.storefront_tenant_id;
+          if (
+            !isStorefrontCustomer &&
+            (!data.phone || !data.address || !data.city || !data.state || !data.zip)
+          ) {
             window.location.href = "/complete-profile";
             return;
           }

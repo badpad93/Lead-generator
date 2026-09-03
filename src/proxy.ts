@@ -186,6 +186,7 @@ export async function proxy(req: NextRequest) {
     let state = readField("state");
     let zip = readField("zip");
 
+    let isStorefrontCustomer = false;
     if (!phone || !address || !city || !state || !zip) {
       // Fallback uses service role — the user's own session may or may not
       // have a SELECT policy on profiles depending on project setup, and a
@@ -199,7 +200,7 @@ export async function proxy(req: NextRequest) {
       );
       const { data: profile } = await admin
         .from("profiles")
-        .select("phone, address, city, state, zip")
+        .select("phone, address, city, state, zip, role, storefront_tenant_id")
         .eq("id", user.id)
         .maybeSingle();
       const pick = (v: unknown): string => typeof v === "string" ? v.trim() : "";
@@ -208,9 +209,16 @@ export async function proxy(req: NextRequest) {
       city = city || pick(profile?.city);
       state = state || pick(profile?.state);
       zip = zip || pick(profile?.zip);
+      // Storefront customers (invited shoppers of an operator's
+      // storefront) are exempt from the contact-on-file gate —
+      // shipping/billing is collected at checkout, and parking them
+      // on /complete-profile blocks them from the shop they were
+      // invited to.
+      isStorefrontCustomer =
+        profile?.role === "customer" || !!profile?.storefront_tenant_id;
     }
 
-    if (!phone || !address || !city || !state || !zip) {
+    if ((!phone || !address || !city || !state || !zip) && !isStorefrontCustomer) {
       const completeUrl = req.nextUrl.clone();
       completeUrl.pathname = "/complete-profile";
       completeUrl.search = "";
