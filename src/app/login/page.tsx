@@ -114,6 +114,15 @@ function LoginContent() {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
+        // Invite consumption first — enrollment is what makes an
+        // invited visitor a customer, so it must run before the
+        // completeness gate can bounce them. Header-auth'd, so it
+        // carries THIS session regardless of stale cookie state.
+        const inviteRedirect = await tryConsumeInvite(session.access_token);
+        if (inviteRedirect) {
+          window.location.href = inviteRedirect;
+          return;
+        }
         try {
           const res = await fetch("/api/auth/me", {
             headers: { Authorization: `Bearer ${session.access_token}` },
@@ -135,11 +144,6 @@ function LoginContent() {
             }
           }
         } catch {}
-        const inviteRedirect = await tryConsumeInvite(session.access_token);
-        if (inviteRedirect) {
-          window.location.href = inviteRedirect;
-          return;
-        }
         const redirect = searchParams.get("redirect") || "/dashboard";
         window.location.href = redirect;
       } else {
@@ -210,12 +214,28 @@ function LoginContent() {
       const profileRes = await fetch("/api/auth/me", {
         headers: { Authorization: `Bearer ${data.session.access_token}` },
       });
-      if (profileRes.ok) {
-        const profile = await profileRes.json();
-        if (profile.email_verified === false) {
-          window.location.href = "/verify-email-required";
-          return;
-        }
+      const profile = profileRes.ok ? await profileRes.json() : null;
+      if (profile?.email_verified === false) {
+        window.location.href = "/verify-email-required";
+        return;
+      }
+
+      // Invite consumption runs BEFORE the completeness gate. The
+      // reverse order stranded invited tenants: a profile whose
+      // role write was rejected (or whose fields were incomplete)
+      // bounced to /complete-profile before the pending invitation
+      // could enroll + exempt them. Enrollment is the thing that
+      // makes them a customer — it must get first crack. (Both the
+      // stashed-token consume and the claim-by-email fallback are
+      // Authorization-header calls, so they carry THIS session
+      // regardless of any stale SSR cookie state.)
+      const inviteRedirect = await tryConsumeInvite(data.session.access_token);
+      if (inviteRedirect) {
+        window.location.href = inviteRedirect;
+        return;
+      }
+
+      if (profile) {
         // Storefront customers skip the completeness gate — see the
         // session-restore check above for the reasoning.
         const isStorefrontCustomer =
@@ -229,11 +249,6 @@ function LoginContent() {
         }
       }
 
-      const inviteRedirect = await tryConsumeInvite(data.session.access_token);
-      if (inviteRedirect) {
-        window.location.href = inviteRedirect;
-        return;
-      }
       const redirect = searchParams.get("redirect") || "/dashboard";
       window.location.href = redirect;
     } catch (e) {
