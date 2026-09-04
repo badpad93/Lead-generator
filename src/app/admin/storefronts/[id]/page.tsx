@@ -151,7 +151,27 @@ export default function AdminStorefrontDetailPage() {
         <div className="mt-3 flex gap-2">
           <button
             disabled={busy || tenant.status === "approved"}
-            onClick={() => action({ action: "approve", reason })}
+            onClick={() => {
+              // Warn (not block) on approving an unpriced tenant: a
+              // deliberate list-price storefront is a valid setup and
+              // the tier is often assigned seconds later on this same
+              // page — but approving without one silently broke live
+              // checkout once, so the accidental path needs a stop.
+              if (
+                !tenant.base_pricing_tier_id &&
+                !confirm(
+                  "This storefront has NO pricing tier assigned.\n\n" +
+                    "Without a tier, checkout falls back to product list prices: " +
+                    "products missing a list price will FAIL at checkout, and the " +
+                    "owner earns $0 margin on the rest.\n\n" +
+                    "You can assign a tier in the Pricing tier section below.\n\n" +
+                    "Approve anyway?",
+                )
+              ) {
+                return;
+              }
+              void action({ action: "approve", reason });
+            }}
             className="rounded bg-green-600 text-white px-3 py-1 text-sm disabled:opacity-50"
           >
             Approve
@@ -207,6 +227,14 @@ export default function AdminStorefrontDetailPage() {
 
       <section className="rounded border border-gray-200 p-4">
         <div className="font-medium">Pricing tier</div>
+        {!tenant.base_pricing_tier_id ? (
+          <div className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-800">
+            ⚠ No pricing tier assigned
+            {tenant.status === "approved" ? " on an APPROVED storefront" : ""} —
+            checkout relies on bare product list prices (fails for products
+            without one) unless the owner has set customer prices.
+          </div>
+        ) : null}
         <div className="mt-3 flex gap-2 items-center">
           <select
             className="border rounded px-2 py-1 text-sm"

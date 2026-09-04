@@ -20,11 +20,72 @@ interface Tenant {
   suspended_reason: string | null;
 }
 
+/**
+ * Unpriced-storefront detection, half two: how many active
+ * storefront_tenant_prices overrides the owner has. Only queried when
+ * no base tier is assigned. null = couldn't check (no banner shown —
+ * never cry wolf on a fetch hiccup).
+ */
+async function countActiveOverrides(token: string): Promise<number | null> {
+  try {
+    const res = await fetch("/api/storefront/tenant/prices", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json().catch(() => ({}))) as {
+      prices?: Array<{ active?: boolean }>;
+    };
+    return (body.prices ?? []).filter((p) => p.active !== false).length;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Shown when the tenant has no base pricing tier AND no active price
+ * overrides: the resolver then has nothing tenant-specific, so
+ * checkout fails outright for products without a list price and pays
+ * the owner $0 margin on the rest. That state was silent in
+ * production once — never again.
+ */
+function PricingSetupBanner({
+  tenant,
+  overrideCount,
+}: {
+  tenant: Tenant;
+  overrideCount: number | null;
+}) {
+  if (tenant.base_pricing_tier_id || overrideCount !== 0) return null;
+  return (
+    <div className="mt-6 rounded-md border border-red-300 bg-red-50 p-4">
+      <div className="font-semibold text-red-800">
+        Pricing isn&apos;t configured — customers cannot check out
+      </div>
+      <p className="mt-1 text-sm text-red-700">
+        Your storefront has no pricing tier assigned and no customer prices
+        set. Until pricing is configured, checkout fails for any product
+        without a list price — and products that do have one sell at bare
+        list price, earning you $0 margin. Set your customer prices now, or
+        contact Vending Connector to have a pricing tier assigned.
+      </p>
+      <Link
+        href="/coffee/storefront/pricing"
+        className="mt-3 inline-block rounded-md bg-red-700 px-3 py-1.5 text-sm text-white hover:bg-red-800"
+      >
+        Configure pricing →
+      </Link>
+    </div>
+  );
+}
+
 export default function StorefrontDashboardPage() {
   const router = useRouter();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // null = unknown/not-checked; only relevant when no base tier is
+  // assigned — see the pricing banner below.
+  const [overrideCount, setOverrideCount] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -47,6 +108,9 @@ export default function StorefrontDashboardPage() {
         } else {
           const data = (await res.json()) as { tenant: Tenant };
           setTenant(data.tenant);
+          if (!data.tenant.base_pricing_tier_id) {
+            setOverrideCount(await countActiveOverrides(session.access_token));
+          }
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load");
@@ -109,6 +173,8 @@ export default function StorefrontDashboardPage() {
           </Link>
         ) : null}
       </div>
+
+      <PricingSetupBanner tenant={tenant} overrideCount={overrideCount} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
         <DashCard href="/coffee/storefront/brand" title="Brand & appearance">

@@ -330,7 +330,9 @@ export async function resolveCart(input: ResolveCartInput): Promise<ResolvedCart
     if (basePrice == null || !Number.isFinite(basePrice)) {
       throw new PricingResolutionError(
         "NO_BASE_PRICE",
-        `Product ${product.sku} has no base tier price and no recommended price; cannot compute commission`,
+        tenant.base_pricing_tier_id
+          ? `Product ${product.sku} has no price in the storefront's assigned tier and no recommended price; cannot compute commission`
+          : `Product ${product.sku} has no recommended price and the storefront has no pricing tier assigned; cannot compute commission`,
       );
     }
 
