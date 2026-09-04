@@ -12,7 +12,7 @@ import {
 import AttributionPanel from "./AttributionPanel";
 import CommissionOverridePanel from "./CommissionOverridePanel";
 import SourcedLocationsPanel from "./SourcedLocationsPanel";
-import { deriveNextAction, deriveNextStep, orderNeedsAgreement } from "@/lib/salesOrderNextAction";
+import { deriveNextAction, deriveFlowState } from "@/lib/salesOrderNextAction";
 
 interface OrderItem {
   id: string;
@@ -105,20 +105,6 @@ const ITEM_TYPES = [
   { value: "other", label: "Other Services", icon: Wrench },
 ];
 
-const STATUS_ACTIONS = [
-  { action: "send_invoice", label: "Send Invoice", color: "bg-blue-600 hover:bg-blue-700" },
-  { action: "send_agreement", label: "Send Agreement", color: "bg-indigo-600 hover:bg-indigo-700" },
-  { action: "mark_agreement_signed", label: "Mark Signed", color: "bg-purple-600 hover:bg-purple-700" },
-  { action: "mark_deposit_paid", label: "Mark Deposit Paid", color: "bg-emerald-600 hover:bg-emerald-700" },
-  { action: "mark_paid", label: "Mark Paid", color: "bg-green-600 hover:bg-green-700" },
-  { action: "mark_machine_ordered", label: "Mark Machine Ordered", color: "bg-violet-600 hover:bg-violet-700" },
-  { action: "mark_location_search", label: "Location Search Active", color: "bg-cyan-600 hover:bg-cyan-700" },
-  { action: "mark_coffee_setup", label: "Coffee Program Setup", color: "bg-amber-600 hover:bg-amber-700" },
-  { action: "mark_shipped", label: "Mark Shipped", color: "bg-sky-600 hover:bg-sky-700" },
-  { action: "mark_delivered", label: "Mark Delivered", color: "bg-teal-600 hover:bg-teal-700" },
-  { action: "mark_completed", label: "Mark Completed", color: "bg-green-700 hover:bg-green-800" },
-  { action: "mark_cancelled", label: "Cancel Order", color: "bg-red-600 hover:bg-red-700" },
-];
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-50 text-gray-600 ring-gray-200",
@@ -155,7 +141,6 @@ export default function OrderDetailPage() {
   const [noteText, setNoteText] = useState("");
 
   const [agreements, setAgreements] = useState<{ id: string; agreement_status: string; created_at: string; sent_at: string | null; operator_signed_at: string | null; apex_signed_at: string | null }[]>([]);
-  const [agreementLoading, setAgreementLoading] = useState(false);
 
   const [newItem, setNewItem] = useState({
     item_type: "machine_sale",
@@ -268,44 +253,6 @@ export default function OrderDetailPage() {
     fetchOrder();
   }
 
-  async function handleStatusAction(action: string) {
-    setActionLoading(action);
-    await fetch(`/api/sales/orders/${id}/status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action }),
-    });
-    await fetchOrder();
-    setActionLoading("");
-  }
-
-  async function handleSendToWorkflow() {
-    if (!confirm(
-      "Manually create a workflow from this order?\n\n" +
-      "Use this as a fallback if the automatic spawn didn't fire " +
-      "(e.g. QB webhook missed, or manual mark-paid predated the fix). " +
-      "Idempotent — if a workflow is already linked, nothing new is created.",
-    )) return;
-    setActionLoading("send_to_workflow");
-    try {
-      const res = await fetch(`/api/sales/orders/${id}/send-to-workflow`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        alert(data.error || "Failed to send to workflow");
-      } else if (data.already_linked) {
-        alert(`This order is already linked to workflow ${data.workflow_number ?? data.workflow_id}.`);
-      } else {
-        alert(`Workflow ${data.workflow_number ?? data.workflow_id} created and linked.`);
-      }
-    } finally {
-      await fetchOrder();
-      setActionLoading("");
-    }
-  }
-
   async function handleSendRemainingBalance() {
     if (!confirm("Send the Location Services remaining balance invoice to the customer? This typically goes out once secured locations have been fulfilled.")) return;
     setActionLoading("send_remaining_balance");
@@ -366,67 +313,6 @@ export default function OrderDetailPage() {
     }
   }
 
-  async function handleGenerateAgreement() {
-    setAgreementLoading(true);
-    const res = await fetch(`/api/sales/orders/${id}/agreement`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const agreement = await res.json();
-      router.push(`/sales/agreements/${agreement.id}`);
-    } else {
-      // Never fail silently — a rep clicking "Generate Updated
-      // Agreement" after editing items needs to know why nothing
-      // happened (e.g. AGREEMENT_NOT_REQUIRED after removing the
-      // coffee line).
-      const data = await res.json().catch(() => ({}));
-      alert(data.error || "Failed to generate agreement");
-    }
-    setAgreementLoading(false);
-  }
-
-  // Items edited after the newest agreement was generated → the
-  // agreement no longer reflects the order. Drives the amber
-  // "generate an updated agreement" hint on the agreement card.
-  const latestAgreementAt = agreements.length > 0 ? new Date(agreements[0].created_at).getTime() : null;
-  const latestItemChangeAt = order
-    ? Math.max(
-        0,
-        ...order.order_items.map((i) =>
-          new Date(i.updated_at ?? i.created_at ?? 0).getTime(),
-        ),
-      )
-    : 0;
-  const agreementStale = latestAgreementAt != null && latestItemChangeAt > latestAgreementAt;
-
-  // Manual quote → order fallback. The linear Next Step for a
-  // coffee / 10-10-10 quote points at Generate Agreement (agreement
-  // is the intended commitment); this button is the escape hatch
-  // for a rep who needs to convert a quote to an order without
-  // going through the agreement step first — e.g. an on-file
-  // customer, a legacy quote, or a signed paper agreement they
-  // don't want to reproduce in the CRM.
-  async function handleManualConvertQuote() {
-    if (!token) return;
-    if (!confirm("Convert this quote to an order? Line items and totals are preserved.")) return;
-    setActionLoading("manual_convert_quote");
-    try {
-      const res = await fetch(`/api/sales/orders/${id}/convert-to-order`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        await fetchOrder();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || "Convert failed");
-      }
-    } finally {
-      setActionLoading("");
-    }
-  }
-
   async function handleDeleteItem(itemId: string) {
     if (!confirm("Remove this item?")) return;
     await fetch(`/api/sales/orders/${id}/items/${itemId}`, {
@@ -468,85 +354,42 @@ export default function OrderDetailPage() {
   // to produce the correct nudge every render, so there's no stored
   // value that can go stale.
   const derivedNextAction = order ? deriveNextAction(order) : null;
-  const nextStep = order ? deriveNextStep(order) : null;
+  const flowState = order ? deriveFlowState(order) : null;
 
-  // Single dispatcher for the ONE next-step button that replaces
-  // the grid of 12 STATUS_ACTIONS. Verbs map to the right route
-  // per the deriveNextStep JSDoc; unknown verbs no-op so a schema
-  // drift can't strand the UI on a broken button.
+  // The flow's single dispatcher. Two verbs, two routes.
+  //
+  //   send_quote     -> /send     (emails the quote, -> quote_sent)
+  //   process_order  -> /process  (converts, generates + sends the
+  //                                agreement, sends the invoice,
+  //                                -> awaiting_payment)
+  //
+  // Everything the old grid of twelve status transitions used to do by
+  // hand now happens inside /process. Both routes are idempotent, so a
+  // retry after a failed email resumes rather than duplicating.
   async function handleNextStep() {
-    if (!nextStep || !token) return;
-    setActionLoading(nextStep.verb);
+    const action = flowState?.action;
+    if (!action || !token) return;
+    setActionLoading(action.verb);
     try {
-      const isQuote = order?.document_type === "quote";
-      let ok = false;
-      switch (nextStep.verb) {
-        case "send_quote":
-        case "send_invoice": {
-          // Same /send route serves both. It reads document_type
-          // and decides quote-email vs QBO-invoice-vs-Resend-order
-          // internally, then stamps the correct order_status.
-          const res = await fetch(`/api/sales/orders/${id}/send`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          ok = res.ok;
-          break;
-        }
-        case "convert_to_order": {
-          const res = await fetch(`/api/sales/orders/${id}/convert-to-order`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          ok = res.ok;
-          break;
-        }
-        case "generate_agreement": {
-          const res = await fetch(`/api/sales/orders/${id}/agreement`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          if (res.ok) {
-            const agreement = await res.json();
-            router.push(`/sales/agreements/${agreement.id}`);
-            return; // don't fetchOrder — we're navigating away
-          }
-          break;
-        }
-        case "source_locations": {
-          // No API side-effect — the "action" is for the rep to add
-          // sourced locations to the order. Scroll to the Sourced
-          // Locations card so the input is in view.
-          const target = document.getElementById("sourced-locations");
-          if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-          ok = true;
-          break;
-        }
-        case "send_agreement":
-        case "mark_deposit_paid":
-        case "mark_paid":
-        case "mark_machine_ordered":
-        case "mark_shipped":
-        case "mark_delivered":
-        case "mark_completed": {
-          const res = await fetch(`/api/sales/orders/${id}/status`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ action: nextStep.verb }),
-          });
-          ok = res.ok;
-          break;
-        }
+      const endpoint =
+        action.verb === "send_quote"
+          ? `/api/sales/orders/${id}/send`
+          : `/api/sales/orders/${id}/process`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(
+          err.error ||
+            "That step didn't finish. Nothing was sent twice — press the button again to pick up where it stopped.",
+        );
       }
-      if (ok) await fetchOrder();
-      // isQuote unused after switch, keep reference to satisfy no-unused warning
-      void isQuote;
+      await fetchOrder();
     } finally {
       setActionLoading("");
     }
@@ -980,49 +823,26 @@ export default function OrderDetailPage() {
             )}
           </div>
 
-          {/* Purchase Agreement — only surfaces for orders that
-              actually need one (coffee sales or 10/10/10 packages).
-              Everything else has no written agreement, so we hide
-              the card entirely rather than show a disabled button.
-              The API refuses the same set with a 409 for safety. */}
-          {orderNeedsAgreement(order) && (
+          {/* Purchase Agreement.
+              Every order gets one now — the agreement tailors its
+              schedules to the line items, so there is no sale type left
+              to gate on. It is created and kept up to date
+              automatically: generated when the order is processed, and
+              refreshed whenever a line item changes while it is still a
+              draft. Nothing to click. */}
           <div className="rounded-xl border border-gray-200 bg-white p-5">
             <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
               <ScrollText className="h-4 w-4 text-gray-400" />
-              {order.document_type === "quote" ? "Convert to Agreement" : "Purchase Agreement"}
+              Purchase Agreement
             </h3>
-            {order.document_type === "quote" && agreements.length === 0 && (
-              <p className="text-xs text-gray-500 mb-3">
-                Optional — turn this quote into a purchase agreement using the same items and totals. The quote stays intact.
-              </p>
-            )}
             {agreements.length === 0 ? (
-              <div className="text-center py-3">
-                {order.document_type !== "quote" && (
-                  <p className="text-xs text-gray-400 mb-3">No agreement generated yet</p>
-                )}
-                <button
-                  onClick={handleGenerateAgreement}
-                  disabled={agreementLoading}
-                  className="w-full rounded-lg px-3 py-2 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {agreementLoading
-                    ? "Generating..."
-                    : order.document_type === "quote"
-                      ? "Convert Quote to Agreement"
-                      : "Generate Purchase Agreement"}
-                </button>
-              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Generated automatically from these line items when you
+                process the order, and sent to the customer for signature
+                along with the invoice.
+              </p>
             ) : (
-              <div className="space-y-3">
-                {agreementStale && (
-                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800">
-                    Items on this {order.document_type === "quote" ? "quote" : "order"} have
-                    changed since the latest agreement was generated — it no longer matches
-                    the line items. Generate an updated agreement below (existing ones are
-                    kept for the record).
-                  </div>
-                )}
+              <div className="space-y-3 mt-3">
                 {agreements.map((ag) => (
                   <div key={ag.id} className="border border-gray-100 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
@@ -1050,97 +870,53 @@ export default function OrderDetailPage() {
                     </button>
                   </div>
                 ))}
-                <button
-                  onClick={handleGenerateAgreement}
-                  disabled={agreementLoading}
-                  className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 ${
-                    agreementStale
-                      ? "text-white bg-amber-600 hover:bg-amber-700"
-                      : "text-gray-600 border border-gray-200 hover:bg-gray-50"
-                  }`}
-                >
-                  {agreementLoading ? "..." : "Generate Updated Agreement (uses current items)"}
-                </button>
               </div>
             )}
           </div>
-          )}
 
-          {/* Next Step — ONE button per state, computed by
-              deriveNextStep(order). Replaces the grid of 12
-              STATUS_ACTIONS so a rep doesn't have to pick from a
-              list of state transitions or accidentally skip a
-              step. Verb → route mapping lives in handleNextStep()
-              above. Terminal states (completed / cancelled) get no
-              card. The "Send to Workflows" manual-fallback button
-              is preserved separately for location_services orders
-              — it's not part of the linear lifecycle.
-              Rep can always cancel the order via the Danger Zone
-              card below if the deal falls through. */}
-          {nextStep && (
-            <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-5">
-              <h3 className="text-sm font-semibold text-emerald-900 mb-1">Next Step</h3>
-              <p className="text-xs text-emerald-800 mb-3">{nextStep.copy}</p>
-              <button
-                onClick={handleNextStep}
-                disabled={actionLoading === nextStep.verb}
-                className="w-full rounded-lg px-3 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors cursor-pointer disabled:opacity-50"
+          {/* The flow.
+              One button when there is something to do, a status line
+              when the flow is waiting on the customer. The rep never
+              picks a state transition — see
+              src/lib/salesOrderNextAction.ts for the full path.
+              The manual "convert quote to order" escape hatch that used
+              to sit here is gone: skipping the linear path was how
+              orders ended up live with no agreement behind them. */}
+          {flowState && flowState.stage !== "closed" && (
+            <div
+              className={`rounded-xl border p-5 ${
+                flowState.action
+                  ? "border-emerald-300 bg-emerald-50"
+                  : "border-slate-300 bg-slate-50"
+              }`}
+            >
+              <h3
+                className={`text-sm font-semibold mb-1 ${
+                  flowState.action ? "text-emerald-900" : "text-slate-900"
+                }`}
               >
-                {actionLoading === nextStep.verb ? "Working…" : nextStep.buttonLabel}
-              </button>
+                {flowState.headline}
+              </h3>
+              <p
+                className={`text-xs mb-3 ${
+                  flowState.action ? "text-emerald-800" : "text-slate-600"
+                }`}
+              >
+                {flowState.detail}
+              </p>
+              {flowState.action && (
+                <button
+                  onClick={handleNextStep}
+                  disabled={actionLoading === flowState.action.verb}
+                  className="w-full rounded-lg px-3 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {actionLoading === flowState.action.verb
+                    ? "Working…"
+                    : flowState.action.buttonLabel}
+                </button>
+              )}
             </div>
           )}
-          {/* Manual quote → order fallback. Only visible for a quote
-              that isn't already terminal. Sits alongside the Next
-              Step so a rep who wants to jump the linear path
-              (skip Generate Agreement, or convert a legacy quote)
-              can do it in one click. */}
-          {order.document_type === "quote" &&
-            order.order_status !== "completed" &&
-            order.order_status !== "cancelled" && (
-              <div className="rounded-xl border border-indigo-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                  Convert quote to order (manual)
-                </h3>
-                <p className="text-xs text-gray-500 mb-3">
-                  Skip the linear path. Line items and totals carry
-                  over; the quote flips to a full order and the next
-                  step becomes Send Invoice.
-                </p>
-                <button
-                  onClick={handleManualConvertQuote}
-                  disabled={actionLoading === "manual_convert_quote"}
-                  className="w-full rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors cursor-pointer disabled:opacity-50 bg-indigo-600 hover:bg-indigo-700"
-                >
-                  {actionLoading === "manual_convert_quote"
-                    ? "Converting…"
-                    : "Convert to Order"}
-                </button>
-              </div>
-            )}
-          {order.order_type === "location_services" &&
-            order.order_status !== "completed" &&
-            order.order_status !== "cancelled" && (
-              <div className="rounded-xl border border-amber-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                  Location services fallback
-                </h3>
-                <p className="text-xs text-gray-500 mb-3">
-                  The workflow is auto-created when the deposit is paid. Use
-                  this only if the auto-spawn didn't fire.
-                </p>
-                <button
-                  onClick={handleSendToWorkflow}
-                  disabled={actionLoading === "send_to_workflow"}
-                  className="w-full rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors cursor-pointer disabled:opacity-50 bg-amber-600 hover:bg-amber-700"
-                >
-                  {actionLoading === "send_to_workflow"
-                    ? "..."
-                    : "Send to Workflows (fallback)"}
-                </button>
-              </div>
-            )}
-
           {/* Location Services Remaining Balance */}
           {(() => {
             const pendingBalance = order.order_items.find(

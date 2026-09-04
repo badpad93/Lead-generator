@@ -2,6 +2,32 @@ import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { Resend } from "resend";
 import { pdfSafeInline, pdfSafeMultiline } from "./pdfSafeText";
+import {
+  agreementTotals,
+  type ItemCategory,
+  type SnapshotLine,
+} from "@/lib/pricing/lineItems";
+import { buildOrderItemsFromAgreement } from "@/lib/agreements/sync";
+
+const CATEGORY_LABEL: Record<ItemCategory, string> = {
+  equipment: "Equipment",
+  location_services: "Location Services",
+  coffee: "Coffee Program",
+  freight: "Shipping & Freight",
+  financing: "Financing",
+  other: "Other",
+};
+
+/** Order the payment summary groups appear in. */
+const CATEGORY_ORDER: ItemCategory[] = [
+  "equipment",
+  "coffee",
+  "location_services",
+  "freight",
+  "financing",
+  "other",
+];
+
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 
@@ -256,9 +282,28 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     y -= 2;
   }
 
-  const includeEquipment = ag.include_equipment !== false;
-  const includeLocationServices = ag.include_location_services !== false;
-  const includeShippingStorage = ag.include_shipping_storage !== false;
+  // The contract is built from the order's line items. line_items_snapshot
+  // holds every line verbatim (migration 176); the scalar columns are a
+  // derived cache kept only so pre-176 agreements still render.
+  const snapshotLines: SnapshotLine[] = Array.isArray(ag.line_items_snapshot)
+    ? (ag.line_items_snapshot as SnapshotLine[])
+    : [];
+  const hasSnapshot = snapshotLines.length > 0;
+  const snapTotals = hasSnapshot ? agreementTotals(snapshotLines) : null;
+  const hasCategory = (c: ItemCategory) => snapshotLines.some((l) => l.category === c);
+
+  // A section renders when the order actually contains that kind of
+  // line — and a rep can still switch one off explicitly.
+  const includeEquipment =
+    ag.include_equipment !== false && (hasSnapshot ? hasCategory("equipment") : true);
+  const includeLocationServices =
+    ag.include_location_services !== false &&
+    (hasSnapshot ? hasCategory("location_services") : true);
+  const includeShippingStorage =
+    ag.include_shipping_storage !== false && (hasSnapshot ? hasCategory("freight") : true);
+  const includeCoffee = hasSnapshot && hasCategory("coffee");
+  const includeFinancing =
+    ag.include_financing === true || (hasSnapshot && hasCategory("financing"));
 
   if (includeEquipment) {
     sectionHeader(3, "Equipment Purchase");
@@ -386,9 +431,105 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   }
 
   /* ================================================================ */
-  /*  SCHEDULE A — Equipment Details                                  */
+  /*  SCHEDULE A — Order Line Items                                   */
   /* ================================================================ */
-  if (includeEquipment) {
+  // Every line on the order, verbatim.
+  //
+  // This used to be a single hardcoded "VendEra AI Machine" row built
+  // from machine_model / machine_quantity / machine_unit_price, so
+  // coffee, coolers, financing and any rep-entered custom line never
+  // appeared in the signed contract at all, and two machine lines at
+  // different prices collapsed into one row at the first line's price.
+  function truncateTo(text: string, font: PDFFont, size: number, maxWidth: number): string {
+    if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
+    let out = text;
+    while (out.length > 1 && font.widthOfTextAtSize(`${out}...`, size) > maxWidth) {
+      out = out.slice(0, -1);
+    }
+    return `${out}...`;
+  }
+
+  function drawRightAt(text: string, font: PDFFont, size: number, color = dark) {
+    drawText(page, text, RIGHT - 4 - font.widthOfTextAtSize(text, size), y, font, size, color);
+  }
+
+  if (hasSnapshot) {
+    const COL_ITEM = LEFT + 4;
+    const COL_CAT = LEFT + 190;
+    const COL_QTY = LEFT + 296;
+    const COL_UNIT = LEFT + 336;
+    const COL_DISC = LEFT + 410;
+
+    const drawItemHeader = () => {
+      page.drawRectangle({ x: LEFT, y: y - 4, width: MAX_W, height: 18, color: lightBg });
+      drawText(page, "Item", COL_ITEM, y, helveticaBold, 8, dark);
+      drawText(page, "Category", COL_CAT, y, helveticaBold, 8, dark);
+      drawText(page, "Qty", COL_QTY, y, helveticaBold, 8, dark);
+      drawText(page, "Unit Price", COL_UNIT, y, helveticaBold, 8, dark);
+      drawText(page, "Disc", COL_DISC, y, helveticaBold, 8, dark);
+      drawRightAt("Line Total", helveticaBold, 8, dark);
+      y -= 18;
+    };
+
+    checkPage(70);
+    y -= 10;
+    drawLine(y);
+    y -= 20;
+    drawText(page, "SCHEDULE A: ORDER LINE ITEMS", LEFT, y, helveticaBold, 10, green);
+    y -= 22;
+    currentScheduleKey = "A";
+    currentSectionNum = 0;
+
+    drawItemHeader();
+
+    for (const line of snapshotLines) {
+      const before = y;
+      checkPage(30);
+      if (y > before) drawItemHeader(); // a new page started — repeat the header
+
+      const name = truncateTo(line.service_name || "Item", helvetica, 8.5, 178);
+      drawText(page, name, COL_ITEM, y, helvetica, 8.5, dark);
+      drawText(
+        page,
+        truncateTo(CATEGORY_LABEL[line.category] ?? "Other", helvetica, 8, 100),
+        COL_CAT, y, helvetica, 8, gray,
+      );
+      drawText(page, String(line.quantity ?? 1), COL_QTY, y, helvetica, 8.5, dark);
+      drawText(page, money(line.unit_price), COL_UNIT, y, helvetica, 8.5, dark);
+      drawText(
+        page,
+        Number(line.discount_percent) > 0 ? `${Number(line.discount_percent)}%` : "—",
+        COL_DISC, y, helvetica, 8.5,
+        Number(line.discount_percent) > 0 ? green : gray,
+      );
+      drawRightAt(money(line.total_price), helveticaBold, 8.5, dark);
+      y -= 14;
+
+      if (line.description) {
+        const desc = truncateTo(String(line.description), helvetica, 7.5, MAX_W - 20);
+        drawText(page, desc, COL_ITEM + 6, y, helvetica, 7.5, gray);
+        y -= 12;
+      }
+      if (line.deferred) {
+        drawText(
+          page,
+          "Invoiced on fulfillment — not included in the amount due prior to procurement",
+          COL_ITEM + 6, y, helvetica, 7.5, gray,
+        );
+        y -= 12;
+      }
+      drawLine(y + 4);
+      y -= 6;
+    }
+
+    if (ag.machine_notes) {
+      y -= 4;
+      drawWrapped(`Notes: ${ag.machine_notes}`, helvetica, 8, gray);
+    }
+    initialsPlaceholder();
+  } else if (includeEquipment) {
+    // Pre-migration-176 agreement: no snapshot exists, so fall back to
+    // the scalar columns. Only equipment and freight can be expressed.
     checkPage(60);
     y -= 10;
     drawLine(y);
@@ -415,6 +556,7 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     y -= 16;
     drawLine(y);
     y -= 16;
+
     if (includeShippingStorage && Number(ag.freight_total) > 0) {
       drawText(page, "Freight", LEFT + 4, y, helvetica, 8.5, dark);
       drawText(page, `${money(ag.freight_per_machine)} x ${ag.machine_quantity || 0}`, LEFT + 310, y, helvetica, 8.5, dark);
@@ -457,50 +599,131 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   }
 
   /* ================================================================ */
-  /*  PAYMENT SUMMARY — always shown, reflects only included sections */
+  /*  PAYMENT SUMMARY — grouped from the line items, and it adds up   */
   /* ================================================================ */
-  checkPage(80);
+  // The total printed here is the arithmetic sum of the rows above it.
+  // It previously came from total_due_prior_to_procurement, which the
+  // creation route computed as equipment + freight only — so a contract
+  // listing Equipment, Location Services and Freight printed a total
+  // that omitted the location-services row sitting directly above it.
+  checkPage(110);
   y -= 10;
   drawLine(y);
   y -= 20;
   drawText(page, "PAYMENT SUMMARY", LEFT, y, helveticaBold, 10, green);
   y -= 18;
-  if (includeEquipment && Number(ag.equipment_subtotal) > 0) {
-    drawText(page, `Equipment (${ag.machine_quantity || 0}x ${ag.machine_model || "VendEra AI Machine"})`, LEFT + 4, y, helvetica, 9, dark);
-    const s = money(ag.equipment_subtotal);
-    drawText(page, s, RIGHT - 4 - helvetica.widthOfTextAtSize(s, 9), y, helvetica, 9, dark);
-    y -= 14;
-  }
-  const depositOnly = ag.location_services_deposit_only === true;
-  const locDeposit = Math.min(Number(ag.location_services_deposit_amount) || 0, Number(ag.max_location_service_value) || 0);
-  const locRemaining = depositOnly ? Math.max(0, Number(ag.max_location_service_value) - locDeposit) : 0;
 
-  if (includeLocationServices && Number(ag.max_location_service_value) > 0) {
-    const upfront = depositOnly ? locDeposit : Number(ag.max_location_service_value);
-    const label = depositOnly
-      ? `Location Services Deposit (${ag.locations_purchased || 0} location${(ag.locations_purchased || 0) === 1 ? "" : "s"})`
-      : `Location Services (${ag.locations_purchased || 0} location${(ag.locations_purchased || 0) === 1 ? "" : "s"})`;
-    drawText(page, label, LEFT + 4, y, helvetica, 9, dark);
-    const s = money(upfront);
-    drawText(page, s, RIGHT - 4 - helvetica.widthOfTextAtSize(s, 9), y, helvetica, 9, dark);
-    y -= 14;
+  let summaryTotal = 0;
+  const deferredRows: Array<{ label: string; amount: number }> = [];
+
+  if (hasSnapshot && snapTotals) {
+    for (const category of CATEGORY_ORDER) {
+      const rows = snapshotLines.filter((l) => l.category === category);
+      if (rows.length === 0) continue;
+
+      const upfront = rows
+        .filter((l) => !l.deferred)
+        .reduce((sum, l) => sum + Number(l.total_price || 0), 0);
+      const deferred = rows
+        .filter((l) => l.deferred)
+        .reduce((sum, l) => sum + Number(l.total_price || 0), 0);
+
+      if (upfront !== 0 || deferred === 0) {
+        const count = rows.filter((l) => !l.deferred).length;
+        const label = `${CATEGORY_LABEL[category]} (${count} line item${count === 1 ? "" : "s"})`;
+        checkPage(20);
+        drawText(page, label, LEFT + 4, y, helvetica, 9, dark);
+        drawRightAt(money(upfront), helvetica, 9, dark);
+        y -= 14;
+        summaryTotal += upfront;
+      }
+      if (deferred > 0) {
+        deferredRows.push({ label: CATEGORY_LABEL[category], amount: deferred });
+      }
+    }
+  } else {
+    // Pre-migration-176 fallback: total the scalar columns the same way
+    // the snapshot path totals lines — additively.
+    const depositOnly = ag.location_services_deposit_only === true;
+    const locMax = Number(ag.max_location_service_value) || 0;
+    const locDeposit = Math.min(Number(ag.location_services_deposit_amount) || 0, locMax);
+    const locUpfront = depositOnly ? locDeposit : locMax;
+    const locRemaining = depositOnly ? Math.max(0, locMax - locDeposit) : 0;
+
+    if (includeEquipment && Number(ag.equipment_subtotal) > 0) {
+      drawText(
+        page,
+        `Equipment (${ag.machine_quantity || 0}x ${ag.machine_model || "VendEra AI Machine"})`,
+        LEFT + 4, y, helvetica, 9, dark,
+      );
+      drawRightAt(money(ag.equipment_subtotal), helvetica, 9, dark);
+      y -= 14;
+      summaryTotal += Number(ag.equipment_subtotal) || 0;
+    }
+    if (includeLocationServices && locMax > 0) {
+      const label = depositOnly
+        ? `Location Services Deposit (${ag.locations_purchased || 0} location${(ag.locations_purchased || 0) === 1 ? "" : "s"})`
+        : `Location Services (${ag.locations_purchased || 0} location${(ag.locations_purchased || 0) === 1 ? "" : "s"})`;
+      drawText(page, label, LEFT + 4, y, helvetica, 9, dark);
+      drawRightAt(money(locUpfront), helvetica, 9, dark);
+      y -= 14;
+      summaryTotal += locUpfront;
+      if (locRemaining > 0) {
+        deferredRows.push({ label: "Location Services balance", amount: locRemaining });
+      }
+    }
+    if (includeShippingStorage && Number(ag.freight_total) > 0) {
+      drawText(
+        page,
+        `Shipping & Freight (${ag.machine_quantity || 0} machine${(ag.machine_quantity || 0) === 1 ? "" : "s"})`,
+        LEFT + 4, y, helvetica, 9, dark,
+      );
+      drawRightAt(money(ag.freight_total), helvetica, 9, dark);
+      y -= 14;
+      summaryTotal += Number(ag.freight_total) || 0;
+    }
   }
-  if (includeShippingStorage && Number(ag.freight_total) > 0) {
-    drawText(page, `Shipping & Freight (${ag.machine_quantity || 0} machine${(ag.machine_quantity || 0) === 1 ? "" : "s"})`, LEFT + 4, y, helvetica, 9, dark);
-    const s = money(ag.freight_total);
-    drawText(page, s, RIGHT - 4 - helvetica.widthOfTextAtSize(s, 9), y, helvetica, 9, dark);
-    y -= 14;
-  }
+
+  summaryTotal = Math.round((summaryTotal + Number.EPSILON) * 100) / 100;
+
   y -= 2;
   drawLine(y + 6);
+  checkPage(24);
   drawText(page, "TOTAL DUE PRIOR TO PROCUREMENT", LEFT + 4, y, helveticaBold, 10, dark);
-  const totalStr = money(ag.total_due_prior_to_procurement);
-  drawText(page, totalStr, RIGHT - 4 - helveticaBold.widthOfTextAtSize(totalStr, 12), y, helveticaBold, 12, green);
+  const totalStr = money(summaryTotal);
+  drawText(
+    page, totalStr,
+    RIGHT - 4 - helveticaBold.widthOfTextAtSize(totalStr, 12),
+    y, helveticaBold, 12, green,
+  );
   y -= 16;
 
-  if (includeLocationServices && depositOnly && locRemaining > 0) {
-    drawText(page, `+ ${money(locRemaining)} Location Services balance due upon fulfillment of secured locations`, LEFT + 4, y, helvetica, 8, gray);
+  for (const row of deferredRows) {
+    checkPage(18);
+    drawText(
+      page,
+      `+ ${money(row.amount)} ${row.label} — invoiced on fulfillment`,
+      LEFT + 4, y, helvetica, 8, gray,
+    );
     y -= 14;
+  }
+
+  if (includeCoffee) {
+    checkPage(30);
+    y -= 4;
+    drawWrapped(
+      "This order includes a coffee program. Operator's signature below also constitutes acceptance of the Equipment Loan & Beverage Supply Agreement attached to this contract, which governs the brewer loan and the beverage supply relationship.",
+      helvetica, 8.5, gray,
+    );
+  }
+
+  if (includeFinancing) {
+    checkPage(30);
+    y -= 4;
+    drawWrapped(
+      "Financed amounts shown above are subject to credit approval and to the separate financing schedule executed between Operator and the finance provider. Apex is not the lender and makes no representation as to approval, rate, or term.",
+      helvetica, 8.5, gray,
+    );
   }
 
   /* ================================================================ */
@@ -1133,97 +1356,13 @@ async function sendApexPlacementFeeInvoice(ag: any): Promise<void> {
 /* ================================================================== */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
-  const includeEquipment = ag.include_equipment !== false;
-  const includeLocationServices = ag.include_location_services !== false;
-  const includeShippingStorage = ag.include_shipping_storage !== false;
-
-  const items: Array<Record<string, unknown>> = [];
-
-  if (includeEquipment && Number(ag.machine_quantity) > 0) {
-    const unitPrice = Number(ag.machine_unit_price) || 0;
-    const qty = Number(ag.machine_quantity) || 1;
-    items.push({
-      item_type: "machine_sale",
-      service_name: ag.machine_model || "VendEra AI Machine",
-      description: ag.machine_notes || null,
-      quantity: qty,
-      unit_price: unitPrice,
-      price: unitPrice,
-      total_price: qty * unitPrice,
-      discount_percent: 0,
-      status: "pending",
-      deposit_required: false,
-    });
-  }
-
-  if (includeLocationServices && Number(ag.locations_purchased) > 0) {
-    const locFee = Number(ag.location_fee_per_secured) || 0;
-    const locQty = Number(ag.locations_purchased) || 0;
-    const locTotal = locQty * locFee;
-    const depositOnly = ag.location_services_deposit_only === true;
-    const deposit = depositOnly ? Math.min(Number(ag.location_services_deposit_amount) || 0, locTotal) : locTotal;
-    const remaining = depositOnly ? Math.max(0, locTotal - deposit) : 0;
-
-    if (depositOnly) {
-      items.push({
-        item_type: "location_services",
-        service_name: "Location Services Deposit",
-        description: `Non-refundable deposit for ${locQty} location${locQty === 1 ? "" : "s"} ($${locFee.toFixed(2)} each, $${locTotal.toFixed(2)} total). Balance of $${remaining.toFixed(2)} due on fulfillment.`,
-        quantity: 1,
-        unit_price: deposit,
-        price: deposit,
-        total_price: deposit,
-        discount_percent: 0,
-        status: "pending",
-        deposit_required: false,
-      });
-      if (remaining > 0) {
-        items.push({
-          item_type: "location_services",
-          service_name: "Location Services Remaining Balance",
-          description: `Balance due after fulfillment of secured locations. Invoiced upon completion.`,
-          quantity: 1,
-          unit_price: remaining,
-          price: remaining,
-          total_price: remaining,
-          discount_percent: 0,
-          status: "pending_fulfillment",
-          deposit_required: false,
-        });
-      }
-    } else {
-      items.push({
-        item_type: "location_services",
-        service_name: "Location Sourcing & Placement",
-        description: `${locQty} locations at $${locFee.toFixed(2)} each. Timeline: ${ag.location_service_timeline_days || 180} days.`,
-        quantity: locQty,
-        unit_price: locFee,
-        price: locFee,
-        total_price: locTotal,
-        discount_percent: 0,
-        status: "pending",
-        location_service_price: locTotal,
-        deposit_required: false,
-      });
-    }
-  }
-
-  const freightTotal = Number(ag.freight_total) || 0;
-  if (includeShippingStorage && freightTotal > 0) {
-    items.push({
-      item_type: "other",
-      service_name: "Shipping & Freight",
-      description: `${ag.machine_quantity || 1} machine(s) at $${(Number(ag.freight_per_machine) || 0).toFixed(2)} each`,
-      quantity: 1,
-      unit_price: freightTotal,
-      price: freightTotal,
-      total_price: freightTotal,
-      discount_percent: 0,
-      status: "pending",
-      deposit_required: false,
-    });
-  }
-
+  // Rebuild the order from the agreement's line-item snapshot so every
+  // line comes back exactly as it went in. This function used to be a
+  // near-identical copy of the create-order route, both reconstructing
+  // only machine / location / freight lines from scalar columns with
+  // discount_percent hardcoded to 0 — which meant signing an agreement
+  // produced an order missing its coffee, cooler and financing lines.
+  const items = buildOrderItemsFromAgreement(ag) as Array<Record<string, unknown>>;
   if (items.length === 0) return;
 
   // Upfront total excludes the deferred location-services balance.

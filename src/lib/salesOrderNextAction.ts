@@ -1,25 +1,29 @@
 /**
- * Derive the next required action for a sales_orders row from its
- * actual state, not from a stored free-text column.
+ * The sales flow, as a state machine.
  *
- * The old shape kept a `next_required_action` text column on
- * sales_orders that a rep set once (via a browser prompt) and then
- * never updated. It went stale immediately and lied to everyone
- * downstream. This helper replaces it: given the current order
- * state, it returns the single next-step string the CRM row + the
- * detail-page banner should display.
+ * There is exactly one path from "a rep opened a quote" to "the team is
+ * fulfilling an order", and it has two buttons:
  *
- * Order precedence matters — we return the FIRST step that hasn't
- * happened yet, walking the natural CRM lifecycle in order. So a
- * paid order that hasn't been fulfilled shows "Order machine from
- * supplier," not "Send invoice."
+ *   1. draft quote        -> [ Next ]                          -> quote_sent
+ *   2. quote_sent         -> [ Process Order & Send Invoice ]  -> awaiting_payment
+ *   3. awaiting_payment   -> (no button; waiting on the customer)
+ *   4. paid               -> (no button; handed to workflows)
  *
- * The order_status column is the authoritative signal because it's
- * written by every status-transition route AND by the /send route
- * (see /api/sales/orders/[id]/send/route.ts and
- * /api/sales/orders/[id]/status/route.ts). If a row lands in a
- * status this helper doesn't recognize, return null — the UI
- * hides the banner rather than showing wrong copy.
+ * Step 2 is one call to /api/sales/orders/[id]/process, which converts
+ * the quote, generates the agreement from the line items, emails it for
+ * signature, and sends the invoice.
+ *
+ * This replaces a seven-verb sequence — send_quote, convert_to_order,
+ * generate_agreement, send_agreement, send_invoice, mark_deposit_paid,
+ * mark_paid — where every step was a separate chance to stop halfway
+ * and leave an order that looked complete but had no contract behind
+ * it. The intermediate transitions still exist on
+ * /api/sales/orders/[id]/status for webhooks and admin repair; they are
+ * simply not part of the rep's path any more.
+ *
+ * Nothing here reads a stored next_required_action column. That column
+ * was set once by hand and went stale immediately; state is derived
+ * from the order's actual columns on every read.
  */
 
 export interface OrderForNextAction {
@@ -28,371 +32,168 @@ export interface OrderForNextAction {
   order_type?: string | null;
   is_ten_ten_ten?: boolean | null;
   order_items?: Array<{ item_type?: string | null }>;
-  // invoice_status distinguishes "agreement was signed and we're
-  // waiting to send the invoice" from "invoice went out, waiting on
-  // the deposit." Both land at order_status='awaiting_payment' today,
-  // so the next-step derivation needs invoice_status to pick the
-  // correct button. Values: null / 'not_sent' / 'sent' / 'paid'.
   invoice_status?: string | null;
-  // agreement_status lets a draft order with a fully-signed
-  // agreement short-circuit the "fill in customer info" copy — the
-  // signing already committed the customer, so the next step is to
-  // send the invoice ("Place order").
   agreement_status?: string | null;
-  // deposit_amount + total_value drive whether the CRM should
-  // prompt Mark Deposit Paid vs Mark Paid. Orders where the whole
-  // invoice is due upfront (deposit=0 or deposit>=total) don't
-  // have a deposit split, so the deposit_paid intermediate state
-  // is skipped entirely.
   deposit_amount?: number | string | null;
   total_value?: number | string | null;
 }
 
-function hasDepositSplit(order: OrderForNextAction): boolean {
-  const deposit = Number(order.deposit_amount) || 0;
-  const total = Number(order.total_value) || 0;
-  return deposit > 0 && deposit < total;
-}
-
 /**
- * Whether an order is eligible for a purchase_agreement. Per
- * business rule, agreements only exist for coffee sales OR 10/10/10
- * package sales; a generic machine sale doesn't get a written
- * agreement. Kept here so the next-action derivation can decide
- * whether to prompt "Convert to agreement."
- */
-export function orderNeedsAgreement(order: OrderForNextAction): boolean {
-  if (order.is_ten_ten_ten === true) return true;
-  const items = order.order_items ?? [];
-  return items.some((i) => i.item_type === "coffee_program");
-}
-
-/**
- * Machine-readable version of deriveNextAction. Returns the single
- * next-step BUTTON — verb (matches the STATUS_ACTIONS map at
- * /api/sales/orders/[id]/status/route.ts), label, and copy that
- * doubles as the banner text. UI renders ONE button per state so
- * a rep can't stray off the linear quote → order → agreement →
- * invoice → paid → fulfill → complete path.
+ * Every order gets a written agreement.
  *
- * `verb` values:
- *   "send_quote"          — /api/sales/orders/[id]/send  (isQuote)
- *   "convert_to_order"    — /api/sales/orders/[id]/convert-to-order
- *   "generate_agreement"  — /api/sales/orders/[id]/agreement (POST)
- *   "send_agreement"      — /api/sales/orders/[id]/status action=send_agreement
- *   "send_invoice"        — /api/sales/orders/[id]/send OR status=send_invoice
- *   "mark_deposit_paid"   — /api/sales/orders/[id]/status
- *   "mark_paid"           — /api/sales/orders/[id]/status
- *   "mark_machine_ordered" — /api/sales/orders/[id]/status
- *   "mark_shipped"        — /api/sales/orders/[id]/status
- *   "mark_delivered"      — /api/sales/orders/[id]/status
- *   "mark_completed"      — /api/sales/orders/[id]/status
- *   null                  — nothing to do (terminal state or unknown)
+ * This used to return true only for coffee sales and 10/10/10 packages,
+ * testing `item_type === 'coffee_program'` — a value the storefront
+ * mirror never wrote, so real coffee orders were excluded from the very
+ * gate meant to catch them. The agreement now tailors its schedules to
+ * whatever is on the order, so there is nothing left to gate on.
+ *
+ * Kept as an exported function because callers still ask the question;
+ * the answer is now always yes.
  */
-export type NextStepVerb =
-  | "send_quote"
-  | "convert_to_order"
-  | "generate_agreement"
-  | "send_agreement"
-  | "send_invoice"
-  | "mark_deposit_paid"
-  | "mark_paid"
-  | "mark_machine_ordered"
-  | "source_locations"
-  | "mark_shipped"
-  | "mark_delivered"
-  | "mark_completed";
+export function orderNeedsAgreement(_order?: OrderForNextAction): boolean {
+  return true;
+}
+
+export type NextStepVerb = "send_quote" | "process_order";
 
 export interface NextStep {
   verb: NextStepVerb;
   buttonLabel: string;
-  copy: string; // longer nudge text for the banner
+  /** Nudge text shown beside the button. */
+  copy: string;
 }
 
+export type FlowStage =
+  | "building"
+  | "quote_out"
+  | "awaiting_payment"
+  | "in_fulfillment"
+  | "closed";
+
+export interface FlowState {
+  stage: FlowStage;
+  /** Short status line, e.g. "Waiting on customer payment". */
+  headline: string;
+  /** One sentence of detail under the headline. */
+  detail: string;
+  /** The single action available here, or null when the flow is waiting. */
+  action: NextStep | null;
+}
+
+const PAID_STATUSES = new Set([
+  "paid",
+  "deposit_paid",
+  "machine_ordered",
+  "location_search_active",
+  "coffee_program_setup",
+  "shipped",
+  "delivered",
+]);
+
+/**
+ * The one thing that can happen next, or null when the flow is waiting
+ * on someone outside the CRM.
+ */
 export function deriveNextStep(order: OrderForNextAction): NextStep | null {
+  return deriveFlowState(order).action;
+}
+
+export function deriveFlowState(order: OrderForNextAction): FlowState {
   const status = order.order_status ?? "draft";
-  const isQuote = order.document_type === "quote";
-  const isLocationServicesOnly = order.order_type === "location_services";
-  const needsAgreement = orderNeedsAgreement(order);
+  const isQuote = order.document_type !== "order";
+  const hasItems = (order.order_items?.length ?? 0) > 0;
 
-  // Terminal states — no button.
-  if (status === "completed" || status === "cancelled") return null;
+  if (status === "completed") {
+    return {
+      stage: "closed",
+      headline: "Order complete",
+      detail: "Nothing outstanding on this order.",
+      action: null,
+    };
+  }
 
-  // Draft — the whole point of a draft is to fill items + send.
-  // Special case: a draft order with a fully-signed agreement means
-  // the commitment is already made and only the invoice is outstanding.
-  // Skip the "fill in customer info" copy and jump straight to
-  // "Place Order" (send invoice).
-  if (status === "draft" || status === "awaiting_customer_info" || status === null) {
-    if (!isQuote && order.agreement_status === "signed") {
-      return {
-        verb: "send_invoice",
-        buttonLabel: "Place Order",
-        copy: "Agreement is signed — send the invoice to place the order",
-      };
-    }
-    return isQuote
+  if (status === "cancelled") {
+    return {
+      stage: "closed",
+      headline: "Order cancelled",
+      detail: "This order was cancelled and is no longer in the flow.",
+      action: null,
+    };
+  }
+
+  // Paid — the customer's part is done and the work belongs to the
+  // team now. The workflow spawns automatically off the payment event
+  // (see src/lib/workflows/paymentSync.ts), so there is nothing for the
+  // rep to click.
+  if (PAID_STATUSES.has(status)) {
+    return {
+      stage: "in_fulfillment",
+      headline: "Paid — sent to workflows",
+      detail:
+        "Payment received. The order has been handed to the fulfillment workflow; the team picks it up from there.",
+      action: null,
+    };
+  }
+
+  // The invoice and agreement are out. Waiting on the customer.
+  if (
+    status === "awaiting_payment" ||
+    status === "invoice_sent" ||
+    status === "order_sent" ||
+    status === "agreement_sent" ||
+    status === "awaiting_signature"
+  ) {
+    const signed = order.agreement_status === "signed";
+    return {
+      stage: "awaiting_payment",
+      headline: "Order processed, invoice sent — waiting on customer payment",
+      detail: signed
+        ? "The agreement is signed. The order moves on by itself as soon as payment lands."
+        : "The agreement is out for signature and the invoice has been sent. The order moves on by itself as soon as payment lands.",
+      action: null,
+    };
+  }
+
+  // The quote is with the customer. One button turns it into a live
+  // order: convert, generate the agreement from the line items, send it
+  // for signature, and invoice.
+  if (status === "quote_sent") {
+    return {
+      stage: "quote_out",
+      headline: "Quote sent — waiting on the customer to accept",
+      detail:
+        "When the customer accepts, this one step converts the quote to an order, sends the agreement for signature, and invoices them.",
+      action: {
+        verb: "process_order",
+        buttonLabel: "Process Order & Send Invoice",
+        copy: "Convert to an order, send the agreement for signature, and send the invoice",
+      },
+    };
+  }
+
+  // Draft. The only thing that needs doing is the line items.
+  return {
+    stage: "building",
+    headline: hasItems ? "Ready to send" : "Add line items",
+    detail: hasItems
+      ? "Send the quote to the customer. Everything after that is one more click."
+      : "Add the line items this customer is buying. That is the only thing this flow needs from you.",
+    action: hasItems
       ? {
           verb: "send_quote",
-          buttonLabel: "Send Quote",
-          copy: "Fill in customer info + line items, then send the quote",
+          buttonLabel: "Next",
+          copy: isQuote
+            ? "Send the quote to the customer"
+            : "Send this order to the customer",
         }
-      : {
-          verb: "send_invoice",
-          buttonLabel: "Send Invoice",
-          copy: "Fill in customer info + line items, then send the invoice",
-        };
-  }
-
-  // Quote sent — the customer accepted. Branch on whether this
-  // sale type needs a signed agreement:
-  //   coffee OR 10/10/10 → Generate Agreement first (the signed
-  //     agreement is the actual commitment; the order flip happens
-  //     downstream when the agreement is marked signed).
-  //   otherwise → Convert to Order directly.
-  if (status === "quote_sent") {
-    if (needsAgreement) {
-      return {
-        verb: "generate_agreement",
-        buttonLabel: "Generate Agreement",
-        copy: "Customer accepted the quote — generate the agreement and send for signature. The quote flips to an order automatically when the agreement is signed.",
-      };
-    }
-    return {
-      verb: "convert_to_order",
-      buttonLabel: "Convert to Order",
-      copy: "Customer accepted the quote — convert it to an order",
-    };
-  }
-
-  // Order emailed via Resend fallback (no real invoice) → send the real invoice.
-  if (status === "order_sent") {
-    return {
-      verb: "send_invoice",
-      buttonLabel: "Send Invoice",
-      copy: "Send the QuickBooks invoice so the customer can pay",
-    };
-  }
-
-  // In the new flow agreements are generated BEFORE the quote is
-  // converted to an order, so a post-conversion order that needs
-  // an agreement should be impossible via the linear path. The
-  // corrective nudge that used to live here for that legacy state
-  // is intentionally gone — if a rep somehow gets there via manual
-  // status editing, the natural derivations below still apply.
-
-  if (status === "invoice_sent") {
-    // Only orders with a real deposit split (partial deposit,
-    // remaining balance owed later) prompt Mark Deposit Paid.
-    // Everything else — location_services intake orders, plus any
-    // purchase order where the whole invoice is due upfront — jumps
-    // straight to Mark Paid so the CRM doesn't strand the rep on a
-    // deposit_paid intermediate state that never applied.
-    if (isLocationServicesOnly || !hasDepositSplit(order)) {
-      return {
-        verb: "mark_paid",
-        buttonLabel: "Mark Paid",
-        copy: "Invoice sent — mark paid once the customer's payment lands (or wait for the QuickBooks webhook to auto-flip)",
-      };
-    }
-    return {
-      verb: "mark_deposit_paid",
-      buttonLabel: "Mark Deposit Paid",
-      copy: "Deposit received — mark deposit paid",
-    };
-  }
-
-  if (status === "awaiting_payment") {
-    // awaiting_payment lands here two ways:
-    //   1. Agreement was marked signed (STATUS_ACTIONS sets
-    //      order_status='awaiting_payment' on mark_agreement_signed).
-    //      In this case, invoice_status is likely 'not_sent' or null
-    //      because the customer hasn't been invoiced yet.
-    //   2. Invoice was already sent and we're waiting on payment.
-    // Split the next step accordingly so the button matches reality.
-    const invoiceOut =
-      order.invoice_status === "sent" || order.invoice_status === "paid";
-    if (!invoiceOut) {
-      return {
-        verb: "send_invoice",
-        buttonLabel: "Send Invoice",
-        copy: "Agreement signed — send the invoice so the customer can pay",
-      };
-    }
-    // Skip the deposit_paid step when no split applies (full-payment
-    // orders and location_services intake) — go straight to Mark Paid.
-    if (isLocationServicesOnly || !hasDepositSplit(order)) {
-      return {
-        verb: "mark_paid",
-        buttonLabel: "Mark Paid",
-        copy: "Payment received — mark paid",
-      };
-    }
-    return {
-      verb: "mark_deposit_paid",
-      buttonLabel: "Mark Deposit Paid",
-      copy: "Deposit payment received — mark deposit paid",
-    };
-  }
-
-  if (status === "deposit_paid") {
-    if (isLocationServicesOnly) {
-      // Location-only orders skip a "collect remaining balance" step.
-      return {
-        verb: "mark_paid",
-        buttonLabel: "Mark Paid",
-        copy: "Location services deposit is the full payment — mark paid",
-      };
-    }
-    return {
-      verb: "mark_paid",
-      buttonLabel: "Mark Paid",
-      copy: "Remaining balance collected — mark paid",
-    };
-  }
-
-  if (status === "paid") {
-    // Location-services intake orders keep the paid state alive so
-    // the Sourced Locations panel can finish before completion.
-    if (isLocationServicesOnly) {
-      return {
-        verb: "source_locations",
-        buttonLabel: "Source Locations",
-        copy: "Deposit received — start sourcing locations. Link a location lead or add one manually below; each secured location applies against the deposit.",
-      };
-    }
-    // Every other paid order auto-completes via the webhook or the
-    // status-route helper (autoCompleteFullyPaidOrder). Reaching
-    // this branch means the auto-complete didn't fire — expose the
-    // manual complete escape hatch so the rep can hand off to
-    // fulfillment workflows in one click. The legacy machine_ordered
-    // / shipped / delivered flow is gone; those states now live on
-    // the workflow that spawns off the payment event.
-    return {
-      verb: "mark_completed",
-      buttonLabel: "Complete Order",
-      copy: "Payment received — mark completed to hand off fulfillment to workflows",
-    };
-  }
-
-  if (status === "agreement_sent") {
-    return {
-      verb: "send_agreement",
-      buttonLabel: "Resend Agreement",
-      copy: "Waiting on customer signature — resend the agreement if needed",
-    };
-  }
-
-  if (status === "awaiting_signature") {
-    return {
-      verb: "send_agreement",
-      buttonLabel: "Resend Agreement",
-      copy: "Waiting on customer signature — resend the agreement if needed",
-    };
-  }
-
-  if (status === "machine_ordered") {
-    return {
-      verb: "mark_shipped",
-      buttonLabel: "Mark Shipped",
-      copy: "Machine has shipped — mark shipped",
-    };
-  }
-
-  if (status === "shipped") {
-    return {
-      verb: "mark_delivered",
-      buttonLabel: "Mark Delivered",
-      copy: "Machine delivered — mark delivered",
-    };
-  }
-
-  if (status === "delivered") {
-    return {
-      verb: "mark_completed",
-      buttonLabel: "Mark Completed",
-      copy: "Delivery confirmed — mark completed",
-    };
-  }
-
-  // Fulfillment states without a clear single next step — no button,
-  // rep uses the activity log to track.
-  return null;
+      : null,
+  };
 }
 
+/** Banner text. Kept as its own export because the orders list renders
+ *  it without the button. */
 export function deriveNextAction(order: OrderForNextAction): string | null {
-  const status = order.order_status ?? "draft";
-  const isQuote = order.document_type === "quote";
-  const isLocationServicesOnly = order.order_type === "location_services";
-  const needsAgreement = orderNeedsAgreement(order);
-
-  // Terminal states — nothing to nudge.
-  if (status === "completed" || status === "cancelled") return null;
-
-  // Draft / brand-new — same nudge whether quote or order, unless
-  // the agreement is already signed, in which case only the invoice
-  // is outstanding. Match deriveNextStep so the yellow banner and
-  // the emerald Next Step card agree.
-  if (status === "draft" || status === "awaiting_customer_info" || status === null) {
-    if (!isQuote && order.agreement_status === "signed") {
-      return "Agreement is signed — send the invoice to place the order";
-    }
-    return isQuote
-      ? "Fill in customer info + line items, then send the quote"
-      : "Fill in customer info + line items, then send the order";
-  }
-
-  // Quote sent — nudge the natural quote → order flip.
-  if (status === "quote_sent") {
-    return "Follow up with the customer. Convert to order when they're ready to buy.";
-  }
-
-  // Order emailed, no real invoice yet (Resend fallback).
-  if (status === "order_sent") {
-    return "Send the QuickBooks invoice so the customer can pay";
-  }
-
-  // Real QBO invoice out the door.
-  if (status === "invoice_sent") {
-    return "Follow up on payment";
-  }
-
-  // Awaiting payment covers deposit + full-pay cases.
-  if (status === "awaiting_payment") {
-    return isLocationServicesOnly
-      ? "Follow up on deposit — no remaining balance for location-only orders"
-      : "Follow up on deposit payment";
-  }
-
-  if (status === "deposit_paid") {
-    if (isLocationServicesOnly) return "Find and confirm location(s)";
-    return "Collect remaining balance";
-  }
-
-  if (status === "paid") {
-    // Location-services intake orders keep the paid state alive
-    // while the Sourced Locations panel finishes. Every other paid
-    // order auto-completes via autoCompleteFullyPaidOrder; reaching
-    // this branch means auto-complete didn't fire, so nudge the rep
-    // to complete manually. Matches the split in deriveNextStep().
-    if (isLocationServicesOnly) return "Start sourcing locations — link a lead or add one manually";
-    return "Payment received — mark completed to hand off to fulfillment workflows";
-  }
-
-  // Agreement lifecycle.
-  if (status === "agreement_sent") {
-    return "Follow up on signature";
-  }
-  if (status === "awaiting_signature") {
-    return "Follow up on signature";
-  }
-
-  // Fulfillment.
-  if (status === "machine_ordered") return "Schedule shipment";
-  if (status === "location_search_active") return "Find and confirm location(s)";
-  if (status === "coffee_program_setup") return "Complete coffee program setup";
-  if (status === "shipped") return "Confirm delivery";
-  if (status === "delivered") return "Mark completed";
-
-  return null;
+  const state = deriveFlowState(order);
+  if (state.stage === "closed") return null;
+  return state.headline;
 }

@@ -3281,22 +3281,16 @@
     }
   },
   "src/app/sales/orders/[id]/page.tsx": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 2
-    },
     "complexity": {
-      "count": 6
+      "count": 5
     },
     "max-lines": {
       "count": 1
     },
     "no-nested-ternary": {
-      "count": 4
+      "count": 3
     },
     "react-hooks/set-state-in-effect": {
-      "count": 1
-    },
-    "react/no-unescaped-entities": {
       "count": 1
     }
   },
@@ -4106,11 +4100,8 @@
     }
   },
   "src/lib/salesOrderNextAction.ts": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    },
     "complexity": {
-      "count": 2
+      "count": 1
     }
   },
   "src/lib/sendOrderReceipt.ts": {

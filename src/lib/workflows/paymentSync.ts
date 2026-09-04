@@ -335,8 +335,16 @@ export async function syncWorkflowFromSalesOrderPaid(args: {
   source: string;
   changeKey?: string;
 }): Promise<number> {
-  // Payment-time spawn for location_services intake. Only fires when
-  // no workflow is linked; helper is idempotent.
+  // Payment-time spawn. Only fires when no workflow is linked yet; both
+  // helpers are idempotent.
+  //
+  // location_services keeps its dedicated spawner because it links the
+  // workflow back to the originating lead. Every OTHER order type used
+  // to get nothing at all here — a paid machine, coffee or financing
+  // order sat in the CRM with no workflow and no one assigned, and the
+  // only remedy was an admin-only button. spawnWorkflowsForPaidOrder
+  // reads the order's line items and creates the workflows they call
+  // for.
   try {
     const { data: existingLinked } = await supabaseAdmin
       .from("workflows")
@@ -345,11 +353,15 @@ export async function syncWorkflowFromSalesOrderPaid(args: {
       .limit(1)
       .maybeSingle();
     if (!existingLinked) {
-      await spawnLocationServicesWorkflowFromPaidOrder(args.orderId);
+      const spawned = await spawnLocationServicesWorkflowFromPaidOrder(args.orderId);
+      if (!spawned) {
+        const { spawnWorkflowsForPaidOrder } = await import("./fromPaidOrder");
+        await spawnWorkflowsForPaidOrder(args.orderId);
+      }
     }
   } catch (spawnErr) {
     console.error(
-      "[paymentSync] location_services workflow spawn on paid order failed:",
+      "[paymentSync] workflow spawn on paid order failed:",
       spawnErr,
     );
   }
