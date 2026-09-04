@@ -1924,6 +1924,11 @@
       "count": 3
     }
   },
+  "src/app/api/storefront/prices/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/app/api/storefront/quote/route.ts": {
     "complexity": {
       "count": 1
@@ -1956,7 +1961,7 @@
   },
   "src/app/api/storefront/tenant/prices/route.ts": {
     "complexity": {
-      "count": 1
+      "count": 2
     }
   },
   "src/app/api/storefront/tenant/route.ts": {
@@ -1964,6 +1969,11 @@
       "count": 1
     },
     "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/app/api/storefront/tenant/visibility/route.ts": {
+    "complexity": {
       "count": 1
     }
   },
@@ -2353,13 +2363,10 @@
     }
   },
   "src/app/coffee/storefront/pricing/page.tsx": {
-    "no-nested-ternary": {
-      "count": 1
+    "complexity": {
+      "count": 3
     },
     "react-hooks/set-state-in-effect": {
-      "count": 1
-    },
-    "react/no-unescaped-entities": {
       "count": 1
     }
   },

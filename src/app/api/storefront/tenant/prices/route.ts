@@ -24,7 +24,32 @@ export async function GET(req: NextRequest) {
     .select("*")
     .eq("tenant_id", tenant.id)
     .order("updated_at", { ascending: false });
-  return NextResponse.json({ prices: data ?? [] });
+
+  // TRUE per-product base (the owner's cost): the tenant's assigned
+  // tier price, falling back to the product list price — the same
+  // precedence the checkout resolver's commission floor uses. The
+  // pricing page previously showed bare list price as "Base", so
+  // owners couldn't see their real cost or their real margin.
+  const basePrices: Record<string, number> = {};
+  const { data: products } = await supabaseAdmin
+    .from("coffee_products")
+    .select("id, price")
+    .eq("active", true);
+  for (const p of (products ?? []) as Array<{ id: string; price: number | null }>) {
+    if (p.price != null) basePrices[p.id] = Number(p.price);
+  }
+  if (tenant.base_pricing_tier_id) {
+    const { data: tierRows } = await supabaseAdmin
+      .from("coffee_product_tier_prices")
+      .select("product_id, price")
+      .eq("pricing_tier_id", tenant.base_pricing_tier_id)
+      .eq("is_active", true);
+    for (const row of (tierRows ?? []) as Array<{ product_id: string; price: number }>) {
+      basePrices[row.product_id] = Number(row.price);
+    }
+  }
+
+  return NextResponse.json({ prices: data ?? [], base_prices: basePrices });
 }
 
 interface UpsertBody {

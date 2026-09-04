@@ -127,6 +127,10 @@ export default function CustomerShop({
   accent: string;
 }) {
   const [cart, setCart] = useState<Record<string, number>>({});
+  // Full price list, fetched once on load so EVERY card shows its
+  // price immediately — previously prices only came from the cart
+  // quote, so the whole catalog read "—" until an item was added.
+  const [priceMap, setPriceMap] = useState<Record<string, number>>({});
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [quoteErr, setQuoteErr] = useState<string | null>(null);
@@ -214,6 +218,42 @@ export default function CustomerShop({
     void refreshQuote();
   }, [refreshQuote]);
 
+  // Price every visible product up front. Same resolver as the quote
+  // and the checkout, so what the shopper browses is what they pay.
+  useEffect(() => {
+    if (!enrolled || products.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const res = await fetch("/api/storefront/prices", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token ?? ""}`,
+          },
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            product_ids: products.map((p) => p.id),
+          }),
+        });
+        if (!res.ok) return;
+        const body = (await res.json().catch(() => ({}))) as {
+          prices?: Record<string, number>;
+        };
+        if (!cancelled && body.prices) setPriceMap(body.prices);
+      } catch {
+        // Card price falls back to "—"; the quote still prices the cart.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [enrolled, tenantId, products]);
+
   function setQty(productId: string, quantity: number) {
     setCart((c) => {
       const next = { ...c };
@@ -229,7 +269,9 @@ export default function CustomerShop({
     }
     const qty = cart[p.id] ?? 0;
     const line = quote?.lines.find((l) => l.product_id === p.id);
-    const unit = line?.tenant_price_per_unit;
+    // Quote price (authoritative once carted) with the always-present
+    // price-list value behind it, so the price never waits for a cart.
+    const unit = line?.tenant_price_per_unit ?? priceMap[p.id];
     const outOfStock = p.stock_status === "out_of_stock";
     const minQty = Math.max(1, Number(p.min_order_qty) || 1);
     return (
