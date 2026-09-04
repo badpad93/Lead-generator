@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { generateTrackingNumber } from "@/lib/orderTracking";
-import { getCoffeeUser, forbiddenResponse } from "@/lib/coffeeAuth";
+import { getCoffeeUser, hasCoffeePurchaseAccess, forbiddenResponse } from "@/lib/coffeeAuth";
+import { resolveTenantById, type StorefrontTenant } from "@/lib/storefront/tenants";
 import { isQuickBooks } from "@/lib/paymentProvider";
 import { createInvoice, sendInvoiceEmail, getInvoice, QbTimeoutError } from "@/lib/quickbooks";
 import { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } from "@/lib/coffeeEmail";
 import { requireExecutedCoffeeSupplyAgreement } from "@/lib/placementAgreements";
-import { resolveCoffeeProductsPricing } from "@/lib/coffeePricing";
+import { resolveCoffeeProductsPricing, round2 } from "@/lib/coffeePricing";
 import { getCoffeeSettings } from "@/lib/coffeeSettings";
 
 export async function POST(req: NextRequest) {
@@ -16,7 +17,22 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (!user.coffee_access_enabled) {
+
+    // Storefront context: an enrolled customer buys their operator's
+    // catalog through THIS route — the storefront is the normal
+    // marketplace with tenant branding and per-tenant pricing, not a
+    // parallel pipeline. Enrollment is their purchase access.
+    let sfTenant: StorefrontTenant | null = null;
+    if (user.storefront_tenant_id) {
+      sfTenant = await resolveTenantById(user.storefront_tenant_id);
+      if (!sfTenant || sfTenant.status !== "approved") {
+        return NextResponse.json(
+          { error: "This storefront isn't active yet. Please contact the storefront owner.", code: "TENANT_NOT_APPROVED" },
+          { status: 403 },
+        );
+      }
+    }
+    if (!hasCoffeePurchaseAccess(user)) {
       return forbiddenResponse();
     }
 
@@ -30,7 +46,7 @@ export async function POST(req: NextRequest) {
     // gate back on once every active operator has signed. The full guard
     // infrastructure (template, sign flow, countersign queue) is already
     // wired — this flag is the only switch.
-    if (process.env.COFFEE_AGREEMENT_ENFORCED === "true") {
+    if (!sfTenant && process.env.COFFEE_AGREEMENT_ENFORCED === "true") {
       const agreementBlock = await requireExecutedCoffeeSupplyAgreement(user.id);
       if (agreementBlock) {
         return NextResponse.json(
@@ -99,7 +115,36 @@ export async function POST(req: NextRequest) {
     // the order line so historical orders stay correct after admin
     // edits tier prices later.
     const productIds = validItems.map((i: Record<string, unknown>) => (i.coffee_products as Record<string, unknown>).id as string);
-    const priced = await resolveCoffeeProductsPricing({ productIds, userId: user.id });
+    const priced = await resolveCoffeeProductsPricing({
+      productIds,
+      userId: user.id,
+      storefront: sfTenant
+        ? { tenantId: sfTenant.id, customerProfileId: user.id }
+        : null,
+    });
+
+    // Storefront lines carry per-entry error flags instead of throwing
+    // (NO_BASE_PRICE / PRICE_BELOW_BASE). Refuse the whole checkout on
+    // any flagged line — commission math can't run and nothing partial
+    // may reach the ledger. The client maps these codes to actionable
+    // copy ("pricing isn't set up yet — contact the storefront owner").
+    if (sfTenant) {
+      for (const pid of productIds) {
+        const err = priced.get(pid)?.storefront?.error;
+        if (err) {
+          return NextResponse.json(
+            {
+              error:
+                err === "PRICE_BELOW_BASE"
+                  ? "A configured price is below the storefront's base price — checkout is blocked until the owner fixes pricing."
+                  : "This storefront's pricing isn't set up for an item in your cart.",
+              code: err,
+            },
+            { status: 400 },
+          );
+        }
+      }
+    }
 
     const orderNumber = `VC-${Date.now()}`;
 
@@ -119,8 +164,31 @@ export async function POST(req: NextRequest) {
         shipping_cost: shippingCost,
         line_total: (unitPrice + shippingCost) * quantity,
         pricing_tier_id: resolved?.pricing_tier_id || null,
+        // Present only for storefront buyers — the commission
+        // snapshot the ledger and payout console run on.
+        sf: resolved?.storefront ?? null,
       };
     });
+
+    // Storefront ledger math: per-line base/sell/commission amounts,
+    // immutable at order time. sfLines is index-aligned with
+    // orderItems (and therefore with the inserted item rows).
+    const sfLines = sfTenant
+      ? orderItems.map((i) => ({
+          base_price_amount: round2((i.sf?.base_price ?? 0) * i.quantity),
+          tenant_price_amount: round2(i.unit_price * i.quantity),
+          commission_amount: round2((i.sf?.commission ?? 0) * i.quantity),
+          quantity: i.quantity,
+        }))
+      : [];
+    const sfTotals = sfTenant
+      ? {
+          base_price_total: round2(sfLines.reduce((a, l) => a + l.base_price_amount, 0)),
+          tenant_price_total: round2(sfLines.reduce((a, l) => a + l.tenant_price_amount, 0)),
+          commission_total: round2(sfLines.reduce((a, l) => a + l.commission_amount, 0)),
+          tax_total: 0,
+        }
+      : null;
 
     const subtotal = orderItems.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
     const shippingTotal = orderItems.reduce((sum, i) => sum + i.shipping_cost * i.quantity, 0);
@@ -130,8 +198,11 @@ export async function POST(req: NextRequest) {
     // order row or fire the QB/Stripe request. Shipping is excluded
     // from the check — the minimum is about the operator committing
     // to actual product volume, not an inflated shipping line.
+    // Storefront customers are exempt from the operator minimum —
+    // parity with the retired storefront checkout, which never had
+    // one. Their order sizes are the tenant's business, not ours.
     const settings = await getCoffeeSettings();
-    if (settings.minimum_order_enforced && subtotal * 100 < settings.minimum_order_cents) {
+    if (!sfTenant && settings.minimum_order_enforced && subtotal * 100 < settings.minimum_order_cents) {
       const minDollars = (settings.minimum_order_cents / 100).toFixed(2);
       const shortDollars = ((settings.minimum_order_cents / 100) - subtotal).toFixed(2);
       return NextResponse.json(
@@ -195,6 +266,7 @@ export async function POST(req: NextRequest) {
           shipping_estimate: shippingTotal,
           total,
           notes: body.notes ?? null,
+          ...(sfTenant && sfTotals ? { storefront_tenant_id: sfTenant.id, ...sfTotals } : {}),
         })
         .eq("id", (reusable as { id: string }).id)
         .select("*")
@@ -210,6 +282,17 @@ export async function POST(req: NextRequest) {
         .from("coffee_order_items")
         .delete()
         .eq("order_id", (order as { id: string }).id);
+      // Storefront retry: the pending ledger rows reference the item
+      // rows just deleted, and re-recording against fresh item ids
+      // would mint duplicate idempotency keys — wipe pending rows so
+      // the re-record below is the only ledger truth for this order.
+      if (sfTenant) {
+        await supabaseAdmin
+          .from("storefront_commission_ledger")
+          .delete()
+          .eq("coffee_order_id", (order as { id: string }).id)
+          .eq("status", "pending");
+      }
     } else {
       const { data: inserted, error: orderError } = await supabaseAdmin
         .from("coffee_orders")
@@ -239,6 +322,7 @@ export async function POST(req: NextRequest) {
           shipping_estimate: shippingTotal,
           total,
           notes: body.notes ?? null,
+          ...(sfTenant && sfTotals ? { storefront_tenant_id: sfTenant.id, ...sfTotals } : {}),
         })
         .select("*")
         .single();
@@ -253,9 +337,21 @@ export async function POST(req: NextRequest) {
     // Keep the caller-visible orderNumber in sync with the reused row.
     const effectiveOrderNumber = (orderRow.order_number as string) ?? orderNumber;
 
-    const itemsWithOrderId = orderItems.map(({ shipping_cost: _, ...item }) => ({
+    const itemsWithOrderId = orderItems.map(({ shipping_cost: _, sf, ...item }, idx) => ({
       ...item,
       order_id: orderRow.id,
+      ...(sfTenant
+        ? {
+            storefront_tenant_id: sfTenant.id,
+            base_price_per_unit: sf?.base_price ?? 0,
+            tenant_price_per_unit: item.unit_price,
+            commission_per_unit: sf?.commission ?? 0,
+            base_price_amount: sfLines[idx].base_price_amount,
+            tenant_price_amount: sfLines[idx].tenant_price_amount,
+            commission_amount: sfLines[idx].commission_amount,
+            tax_amount: 0,
+          }
+        : {}),
     }));
 
     // Insert order lines. pricing_tier_id was added in migration 118 —
@@ -263,16 +359,36 @@ export async function POST(req: NextRequest) {
     // find the pricing_tier_id column". Fall back to inserting without
     // the tier snapshot so orders still commit. Once migration 118 is
     // applied the first attempt succeeds and the retry never runs.
-    let { error: itemsError } = await supabaseAdmin
+    // Returned ids are index-aligned with the input rows — the
+    // commission recorder below depends on that ordering.
+    let { data: insertedItems, error: itemsError } = await supabaseAdmin
       .from("coffee_order_items")
-      .insert(itemsWithOrderId);
+      .insert(itemsWithOrderId)
+      .select("id");
     if (itemsError && /pricing_tier_id/.test(itemsError.message || "")) {
       const legacy = itemsWithOrderId.map(({ pricing_tier_id: _tier, ...rest }) => rest);
-      const retry = await supabaseAdmin.from("coffee_order_items").insert(legacy);
+      const retry = await supabaseAdmin.from("coffee_order_items").insert(legacy).select("id");
       itemsError = retry.error;
+      insertedItems = retry.data;
     }
     if (itemsError) {
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
+    }
+
+    // Storefront: write the commission ledger rows (status 'pending';
+    // the QB payments webhook flips them payable when funds settle).
+    // This is money-path critical — a failure here fails the checkout
+    // so the retry-idempotency block can redo the whole order cleanly.
+    if (sfTenant && sfTotals) {
+      const { recordOrderCommissions } = await import("@/lib/storefront/commissions");
+      await recordOrderCommissions({
+        orderId: orderRow.id,
+        tenantId: sfTenant.id,
+        customerProfileId: user.id,
+        resolved: { lines: sfLines },
+        orderItemIds: ((insertedItems ?? []) as Array<{ id: string }>).map((r) => r.id),
+        createdBy: user.id,
+      });
     }
 
     // Attach this order to the customer's coffee_service workflow as a
@@ -306,7 +422,7 @@ export async function POST(req: NextRequest) {
       trackingNumber: (orderRow as { tracking_number?: string | null }).tracking_number ?? null,
       operatorName: user.full_name || "Operator",
       operatorEmail: user.email || "",
-      items: orderItems.map(({ shipping_cost: _, ...i }) => i),
+      items: orderItems.map(({ shipping_cost: _, sf: _sf, ...i }) => i),
       subtotal,
       shippingEstimate: shippingTotal,
       total,
@@ -329,16 +445,35 @@ export async function POST(req: NextRequest) {
     // Capture into a const so the nested closure below doesn't lose
     // the earlier narrow-to-not-null on `user`.
     const userIdForCart = user.id;
+    const receiptTenant = sfTenant;
     async function finalizeSideEffects() {
       await supabaseAdmin
         .from("coffee_cart_items")
         .delete()
         .eq("user_id", userIdForCart);
       try {
-        await Promise.all([
-          sendCoffeeOrderNotification(emailParams),
-          sendCoffeeOrderConfirmation(emailParams),
-        ]);
+        // Storefront buyers get the dual-branded tenant receipt in
+        // place of the operator confirmation; the internal fulfillment
+        // notification goes out either way.
+        const confirmation = receiptTenant
+          ? import("@/lib/storefront/emails").then(({ sendStorefrontOrderReceipt }) =>
+              sendStorefrontOrderReceipt({
+                tenant: receiptTenant,
+                to: emailParams.billingEmail,
+                orderNumber: emailParams.orderNumber,
+                trackingNumber: emailParams.trackingNumber,
+                lines: emailParams.items.map((i) => ({
+                  product_name: i.product_name,
+                  sku: i.product_sku,
+                  quantity: i.quantity,
+                  unit_price: i.unit_price,
+                  line_total: i.line_total,
+                })),
+                total: emailParams.total,
+              }),
+            )
+          : sendCoffeeOrderConfirmation(emailParams);
+        await Promise.all([sendCoffeeOrderNotification(emailParams), confirmation]);
       } catch {
         // Email failures should not block the order
       }
@@ -355,13 +490,39 @@ export async function POST(req: NextRequest) {
         qbLineItems.push({ description: "Shipping", amount: shippingTotal, quantity: 1 });
       }
 
+      // Storefront buyers invoice as RESALE-EXEMPT QB customers.
+      // createInvoice finds customers by email, so pre-creating the
+      // exempt customer here means the normal invoice path below —
+      // timeout guard, deterministic DocNumber, recovery sweep and
+      // all — lands on it. Best-effort: if Intuit hiccups on this
+      // call, the invoice still goes out to a standard customer.
+      if (sfTenant) {
+        try {
+          const { findOrCreateResaleExemptCustomer } = await import(
+            "@/lib/storefront/quickbooksStorefront"
+          );
+          await findOrCreateResaleExemptCustomer({
+            displayName: user.full_name || trim(body.billing_contact_name),
+            email: user.email || billingEmail,
+            phone: trim(body.billing_phone),
+          });
+        } catch (exemptErr) {
+          console.warn(
+            "[coffee-checkout] resale-exempt customer pre-create failed (non-fatal):",
+            exemptErr,
+          );
+        }
+      }
+
       let invoice: Awaited<ReturnType<typeof createInvoice>>;
       try {
         invoice = await createInvoice({
           customerEmail: user.email || "",
           customerName: user.full_name || user.email || "Customer",
           lineItems: qbLineItems,
-          memo: `Coffee order ${effectiveOrderNumber}`,
+          memo: sfTenant
+            ? `Coffee order ${effectiveOrderNumber} via ${sfTenant.display_name}`
+            : `Coffee order ${effectiveOrderNumber}`,
           metadata: {
             type: "coffee_order",
             order_id: orderRow.id,
@@ -402,6 +563,15 @@ export async function POST(req: NextRequest) {
         .from("coffee_orders")
         .update({ qb_invoice_id: invoice.Id, payment_provider: "quickbooks" })
         .eq("id", orderRow.id);
+
+      // Link the ledger rows to the invoice so the payments webhook
+      // can flip pending → payable when this invoice settles.
+      if (sfTenant) {
+        await supabaseAdmin
+          .from("storefront_commission_ledger")
+          .update({ qb_invoice_id: invoice.Id })
+          .eq("coffee_order_id", orderRow.id);
+      }
 
       // sendInvoiceEmail + getInvoice also touch QBO; guard both so
       // a late-stage Intuit hiccup doesn't leave the customer without

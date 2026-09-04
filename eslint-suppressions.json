@@ -1067,7 +1067,10 @@
       "count": 1
     },
     "max-depth": {
-      "count": 2
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
     }
   },
   "src/app/api/coffee/guest-checkout/route.ts": {

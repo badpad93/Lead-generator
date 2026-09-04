@@ -29,7 +29,24 @@
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { recordAuditEvent } from "@/lib/storefront/audit";
-import { round2, type ResolvedCart } from "@/lib/storefront/pricing";
+import { round2 } from "@/lib/coffeePricing";
+
+/**
+ * Minimal per-line money snapshot the ledger needs — index-aligned
+ * with the caller's inserted coffee_order_items rows. Replaces the
+ * old dependency on the standalone storefront resolver's
+ * ResolvedCart (that resolver was collapsed into
+ * resolveCoffeeProductsPricing's storefront overlay).
+ */
+export interface CommissionCartLine {
+  base_price_amount: number;
+  tenant_price_amount: number;
+  commission_amount: number;
+  quantity: number;
+}
+export interface CommissionCart {
+  lines: CommissionCartLine[];
+}
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -94,7 +111,7 @@ export interface RecordOrderCommissionsInput {
   orderId: string;
   tenantId: string;
   customerProfileId: string;
-  resolved: ResolvedCart;
+  resolved: CommissionCart;
   /**
    * The coffee_order_items rows written for this order, in the same
    * order as resolved.lines. Passing them explicitly (rather than
@@ -158,7 +175,9 @@ export async function recordOrderCommissions(
     entityId: input.orderId,
     after: {
       lines: inserted.length,
-      commission_total: input.resolved.totals.commission_total,
+      commission_total: round2(
+        input.resolved.lines.reduce((a, l) => a + l.commission_amount, 0),
+      ),
     },
   });
   return inserted;
