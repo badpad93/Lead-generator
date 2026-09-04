@@ -190,9 +190,15 @@ export async function POST(req: NextRequest) {
       location_fee_per_secured: body.location_fee_per_secured || 400,
       max_location_service_value: (body.locations_purchased || 0) * (body.location_fee_per_secured || 400),
 
-      // Freight / shipping
+      // Freight / shipping — all rate fields track the one supplied
+      // rate so the contract text can't show a phantom "standard"
+      // rate from the DB defaults.
       freight_per_machine: body.freight_per_machine || 350,
       freight_total: (body.machine_quantity || 1) * (body.freight_per_machine || 350),
+      standard_freight_rate: body.standard_freight_rate ?? (body.freight_per_machine || 350),
+      discounted_freight_rate: body.discounted_freight_rate ?? (body.freight_per_machine || 350),
+      // No hardcoded storage fee — only charged when explicitly set.
+      storage_fee_per_machine_month: body.storage_fee_per_machine_month ?? 0,
 
       // Payment
       total_due_prior_to_procurement:
