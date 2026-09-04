@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useParams } from "next/navigation";
+import { getRequiredInitialKeys } from "@/lib/agreementInitials";
 import {
   Loader2,
   CheckCircle2,
@@ -111,25 +112,10 @@ interface PurchaseAgreement {
 /*  Helpers                                                            */
 /* ================================================================== */
 
+// Shared with the initials + sign-submit API routes so the page can
+// never require a different set than the server validates.
 function getRequiredInitials(agreement: PurchaseAgreement | null): string[] {
-  if (!agreement) return [];
-  const includeEq = agreement.include_equipment !== false;
-  const includeLoc = agreement.include_location_services !== false;
-  const includeShip = agreement.include_shipping_storage !== false;
-  const keys: string[] = [];
-  if (includeEq) keys.push("section_3");
-  if (includeShip) keys.push("section_4");
-  if (includeLoc) keys.push("section_5");
-  keys.push("section_6"); // Payment Terms always required
-  if (includeLoc) keys.push("section_7");
-  // Storage Program (section 8) only renders — and only needs
-  // initials — when a storage fee is actually set. Storage is not a
-  // line item in the quote/order flow, so by default there is none.
-  if (includeShip && Number(agreement.storage_fee_per_machine_month) > 0) keys.push("section_8");
-  if (includeEq) keys.push("schedule_a");
-  if (includeLoc) keys.push("schedule_b");
-  if (includeShip) keys.push("schedule_c");
-  return keys;
+  return getRequiredInitialKeys(agreement);
 }
 
 function currency(val: number | null | undefined): string {

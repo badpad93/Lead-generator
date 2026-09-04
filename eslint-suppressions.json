@@ -3558,7 +3558,7 @@
       "count": 1
     },
     "complexity": {
-      "count": 6
+      "count": 5
     },
     "max-depth": {
       "count": 1
@@ -3643,6 +3643,11 @@
   },
   "src/lib/agreementEmail.ts": {
     "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/lib/agreementInitials.ts": {
+    "complexity": {
       "count": 1
     }
   },

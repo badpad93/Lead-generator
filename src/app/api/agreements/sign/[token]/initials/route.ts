@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const REQUIRED_SECTIONS = [
-  "section_3",
-  "section_4",
-  "section_5",
-  "section_6",
-  "section_7",
-  "section_8",
-  "schedule_a",
-  "schedule_b",
-  "schedule_c",
-];
+import { getRequiredInitialKeys } from "@/lib/agreementInitials";
 
 /* ------------------------------------------------------------------ */
 /*  POST — Save initials for a section (public, token-based auth)     */
@@ -25,7 +15,9 @@ export async function POST(
   // Look up agreement by token
   const { data: agreement, error: agErr } = await supabaseAdmin
     .from("purchase_agreements")
-    .select("id, agreement_status")
+    .select(
+      "id, agreement_status, agreement_type, include_equipment, include_location_services, include_shipping_storage, storage_fee_per_machine_month",
+    )
     .eq("sign_token", token)
     .single();
 
@@ -84,15 +76,18 @@ export async function POST(
     return NextResponse.json({ error: upsertErr.message }, { status: 500 });
   }
 
-  // Check if all 9 required sections are now initialed
+  // Check if every REQUIRED section for THIS agreement is initialed —
+  // the set adapts to the sections the agreement actually includes
+  // (shared derivation with the sign page and the sign-submit route).
+  const requiredSections = getRequiredInitialKeys(agreement);
   const { count } = await supabaseAdmin
     .from("agreement_initials")
     .select("*", { count: "exact", head: true })
     .eq("agreement_id", agreement.id)
     .eq("signer_type", "operator")
-    .in("section_key", REQUIRED_SECTIONS);
+    .in("section_key", requiredSections.length > 0 ? requiredSections : ["__none__"]);
 
-  const allRequired = count === REQUIRED_SECTIONS.length;
+  const allRequired = requiredSections.length > 0 && count === requiredSections.length;
 
   // If all required sections are initialed, update status if not already partially_signed or signed
   if (
@@ -120,6 +115,6 @@ export async function POST(
     initial,
     all_required_initialed: allRequired,
     initialed: count || 0,
-    required: REQUIRED_SECTIONS.length,
+    required: requiredSections.length,
   });
 }

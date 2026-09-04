@@ -3,18 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { Resend } from "resend";
 import { handleFullySignedAgreement } from "@/lib/generateAgreementPdf";
 
-const REQUIRED_INITIALS = [
-  "section_3",
-  "section_4",
-  "section_5",
-  "section_6",
-  "section_7",
-  "section_8",
-  "schedule_a",
-  "schedule_b",
-  "schedule_c",
-];
-
+import { getRequiredInitialKeys } from "@/lib/agreementInitials";
 import { APEX_ADMIN_NOTIFY } from "@/lib/adminNotifyRecipients";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
@@ -51,21 +40,27 @@ export async function POST(
     );
   }
 
-  // Validate all 9 required initials exist
-  const { count: initialsCount } = await supabaseAdmin
-    .from("agreement_initials")
-    .select("*", { count: "exact", head: true })
-    .eq("agreement_id", agreement.id)
-    .eq("signer_type", "operator")
-    .in("section_key", REQUIRED_INITIALS);
+  // Validate the required initials exist — derived from THIS
+  // agreement's included sections (same shared derivation the sign
+  // page renders from), never a fixed count. An agreement whose line
+  // items only produce equipment sections requires exactly those.
+  const requiredInitials = getRequiredInitialKeys(agreement);
+  if (requiredInitials.length > 0) {
+    const { count: initialsCount } = await supabaseAdmin
+      .from("agreement_initials")
+      .select("*", { count: "exact", head: true })
+      .eq("agreement_id", agreement.id)
+      .eq("signer_type", "operator")
+      .in("section_key", requiredInitials);
 
-  if ((initialsCount || 0) < REQUIRED_INITIALS.length) {
-    return NextResponse.json(
-      {
-        error: `All ${REQUIRED_INITIALS.length} sections must be initialed before signing. ${initialsCount || 0} of ${REQUIRED_INITIALS.length} completed.`,
-      },
-      { status: 400 },
-    );
+    if ((initialsCount || 0) < requiredInitials.length) {
+      return NextResponse.json(
+        {
+          error: `All ${requiredInitials.length} section${requiredInitials.length === 1 ? "" : "s"} must be initialed before signing. ${initialsCount || 0} of ${requiredInitials.length} completed.`,
+        },
+        { status: 400 },
+      );
+    }
   }
 
   const body = await req.json();
