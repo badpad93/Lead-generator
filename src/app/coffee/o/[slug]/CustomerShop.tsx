@@ -63,6 +63,27 @@ interface Quote {
   };
 }
 
+/**
+ * Map pricing-resolution error codes (from /api/storefront/quote and
+ * /api/storefront/checkout — both return { error, code } for
+ * PricingResolutionError) to messages a shopper can act on. A raw
+ * resolver message ("Product X has no base tier price…") reads like
+ * a broken page; a misconfigured storefront needs to say whose move
+ * it is. Anything unmapped falls through to the server's message.
+ */
+function friendlyPricingError(code: string | undefined, fallback: string): string {
+  if (code === "NO_BASE_PRICE") {
+    return "This storefront's pricing isn't set up yet, so checkout is unavailable. Please contact the storefront owner.";
+  }
+  if (code === "TENANT_NOT_APPROVED" || code === "TENANT_NOT_FOUND") {
+    return "This storefront isn't active yet. Please contact the storefront owner.";
+  }
+  if (code === "PRODUCT_INACTIVE" || code === "PRODUCT_NOT_FOUND") {
+    return "An item in your cart is no longer available — remove it and try again.";
+  }
+  return fallback;
+}
+
 function StockBadge({ status }: { status: string | null }) {
   switch (status) {
     case "low_stock":
@@ -166,14 +187,24 @@ export default function CustomerShop({
         },
         body: JSON.stringify({ tenant_id: tenantId, cart: cartLines }),
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? "Failed to price cart");
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+        quote?: Quote;
+      };
+      if (!res.ok || !body.quote) {
+        setQuote(null);
+        setQuoteErr(
+          friendlyPricingError(
+            body.code,
+            body.error ?? "We couldn't price your cart. Please try again.",
+          ),
+        );
+        return;
       }
-      const body = (await res.json()) as { quote: Quote };
       setQuote(body.quote);
     } catch (e) {
-      setQuoteErr(e instanceof Error ? e.message : "Failed");
+      setQuoteErr(e instanceof Error ? e.message : "We couldn't price your cart. Please try again.");
       setQuote(null);
     } finally {
       setQuoting(false);
@@ -405,7 +436,21 @@ export default function CustomerShop({
             {quoting ? <div className="text-xs text-gray-500">Pricing…</div> : null}
           </div>
           {quoteErr ? (
-            <div className="mt-2 text-sm text-red-700">{quoteErr}</div>
+            <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-900">
+              {quoteErr}
+            </div>
+          ) : null}
+          {/* A failed quote must never leave the panel looking dead —
+              keep a (disabled) button in place of Checkout so the
+              shopper sees the flow exists and the message explains
+              why it's blocked. */}
+          {!quote && !quoting && quoteErr ? (
+            <button
+              disabled
+              className="mt-3 w-full rounded-md bg-gray-200 text-gray-500 text-sm py-2 font-medium cursor-not-allowed"
+            >
+              Checkout unavailable
+            </button>
           ) : null}
           {quote ? (
             <>
@@ -553,8 +598,10 @@ function CheckoutModal({
         }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? "Checkout failed");
+        const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+        throw new Error(
+          friendlyPricingError(body.code, body.error ?? "Checkout failed — please try again."),
+        );
       }
       const body = (await res.json()) as {
         order_number: string;
