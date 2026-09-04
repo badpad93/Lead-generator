@@ -71,7 +71,17 @@ export async function POST(
     machineItems.length > 0
       ? Number(machineItems[0].unit_price) || Number(machineItems[0].price) || 3700
       : 3700;
-  const equipmentSubtotal = machineQuantity * machineUnitPrice;
+  // Pricing continuity: the subtotal comes from the lines' actual
+  // total_price (which carries any discount_percent), NOT qty × raw
+  // unit price — recomputing from the unit price silently stripped
+  // line discounts every time an agreement was generated.
+  const equipmentSubtotal = machineItems.reduce(
+    (sum, i) =>
+      sum +
+      (Number(i.total_price) ||
+        (Number(i.quantity) || 1) * (Number(i.unit_price) || Number(i.price) || 0)),
+    0,
+  );
   const machineModel =
     machineItems.length > 0
       ? String(machineItems[0].service_name || machineItems[0].description || "VendEra AI Machine")
@@ -95,8 +105,30 @@ export async function POST(
   const maxLocationServiceValue = locationsPurchased * locationFeePerSecured;
 
   // --- Freight ---
-  const freightPerMachine = 350; // default rate
-  const freightTotal = freightPerMachine * machineQuantity;
+  // Pricing continuity: if the order/quote ALREADY carries a
+  // freight/shipping line (create-order-from-agreement writes
+  // "Shipping & Freight"; reps also add them by hand or from the
+  // catalog), the agreement MUST inherit that amount verbatim.
+  // Previously this always reset to the $350/machine default, so a
+  // custom or discounted freight rate was silently repriced on every
+  // quote → order → agreement transition.
+  const freightItems = items.filter(
+    (i) =>
+      i.item_type !== "machine_sale" &&
+      i.item_type !== "location_services" &&
+      /freight|shipping/i.test(String(i.service_name || "")),
+  );
+  const freightFromItems = freightItems.reduce(
+    (sum, i) =>
+      sum +
+      (Number(i.total_price) ||
+        (Number(i.quantity) || 1) * (Number(i.unit_price) || Number(i.price) || 0)),
+    0,
+  );
+  const freightTotal =
+    freightItems.length > 0 ? freightFromItems : 350 /* default rate */ * machineQuantity;
+  const freightPerMachine =
+    machineQuantity > 0 ? Math.round((freightTotal / machineQuantity) * 100) / 100 : freightTotal;
 
   // --- Totals ---
   const totalDuePriorToProcurement = equipmentSubtotal + freightTotal;
