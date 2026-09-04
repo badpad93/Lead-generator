@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 
 /**
@@ -21,10 +20,11 @@ import { createBrowserClient } from "@/lib/supabase";
  * customers sort through categories the same way in both places.
  *
  * Every price shown to an enrolled customer comes from a
- * server-side /api/storefront/quote roundtrip — we re-quote
- * whenever the cart changes so per-line commission math matches
- * the checkout call exactly. Nothing about price ever originates
- * in the browser.
+ * server-side /api/storefront/quote roundtrip — a thin wrapper over
+ * the SAME unified resolver /api/coffee/checkout charges through, so
+ * the preview can never drift from the bill. Checkout itself submits
+ * to /api/coffee/checkout (the proven marketplace pipeline). Nothing
+ * about price ever originates in the browser.
  */
 
 interface Product {
@@ -65,8 +65,8 @@ interface Quote {
 
 /**
  * Map pricing-resolution error codes (from /api/storefront/quote and
- * /api/storefront/checkout — both return { error, code } for
- * PricingResolutionError) to messages a shopper can act on. A raw
+ * /api/coffee/checkout — both return { error, code } for storefront
+ * pricing problems) to messages a shopper can act on. A raw
  * resolver message ("Product X has no base tier price…") reads like
  * a broken page; a misconfigured storefront needs to say whose move
  * it is. Anything unmapped falls through to the server's message.
@@ -126,7 +126,6 @@ export default function CustomerShop({
   primary: string;
   accent: string;
 }) {
-  const router = useRouter();
   const [cart, setCart] = useState<Record<string, number>>({});
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoting, setQuoting] = useState(false);
@@ -482,24 +481,18 @@ export default function CustomerShop({
 
       {checkoutOpen ? (
         <CheckoutModal
-          tenantId={tenantId}
           tenantSlug={tenantSlug}
           cart={cartLines}
           onClose={() => setCheckoutOpen(false)}
-          onSuccess={({ orderNumber, payUrl }) => {
+          onSuccess={({ url }) => {
             setCart({});
             setCheckoutOpen(false);
-            // Payment is part of checkout: go straight to QBO's
-            // hosted pay page. The order flips out of
-            // awaiting_payment via the QB webhook once payment
-            // clears. Fallback (no pay link — QBO online payments
-            // off or the link fetch failed): the orders page, whose
-            // Pay button offers the same link / invoice-email path.
-            if (payUrl) {
-              window.location.href = payUrl;
-            } else {
-              router.push(`/coffee/orders?just_ordered=${orderNumber}`);
-            }
+            // Payment is part of checkout. The base pipeline returns
+            // the one URL to follow: QBO's hosted pay page when the
+            // link resolved, else the order page (invoice emailed /
+            // pending), so the order flips out of awaiting_payment
+            // via the QB webhook once payment clears.
+            window.location.href = url;
           }}
         />
       ) : null}
@@ -508,17 +501,15 @@ export default function CustomerShop({
 }
 
 function CheckoutModal({
-  tenantId,
   tenantSlug,
   cart,
   onClose,
   onSuccess,
 }: {
-  tenantId: string;
   tenantSlug: string;
   cart: Array<{ product_id: string; quantity: number }>;
   onClose: () => void;
-  onSuccess: (result: { orderNumber: string; payUrl: string | null }) => void;
+  onSuccess: (result: { url: string }) => void;
 }) {
   const [form, setForm] = useState({
     billing_business_name: "",
@@ -555,45 +546,61 @@ function CheckoutModal({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const shippingSource = copyBilling
+      const authHeaders = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.access_token ?? ""}`,
+      };
+      // Storefront checkout runs through the SAME pipeline as the
+      // operator marketplace (/api/coffee/checkout), which charges
+      // the server-side cart — so first mirror the on-page cart to
+      // coffee_cart_items, then submit.
+      const clearRes = await fetch("/api/coffee/cart", {
+        method: "DELETE",
+        headers: authHeaders,
+        body: JSON.stringify({ clear: true }),
+      });
+      if (!clearRes.ok) throw new Error("Couldn't prepare your cart — please try again.");
+      for (const line of cart) {
+        const addRes = await fetch("/api/coffee/cart", {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify(line),
+        });
+        if (!addRes.ok) throw new Error("Couldn't prepare your cart — please try again.");
+      }
+
+      const ship = copyBilling
         ? {
-            business_name: form.billing_business_name,
-            name: form.billing_contact_name,
-            address: form.billing_address,
-            city: form.billing_city,
-            state: form.billing_state,
-            zip: form.billing_zip,
-            phone: form.billing_phone,
+            shipping_business_name: form.billing_business_name,
+            shipping_name: form.billing_contact_name,
+            shipping_address: form.billing_address,
+            shipping_city: form.billing_city,
+            shipping_state: form.billing_state,
+            shipping_zip: form.billing_zip,
+            shipping_phone: form.billing_phone,
           }
         : {
-            business_name: form.shipping_business_name,
-            name: form.shipping_name,
-            address: form.shipping_address,
-            city: form.shipping_city,
-            state: form.shipping_state,
-            zip: form.shipping_zip,
-            phone: form.shipping_phone,
+            shipping_business_name: form.shipping_business_name,
+            shipping_name: form.shipping_name,
+            shipping_address: form.shipping_address,
+            shipping_city: form.shipping_city,
+            shipping_state: form.shipping_state,
+            shipping_zip: form.shipping_zip,
+            shipping_phone: form.shipping_phone,
           };
-      const res = await fetch("/api/storefront/checkout", {
+      const res = await fetch("/api/coffee/checkout", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
+        headers: authHeaders,
         body: JSON.stringify({
-          tenant_id: tenantId,
-          cart,
-          shipping: shippingSource,
-          billing: {
-            business_name: form.billing_business_name,
-            contact_name: form.billing_contact_name,
-            email: form.billing_email,
-            phone: form.billing_phone,
-            address: form.billing_address,
-            city: form.billing_city,
-            state: form.billing_state,
-            zip: form.billing_zip,
-          },
+          billing_business_name: form.billing_business_name,
+          billing_contact_name: form.billing_contact_name,
+          billing_email: form.billing_email,
+          billing_phone: form.billing_phone,
+          billing_address: form.billing_address,
+          billing_city: form.billing_city,
+          billing_state: form.billing_state,
+          billing_zip: form.billing_zip,
+          ...ship,
           notes: form.notes || null,
         }),
       });
@@ -603,11 +610,8 @@ function CheckoutModal({
           friendlyPricingError(body.code, body.error ?? "Checkout failed — please try again."),
         );
       }
-      const body = (await res.json()) as {
-        order_number: string;
-        pay_url?: string | null;
-      };
-      onSuccess({ orderNumber: body.order_number, payUrl: body.pay_url ?? null });
+      const body = (await res.json()) as { url?: string | null };
+      onSuccess({ url: body.url || "/coffee/orders" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Checkout failed");
     } finally {

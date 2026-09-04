@@ -37,8 +37,9 @@ creation with `status='pending'`, transitioning through
 
 ## Pricing precedence (server-side)
 
-`src/lib/storefront/pricing.ts` :: `resolveCart` is the single
-source of truth. Precedence, highest wins:
+`src/lib/coffeePricing.ts` :: `resolveCoffeeProductsPricing` with a
+`StorefrontContext` is the single source of truth (the standalone
+storefront resolver was collapsed into it). Precedence, highest wins:
 
 1. Accepted proposal line (`coffee_pricing_proposals`)
 2. Per-customer override (`storefront_customer_prices`)
@@ -131,7 +132,12 @@ Public / anon:
 
 Authenticated customer:
 - `POST /api/storefront/enrollment/consume` — one-shot enroll
-- `POST /api/storefront/checkout` — dedicated storefront checkout
+- `POST /api/storefront/quote` — cart price preview (thin wrapper
+  over the unified resolver)
+- `POST /api/coffee/checkout` — storefront checkout runs through the
+  base coffee pipeline (idempotent retry, QB timeout guard, tracking
+  numbers); it stamps tenant + commission snapshots and writes the
+  ledger when the buyer is an enrolled customer
 
 Owner (operator):
 - `GET|POST|PATCH /api/storefront/tenant`

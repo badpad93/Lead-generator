@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getCoffeeUser, forbiddenResponse } from "@/lib/coffeeAuth";
+import { getCoffeeUser, hasCoffeePurchaseAccess, forbiddenResponse } from "@/lib/coffeeAuth";
 import { resolveCoffeeProductsPricing } from "@/lib/coffeePricing";
 
 export async function GET(req: NextRequest) {
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (!user.coffee_access_enabled) {
+    if (!hasCoffeePurchaseAccess(user)) {
       return forbiddenResponse();
     }
 
@@ -94,7 +94,7 @@ export async function DELETE(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (!user.coffee_access_enabled) {
+    if (!hasCoffeePurchaseAccess(user)) {
       return forbiddenResponse();
     }
 

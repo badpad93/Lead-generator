@@ -452,7 +452,7 @@
   },
   "src/app/admin/storefronts/[id]/page.tsx": {
     "complexity": {
-      "count": 3
+      "count": 4
     },
     "max-lines": {
       "count": 1
@@ -1067,7 +1067,10 @@
       "count": 1
     },
     "max-depth": {
-      "count": 2
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
     }
   },
   "src/app/api/coffee/guest-checkout/route.ts": {
@@ -1910,11 +1913,6 @@
       "count": 2
     },
     "no-nested-ternary": {
-      "count": 1
-    }
-  },
-  "src/app/api/storefront/checkout/route.ts": {
-    "complexity": {
       "count": 1
     }
   },
@@ -3301,7 +3299,7 @@
       "count": 2
     },
     "complexity": {
-      "count": 5
+      "count": 6
     },
     "max-lines": {
       "count": 1
@@ -3718,7 +3716,7 @@
       "count": 1
     },
     "complexity": {
-      "count": 1
+      "count": 3
     }
   },
   "src/lib/commissions.ts": {
@@ -4192,14 +4190,9 @@
       "count": 1
     }
   },
-  "src/lib/storefront/pricing.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/lib/storefront/quickbooksStorefront.ts": {
     "complexity": {
-      "count": 2
+      "count": 1
     }
   },
   "src/lib/storefront/tenants.ts": {
