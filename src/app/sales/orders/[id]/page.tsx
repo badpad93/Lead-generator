@@ -374,7 +374,7 @@ export default function OrderDetailPage() {
     });
     if (res.ok) {
       const agreement = await res.json();
-      router.push(`/sales/orders/${id}/agreement?aid=${agreement.id}`);
+      router.push(`/sales/agreements/${agreement.id}`);
     } else {
       // Never fail silently — a rep clicking "Generate Updated
       // Agreement" after editing items needs to know why nothing
@@ -511,7 +511,7 @@ export default function OrderDetailPage() {
           });
           if (res.ok) {
             const agreement = await res.json();
-            router.push(`/sales/orders/${id}/agreement?aid=${agreement.id}`);
+            router.push(`/sales/agreements/${agreement.id}`);
             return; // don't fetchOrder — we're navigating away
           }
           break;
@@ -1043,7 +1043,7 @@ export default function OrderDetailPage() {
                       {ag.apex_signed_at && <p>Apex signed: {new Date(ag.apex_signed_at).toLocaleDateString()}</p>}
                     </div>
                     <button
-                      onClick={() => router.push(`/sales/orders/${id}/agreement?aid=${ag.id}`)}
+                      onClick={() => router.push(`/sales/agreements/${ag.id}`)}
                       className="mt-2 w-full rounded-lg px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer"
                     >
                       Open Agreement

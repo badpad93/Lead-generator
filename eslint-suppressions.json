@@ -1785,11 +1785,6 @@
       "count": 2
     }
   },
-  "src/app/api/sales/orders/[id]/agreement/route.ts": {
-    "complexity": {
-      "count": 2
-    }
-  },
   "src/app/api/sales/orders/[id]/attributions/route.ts": {
     "complexity": {
       "count": 2
@@ -3109,6 +3104,11 @@
       "count": 2
     }
   },
+  "src/app/sales/agreements/[id]/SourceOrderPanels.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/app/sales/agreements/[id]/page.tsx": {
     "complexity": {
       "count": 8
@@ -3278,20 +3278,6 @@
     },
     "react-hooks/set-state-in-effect": {
       "count": 2
-    }
-  },
-  "src/app/sales/orders/[id]/agreement/page.tsx": {
-    "complexity": {
-      "count": 6
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    },
-    "react/no-unescaped-entities": {
-      "count": 1
     }
   },
   "src/app/sales/orders/[id]/page.tsx": {
@@ -4094,6 +4080,11 @@
   "src/lib/salesAccountResolver.ts": {
     "complexity": {
       "count": 1
+    }
+  },
+  "src/lib/salesAgreements.ts": {
+    "complexity": {
+      "count": 2
     }
   },
   "src/lib/salesAttribution.ts": {
