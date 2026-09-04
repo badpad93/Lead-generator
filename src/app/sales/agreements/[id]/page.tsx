@@ -4,6 +4,10 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
 import { US_STATES, US_STATE_NAMES } from "@/lib/types";
+import SourceOrderPanels, {
+  type SnapshotLine,
+  type CoffeeSupplySnapshot,
+} from "./SourceOrderPanels";
 import {
   Loader2,
   ArrowLeft,
@@ -133,6 +137,12 @@ interface Agreement {
   internal_notes: string | null;
   customer_notes: string | null;
   legal_overrides: Record<string, string>;
+  // Source-order snapshot + coffee supply gate (migration 176).
+  // Nullable — standalone/placement agreements and legacy rows
+  // render nothing for these.
+  line_items_snapshot: SnapshotLine[] | null;
+  coffee_supply_required: boolean | null;
+  coffee_supply_snapshot: CoffeeSupplySnapshot | null;
   pdf_url: string | null;
   signed_pdf_url: string | null;
   sent_at: string | null;
@@ -446,11 +456,14 @@ function StandaloneAgreementEditor() {
       location_rejection_allowance: form.location_rejection_allowance,
       location_service_timeline_days: Number(form.location_service_timeline_days) || 180,
       location_payment_terms: form.location_payment_terms,
-      standard_freight_rate: Number(form.standard_freight_rate) || 0,
-      discounted_freight_rate: Number(form.discounted_freight_rate) || 0,
+      // Rate fields track the single freight number and storage is
+      // always zeroed — every save repairs legacy rows still carrying
+      // the phantom DB defaults ($500/$375/$50).
+      standard_freight_rate: Number(form.freight_per_machine) || 0,
+      discounted_freight_rate: Number(form.freight_per_machine) || 0,
       freight_per_machine: Number(form.freight_per_machine) || 0,
       shipping_notes: form.shipping_notes,
-      storage_fee_per_machine_month: Number(form.storage_fee_per_machine_month) || 0,
+      storage_fee_per_machine_month: 0,
       free_storage_months: Number(form.free_storage_months) || 0,
       payment_due_date: form.payment_due_date || null,
       payment_method_notes: form.payment_method_notes,
@@ -938,6 +951,12 @@ function StandaloneAgreementEditor() {
         </div>
       )}
 
+      <SourceOrderPanels
+        lineItems={agreement.line_items_snapshot}
+        coffeeSupplyRequired={agreement.coffee_supply_required}
+        coffeeSupplySnapshot={agreement.coffee_supply_snapshot}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {agreement.agreement_type === "location_placement" && (
@@ -1069,11 +1088,16 @@ function StandaloneAgreementEditor() {
             )}
           </div>
 
-          {/* Shipping & Storage */}
+          {/* Shipping & Freight — ONE freight number, inherited from
+              the order's freight line for from-order agreements. The
+              old Standard/Discounted/Storage fields exposed DB-default
+              rates ($500/$375/$50 per mo) that existed nowhere on the
+              quote or order. Storage is not a line item — if the
+              storage program returns, it comes back via the catalog. */}
           <div className={`rounded-xl border bg-white p-5 ${form.include_shipping_storage ? "border-gray-200" : "border-gray-200 opacity-60"}`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                <Truck className="h-4 w-4 text-gray-400" /> Shipping &amp; Storage
+                <Truck className="h-4 w-4 text-gray-400" /> Shipping &amp; Freight
               </h3>
               <SectionToggle
                 included={form.include_shipping_storage}
@@ -1084,12 +1108,8 @@ function StandaloneAgreementEditor() {
             {form.include_shipping_storage && (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <CurrencyField label="Standard Freight Rate" value={form.standard_freight_rate} onChange={(v) => updateField("standard_freight_rate", v)} disabled={isReadOnly} />
-                  <CurrencyField label="Discounted Freight Rate" value={form.discounted_freight_rate} onChange={(v) => updateField("discounted_freight_rate", v)} disabled={isReadOnly} />
                   <CurrencyField label="Freight per Machine" value={form.freight_per_machine} onChange={(v) => updateField("freight_per_machine", v)} disabled={isReadOnly} />
                   <ReadOnlyField label="Freight Total" value={`$${currency(computed.freightTotal)}`} />
-                  <CurrencyField label="Storage Fee / Month" value={form.storage_fee_per_machine_month} onChange={(v) => updateField("storage_fee_per_machine_month", v)} disabled={isReadOnly} />
-                  <InputField label="Free Storage Months" type="number" value={form.free_storage_months} onChange={(v) => updateField("free_storage_months", v)} disabled={isReadOnly} min="0" />
                 </div>
                 <div className="mt-4">
                   <TextareaField label="Shipping Notes" value={form.shipping_notes} onChange={(v) => updateField("shipping_notes", v)} disabled={isReadOnly} rows={2} />
@@ -1837,8 +1857,6 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
   const timelineDays = Number(form.location_service_timeline_days) || 180;
   const rejectionAllowance = form.location_rejection_allowance || "Greater of 10 locations total or 1 per purchased machine";
   const locPaymentTerms = form.location_payment_terms || "Due within 5 business days of invoice";
-  const stdFreight = Number(form.standard_freight_rate) || 0;
-  const discFreight = Number(form.discounted_freight_rate) || 0;
   const freightPer = Number(form.freight_per_machine) || 0;
   const storageFee = Number(form.storage_fee_per_machine_month) || 0;
   const freeStorageMonths = Number(form.free_storage_months) || 0;
@@ -1919,22 +1937,26 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
           {form.include_shipping_storage && (
             <>
               <hr className="my-4" />
-              <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SCHEDULE C &mdash; SHIPPING &amp; STORAGE</h2>
+              <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SCHEDULE C &mdash; SHIPPING &amp; FREIGHT</h2>
               <div className="rounded-lg border border-gray-200 overflow-hidden mb-4">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50"><tr><th className="text-left px-4 py-2 font-medium text-gray-600">Item</th><th className="text-right px-4 py-2 font-medium text-gray-600">Amount</th></tr></thead>
                   <tbody>
-                    {stdFreight > 0 && (<tr className="border-t border-gray-100"><td className="px-4 py-2">Standard Freight Rate</td><td className="px-4 py-2 text-right">${currency(stdFreight)} / machine</td></tr>)}
-                    {discFreight > 0 && (<tr className="border-t border-gray-100"><td className="px-4 py-2">Discounted Freight Rate</td><td className="px-4 py-2 text-right">${currency(discFreight)} / machine</td></tr>)}
                     <tr className="border-t border-gray-100"><td className="px-4 py-2">Freight per Machine</td><td className="px-4 py-2 text-right">${currency(freightPer)}</td></tr>
                     <tr className="border-t border-gray-100 font-medium"><td className="px-4 py-2">Freight Total ({qty} machine{qty > 1 ? "s" : ""})</td><td className="px-4 py-2 text-right">${currency(computed.freightTotal)}</td></tr>
-                    {storageFee > 0 && (<tr className="border-t border-gray-100"><td className="px-4 py-2">Storage Fee</td><td className="px-4 py-2 text-right">${currency(storageFee)} / machine / month</td></tr>)}
-                    <tr className="border-t border-gray-100"><td className="px-4 py-2">Free Storage Period</td><td className="px-4 py-2 text-right">{freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""}</td></tr>
+                    {storageFee > 0 && (
+                      <>
+                        <tr className="border-t border-gray-100"><td className="px-4 py-2">Storage Fee</td><td className="px-4 py-2 text-right">${currency(storageFee)} / machine / month</td></tr>
+                        <tr className="border-t border-gray-100"><td className="px-4 py-2">Free Storage Period</td><td className="px-4 py-2 text-right">{freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""}</td></tr>
+                      </>
+                    )}
                   </tbody>
                 </table>
               </div>
               <p><strong>8. Shipping.</strong> Freight is ${currency(freightPer)} per machine for a total of <strong>${currency(computed.freightTotal)}</strong>. Delivery: {deliveryAddr || "[Delivery Address]"}.</p>
-              <p><strong>9. Storage.</strong> {freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""} free storage. After that, ${currency(storageFee)} per machine per month.</p>
+              {storageFee > 0 && (
+                <p><strong>9. Storage.</strong> {freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""} free storage. After that, ${currency(storageFee)} per machine per month.</p>
+              )}
               <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
             </>
           )}

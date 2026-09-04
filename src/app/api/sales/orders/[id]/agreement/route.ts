@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
-import { DEFAULT_LOCATION_PRICE } from "@/lib/pricing/locationPricing";
-import { orderNeedsAgreement } from "@/lib/salesOrderNextAction";
+import { createAgreementFromOrder, AgreementCreationError } from "@/lib/salesAgreements";
 
 /* ------------------------------------------------------------------ */
 /*  POST — Create a purchase agreement from an order                  */
+/*                                                                    */
+/*  Thin back-compat delegate. Agreement creation lives on ONE set    */
+/*  of rails (createAgreementFromOrder, also reachable via            */
+/*  POST /api/sales/agreements with { order_id }). This route stays   */
+/*  only so existing callers keep working — it holds no logic of its  */
+/*  own, so the order flow and the agreements page can never diverge. */
 /* ------------------------------------------------------------------ */
 export async function POST(
   req: NextRequest,
@@ -14,276 +19,19 @@ export async function POST(
   const user = await getSalesUser(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id: orderId } = await params;
-
-  // Fetch the order with account and line items
-  const { data: order, error: orderErr } = await supabaseAdmin
-    .from("sales_orders")
-    .select("*, sales_accounts:account_id(*), order_items(*)")
-    .eq("id", orderId)
-    .single();
-
-  if (orderErr || !order)
-    return NextResponse.json({ error: "Order not found" }, { status: 404 });
-
-  const account = order.sales_accounts;
-  const items: Array<Record<string, unknown>> = order.order_items || [];
-
-  // Gate: purchase_agreements exist only for the two sale types that
-  // legally need a written agreement:
-  //   1. Coffee sales (Equipment Loan & Beverage Supply Agreement
-  //      required — a coffee_program line on the order means a
-  //      brewer/supply relationship the customer must sign for)
-  //   2. 10/10/10 package sales (is_ten_ten_ten=true — the
-  //      10-machine / 10-location / 10-year financing bundle
-  //      that has its own terms)
-  // Generic machine-only sales do NOT get an agreement. Refuse
-  // creation here so a rep can't accidentally spin one up and then
-  // send it to a customer who wasn't supposed to sign anything.
-  // The UI also hides the button in these cases, but this is the
-  // authoritative check.
-  if (!orderNeedsAgreement(order as Parameters<typeof orderNeedsAgreement>[0])) {
-    return NextResponse.json(
-      {
-        error:
-          "Agreements are only for coffee sales or 10/10/10 package orders. This order qualifies for neither.",
-        code: "AGREEMENT_NOT_REQUIRED",
-      },
-      { status: 409 },
-    );
-  }
-
-  // Look up the assigned rep's profile
-  const { data: repProfile } = await supabaseAdmin
-    .from("profiles")
-    .select("email, full_name")
-    .eq("id", order.assigned_rep_id || order.created_by)
-    .single();
-
-  // --- Derive equipment info from order_items ---
-  const machineItems = items.filter(
-    (i) => i.item_type === "machine_sale",
-  );
-  const machineQuantity = machineItems.reduce(
-    (sum, i) => sum + (Number(i.quantity) || 1),
-    0,
-  );
-  const machineUnitPrice =
-    machineItems.length > 0
-      ? Number(machineItems[0].unit_price) || Number(machineItems[0].price) || 3700
-      : 3700;
-  // Pricing continuity: the subtotal comes from the lines' actual
-  // total_price (which carries any discount_percent), NOT qty × raw
-  // unit price — recomputing from the unit price silently stripped
-  // line discounts every time an agreement was generated.
-  const equipmentSubtotal = machineItems.reduce(
-    (sum, i) =>
-      sum +
-      (Number(i.total_price) ||
-        (Number(i.quantity) || 1) * (Number(i.unit_price) || Number(i.price) || 0)),
-    0,
-  );
-  const machineModel =
-    machineItems.length > 0
-      ? String(machineItems[0].service_name || machineItems[0].description || "VendEra AI Machine")
-      : "VendEra AI Machine";
-
-  // --- Location services ---
-  const locationItems = items.filter(
-    (i) => i.item_type === "location_services",
-  );
-  const locationsPurchased = locationItems.reduce(
-    (sum, i) => sum + (Number(i.quantity) || 1),
-    0,
-  );
-  // Fall back to the Basic tier price (shared with the marketplace
-  // operator fee) instead of the legacy $400 hardcode. Real line
-  // items always carry a unit_price computed by the pricing engine.
-  const locationFeePerSecured =
-    locationItems.length > 0
-      ? Number(locationItems[0].unit_price) || Number(locationItems[0].price) || DEFAULT_LOCATION_PRICE
-      : DEFAULT_LOCATION_PRICE;
-  const maxLocationServiceValue = locationsPurchased * locationFeePerSecured;
-
-  // --- Freight ---
-  // Pricing continuity: if the order/quote ALREADY carries a
-  // freight/shipping line (create-order-from-agreement writes
-  // "Shipping & Freight"; reps also add them by hand or from the
-  // catalog), the agreement MUST inherit that amount verbatim.
-  // Previously this always reset to the $350/machine default, so a
-  // custom or discounted freight rate was silently repriced on every
-  // quote → order → agreement transition.
-  const freightItems = items.filter(
-    (i) =>
-      i.item_type !== "machine_sale" &&
-      i.item_type !== "location_services" &&
-      /freight|shipping/i.test(String(i.service_name || "")),
-  );
-  const freightFromItems = freightItems.reduce(
-    (sum, i) =>
-      sum +
-      (Number(i.total_price) ||
-        (Number(i.quantity) || 1) * (Number(i.unit_price) || Number(i.price) || 0)),
-    0,
-  );
-  const freightTotal =
-    freightItems.length > 0 ? freightFromItems : 350 /* default rate */ * machineQuantity;
-  const freightPerMachine =
-    machineQuantity > 0 ? Math.round((freightTotal / machineQuantity) * 100) / 100 : freightTotal;
-
-  // --- Totals ---
-  const totalDuePriorToProcurement = equipmentSubtotal + freightTotal;
-
-  // Full line-item snapshot — every order_items row verbatim so
-  // coffee/cooler/financing/other lines survive the conversion.
-  // The scalar columns above (machine_quantity, equipment_subtotal
-  // etc.) stay populated for backwards compat but this is the
-  // authoritative source of truth going forward. Copy shape kept
-  // deliberately shallow so a future PATCH can round-trip cleanly.
-  const lineItemsSnapshot = items.map((i) => ({
-    item_type: i.item_type ?? null,
-    service_name: i.service_name ?? null,
-    description: i.description ?? null,
-    quantity: i.quantity ?? null,
-    unit_price: i.unit_price ?? i.price ?? null,
-    discount_percent: i.discount_percent ?? null,
-    total_price: i.total_price ?? null,
-    deposit_required: i.deposit_required ?? null,
-    location_deposit_amount: i.location_deposit_amount ?? null,
-    location_service_price: i.location_service_price ?? null,
-    product_id: i.product_id ?? null,
-  }));
-
-  // Coffee-supply gate. If any coffee_program line is on the order,
-  // this agreement covers a brewer/supply relationship and the
-  // customer must accept the Equipment Loan & Beverage Supply
-  // Agreement. Snapshot the currently-active coffee_supply template
-  // onto the row so the customer signs a specific, immutable
-  // version — if the template is updated later, historical
-  // agreements preserve what was actually agreed to.
-  // A coffee_program line means a brewer/supply relationship —
-  // EXCEPT freight lines that reps or the catalog happen to type as
-  // coffee_program ("Coffee Machine Freight" is shipping, not a
-  // brewer, and must not drag the Equipment Loan & Beverage Supply
-  // Agreement into the contract).
-  const coffeeSupplyRequired = items.some(
-    (i) =>
-      i.item_type === "coffee_program" &&
-      !/freight|shipping/i.test(String(i.service_name || "")),
-  );
-  let coffeeSupplySnapshot: Record<string, unknown> | null = null;
-  if (coffeeSupplyRequired) {
-    const { data: tpl } = await supabaseAdmin
-      .from("agreement_templates")
-      .select("id, agreement_type, version, title, content_html, content_hash, effective_date")
-      .eq("agreement_type", "coffee_supply")
-      .eq("is_active", true)
-      .maybeSingle();
-    if (tpl) {
-      const t = tpl as {
-        id: string;
-        agreement_type: string;
-        version: number;
-        title: string;
-        content_html: string;
-        content_hash: string | null;
-        effective_date: string | null;
-      };
-      coffeeSupplySnapshot = {
-        template_id: t.id,
-        agreement_type: t.agreement_type,
-        version: t.version,
-        title: t.title,
-        content_html: t.content_html,
-        content_hash: t.content_hash,
-        effective_date: t.effective_date,
-        captured_at: new Date().toISOString(),
-      };
-    } else {
-      // No active coffee_supply template — this is a data/config
-      // problem the admin needs to fix, but don't block agreement
-      // creation. Record required=true; the UI surfaces the missing
-      // snapshot as a banner so the sales team knows to escalate.
-      console.warn(
-        "[orders/agreement] coffee_program line on order but no active coffee_supply agreement_templates row — supply agreement snapshot will be null",
+  try {
+    const agreement = await createAgreementFromOrder({ orderId, userId: user.id });
+    return NextResponse.json(agreement, { status: 201 });
+  } catch (err) {
+    if (err instanceof AgreementCreationError) {
+      return NextResponse.json(
+        { error: err.message, ...(err.code ? { code: err.code } : {}) },
+        { status: err.status },
       );
     }
+    console.error("[orders/agreement] create failed", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
-
-  const agreementPayload = {
-    order_id: orderId,
-    account_id: order.account_id || null,
-    created_by: user.id,
-    agreement_status: "draft",
-    agreement_type: "machine_purchase",
-
-    // Operator info from account
-    operator_company_name: account?.business_name || "",
-    operator_legal_name: account?.contact_name || "",
-    operator_email: account?.email || order.recipient_email || "",
-    operator_phone: account?.phone || "",
-    operator_billing_address: account?.address || "",
-    operator_delivery_address: account?.address || "",
-
-    // Apex representative
-    apex_representative_name: repProfile?.full_name || "",
-    apex_representative_email: repProfile?.email || "",
-
-    // Equipment (legacy scalars — see line_items_snapshot for the
-    // full, non-lossy record)
-    machine_model: machineModel,
-    machine_quantity: machineQuantity || 1,
-    machine_unit_price: machineUnitPrice,
-    equipment_subtotal: equipmentSubtotal,
-
-    // Location services
-    locations_purchased: locationsPurchased,
-    location_fee_per_secured: locationFeePerSecured,
-    max_location_service_value: maxLocationServiceValue,
-
-    // Freight / shipping. EVERY freight field reflects the inherited
-    // line-item rate — leaving standard/discounted unset let the DB
-    // defaults ($500/$375 from migration 087) leak into the contract
-    // text as phantom rates that disagreed with the quote and order.
-    freight_per_machine: freightPerMachine,
-    freight_total: freightTotal,
-    standard_freight_rate: freightPerMachine,
-    discounted_freight_rate: freightPerMachine,
-    // Storage is not a line item anywhere in the quote/order flow, so
-    // the agreement must not charge one. Re-introduce via the item
-    // catalog if the storage program comes back; a rep can also set a
-    // fee on the agreement editor, which re-enables the section.
-    storage_fee_per_machine_month: 0,
-
-    // Payment
-    total_due_prior_to_procurement: totalDuePriorToProcurement,
-
-    // Dates
-    effective_date: new Date().toISOString().slice(0, 10),
-
-    // Full snapshot + coffee-supply attachment
-    line_items_snapshot: lineItemsSnapshot,
-    coffee_supply_required: coffeeSupplyRequired,
-    coffee_supply_snapshot: coffeeSupplySnapshot,
-  };
-
-  const { data: agreement, error: insertErr } = await supabaseAdmin
-    .from("purchase_agreements")
-    .insert(agreementPayload)
-    .select("*")
-    .single();
-
-  if (insertErr)
-    return NextResponse.json({ error: insertErr.message }, { status: 500 });
-
-  // Log activity
-  await supabaseAdmin.from("agreement_activity_log").insert({
-    agreement_id: agreement.id,
-    user_id: user.id,
-    activity_type: "created",
-    description: "Agreement created from order",
-  });
-
-  return NextResponse.json(agreement, { status: 201 });
 }
 
 /* ------------------------------------------------------------------ */

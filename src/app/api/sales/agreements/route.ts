@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import { createAgreementFromOrder, AgreementCreationError } from "@/lib/salesAgreements";
 
 /* ------------------------------------------------------------------ */
 /*  GET — List all agreements (optionally filter by status)            */
@@ -45,6 +46,29 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
+
+  // From-order creation rides the same rails: pass { order_id } and
+  // the shared snapshot/derivation helper builds the agreement from
+  // the order's line items — identical to what the order page's
+  // Generate button produces, because it IS the same code path.
+  if (typeof body.order_id === "string" && body.order_id) {
+    try {
+      const agreement = await createAgreementFromOrder({
+        orderId: body.order_id,
+        userId: user.id,
+      });
+      return NextResponse.json(agreement, { status: 201 });
+    } catch (err) {
+      if (err instanceof AgreementCreationError) {
+        return NextResponse.json(
+          { error: err.message, ...(err.code ? { code: err.code } : {}) },
+          { status: err.status },
+        );
+      }
+      console.error("[agreements] create-from-order failed", err);
+      return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    }
+  }
 
   const { data: repProfile } = await supabaseAdmin
     .from("profiles")
