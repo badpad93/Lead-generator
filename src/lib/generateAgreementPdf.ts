@@ -1124,9 +1124,12 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
           updated_at: new Date().toISOString(),
         })
         .eq("id", ag.order_id)
-        // Only advance a draft order; don't clobber a state past
-        // awaiting_payment (invoice already out, deposit paid, etc.)
-        .in("order_status", ["draft", "awaiting_customer_info"]);
+        // Only advance an order that hasn't been invoiced yet; don't
+        // clobber a state past awaiting_payment (invoice already out,
+        // deposit paid, etc.). awaiting_signature is where the flow
+        // parks an order between "agreement sent" and "customer
+        // signed" — see /api/sales/orders/[id]/process.
+        .in("order_status", ["draft", "awaiting_customer_info", "awaiting_signature"]);
 
       const { sendInvoiceForSignedAgreement } = await import("./agreementInvoicing");
       const result = await sendInvoiceForSignedAgreement(agreementId);
@@ -1419,11 +1422,18 @@ async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
   if (qbConfigured && ag.operator_email) {
     try {
       const { createInvoice, sendInvoiceEmail } = await import("@/lib/quickbooks");
-      const lineItems = upfrontItems.map((item) => ({
-        description: String(item.service_name || "Service"),
-        amount: Number(item.unit_price) || 0,
-        quantity: Number(item.quantity) || 1,
-      }));
+      // Bill the DISCOUNTED per-unit rate. QuickBooks multiplies
+      // quantity by amount, so passing the list unit_price overstated
+      // every discounted line.
+      const lineItems = upfrontItems.map((item) => {
+        const quantity = Number(item.quantity) || 1;
+        const total = Number(item.total_price) || 0;
+        return {
+          description: String(item.service_name || "Service"),
+          amount: Math.round((total / quantity + Number.EPSILON) * 100) / 100,
+          quantity,
+        };
+      });
 
       const invoicePromise = createInvoice({
         customerEmail: ag.operator_email,

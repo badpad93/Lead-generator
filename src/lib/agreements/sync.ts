@@ -187,6 +187,11 @@ function buildAgreementPayload(input: PayloadInput): Row {
     line_items_snapshot: snapshot,
     coffee_supply_required: sections.coffee_supply_required,
 
+    // Signature is the payment trigger: when the customer signs, the
+    // invoice for this contract's amounts goes out on its own. Nobody
+    // clicks Send Invoice.
+    auto_send_invoice_on_signing: true,
+
     updated_at: new Date().toISOString(),
   };
 

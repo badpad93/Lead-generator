@@ -4,14 +4,17 @@
  * There is exactly one path from "a rep opened a quote" to "the team is
  * fulfilling an order", and it has two buttons:
  *
- *   1. draft quote        -> [ Next ]                          -> quote_sent
- *   2. quote_sent         -> [ Process Order & Send Invoice ]  -> awaiting_payment
- *   3. awaiting_payment   -> (no button; waiting on the customer)
- *   4. paid               -> (no button; handed to workflows)
+ *   1. draft quote         -> [ Next ]                           -> quote_sent
+ *   2. quote_sent          -> [ Process Order & Send Agreement ] -> awaiting_signature
+ *   3. awaiting_signature  -> (no button; the customer signs)
+ *   4. awaiting_payment    -> (no button; the customer pays)
+ *   5. paid                -> (no button; handed to workflows)
  *
  * Step 2 is one call to /api/sales/orders/[id]/process, which converts
- * the quote, generates the agreement from the line items, emails it for
- * signature, and sends the invoice.
+ * the quote, generates the agreement from the line items and emails it
+ * for signature. Steps 3 and 4 advance on their own: signing fires the
+ * invoice, payment spawns the workflows. The rep's whole involvement is
+ * line items and two buttons.
  *
  * This replaces a seven-verb sequence — send_quote, convert_to_order,
  * generate_agreement, send_agreement, send_invoice, mark_deposit_paid,
@@ -66,6 +69,7 @@ export interface NextStep {
 export type FlowStage =
   | "building"
   | "quote_out"
+  | "awaiting_signature"
   | "awaiting_payment"
   | "in_fulfillment"
   | "closed";
@@ -135,21 +139,29 @@ export function deriveFlowState(order: OrderForNextAction): FlowState {
     };
   }
 
-  // The invoice and agreement are out. Waiting on the customer.
+  // The agreement is with the customer. Signing fires the invoice on
+  // its own, so there is nothing to click here.
+  if (status === "awaiting_signature" || status === "agreement_sent") {
+    return {
+      stage: "awaiting_signature",
+      headline: "Agreement sent — waiting on customer signature",
+      detail:
+        "The invoice goes out automatically the moment they sign, for the amounts on the contract they signed.",
+      action: null,
+    };
+  }
+
+  // Invoice is out. Waiting on the money.
   if (
     status === "awaiting_payment" ||
     status === "invoice_sent" ||
-    status === "order_sent" ||
-    status === "agreement_sent" ||
-    status === "awaiting_signature"
+    status === "order_sent"
   ) {
-    const signed = order.agreement_status === "signed";
     return {
       stage: "awaiting_payment",
       headline: "Order processed, invoice sent — waiting on customer payment",
-      detail: signed
-        ? "The agreement is signed. The order moves on by itself as soon as payment lands."
-        : "The agreement is out for signature and the invoice has been sent. The order moves on by itself as soon as payment lands.",
+      detail:
+        "The agreement is signed and the invoice has been sent. The order moves to the fulfillment team by itself as soon as payment lands.",
       action: null,
     };
   }
@@ -162,11 +174,11 @@ export function deriveFlowState(order: OrderForNextAction): FlowState {
       stage: "quote_out",
       headline: "Quote sent — waiting on the customer to accept",
       detail:
-        "When the customer accepts, this one step converts the quote to an order, sends the agreement for signature, and invoices them.",
+        "When the customer accepts, this one step converts the quote to an order and sends the agreement for signature. The invoice follows automatically when they sign.",
       action: {
         verb: "process_order",
-        buttonLabel: "Process Order & Send Invoice",
-        copy: "Convert to an order, send the agreement for signature, and send the invoice",
+        buttonLabel: "Process Order & Send Agreement",
+        copy: "Convert to an order and send the agreement for signature",
       },
     };
   }

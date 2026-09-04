@@ -28,15 +28,28 @@ describe("the sales flow", () => {
       order_items: withItems,
     });
     expect(state.action?.verb).toBe("process_order");
-    expect(state.action?.buttonLabel).toBe("Process Order & Send Invoice");
+    expect(state.action?.buttonLabel).toBe("Process Order & Send Agreement");
   });
 
-  it("shows no button at all while waiting on the customer", () => {
+  it("waits on the signature with nothing to click", () => {
+    const state = deriveFlowState({
+      document_type: "order",
+      order_status: "awaiting_signature",
+      invoice_status: "not_sent",
+      agreement_status: "sent",
+      order_items: withItems,
+    });
+    expect(state.stage).toBe("awaiting_signature");
+    expect(state.action).toBeNull();
+    expect(state.headline).toBe("Agreement sent — waiting on customer signature");
+  });
+
+  it("shows no button at all while waiting on payment", () => {
     const state = deriveFlowState({
       document_type: "order",
       order_status: "awaiting_payment",
       invoice_status: "sent",
-      agreement_status: "sent",
+      agreement_status: "signed",
       order_items: withItems,
     });
     expect(state.stage).toBe("awaiting_payment");

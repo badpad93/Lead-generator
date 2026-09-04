@@ -4,7 +4,6 @@ import { getSalesUser, type SalesUser } from "@/lib/salesAuth";
 import { upsertAgreementForOrder } from "@/lib/agreements/sync";
 import { resyncOrderTotals } from "@/lib/pricing/orderSync";
 import { POST as sendAgreementEmail } from "@/app/api/sales/agreements/[id]/send/route";
-import { POST as sendOrderDocument } from "@/app/api/sales/orders/[id]/send/route";
 
 /**
  * POST /api/sales/orders/[id]/process
@@ -18,8 +17,12 @@ import { POST as sendOrderDocument } from "@/app/api/sales/orders/[id]/send/rout
  *   2. flip the quote to an order
  *   3. generate the agreement, tailored to those line items
  *   4. email the agreement for signature
- *   5. create and send the invoice
- *   6. park the order in "waiting on customer payment"
+ *   5. park the order in "waiting on customer signature"
+ *
+ * The invoice is NOT sent here. Signature is the payment trigger: when
+ * the customer signs, handleFullySignedAgreement fires the invoice for
+ * the contract they just signed, with no rep action. So the rep's whole
+ * involvement is line items, Next, and this button.
  *
  * Replaces a four-click sequence (Convert to Order -> Generate
  * Agreement -> Send Agreement -> Send Invoice) in which every click was
@@ -53,7 +56,6 @@ type OrderRow = {
 
 const TERMINAL = new Set(["paid", "completed", "cancelled"]);
 const AGREEMENT_ALREADY_OUT = new Set(["sent", "viewed", "signed"]);
-const INVOICE_ALREADY_OUT = new Set(["sent", "paid"]);
 
 export async function POST(
   req: NextRequest,
@@ -138,19 +140,7 @@ async function runFlow(
     );
   }
 
-  // 5 — invoice.
-  const invoiceSend = await ensureInvoiceSent(req, id, order);
-  steps.push({ step: "send_invoice", ok: invoiceSend.ok, detail: invoiceSend.detail });
-  if (!invoiceSend.ok) {
-    return fail(
-      `The agreement went out but the invoice could not be sent: ${invoiceSend.detail}`,
-      "INVOICE_SEND_FAILED",
-      steps,
-      502,
-    );
-  }
-
-  // 6 — park it.
+  // 5 — park it. The invoice fires on signature, not here.
   return finalize(id, user, agreement.id, steps);
 }
 
@@ -196,17 +186,6 @@ async function ensureAgreementSent(
   return callRoute(req, sendAgreementEmail, agreement.id, { target: "operator" });
 }
 
-async function ensureInvoiceSent(
-  req: NextRequest,
-  id: string,
-  order: OrderRow,
-): Promise<SendOutcome> {
-  if (INVOICE_ALREADY_OUT.has(String(order.invoice_status))) {
-    return { ok: true, detail: "already sent" };
-  }
-  return callRoute(req, sendOrderDocument, id);
-}
-
 async function finalize(
   id: string,
   user: SalesUser,
@@ -216,10 +195,9 @@ async function finalize(
   const { data, error } = await supabaseAdmin
     .from("sales_orders")
     .update({
-      order_status: "awaiting_payment",
-      invoice_status: "sent",
+      order_status: "awaiting_signature",
       agreement_status: "sent",
-      next_required_action: "Waiting on customer payment",
+      next_required_action: "Waiting on customer signature",
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -235,7 +213,7 @@ async function finalize(
     user_id: user.id,
     activity_type: "order_processed",
     description:
-      "Order processed — agreement sent for signature and invoice sent. Waiting on customer payment.",
+      "Order processed — agreement sent for signature. The invoice sends automatically when the customer signs.",
   });
 
   return NextResponse.json({ ok: true, order: data, agreement_id: agreementId, steps });

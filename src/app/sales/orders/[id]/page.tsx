@@ -162,12 +162,24 @@ export default function OrderDetailPage() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editItem, setEditItem] = useState({ service_name: "", description: "", quantity: "1", unit_price: "" });
 
+  // Elevated roles get the manual payment control below. Reps never
+  // see it — the rep's path is line items and two buttons.
+  const [isElevated, setIsElevated] = useState(false);
+
   useEffect(() => {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.access_token) setToken(session.access_token);
     });
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/sales/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me) => setIsElevated(Boolean(me?.elevated)))
+      .catch(() => setIsElevated(false));
+  }, [token]);
 
   const fetchOrder = useCallback(async () => {
     if (!token) return;
@@ -251,6 +263,45 @@ export default function OrderDetailPage() {
     }
     setEditingItemId(null);
     fetchOrder();
+  }
+
+  // Admin-only escape hatch. Payment normally arrives through the
+  // QuickBooks webhook, which flips the order to paid and spawns the
+  // fulfillment workflows on its own. When QB does not fire — a wire
+  // paid outside QuickBooks, a webhook that never landed — an order
+  // would otherwise sit in "waiting on customer payment" forever and
+  // never reach the team. This records the payment through the same
+  // path the webhook uses: ledger entry, receipt, workflow spawn.
+  async function handleRecordPayment() {
+    if (!token) return;
+    if (
+      !confirm(
+        "Record this order as paid?\n\n" +
+          "Use this only when payment has actually been received and " +
+          "QuickBooks didn't pick it up. It writes a manual payment to " +
+          "the ledger, emails the customer a receipt, and hands the " +
+          "order to the fulfillment workflows.",
+      )
+    )
+      return;
+    setActionLoading("record_payment");
+    try {
+      const res = await fetch(`/api/sales/orders/${id}/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: "mark_paid", payment_method: "manual" }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Could not record the payment.");
+      }
+      await fetchOrder();
+    } finally {
+      setActionLoading("");
+    }
   }
 
   async function handleSendRemainingBalance() {
@@ -917,6 +968,33 @@ export default function OrderDetailPage() {
               )}
             </div>
           )}
+          {/* Manual payment — elevated roles only.
+              Deliberately outside the flow card so a rep never sees a
+              second button. Payment normally lands through the
+              QuickBooks webhook; this exists so a missed webhook can't
+              strand an order short of the fulfillment team. */}
+          {isElevated && flowState?.stage === "awaiting_payment" && (
+            <div className="rounded-xl border border-gray-200 bg-white p-5">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                Payment not showing up?
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Paid orders normally advance on their own when QuickBooks
+                confirms the payment. Record it here only if the money has
+                landed and QuickBooks missed it.
+              </p>
+              <button
+                onClick={handleRecordPayment}
+                disabled={actionLoading === "record_payment"}
+                className="w-full rounded-lg px-3 py-2 text-xs font-medium text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {actionLoading === "record_payment"
+                  ? "Recording…"
+                  : "Record payment manually"}
+              </button>
+            </div>
+          )}
+
           {/* Location Services Remaining Balance */}
           {(() => {
             const pendingBalance = order.order_items.find(

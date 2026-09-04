@@ -29,6 +29,7 @@
 
 import { supabaseAdmin } from "./supabaseAdmin";
 import { Resend } from "resend";
+import { buildOrderItemsFromAgreement } from "@/lib/agreements/toOrder";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 
@@ -56,79 +57,32 @@ interface AgreementLineItem {
  * billed separately as each location secures.
  */
 export function buildAgreementLineItems(ag: Record<string, unknown>): AgreementLineItem[] {
-  const includeEquipment = ag.include_equipment !== false;
-  const includeLocationServices = ag.include_location_services !== false;
-  const includeShippingStorage = ag.include_shipping_storage !== false;
+  // Read the same snapshot the contract PDF renders, so the invoice the
+  // customer receives lists exactly the lines they just signed for.
+  // This used to rebuild the invoice from the scalar columns — machine
+  // quantity x unit price, locations x fee, freight — which silently
+  // dropped every coffee, cooler, financing and custom line and billed
+  // discounted lines at list price.
+  return buildOrderItemsFromAgreement(ag).map((item) => ({
+    service_name: String(item.service_name),
+    description: (item.description as string) ?? null,
+    quantity: Number(item.quantity) || 1,
+    unit_price: Number(item.unit_price) || 0,
+    total_price: Number(item.total_price) || 0,
+    status: item.status === "pending_fulfillment" ? "pending_fulfillment" : "pending",
+  }));
+}
 
-  const items: AgreementLineItem[] = [];
-
-  if (includeEquipment && Number(ag.machine_quantity) > 0) {
-    const unitPrice = Number(ag.machine_unit_price) || 0;
-    const qty = Number(ag.machine_quantity) || 1;
-    items.push({
-      service_name: (ag.machine_model as string) || "VendEra AI Machine",
-      description: (ag.machine_notes as string) || null,
-      quantity: qty,
-      unit_price: unitPrice,
-      total_price: qty * unitPrice,
-      status: "pending",
-    });
-  }
-
-  if (includeLocationServices && Number(ag.locations_purchased) > 0) {
-    const locFee = Number(ag.location_fee_per_secured) || 0;
-    const locQty = Number(ag.locations_purchased) || 0;
-    const locTotal = locQty * locFee;
-    const depositOnly = ag.location_services_deposit_only === true;
-    const deposit = depositOnly
-      ? Math.min(Number(ag.location_services_deposit_amount) || 0, locTotal)
-      : locTotal;
-    const remaining = depositOnly ? Math.max(0, locTotal - deposit) : 0;
-
-    if (depositOnly) {
-      items.push({
-        service_name: "Location Services Deposit",
-        description: `Non-refundable deposit for ${locQty} location${locQty === 1 ? "" : "s"} ($${locFee.toFixed(2)} each, $${locTotal.toFixed(2)} total). Balance of $${remaining.toFixed(2)} due on fulfillment.`,
-        quantity: 1,
-        unit_price: deposit,
-        total_price: deposit,
-        status: "pending",
-      });
-      if (remaining > 0) {
-        items.push({
-          service_name: "Location Services Remaining Balance",
-          description: `Balance due after fulfillment of secured locations. Invoiced upon completion.`,
-          quantity: 1,
-          unit_price: remaining,
-          total_price: remaining,
-          status: "pending_fulfillment",
-        });
-      }
-    } else {
-      items.push({
-        service_name: "Location Sourcing & Placement",
-        description: `${locQty} locations at $${locFee.toFixed(2)} each. Timeline: ${ag.location_service_timeline_days || 180} days.`,
-        quantity: locQty,
-        unit_price: locFee,
-        total_price: locTotal,
-        status: "pending",
-      });
-    }
-  }
-
-  const freightTotal = Number(ag.freight_total) || 0;
-  if (includeShippingStorage && freightTotal > 0) {
-    items.push({
-      service_name: "Shipping & Freight",
-      description: `${ag.machine_quantity || 1} machine(s) at $${(Number(ag.freight_per_machine) || 0).toFixed(2)} each`,
-      quantity: 1,
-      unit_price: freightTotal,
-      total_price: freightTotal,
-      status: "pending",
-    });
-  }
-
-  return items;
+/**
+ * Per-unit price for an invoicing system that multiplies quantity by
+ * amount. A discounted line's unit_price x quantity overstates the
+ * line, so bill the discounted rate instead and let the total match
+ * the contract to the cent.
+ */
+export function billableUnitAmount(item: AgreementLineItem): number {
+  const qty = Number(item.quantity) || 1;
+  if (qty <= 0) return item.total_price;
+  return Math.round((item.total_price / qty + Number.EPSILON) * 100) / 100;
 }
 
 export interface SignedAgreementInvoiceResult {
@@ -225,7 +179,7 @@ export async function sendInvoiceForSignedAgreement(
       const { createInvoice, sendInvoiceEmail } = await import("@/lib/quickbooks");
       const lineItems = upfront.map((item) => ({
         description: item.service_name,
-        amount: item.unit_price,
+        amount: billableUnitAmount(item),
         quantity: item.quantity,
       }));
       const invoicePromise = createInvoice({
