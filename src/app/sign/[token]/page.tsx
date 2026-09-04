@@ -122,7 +122,10 @@ function getRequiredInitials(agreement: PurchaseAgreement | null): string[] {
   if (includeLoc) keys.push("section_5");
   keys.push("section_6"); // Payment Terms always required
   if (includeLoc) keys.push("section_7");
-  if (includeShip) keys.push("section_8");
+  // Storage Program (section 8) only renders — and only needs
+  // initials — when a storage fee is actually set. Storage is not a
+  // line item in the quote/order flow, so by default there is none.
+  if (includeShip && Number(agreement.storage_fee_per_machine_month) > 0) keys.push("section_8");
   if (includeEq) keys.push("schedule_a");
   if (includeLoc) keys.push("schedule_b");
   if (includeShip) keys.push("schedule_c");
@@ -1193,8 +1196,14 @@ function SigningContent() {
             </div>
             </>)}
 
-            {/* ============ SECTION 8: Storage Program ============ */}
-            {agreement.include_shipping_storage !== false && (<>
+            {/* ============ SECTION 8: Storage Program ============
+                Rendered only when a storage fee is actually set —
+                storage is not a line item in the quote/order flow,
+                so an unset fee must not put a $/month charge in the
+                contract. Initials gating in getRequiredInitials
+                matches this condition. */}
+            {agreement.include_shipping_storage !== false &&
+              Number(agreement.storage_fee_per_machine_month) > 0 && (<>
             <SectionHeader
               num={8}
               title="Storage Program"
@@ -1837,23 +1846,27 @@ function SigningContent() {
                         {v.freightTotal}
                       </td>
                     </tr>
-                    <tr>
-                      <td className="px-4 py-3 text-gray-600">
-                        Storage Fee
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                        {v.storageFee} / machine / month
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-4 py-3 text-gray-600">
-                        Free Storage Period
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                        {v.freeStorageMonths} month
-                        {v.freeStorageMonths !== 1 ? "s" : ""}
-                      </td>
-                    </tr>
+                    {Number(agreement.storage_fee_per_machine_month) > 0 && (
+                      <>
+                        <tr>
+                          <td className="px-4 py-3 text-gray-600">
+                            Storage Fee
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                            {v.storageFee} / machine / month
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="px-4 py-3 text-gray-600">
+                            Free Storage Period
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                            {v.freeStorageMonths} month
+                            {v.freeStorageMonths !== 1 ? "s" : ""}
+                          </td>
+                        </tr>
+                      </>
+                    )}
                   </tbody>
                 </table>
               </div>

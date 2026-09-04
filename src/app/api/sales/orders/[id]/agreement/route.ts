@@ -233,9 +233,19 @@ export async function POST(
     location_fee_per_secured: locationFeePerSecured,
     max_location_service_value: maxLocationServiceValue,
 
-    // Freight / shipping
+    // Freight / shipping. EVERY freight field reflects the inherited
+    // line-item rate — leaving standard/discounted unset let the DB
+    // defaults ($500/$375 from migration 087) leak into the contract
+    // text as phantom rates that disagreed with the quote and order.
     freight_per_machine: freightPerMachine,
     freight_total: freightTotal,
+    standard_freight_rate: freightPerMachine,
+    discounted_freight_rate: freightPerMachine,
+    // Storage is not a line item anywhere in the quote/order flow, so
+    // the agreement must not charge one. Re-introduce via the item
+    // catalog if the storage program comes back; a rep can also set a
+    // fee on the agreement editor, which re-enables the section.
+    storage_fee_per_machine_month: 0,
 
     // Payment
     total_due_prior_to_procurement: totalDuePriorToProcurement,

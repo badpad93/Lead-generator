@@ -305,16 +305,25 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   }
 
   if (includeShippingStorage) {
-    sectionHeader(5, "Shipping & Storage");
+    // Storage lines only when a fee is actually set — storage is not
+    // a line item in the quote/order flow, so an unset fee must not
+    // put a $/month charge in the contract.
+    const hasStorage = Number(ag.storage_fee_per_machine_month) > 0;
+    sectionHeader(5, hasStorage ? "Shipping & Storage" : "Shipping & Freight");
     labelValue("Freight per Machine", money(ag.freight_per_machine));
     labelValue(`Freight Total (${ag.machine_quantity || 0} machine${(ag.machine_quantity || 0) === 1 ? "" : "s"})`, money(ag.freight_total));
     if (Number(ag.standard_freight_rate) > 0) labelValue("Standard Freight Rate", money(ag.standard_freight_rate));
     if (Number(ag.discounted_freight_rate) > 0) labelValue("Discounted Freight Rate", money(ag.discounted_freight_rate));
-    labelValue("Storage Fee per Machine / Month", money(ag.storage_fee_per_machine_month));
-    labelValue("Free Storage Period", `${ag.free_storage_months || 0} month${(ag.free_storage_months || 0) === 1 ? "" : "s"}`);
+    if (hasStorage) {
+      labelValue("Storage Fee per Machine / Month", money(ag.storage_fee_per_machine_month));
+      labelValue("Free Storage Period", `${ag.free_storage_months || 0} month${(ag.free_storage_months || 0) === 1 ? "" : "s"}`);
+    }
     y -= 4;
     drawWrapped(
-      "Freight charges cover shipping from the distribution center to the Operator's designated delivery address. Machines are shipped via common carrier. Risk of loss transfers to Operator upon delivery. Storage fees apply if Operator is unable to accept delivery within the free storage period.",
+      "Freight charges cover shipping from the distribution center to the Operator's designated delivery address. Machines are shipped via common carrier. Risk of loss transfers to Operator upon delivery." +
+        (hasStorage
+          ? " Storage fees apply if Operator is unable to accept delivery within the free storage period."
+          : ""),
       helvetica, 8.5, gray,
     );
     initialsPlaceholder();
