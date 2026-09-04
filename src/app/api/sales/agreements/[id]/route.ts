@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import {
+  agreementTotals,
+  round2,
+  type SnapshotLine,
+} from "@/lib/pricing/lineItems";
 
 /* ------------------------------------------------------------------ */
 /*  GET — Single agreement with all related data                      */
@@ -184,45 +189,73 @@ export async function PATCH(
     if (key in body) updates[key] = body[key];
   }
 
-  // Auto-recalculate derived fields. Re-fetch current row so unchanged
-  // inputs to a computed field don't fall back to 0.
+  // Recalculate derived fields from the SAME source the creation path
+  // uses: the line-item snapshot. This block used to run its own
+  // formula — equipment_subtotal = qty x unit_price (discarding the
+  // discounts the creation path had preserved) and a total that
+  // included location services where creation excluded them. The
+  // result was that editing any field, even internal_notes, silently
+  // repriced the contract.
   const { data: current } = await supabaseAdmin
     .from("purchase_agreements")
-    .select("agreement_type, machine_quantity, machine_unit_price, freight_per_machine, locations_purchased, location_fee_per_secured, include_equipment, include_location_services, include_shipping_storage, location_services_deposit_only, location_services_deposit_amount")
+    .select(
+      "agreement_type, line_items_snapshot, machine_quantity, machine_unit_price, freight_per_machine, locations_purchased, location_fee_per_secured, include_equipment, include_location_services, include_shipping_storage, location_services_deposit_only, location_services_deposit_amount",
+    )
     .eq("id", id)
     .single();
 
-  // Location placement agreements don't have machine/freight/location-services
+  // Location placement agreements have no machine/freight/location
   // totals — skip the purchase-agreement recalc entirely for that type.
   if (current?.agreement_type !== "location_placement") {
-    const qty = Number(updates.machine_quantity ?? current?.machine_quantity) || 0;
-    const unitPrice = Number(updates.machine_unit_price ?? current?.machine_unit_price) || 0;
-    const freightPerMachine = Number(updates.freight_per_machine ?? current?.freight_per_machine) || 0;
-    const locationsPurchased = Number(updates.locations_purchased ?? current?.locations_purchased) || 0;
-    const locationFee = Number(updates.location_fee_per_secured ?? current?.location_fee_per_secured) || 0;
+    const snapshot = (updates.line_items_snapshot ??
+      current?.line_items_snapshot) as SnapshotLine[] | null | undefined;
 
-    const includeEquipment = (updates.include_equipment ?? current?.include_equipment) !== false;
-    const includeLocationServices = (updates.include_location_services ?? current?.include_location_services) !== false;
-    const includeShippingStorage = (updates.include_shipping_storage ?? current?.include_shipping_storage) !== false;
+    if (Array.isArray(snapshot) && snapshot.length > 0) {
+      const totals = agreementTotals(snapshot);
+      updates.equipment_subtotal = totals.equipmentSubtotal;
+      updates.machine_quantity = totals.machineQuantity;
+      updates.machine_unit_price = totals.machineUnitPrice;
+      updates.max_location_service_value = totals.maxLocationServiceValue;
+      updates.locations_purchased = totals.locationsPurchased;
+      updates.location_fee_per_secured = totals.locationFeePerSecured;
+      updates.freight_total = totals.freightTotal;
+      updates.freight_per_machine = totals.freightPerMachine;
+      updates.total_due_prior_to_procurement = totals.totalDuePriorToProcurement;
+    } else {
+      // Pre-migration-176 agreements have no snapshot. Fall back to the
+      // scalar columns, but total the SAME way the snapshot path does —
+      // additively, location services included.
+      const qty = Number(updates.machine_quantity ?? current?.machine_quantity) || 0;
+      const unitPrice = Number(updates.machine_unit_price ?? current?.machine_unit_price) || 0;
+      const freightPerMachine = Number(updates.freight_per_machine ?? current?.freight_per_machine) || 0;
+      const locationsPurchased = Number(updates.locations_purchased ?? current?.locations_purchased) || 0;
+      const locationFee = Number(updates.location_fee_per_secured ?? current?.location_fee_per_secured) || 0;
 
-    const depositOnly = (updates.location_services_deposit_only ?? current?.location_services_deposit_only) === true;
-    const depositAmount = Number(updates.location_services_deposit_amount ?? current?.location_services_deposit_amount) || 0;
+      const includeEquipment = (updates.include_equipment ?? current?.include_equipment) !== false;
+      const includeLocationServices = (updates.include_location_services ?? current?.include_location_services) !== false;
+      const includeShippingStorage = (updates.include_shipping_storage ?? current?.include_shipping_storage) !== false;
 
-    // Always recalculate so zeroing inputs zeros the subtotal, and so
-    // excluded sections contribute nothing to the totals.
-    updates.equipment_subtotal = includeEquipment ? qty * unitPrice : 0;
-    updates.freight_total = includeShippingStorage ? qty * freightPerMachine : 0;
-    updates.max_location_service_value = includeLocationServices ? locationsPurchased * locationFee : 0;
+      const depositOnly = (updates.location_services_deposit_only ?? current?.location_services_deposit_only) === true;
+      const depositAmount = Number(updates.location_services_deposit_amount ?? current?.location_services_deposit_amount) || 0;
 
-    // Upfront location-services amount: deposit when deposit-only, else full max value.
-    const locationUpfront = includeLocationServices
-      ? (depositOnly ? Math.min(depositAmount, Number(updates.max_location_service_value)) : Number(updates.max_location_service_value))
-      : 0;
+      updates.equipment_subtotal = includeEquipment ? round2(qty * unitPrice) : 0;
+      updates.freight_total = includeShippingStorage ? round2(qty * freightPerMachine) : 0;
+      updates.max_location_service_value = includeLocationServices
+        ? round2(locationsPurchased * locationFee)
+        : 0;
 
-    updates.total_due_prior_to_procurement =
-      Number(updates.equipment_subtotal) +
-      Number(updates.freight_total) +
-      locationUpfront;
+      const locationUpfront = includeLocationServices
+        ? (depositOnly
+            ? Math.min(depositAmount, Number(updates.max_location_service_value))
+            : Number(updates.max_location_service_value))
+        : 0;
+
+      updates.total_due_prior_to_procurement = round2(
+        Number(updates.equipment_subtotal) +
+          Number(updates.freight_total) +
+          locationUpfront,
+      );
+    }
   }
 
   const { data, error } = await supabaseAdmin
