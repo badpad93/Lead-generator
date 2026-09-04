@@ -160,8 +160,15 @@ export async function POST(
   // onto the row so the customer signs a specific, immutable
   // version — if the template is updated later, historical
   // agreements preserve what was actually agreed to.
+  // A coffee_program line means a brewer/supply relationship —
+  // EXCEPT freight lines that reps or the catalog happen to type as
+  // coffee_program ("Coffee Machine Freight" is shipping, not a
+  // brewer, and must not drag the Equipment Loan & Beverage Supply
+  // Agreement into the contract).
   const coffeeSupplyRequired = items.some(
-    (i) => i.item_type === "coffee_program",
+    (i) =>
+      i.item_type === "coffee_program" &&
+      !/freight|shipping/i.test(String(i.service_name || "")),
   );
   let coffeeSupplySnapshot: Record<string, unknown> | null = null;
   if (coffeeSupplyRequired) {

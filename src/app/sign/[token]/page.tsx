@@ -929,14 +929,13 @@ function SigningContent() {
             />
             <div>
               <p>
-                <strong>4.1 Standard Freight.</strong> The standard freight rate
-                is <strong>{v.stdFreight}</strong> per machine for delivery
+                {/* One freight rate — the one inherited from the
+                    quote/order line items. The old standard-vs-
+                    discounted framing displayed DB-default rates
+                    ($500/$375) that existed nowhere on the order. */}
+                <strong>4.1 Freight.</strong> Buyer&apos;s freight rate is{" "}
+                <strong>{v.freightPerMachine}</strong> per machine for delivery
                 within the continental United States.
-              </p>
-              <p className="mt-3">
-                <strong>4.2 Discounted Freight.</strong> Buyer&apos;s
-                negotiated freight rate is{" "}
-                <strong>{v.freightPerMachine}</strong> per machine.
               </p>
               <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -960,19 +959,24 @@ function SigningContent() {
                 </div>
               </div>
               <p className="mt-4">
-                <strong>4.3 Shipping Timeline.</strong> Seller shall use
+                <strong>4.2 Shipping Timeline.</strong> Seller shall use
                 commercially reasonable efforts to ship Equipment within 15-25
                 Business Days of payment receipt. Seller shall provide tracking
                 information to Buyer upon shipment.
               </p>
               <p className="mt-3">
-                <strong>4.4 Delivery Address.</strong> Equipment shall be
-                shipped to Buyer&apos;s designated delivery address or, if Buyer
-                has enrolled in the Storage Program (Section 8), to Seller&apos;s
-                warehouse facility.
+                <strong>4.3 Delivery Address.</strong> Equipment shall be
+                shipped to Buyer&apos;s designated delivery address
+                {Number(agreement.storage_fee_per_machine_month) > 0 ? (
+                  <>
+                    {" "}or, if Buyer has enrolled in the Storage Program
+                    (Section 8), to Seller&apos;s warehouse facility
+                  </>
+                ) : null}
+                .
               </p>
               <p className="mt-3">
-                <strong>4.5 Inspection.</strong> Buyer shall inspect Equipment
+                <strong>4.4 Inspection.</strong> Buyer shall inspect Equipment
                 within five (5) Business Days of delivery and notify Seller of
                 any visible shipping damage. Failure to provide timely notice
                 shall constitute acceptance of the Equipment&apos;s physical
@@ -1823,15 +1827,7 @@ function SigningContent() {
                   <tbody className="divide-y divide-gray-100">
                     <tr>
                       <td className="px-4 py-3 text-gray-600">
-                        Standard Freight Rate
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                        {v.stdFreight} / machine
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-4 py-3 text-gray-600">
-                        Your Freight Rate
+                        Freight Rate
                       </td>
                       <td className="px-4 py-3 text-right font-semibold text-gray-900">
                         {v.freightPerMachine} / machine

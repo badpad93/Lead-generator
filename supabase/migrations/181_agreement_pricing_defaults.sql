@@ -20,3 +20,14 @@ ALTER TABLE public.purchase_agreements
   ALTER COLUMN freight_per_machine SET DEFAULT 350.00,
   ALTER COLUMN freight_total SET DEFAULT 350.00,
   ALTER COLUMN storage_fee_per_machine_month SET DEFAULT 0.00;
+
+-- Repair existing NOT-YET-SIGNED agreements that carry the phantom
+-- defaults: align every freight-rate field with the agreement's own
+-- freight_per_machine and drop the storage fee. Signed / partially
+-- signed agreements are left untouched — their terms are what the
+-- parties actually saw.
+UPDATE public.purchase_agreements
+SET standard_freight_rate = COALESCE(freight_per_machine, 350.00),
+    discounted_freight_rate = COALESCE(freight_per_machine, 350.00),
+    storage_fee_per_machine_month = 0.00
+WHERE agreement_status NOT IN ('signed', 'partially_signed');
