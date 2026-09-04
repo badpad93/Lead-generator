@@ -100,10 +100,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
     }
 
+    // Storefront buyers: products the owner hid don't exist for this
+    // tenant — refuse checkout if one is still in the cart (it could
+    // have been added before the owner hid it) so nothing hidden ever
+    // gets billed.
+    let sfHidden: Set<string> = new Set();
+    if (sfTenant) {
+      const { getHiddenProductIds } = await import("@/lib/storefront/visibility");
+      sfHidden = await getHiddenProductIds(sfTenant.id);
+    }
+
     const validItems = cartItems.filter((item: Record<string, unknown>) => {
       const product = item.coffee_products as Record<string, unknown>;
       return product.active === true && product.stock_status !== "out_of_stock";
     });
+
+    if (sfTenant) {
+      const hiddenInCart = validItems.find((item: Record<string, unknown>) =>
+        sfHidden.has((item.coffee_products as Record<string, unknown>).id as string),
+      );
+      if (hiddenInCart) {
+        const name = (hiddenInCart.coffee_products as Record<string, unknown>).name;
+        return NextResponse.json(
+          {
+            error: `${String(name ?? "An item")} is no longer available in this storefront — remove it from your cart to continue.`,
+            code: "PRODUCT_NOT_FOUND",
+          },
+          { status: 400 },
+        );
+      }
+    }
 
     if (validItems.length === 0) {
       return NextResponse.json({ error: "All items in your cart are unavailable" }, { status: 400 });

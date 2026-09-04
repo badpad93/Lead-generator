@@ -59,6 +59,18 @@ export async function POST(req: NextRequest) {
   }
   const productIds = Array.from(new Set(lines.map((l) => l.product_id)));
 
+  // Owner-hidden products don't exist for this storefront — refuse
+  // them the same way a deleted product is refused so the cart UI
+  // prompts removal.
+  const { getHiddenProductIds } = await import("@/lib/storefront/visibility");
+  const hidden = await getHiddenProductIds(body.tenant_id);
+  if (productIds.some((id) => hidden.has(id))) {
+    return NextResponse.json(
+      { error: "An item in your cart is no longer available in this storefront", code: "PRODUCT_NOT_FOUND" },
+      { status: 400 },
+    );
+  }
+
   const [priced, productsResp] = await Promise.all([
     resolveCoffeeProductsPricing({
       productIds,

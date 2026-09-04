@@ -109,7 +109,13 @@ export default async function StorefrontPage({
       productsRes.error,
     );
   }
-  const rawProducts = (productsRes.data ?? []) as Array<Omit<Product, "category_ids">>;
+  const allProducts = (productsRes.data ?? []) as Array<Omit<Product, "category_ids">>;
+
+  // Owner-curated catalog: products the storefront owner hid are
+  // filtered server-side so they never reach the browser at all.
+  const { getHiddenProductIds } = await import("@/lib/storefront/visibility");
+  const hiddenIds = await getHiddenProductIds(tenant.id);
+  const rawProducts = allProducts.filter((p) => !hiddenIds.has(p.id));
 
   // Categories + m2m memberships — same data the main coffee
   // marketplace filters on, so the tenant storefront can offer the
