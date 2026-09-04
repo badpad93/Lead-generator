@@ -151,59 +151,30 @@ import {
   markCommissionsScheduled,
   markCommissionsPaid,
 } from "./commissions";
-import type { ResolvedCart } from "./pricing";
+import type { CommissionCart } from "./commissions";
 
 const TENANT = "tenant-1";
 const CUSTOMER = "customer-1";
 const ORDER = "order-1";
 const ITEM_A = "item-A";
 const ITEM_B = "item-B";
-const PRODUCT_A = "product-A";
-const PRODUCT_B = "product-B";
 
-function fakeResolved(): ResolvedCart {
+function fakeResolved(): CommissionCart {
   return {
-    tenantId: TENANT,
-    customerProfileId: CUSTOMER,
     lines: [
       {
-        product_id: PRODUCT_A,
-        product_name: "A",
-        product_sku: "A-1",
         quantity: 2,
-        base_price_per_unit: 40,
-        tenant_price_per_unit: 50,
-        commission_per_unit: 10,
         base_price_amount: 80,
         tenant_price_amount: 100,
         commission_amount: 20,
-        tax_amount: 0,
-        price_source: "tenant_price",
-        base_pricing_tier_id: "tier-1",
       },
       {
-        product_id: PRODUCT_B,
-        product_name: "B",
-        product_sku: "B-1",
         quantity: 1,
-        base_price_per_unit: 50,
-        tenant_price_per_unit: 55,
-        commission_per_unit: 5,
         base_price_amount: 50,
         tenant_price_amount: 55,
         commission_amount: 5,
-        tax_amount: 0,
-        price_source: "product_recommended",
-        base_pricing_tier_id: "tier-1",
       },
     ],
-    totals: {
-      base_price_total: 130,
-      tenant_price_total: 155,
-      commission_total: 25,
-      tax_total: 0,
-      order_total: 155,
-    },
   };
 }
 

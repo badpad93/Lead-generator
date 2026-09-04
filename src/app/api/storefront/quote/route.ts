@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { resolveCart, PricingResolutionError } from "@/lib/storefront/pricing";
+import { resolveCoffeeProductsPricing, round2 } from "@/lib/coffeePricing";
 import { isStorefrontFlagEnabled } from "@/lib/storefront/flags";
 
 /**
- * Preview pricing for an enrolled customer's cart — same resolver
- * the checkout uses, but no order is written. The customer-facing
- * storefront page calls this to show a running total while the
- * user shops. Prices are ALWAYS resolved server-side.
+ * Preview pricing for an enrolled customer's cart — a THIN wrapper
+ * over the unified coffee pricing resolver's storefront overlay, the
+ * same code path /api/coffee/checkout charges through. No order is
+ * written. Kept as its own endpoint purely so the storefront shop can
+ * show a live total; every number comes from the shared resolver so
+ * the preview can never drift from what checkout bills.
  *
- * POST { tenant_id, cart: [{product_id, quantity}] } -> ResolvedCart
+ * POST { tenant_id, cart: [{product_id, quantity}] }
+ *   -> { quote: { lines, totals } }
+ *   -> 400 { error, code } for pricing-resolution problems
+ *      (NO_BASE_PRICE etc. — the client maps codes to friendly copy)
  *
- * Requires an authenticated customer session AND that the profile
- * is enrolled with this tenant — same permanent-link rule as
- * checkout so an enumeration attempt from another tenant's customer
- * can't leak per-customer pricing.
+ * Requires an authenticated session enrolled with this tenant — same
+ * permanent-link rule as checkout, so another tenant's customer can't
+ * enumerate per-customer pricing.
  */
 interface QuoteBody {
   tenant_id: string;
@@ -24,9 +28,6 @@ interface QuoteBody {
 }
 
 export async function POST(req: NextRequest) {
-  // Gated on the checkout flag, not a separate one — pricing a
-  // cart the customer can't buy is a worse UX than not showing
-  // prices at all. Same 503 shape as /api/storefront/checkout.
   if (!(await isStorefrontFlagEnabled("storefront.checkout_enabled"))) {
     return NextResponse.json(
       { error: "Storefront checkout is temporarily unavailable" },
@@ -50,22 +51,76 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not enrolled" }, { status: 403 });
   }
 
-  try {
-    const resolved = await resolveCart({
-      tenantId: body.tenant_id,
-      customerProfileId: userId,
-      lines: body.cart.map((l) => ({
-        product_id: l.product_id,
-        quantity: Number(l.quantity),
-      })),
-      acceptedProposalId: body.accepted_proposal_id ?? null,
-    });
-    return NextResponse.json({ quote: resolved });
-  } catch (err) {
-    if (err instanceof PricingResolutionError) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: 400 });
-    }
-    console.error("[storefront/quote] failed", err);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  const lines = body.cart
+    .map((l) => ({ product_id: String(l.product_id), quantity: Number(l.quantity) }))
+    .filter((l) => l.product_id && Number.isFinite(l.quantity) && l.quantity > 0);
+  if (lines.length === 0) {
+    return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
   }
+  const productIds = Array.from(new Set(lines.map((l) => l.product_id)));
+
+  const [priced, productsResp] = await Promise.all([
+    resolveCoffeeProductsPricing({
+      productIds,
+      userId,
+      storefront: {
+        tenantId: body.tenant_id,
+        customerProfileId: userId,
+        acceptedProposalId: body.accepted_proposal_id ?? null,
+      },
+    }),
+    supabaseAdmin.from("coffee_products").select("id, name, sku, active").in("id", productIds),
+  ]);
+  const products = new Map(
+    ((productsResp.data ?? []) as Array<{ id: string; name: string; sku: string; active: boolean }>).map(
+      (p) => [p.id, p],
+    ),
+  );
+
+  const quoteLines = [];
+  for (const line of lines) {
+    const product = products.get(line.product_id);
+    if (!product) {
+      return NextResponse.json(
+        { error: "An item in your cart no longer exists", code: "PRODUCT_NOT_FOUND" },
+        { status: 400 },
+      );
+    }
+    if (!product.active) {
+      return NextResponse.json(
+        { error: `${product.name} is no longer available`, code: "PRODUCT_INACTIVE" },
+        { status: 400 },
+      );
+    }
+    const entry = priced.get(line.product_id);
+    const err = entry?.storefront?.error;
+    if (!entry || err) {
+      return NextResponse.json(
+        {
+          error:
+            err === "PRICE_BELOW_BASE"
+              ? "A configured price is below the storefront's base price"
+              : "This storefront's pricing isn't set up for an item in your cart",
+          code: err ?? "NO_BASE_PRICE",
+        },
+        { status: 400 },
+      );
+    }
+    quoteLines.push({
+      product_id: line.product_id,
+      product_name: product.name,
+      product_sku: product.sku,
+      quantity: line.quantity,
+      tenant_price_per_unit: entry.price,
+      tenant_price_amount: round2(entry.price * line.quantity),
+    });
+  }
+
+  const tenantPriceTotal = round2(quoteLines.reduce((a, l) => a + l.tenant_price_amount, 0));
+  return NextResponse.json({
+    quote: {
+      lines: quoteLines,
+      totals: { tenant_price_total: tenantPriceTotal, order_total: tenantPriceTotal },
+    },
+  });
 }

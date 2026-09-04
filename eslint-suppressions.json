@@ -1916,11 +1916,6 @@
       "count": 1
     }
   },
-  "src/app/api/storefront/checkout/route.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/app/api/storefront/enrollment/claim-by-email/route.ts": {
     "complexity": {
       "count": 1
@@ -4195,14 +4190,9 @@
       "count": 1
     }
   },
-  "src/lib/storefront/pricing.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/lib/storefront/quickbooksStorefront.ts": {
     "complexity": {
-      "count": 2
+      "count": 1
     }
   },
   "src/lib/storefront/tenants.ts": {
