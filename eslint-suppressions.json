@@ -452,7 +452,7 @@
   },
   "src/app/admin/storefronts/[id]/page.tsx": {
     "complexity": {
-      "count": 3
+      "count": 4
     },
     "max-lines": {
       "count": 1

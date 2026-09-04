@@ -43,6 +43,7 @@ export default function AdminStorefrontDetailPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
   const load = useCallback(async () => {
@@ -54,7 +55,14 @@ export default function AdminStorefrontDetailPage() {
       fetch(`/api/admin/storefronts/tenants/${params.id}`, {
         headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
       }),
-      fetch("/api/coffee/pricing-tiers"),
+      // The tier list comes from the admin tier-price matrix route.
+      // This used to hit /api/coffee/pricing-tiers, WHICH DOES NOT
+      // EXIST — the 404 was swallowed, the dropdown rendered with
+      // only "— unassigned —", and every "assignment" silently sent
+      // null. If tiers can't load, say so loudly instead.
+      fetch("/api/admin/coffee/tier-prices", {
+        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+      }),
     ]);
     if (tenantRes.ok) {
       const body = (await tenantRes.json()) as { tenant: Tenant; owner?: OwnerProfile | null };
@@ -62,11 +70,12 @@ export default function AdminStorefrontDetailPage() {
       setOwner(body.owner ?? null);
     }
     if (tierRes.ok) {
-      const body = (await tierRes.json()) as
-        | { tiers?: Array<{ id: string; name: string }> }
-        | Array<{ id: string; name: string }>;
-      const arr = Array.isArray(body) ? body : (body.tiers ?? []);
-      setTiers(arr);
+      const body = (await tierRes.json()) as { tiers?: Array<{ id: string; name: string }> };
+      setTiers(body.tiers ?? []);
+    } else {
+      setError(
+        "Couldn't load pricing tiers — the tier dropdown is unavailable. Reload the page; if this persists the tier assignment cannot work.",
+      );
     }
     setLoading(false);
   }, [params.id]);
@@ -75,9 +84,10 @@ export default function AdminStorefrontDetailPage() {
     void load();
   }, [load]);
 
-  async function action(body: Record<string, unknown>) {
+  async function action(body: Record<string, unknown>, successNotice?: string) {
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       const supabase = createBrowserClient();
       const {
@@ -96,6 +106,9 @@ export default function AdminStorefrontDetailPage() {
         throw new Error(b.error ?? "Action failed");
       }
       await load();
+      // Every action confirms visibly — a silent no-op is how the
+      // unassigned-tier state went unnoticed in production.
+      setNotice(successNotice ?? "Saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -143,6 +156,11 @@ export default function AdminStorefrontDetailPage() {
       {error ? (
         <div className="rounded border border-red-200 bg-red-50 p-3 text-red-700 text-sm">
           {error}
+        </div>
+      ) : null}
+      {notice ? (
+        <div className="rounded border border-green-200 bg-green-50 p-3 text-green-800 text-sm">
+          ✓ {notice}
         </div>
       ) : null}
 
@@ -237,14 +255,21 @@ export default function AdminStorefrontDetailPage() {
         ) : null}
         <div className="mt-3 flex gap-2 items-center">
           <select
-            className="border rounded px-2 py-1 text-sm"
+            className="border rounded px-2 py-1 text-sm disabled:opacity-50"
             value={tenant.base_pricing_tier_id ?? ""}
-            onChange={(e) =>
-              action({
-                action: "assign_tier",
-                base_pricing_tier_id: e.target.value || null,
-              })
-            }
+            disabled={busy || tiers.length === 0}
+            onChange={(e) => {
+              const tier = tiers.find((t) => t.id === e.target.value);
+              void action(
+                {
+                  action: "assign_tier",
+                  base_pricing_tier_id: e.target.value || null,
+                },
+                tier
+                  ? `Pricing tier set to "${tier.name}".`
+                  : "Pricing tier cleared (unassigned).",
+              );
+            }}
           >
             <option value="">— unassigned —</option>
             {tiers.map((t) => (
@@ -253,6 +278,11 @@ export default function AdminStorefrontDetailPage() {
               </option>
             ))}
           </select>
+          {tiers.length === 0 ? (
+            <span className="text-sm text-red-700">
+              No tiers loaded — assignment disabled.
+            </span>
+          ) : null}
         </div>
       </section>
 
