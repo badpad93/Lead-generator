@@ -7,6 +7,7 @@ import {
   Loader2, ArrowLeft, Plus, Upload, AlertCircle, CheckCircle2,
   Package, MapPin, Coffee, Monitor, Wrench, DollarSign,
   FileText, Clock, User, Building2, Trash2, ScrollText,
+  BookOpen, Pencil,
 } from "lucide-react";
 import AttributionPanel from "./AttributionPanel";
 import CommissionOverridePanel from "./CommissionOverridePanel";
@@ -28,6 +29,17 @@ interface OrderItem {
   location_deposit_amount: number | null;
   location_deposit_paid: boolean;
   location_remaining_balance: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+interface CatalogItem {
+  id: string;
+  name: string;
+  description: string | null;
+  item_type: string | null;
+  unit_price: number;
+  sku: string | null;
 }
 
 interface Activity {
@@ -156,6 +168,15 @@ export default function OrderDetailPage() {
     location_service_price: "",
   });
 
+  // Catalog quick-fill — same saved-item picker the New Order page
+  // has, so items added to an EXISTING order/quote come from the
+  // catalog instead of being retyped free-form every time.
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+  // Inline item editing (name / qty / unit price) — orders and
+  // quotes get edited after the fact; the PATCH recalcs totals.
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editItem, setEditItem] = useState({ service_name: "", description: "", quantity: "1", unit_price: "" });
+
   useEffect(() => {
     const supabase = createBrowserClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -195,6 +216,57 @@ export default function OrderDetailPage() {
   }, [token, id]);
 
   useEffect(() => { fetchOrder(); fetchAgreements(); }, [fetchOrder, fetchAgreements]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/sales/catalog-items", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => setCatalogItems(Array.isArray(rows) ? rows : []))
+      .catch(() => setCatalogItems([]));
+  }, [token]);
+
+  /** Pre-fill the add-item form from a saved catalog item. */
+  function applyCatalogToNewItem(catalogId: string) {
+    const ci = catalogItems.find((c) => c.id === catalogId);
+    if (!ci) return;
+    setNewItem((f) => ({
+      ...f,
+      item_type: ci.item_type || f.item_type,
+      item_name: ci.name,
+      description: ci.description || "",
+      unit_price: String(ci.unit_price ?? ""),
+    }));
+  }
+
+  function startEditItem(item: OrderItem) {
+    setEditingItemId(item.id);
+    setEditItem({
+      service_name: item.service_name || "",
+      description: item.description || "",
+      quantity: String(item.quantity ?? 1),
+      unit_price: String(item.unit_price ?? 0),
+    });
+  }
+
+  async function handleUpdateItem(itemId: string) {
+    const res = await fetch(`/api/sales/orders/${id}/items/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        service_name: editItem.service_name,
+        description: editItem.description || null,
+        quantity: Number(editItem.quantity) || 1,
+        unit_price: Number(editItem.unit_price) || 0,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Failed to update item");
+      return;
+    }
+    setEditingItemId(null);
+    fetchOrder();
+  }
 
   async function handleStatusAction(action: string) {
     setActionLoading(action);
@@ -303,9 +375,30 @@ export default function OrderDetailPage() {
     if (res.ok) {
       const agreement = await res.json();
       router.push(`/sales/orders/${id}/agreement?aid=${agreement.id}`);
+    } else {
+      // Never fail silently — a rep clicking "Generate Updated
+      // Agreement" after editing items needs to know why nothing
+      // happened (e.g. AGREEMENT_NOT_REQUIRED after removing the
+      // coffee line).
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Failed to generate agreement");
     }
     setAgreementLoading(false);
   }
+
+  // Items edited after the newest agreement was generated → the
+  // agreement no longer reflects the order. Drives the amber
+  // "generate an updated agreement" hint on the agreement card.
+  const latestAgreementAt = agreements.length > 0 ? new Date(agreements[0].created_at).getTime() : null;
+  const latestItemChangeAt = order
+    ? Math.max(
+        0,
+        ...order.order_items.map((i) =>
+          new Date(i.updated_at ?? i.created_at ?? 0).getTime(),
+        ),
+      )
+    : 0;
+  const agreementStale = latestAgreementAt != null && latestItemChangeAt > latestAgreementAt;
 
   // Manual quote → order fallback. The linear Next Step for a
   // coffee / 10-10-10 quote points at Generate Agreement (agreement
@@ -586,6 +679,45 @@ export default function OrderDetailPage() {
               <div className="space-y-2">
                 {order.order_items.map((item) => {
                   const ItemIcon = ITEM_TYPES.find((t) => t.value === item.item_type)?.icon || Wrench;
+                  if (editingItemId === item.id) {
+                    return (
+                      <div key={item.id} className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            placeholder="Item name"
+                            value={editItem.service_name}
+                            onChange={(e) => setEditItem((f) => ({ ...f, service_name: e.target.value }))}
+                            className="col-span-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm"
+                          />
+                          <input
+                            type="number"
+                            placeholder="Quantity"
+                            value={editItem.quantity}
+                            onChange={(e) => setEditItem((f) => ({ ...f, quantity: e.target.value }))}
+                            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm"
+                          />
+                          <input
+                            type="number"
+                            placeholder="Unit price"
+                            value={editItem.unit_price}
+                            onChange={(e) => setEditItem((f) => ({ ...f, unit_price: e.target.value }))}
+                            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm"
+                          />
+                          <textarea
+                            placeholder="Description (optional)"
+                            value={editItem.description}
+                            onChange={(e) => setEditItem((f) => ({ ...f, description: e.target.value }))}
+                            className="col-span-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm"
+                            rows={2}
+                          />
+                        </div>
+                        <div className="mt-2 flex gap-2">
+                          <button onClick={() => handleUpdateItem(item.id)} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 cursor-pointer">Save</button>
+                          <button onClick={() => setEditingItemId(null)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+                        </div>
+                      </div>
+                    );
+                  }
                   return (
                     <div key={item.id} className="flex items-center gap-3 rounded-lg border border-gray-100 p-3 hover:bg-gray-50">
                       <ItemIcon className="h-4 w-4 text-gray-400 shrink-0" />
@@ -607,6 +739,9 @@ export default function OrderDetailPage() {
                       <span className="text-sm font-medium text-gray-900">
                         ${Number(item.total_price || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                       </span>
+                      <button onClick={() => startEditItem(item)} className="p-1 text-gray-300 hover:text-blue-600 cursor-pointer" title="Edit item">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
                       <button onClick={() => handleDeleteItem(item.id)} className="p-1 text-gray-300 hover:text-red-500 cursor-pointer">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -619,6 +754,28 @@ export default function OrderDetailPage() {
             {/* Add item form */}
             {showAddItem && (
               <div className="mt-4 rounded-lg border border-green-200 bg-green-50/50 p-4">
+                {/* Catalog quick-fill — same picker as New Order, so
+                    edits to existing orders/quotes reuse saved items
+                    instead of retyping them. */}
+                {catalogItems.length > 0 && (
+                  <div className="mb-3">
+                    <label className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                      <BookOpen className="h-3 w-3" /> Quick-fill from Catalog
+                    </label>
+                    <select
+                      value=""
+                      onChange={(e) => applyCatalogToNewItem(e.target.value)}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-gray-50 focus:border-green-500 focus:outline-none"
+                    >
+                      <option value="">Select a saved item...</option>
+                      {catalogItems.map((ci) => (
+                        <option key={ci.id} value={ci.id}>
+                          {ci.name}{ci.sku ? ` (${ci.sku})` : ""} — ${Number(ci.unit_price).toFixed(2)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <select
                     value={newItem.item_type}
@@ -858,6 +1015,14 @@ export default function OrderDetailPage() {
               </div>
             ) : (
               <div className="space-y-3">
+                {agreementStale && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800">
+                    Items on this {order.document_type === "quote" ? "quote" : "order"} have
+                    changed since the latest agreement was generated — it no longer matches
+                    the line items. Generate an updated agreement below (existing ones are
+                    kept for the record).
+                  </div>
+                )}
                 {agreements.map((ag) => (
                   <div key={ag.id} className="border border-gray-100 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
@@ -888,9 +1053,13 @@ export default function OrderDetailPage() {
                 <button
                   onClick={handleGenerateAgreement}
                   disabled={agreementLoading}
-                  className="w-full rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+                  className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 ${
+                    agreementStale
+                      ? "text-white bg-amber-600 hover:bg-amber-700"
+                      : "text-gray-600 border border-gray-200 hover:bg-gray-50"
+                  }`}
                 >
-                  {agreementLoading ? "..." : "+ New Agreement"}
+                  {agreementLoading ? "..." : "Generate Updated Agreement (uses current items)"}
                 </button>
               </div>
             )}
