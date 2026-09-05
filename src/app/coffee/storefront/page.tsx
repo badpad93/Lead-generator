@@ -86,6 +86,7 @@ export default function StorefrontDashboardPage() {
   // null = unknown/not-checked; only relevant when no base tier is
   // assigned — see the pricing banner below.
   const [overrideCount, setOverrideCount] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -163,13 +164,43 @@ export default function StorefrontDashboardPage() {
           ) : null}
         </div>
         {tenant.status === "approved" ? (
-          <Link
-            href={`/coffee/o/${tenant.slug}`}
-            className="rounded-md bg-black text-white px-4 py-2 text-sm"
-            target="_blank"
-          >
-            View public page
-          </Link>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/coffee/o/${tenant.slug}`}
+                className="rounded-md bg-black text-white px-4 py-2 text-sm"
+                target="_blank"
+              >
+                View public page
+              </Link>
+              <button
+                type="button"
+                onClick={async () => {
+                  const url = `${window.location.origin}/coffee/o/${tenant.slug}`;
+                  try {
+                    await navigator.clipboard.writeText(url);
+                  } catch {
+                    // Clipboard API blocked (insecure context / permissions) —
+                    // fall back to a temporary selection copy.
+                    const ta = document.createElement("textarea");
+                    ta.value = url;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    try { document.execCommand("copy"); } catch {}
+                    document.body.removeChild(ta);
+                  }
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50 cursor-pointer"
+              >
+                {copied ? "Copied!" : "Copy site URL"}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Add this link to your website so customers reach your storefront.
+            </p>
+          </div>
         ) : null}
       </div>
 
