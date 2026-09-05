@@ -38,3 +38,46 @@ export function storedCtxSlug(req: NextRequest): string | null {
   const v = req.cookies.get(SF_CTX_COOKIE)?.value;
   return v && SF_SLUG_RE.test(v) ? v : null;
 }
+
+/**
+ * Request header the middleware stamps for tenant customer routes so the
+ * root layout can drop the global Vending Connector shell (nav/footer/FAB)
+ * server-side — no client flash. Presence means "customer shell"; absence
+ * means the normal VC shell.
+ */
+export const CUSTOMER_SHELL_HEADER = "x-vc-customer-shell";
+
+/** Invite token cookie (mirrors INVITE_TOKEN_KEY in lib/auth.ts). */
+const INVITE_TOKEN_COOKIE = "vc_storefront_invite_token";
+
+/** Auth pages that adopt the operator shell WHEN storefront context exists. */
+const AUTH_SHELL_PATHS = new Set([
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/check-email",
+  "/verify-email",
+  "/verify-email-required",
+  "/resend-verification",
+]);
+
+/**
+ * Is this a tenant customer-shell request?
+ *   - a storefront page (/coffee/o/{slug}) — ALWAYS, or
+ *   - an auth page WITH storefront context: explicit ?storefront=, a
+ *     stashed invite token, or the durable vc_sf_ctx cookie (a returning
+ *     customer hitting a bare /login still qualifies).
+ * Branding/shell only — never an authorization decision.
+ */
+export function isCustomerShellRequest(req: NextRequest): boolean {
+  const p = req.nextUrl.pathname;
+  if (p.startsWith("/coffee/o/")) return true;
+  const isAuthPath = AUTH_SHELL_PATHS.has(p) || p.startsWith("/auth/callback");
+  if (!isAuthPath) return false;
+  return (
+    !!storefrontCtxSlug(req) ||
+    !!storedCtxSlug(req) ||
+    !!req.cookies.get(INVITE_TOKEN_COOKIE)?.value
+  );
+}

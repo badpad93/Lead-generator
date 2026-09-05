@@ -4,8 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 import {
   SF_CTX_COOKIE,
   SF_CTX_MAX_AGE,
+  CUSTOMER_SHELL_HEADER,
   storefrontCtxSlug,
   storedCtxSlug,
+  isCustomerShellRequest,
 } from "@/lib/storefrontCtxCookie";
 
 /**
@@ -77,29 +79,18 @@ function isPublicPath(pathname: string): boolean {
 }
 
 /**
- * Storefront-customer chokepoint.
- *
- * Invite-created accounts (role='customer') exist ONLY to shop their
- * operator's storefront. Two things are enforced here — in middleware,
- * so EVERY way a session can come into existence (login page, OAuth
- * callback, password recovery, magic link, future providers) passes
- * through the same gate instead of each entry path carrying its own
- * per-page hook (which missed the recovery path in production):
- *
+ * Storefront-customer chokepoint. Invite-created accounts (role='customer')
+ * exist ONLY to shop their operator's storefront. Enforced in middleware so
+ * EVERY session-creation path (login, OAuth callback, password recovery,
+ * magic link) passes the same gate:
  *   1. CLAIM: a signed-in user with no storefront_tenant_id gets one
- *      claim-by-email attempt (pending invitation matched against
- *      their own email) before the lock decision is made.
+ *      claim-by-email attempt before the lock decision.
  *   2. LOCK: enrolled customers (role='customer' + storefront_tenant_id,
- *      never admins/owners — those keep their platform roles) are
- *      restricted to the customer allowlist below; everything else
- *      redirects to /coffee/o/{their-slug}.
- *
- * The decision is cached in a short-lived cookie so the profile read
- * runs at most once per TTL per browser, and so the API leg (which has
- * no session client) can enforce the lock with zero DB calls. The
- * cookie only ever RESTRICTS — deleting it merely re-triggers a fresh
- * DB resolution on the next page load, and privileged APIs all carry
- * their own role guards regardless.
+ *      never admins/owners) are restricted to the customer allowlist below;
+ *      everything else redirects to /coffee/o/{their-slug}.
+ * The decision is cached in a short-lived cookie (profile read at most once
+ * per TTL; the API leg enforces with zero DB calls). The cookie only ever
+ * RESTRICTS, and privileged APIs carry their own role guards regardless.
  */
 const SF_LOCK_COOKIE = "vc_sf_lock";
 const SF_LOCK_TTL_SECONDS = 600;
@@ -244,8 +235,16 @@ export async function proxy(req: NextRequest) {
   // storefront (branding only). Public storefront pages return early
   // below, so set it on that response too.
   const ctxSlug = storefrontCtxSlug(req);
+
+  // Tenant customer-shell signal: forwarded as a request header so the
+  // root layout drops the global VC shell server-side (no client flash).
+  // Branding/shell only — never authorization.
+  const requestHeaders = new Headers(req.headers);
+  if (isCustomerShellRequest(req)) requestHeaders.set(CUSTOMER_SHELL_HEADER, "1");
+  else requestHeaders.delete(CUSTOMER_SHELL_HEADER); // ignore any client-supplied value
+
   if (!isProtected && !isAuthPage) {
-    const res = NextResponse.next();
+    const res = NextResponse.next({ request: { headers: requestHeaders } });
     if (ctxSlug && ctxSlug !== storedCtxSlug(req)) {
       res.cookies.set(SF_CTX_COOKIE, ctxSlug, {
         path: "/",
@@ -258,7 +257,7 @@ export async function proxy(req: NextRequest) {
   }
 
   // Create a Supabase server client that reads/writes cookies on the request/response
-  let response = NextResponse.next({ request: req });
+  let response = NextResponse.next({ request: { headers: requestHeaders } });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -273,8 +272,16 @@ export async function proxy(req: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             req.cookies.set(name, value)
           );
+          // Keep the forwarded request cookie header in sync with the
+          // refreshed cookies so downstream server components read the
+          // fresh session (we forward `requestHeaders`, not `req`, to
+          // carry the customer-shell header).
+          requestHeaders.set(
+            "cookie",
+            req.cookies.getAll().map((c) => `${c.name}=${c.value}`).join("; "),
+          );
           // Also write cookies to the response (for the browser)
-          response = NextResponse.next({ request: req });
+          response = NextResponse.next({ request: { headers: requestHeaders } });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
@@ -391,19 +398,10 @@ export async function proxy(req: NextRequest) {
   }
 
   // Contact-on-file gate for protected routes. Every account must have a
-  // phone number AND a full mailing address (street/city/state/zip) — signup
-  // enforces this going forward, but legacy accounts might be missing one.
-  // Fast path: check user_metadata / app_metadata (populated at signup + on
-  // PATCH /api/auth/me). Slow path: fall back to a service-role profiles
-  // read for accounts created before this gate — prevents an infinite
-  // redirect loop when the DB row is fine but auth metadata hasn't caught up.
-  //
-  // Skip this gate entirely when the user is already on /complete-profile
-  // (or its subpaths) — otherwise a fresh OAuth signup with no address on
-  // file gets redirected to /complete-profile, then the gate fires again
-  // and bounces to /complete-profile, and the browser gives up with
-  // ERR_TOO_MANY_REDIRECTS. The /complete-profile page itself already
-  // redirects unauthenticated visitors to /login.
+  // phone AND full mailing address (street/city/state/zip). Fast path:
+  // user_metadata/app_metadata (set at signup + PATCH /api/auth/me); slow
+  // path: a service-role profiles read for legacy accounts. Skipped on
+  // /complete-profile itself to avoid an ERR_TOO_MANY_REDIRECTS loop.
   const isCompleteProfilePath = pathname === "/complete-profile" || pathname.startsWith("/complete-profile/");
   if (user && isProtected && !isCompleteProfilePath) {
     const meta = { ...(user.user_metadata || {}), ...(user.app_metadata || {}) } as Record<string, unknown>;

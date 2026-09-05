@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import FinancingFab from "./components/FinancingFab";
 import MagicLinkHashCatcher from "./components/MagicLinkHashCatcher";
+import { CUSTOMER_SHELL_HEADER } from "@/lib/storefrontCtxCookie";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -43,19 +45,32 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Tenant customer routes (storefront + storefront-context auth) drop the
+  // global Vending Connector shell so the OPERATOR is the primary brand.
+  // The signal is a request header stamped server-side by the middleware,
+  // so the decision happens before first paint — no VC nav/footer flash.
+  // MagicLinkHashCatcher (an invisible provider) stays mounted either way.
+  const customerShell = (await headers()).get(CUSTOMER_SHELL_HEADER) === "1";
+
   return (
     <html lang="en">
       <body className="bg-light min-h-screen flex flex-col antialiased">
         <MagicLinkHashCatcher />
-        <Navbar />
-        <main className="flex-1">{children}</main>
-        <Footer />
-        <FinancingFab />
+        {customerShell ? (
+          <main className="flex-1">{children}</main>
+        ) : (
+          <>
+            <Navbar />
+            <main className="flex-1">{children}</main>
+            <Footer />
+            <FinancingFab />
+          </>
+        )}
       </body>
     </html>
   );
