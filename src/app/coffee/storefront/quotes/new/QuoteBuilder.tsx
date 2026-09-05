@@ -249,7 +249,7 @@ export default function QuoteBuilder({ quoteId }: { quoteId: string | null }) {
           <button onClick={onSend} disabled={busy || lines.length === 0} className="rounded-md bg-black text-white px-4 py-2 text-sm disabled:opacity-50">Send quote</button>
         </div>
       )}
-      {slug ? <p className="mt-3 text-xs text-gray-400">Customer sees {tierNames[String(tier)]} pricing at /coffee/o/{slug} after enrollment.</p> : null}
+      {slug ? <p className="mt-3 text-xs text-gray-400">Customer sees {tierNames[String(tier)]} pricing on your storefront after enrollment.</p> : null}
     </div>
   );
 }
