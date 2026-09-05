@@ -94,6 +94,15 @@ export default function QuoteBuilder({ quoteId }: { quoteId: string | null }) {
     if (!id) return;
     setLines((ls) => [...ls, { product_id: id, quantity: 1, override_unit_price: null }]);
   }
+  function addAllProducts() {
+    setLines((ls) => {
+      const present = new Set(ls.map((l) => l.product_id));
+      const additions = products
+        .filter((p) => !present.has(p.id))
+        .map((p) => ({ product_id: p.id, quantity: 1, override_unit_price: null }));
+      return [...ls, ...additions];
+    });
+  }
   function setLine(id: string, patch: Partial<LineDraft>) {
     setLines((ls) => ls.map((l) => (l.product_id === id ? { ...l, ...patch } : l)));
   }
@@ -187,10 +196,20 @@ export default function QuoteBuilder({ quoteId }: { quoteId: string | null }) {
       <section className="mt-4 rounded-lg border border-gray-200 p-4">
         <div className="font-medium mb-3">Products</div>
         {!readOnly && (
-          <select value="" onChange={(e) => addProduct(e.target.value)} className="mb-3 border rounded px-3 py-2 text-sm">
-            <option value="">Add a product…</option>
-            {availableProducts.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
-          </select>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <select value="" onChange={(e) => addProduct(e.target.value)} className="border rounded px-3 py-2 text-sm">
+              <option value="">Add a product…</option>
+              {availableProducts.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+            </select>
+            <button
+              type="button"
+              onClick={addAllProducts}
+              disabled={availableProducts.length === 0}
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+            >
+              Add all products{availableProducts.length ? ` (${availableProducts.length})` : ""}
+            </button>
+          </div>
         )}
         {lines.length === 0 ? (
           <div className="text-sm text-gray-500">No products yet.</div>
