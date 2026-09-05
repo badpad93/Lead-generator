@@ -19,10 +19,57 @@ import { trackingEmailBlockHtml } from "@/lib/orderTracking";
 
 const FROM_EMAIL = process.env.STOREFRONT_FROM_EMAIL || process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 
+/**
+ * The domain we're already verified to send from — derived from the
+ * configured sender so we never hardcode or send from an unverified
+ * domain. Tenant senders use a per-storefront local-part UNDER this same
+ * verified domain (Resend authorizes the domain, not each address), so no
+ * new domain verification is required. Per-operator custom sending domains
+ * are a separate onboarding/verification workflow (not done here).
+ */
+const SENDING_DOMAIN = (() => {
+  const at = FROM_EMAIL.lastIndexOf("@");
+  return at >= 0 ? FROM_EMAIL.slice(at + 1) : "vendingconnector.com";
+})();
+
+/** Optional VC support fallback for Reply-To when the tenant has none. */
+const SUPPORT_REPLY_TO = process.env.SUPPORT_EMAIL || process.env.REPLY_TO_EMAIL || undefined;
+
 function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY;
   if (!key) return null;
   return new Resend(key);
+}
+
+/**
+ * Deterministic, ASCII-safe email local-part for a storefront. Prefers the
+ * slug (already unique + URL-safe); falls back to the sanitized display
+ * name, then "coffee". Never empty.
+ */
+export function senderLocalPart(tenant: { slug?: string | null; display_name: string }): string {
+  const raw = tenant.slug || tenant.display_name || "coffee";
+  const cleaned = raw
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .slice(0, 64);
+  return cleaned || "coffee";
+}
+
+/**
+ * White-label sender for a tenant customer email. The customer perceives
+ * the OPERATOR: display name "{Storefront} Coffee Services" and a
+ * per-storefront address under our verified domain. Reply-To routes to the
+ * operator's real support inbox when configured. Branding only — never
+ * changes who is authorized/billed.
+ */
+export function tenantSender(
+  tenant: { slug?: string | null; display_name: string; support_email?: string | null },
+): { from: string; replyTo?: string } {
+  const from = `${tenant.display_name} Coffee Services <${senderLocalPart(tenant)}@${SENDING_DOMAIN}>`;
+  const replyTo = tenant.support_email || SUPPORT_REPLY_TO;
+  return replyTo ? { from, replyTo } : { from };
 }
 
 function money(n: number): string {
@@ -81,7 +128,7 @@ function escapeHtml(s: string): string {
 // ─── Invitation ────────────────────────────────────────────────────
 
 export async function sendInvitationEmail(params: {
-  tenant: Pick<StorefrontTenant, "display_name" | "legal_name" | "brand" | "support_email">;
+  tenant: Pick<StorefrontTenant, "slug" | "display_name" | "legal_name" | "brand" | "support_email">;
   to: string;
   displayName?: string | null;
   inviteUrl: string;
@@ -97,7 +144,7 @@ export async function sendInvitationEmail(params: {
   `;
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      ...tenantSender(params.tenant),
       to: params.to,
       subject: `You've been invited to order coffee from ${params.tenant.display_name}`,
       html: shell({
@@ -129,7 +176,7 @@ export async function sendEnrollmentWelcomeEmail(params: {
   `;
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      ...tenantSender(params.tenant),
       to: params.to,
       subject: `Welcome to ${params.tenant.display_name}`,
       html: shell({ tenant: params.tenant, body }),
@@ -177,7 +224,7 @@ export async function sendStorefrontOrderReceipt(params: {
   `;
   try {
     await resend.emails.send({
-      from: FROM_EMAIL,
+      ...tenantSender(params.tenant),
       to: params.to,
       subject: `Order ${params.orderNumber} — ${params.tenant.display_name}`,
       html: shell({
