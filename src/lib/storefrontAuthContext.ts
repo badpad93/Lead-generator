@@ -174,6 +174,35 @@ export async function resolveAuthBrand(opts: {
   return fetchAuthBrand(slug);
 }
 
+/** Operator brand for a raw invite token (the signup entry param). */
+export async function authBrandForInviteToken(
+  token: string | null | undefined,
+): Promise<AuthBrand | null> {
+  if (!token) return null;
+  try {
+    const preview = await previewInvitationByToken(token);
+    return fetchAuthBrand(preview?.tenant?.slug ?? null);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Brand resolver for the signup screen. Signup's canonical entry point
+ * is ?invite_token= (not ?storefront=), so that takes precedence; it
+ * then falls back to the shared resolver (?storefront= → invite cookie
+ * → vc_sf_ctx → authed tenant).
+ */
+export async function resolveSignupBrand(opts: {
+  inviteToken?: string | null;
+  paramSlug?: string | null;
+  cookies: CookieReader;
+}): Promise<AuthBrand | null> {
+  const fromInvite = await authBrandForInviteToken(opts.inviteToken);
+  if (fromInvite) return fromInvite;
+  return resolveAuthBrand({ paramSlug: opts.paramSlug, cookies: opts.cookies });
+}
+
 /**
  * Slug for the signed-in user's storefront, resolved via service role
  * from a bare user id (used by callers that already know the id).

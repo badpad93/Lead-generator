@@ -30,6 +30,7 @@ import {
   storefrontHomePath,
   readSfCtxSlug,
   resolveAuthSlug,
+  authBrandForInviteToken,
   SF_CTX_COOKIE,
   type CookieReader,
 } from "@/lib/storefrontAuthContext";
@@ -141,5 +142,18 @@ describe("resolveAuthSlug precedence", () => {
       userTenantSlug: "user-shop",
     });
     expect(slug).toBe("cookie-shop");
+  });
+});
+
+describe("authBrandForInviteToken (safe fallback)", () => {
+  it("returns null for a missing token", async () => {
+    expect(await authBrandForInviteToken(null)).toBeNull();
+    expect(await authBrandForInviteToken(undefined)).toBeNull();
+    expect(await authBrandForInviteToken("")).toBeNull();
+  });
+
+  it("returns null for an unknown token without throwing (no data leak)", async () => {
+    // Mocked DB yields no invitation row → null, not an exception.
+    expect(await authBrandForInviteToken("deadbeef-unknown-token")).toBeNull();
   });
 });

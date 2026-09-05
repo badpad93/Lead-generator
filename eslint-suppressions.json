@@ -2125,7 +2125,7 @@
       "count": 3
     }
   },
-  "src/app/auth/callback/page.tsx": {
+  "src/app/auth/callback/CallbackClient.tsx": {
     "@next/next/no-location-assign-relative-destination": {
       "count": 9
     },
@@ -3582,7 +3582,7 @@
       "count": 1
     }
   },
-  "src/app/signup/page.tsx": {
+  "src/app/signup/SignupClient.tsx": {
     "@next/next/no-location-assign-relative-destination": {
       "count": 1
     },

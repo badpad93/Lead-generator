@@ -268,8 +268,25 @@ function LoginContent({ initialBrand }: { initialBrand: AuthBrand | null }) {
   }
 
   if (checking) {
+    // Keep the operator's brand on screen during the session-restore
+    // check so first paint is already branded (the brand is server-
+    // seeded via initialBrand, not fetched on the client).
     return (
-      <div className="min-h-[calc(100vh-160px)] flex items-center justify-center px-4">
+      <div className="min-h-[calc(100vh-160px)] flex flex-col items-center justify-center px-4 gap-6">
+        {storefront ? (
+          <div className="text-center">
+            {storefront.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={storefront.logo_url}
+                alt={`${storefront.display_name} logo`}
+                className="mx-auto mb-3 h-12 w-auto"
+              />
+            ) : null}
+            <div className="text-lg font-semibold text-black-primary">{storefront.display_name}</div>
+            <div className="text-xs text-black-primary/40">Powered by Vending Connector</div>
+          </div>
+        ) : null}
         <Loader2 className="w-8 h-8 animate-spin text-green-primary" />
       </div>
     );
