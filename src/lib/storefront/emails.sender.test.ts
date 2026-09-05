@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { senderLocalPart, tenantSender } from "@/lib/storefront/emails";
 
 /**
@@ -8,14 +8,21 @@ import { senderLocalPart, tenantSender } from "@/lib/storefront/emails";
  * pointing at the operator's support inbox. Branding only.
  */
 describe("senderLocalPart", () => {
-  it("prefers the slug (already unique + URL-safe)", () => {
+  it("derives from the STOREFRONT NAME first (spec examples)", () => {
+    expect(senderLocalPart({ slug: "james-padden", display_name: "James Padden" })).toBe("jamespadden");
     expect(senderLocalPart({ slug: "twelve28vend", display_name: "Twelve28Vend" })).toBe("twelve28vend");
+    expect(senderLocalPart({ slug: "abc", display_name: "ABC Vending LLC" })).toBe("abcvendingllc");
+    expect(senderLocalPart({ slug: "joes", display_name: "Joe's Coffee & Vending" })).toBe("joescoffeevending");
   });
 
-  it("falls back to a sanitized display name when no slug", () => {
-    expect(senderLocalPart({ display_name: "ABC Vending LLC" })).toBe("abcvendingllc");
-    expect(senderLocalPart({ display_name: "James Padden" })).toBe("jamespadden");
-    expect(senderLocalPart({ display_name: "Joe's Coffee & Vending" })).toBe("joescoffeevending");
+  it("prefers display name over slug when they differ", () => {
+    // Name is the operator identity; it wins over the slug.
+    expect(senderLocalPart({ slug: "internal-slug-xyz", display_name: "Bright Bean" })).toBe("brightbean");
+  });
+
+  it("falls back to the slug only when there is no usable display name", () => {
+    expect(senderLocalPart({ slug: "acme-coffee", display_name: "" })).toBe("acmecoffee");
+    expect(senderLocalPart({ slug: "acme-coffee", display_name: "!!!" })).toBe("acmecoffee");
   });
 
   it("never returns empty", () => {
@@ -55,7 +62,41 @@ describe("tenantSender", () => {
 
   it("never emits the raw orders@ platform sender as the From", () => {
     const s = tenantSender({ slug: "twelve28vend", display_name: "Twelve28Vend" });
-    expect(s.from).not.toMatch(/^orders@/);
+    expect(s.from).not.toContain("orders@");
     expect(s.from).toContain("Twelve28Vend Coffee Services");
+  });
+
+  it("produces the spec's exact From for James Padden / ABC Vending LLC", () => {
+    const a = tenantSender({ slug: "james-padden", display_name: "James Padden" });
+    expect(a.from).toMatch(/^James Padden Coffee Services <jamespadden@[^>]+>$/);
+    const b = tenantSender({ slug: "abc", display_name: "ABC Vending LLC" });
+    expect(b.from).toMatch(/^ABC Vending LLC Coffee Services <abcvendingllc@[^>]+>$/);
+  });
+});
+
+describe("tenantSender sending domain", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  async function fromWith(fromEmail: string): Promise<string> {
+    vi.resetModules();
+    vi.stubEnv("STOREFRONT_FROM_EMAIL", "");
+    vi.stubEnv("FROM_EMAIL", fromEmail);
+    const mod = await import("@/lib/storefront/emails");
+    return mod.tenantSender({ slug: "twelve28vend", display_name: "Twelve28Vend" }).from;
+  }
+
+  it("derives the domain from the configured sender (vendingconnector.com)", async () => {
+    expect(await fromWith("orders@vendingconnector.com")).toBe(
+      "Twelve28Vend Coffee Services <twelve28vend@vendingconnector.com>",
+    );
+  });
+
+  it("uses an alternate verified domain when configured (apexaidashboard.com)", async () => {
+    expect(await fromWith("noreply@apexaidashboard.com")).toBe(
+      "Twelve28Vend Coffee Services <twelve28vend@apexaidashboard.com>",
+    );
   });
 });

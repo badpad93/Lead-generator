@@ -46,15 +46,26 @@ function getResend(): Resend | null {
  * slug (already unique + URL-safe); falls back to the sanitized display
  * name, then "coffee". Never empty.
  */
-export function senderLocalPart(tenant: { slug?: string | null; display_name: string }): string {
-  const raw = tenant.slug || tenant.display_name || "coffee";
-  const cleaned = raw
+function sanitizeLocalPart(raw: string): string {
+  return raw
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "")
     .slice(0, 64);
-  return cleaned || "coffee";
+}
+
+/**
+ * Deterministic, ASCII-safe email local-part for a storefront.
+ * Precedence per spec: the STOREFRONT NAME first (that's the operator
+ * identity), then the slug, then "coffee". Never empty.
+ */
+export function senderLocalPart(tenant: { slug?: string | null; display_name: string }): string {
+  return (
+    sanitizeLocalPart(tenant.display_name || "") ||
+    sanitizeLocalPart(tenant.slug || "") ||
+    "coffee"
+  );
 }
 
 /**
@@ -146,7 +157,7 @@ export async function sendInvitationEmail(params: {
     await resend.emails.send({
       ...tenantSender(params.tenant),
       to: params.to,
-      subject: `You've been invited to order coffee from ${params.tenant.display_name}`,
+      subject: `You're invited to ${params.tenant.display_name} Coffee Services`,
       html: shell({
         tenant: params.tenant,
         preheader: `${params.tenant.display_name} invited you to enroll`,
@@ -178,7 +189,7 @@ export async function sendEnrollmentWelcomeEmail(params: {
     await resend.emails.send({
       ...tenantSender(params.tenant),
       to: params.to,
-      subject: `Welcome to ${params.tenant.display_name}`,
+      subject: `Welcome to ${params.tenant.display_name} Coffee Services`,
       html: shell({ tenant: params.tenant, body }),
     });
   } catch (err) {
