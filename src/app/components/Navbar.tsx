@@ -693,7 +693,7 @@ export default function Navbar() {
           )}
 
           <ul className="space-y-1">
-            {NAV_GROUPS.map((group) => (
+            {effectiveNavGroups.map((group) => (
               <li key={group.label} className="pt-2 first:pt-0">
                 <div className="mb-1 px-4 text-[11px] font-semibold uppercase tracking-wider text-white/50">
                   {group.label}
