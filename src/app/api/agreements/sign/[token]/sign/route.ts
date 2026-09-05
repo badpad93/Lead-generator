@@ -144,19 +144,21 @@ export async function POST(
       }
 
       if (notifyTo.length > 0) {
-        const crmUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com"}/sales/orders/${agreement.order_id}/agreement?aid=${agreement.id}`;
+        // Canonical agreement editor — the order-scoped editor page
+        // this used to link to was deleted in the rails consolidation.
+        const crmUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com"}/sales/agreements/${agreement.id}`;
 
         await getResend().emails.send({
           from: FROM_EMAIL,
           to: notifyTo,
           subject: `Agreement Signed — ${agreement.operator_company_name || "Operator"}`,
           html: `
-<p><strong>${agreement.operator_legal_name || signer_name}</strong> (${agreement.operator_company_name}) has signed the VendEra AI Machine Purchase Agreement.</p>
+<p><strong>${agreement.operator_legal_name || signer_name}</strong> (${agreement.operator_company_name}) has signed the Purchase Agreement.</p>
 <ul>
   <li><strong>Signer:</strong> ${signer_name}</li>
   <li><strong>Company:</strong> ${signer_company || agreement.operator_company_name || "—"}</li>
   <li><strong>Title:</strong> ${signer_title || "—"}</li>
-  <li><strong>Machine${agreement.machine_quantity > 1 ? "s" : ""}:</strong> ${agreement.machine_quantity}x ${agreement.machine_model}</li>
+  ${Number(agreement.machine_quantity) > 0 ? `<li><strong>Machine${agreement.machine_quantity > 1 ? "s" : ""}:</strong> ${agreement.machine_quantity}x ${agreement.machine_model}</li>` : ""}
   <li><strong>Total:</strong> $${Number(agreement.total_due_prior_to_procurement || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</li>
   <li><strong>Status:</strong> ${isFullySigned ? "Fully Executed" : "Awaiting Apex Countersignature"}</li>
 </ul>

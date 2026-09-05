@@ -211,7 +211,7 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   y -= 16;
   drawText(
     page,
-    "VendEra AI Machine Purchase & Services Agreement",
+    "Purchase Agreement",
     LEFT,
     y,
     helvetica,
@@ -266,7 +266,7 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
 
   sectionHeader(1, "Recitals");
   drawWrapped(
-    `This VendEra AI Machine Purchase & Services Agreement ("Agreement") is entered into as of ${effectiveDate} by and between ${ag.apex_company_name || "Apex AI Vending LLC"} ("Apex" or "Company") and ${ag.operator_company_name || "[Operator]"} ("Operator"). Apex is engaged in the business of selling VendEra AI vending machines and providing related location procurement services. The Operator desires to purchase VendEra AI machines and optionally engage Apex for location services.`,
+    `This Purchase Agreement ("Agreement") is entered into as of ${effectiveDate} by and between ${ag.apex_company_name || "Apex AI Vending LLC"} ("Apex" or "Company") and ${ag.operator_company_name || "[Operator]"} ("Operator"). Apex is engaged in the business of selling vending equipment and providing related products and services. The Operator desires to purchase the products and services described in this Agreement.`,
     helvetica, 8.5, gray,
   );
 
@@ -1032,7 +1032,7 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
   <div style="padding:24px 0;">
     <h2 style="color:#111;font-size:18px;margin-bottom:16px;">Agreement Fully Executed</h2>
     <p style="color:#374151;font-size:14px;line-height:1.6;">
-      The VendEra AI Machine Purchase & Services Agreement between <strong>Apex AI Vending LLC</strong> and
+      The Purchase Agreement between <strong>Apex AI Vending LLC</strong> and
       <strong>${ag.operator_company_name || "Operator"}</strong> has been fully signed by both parties.
     </p>
     <table style="width:100%;border-collapse:collapse;margin:20px 0;">

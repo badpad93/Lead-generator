@@ -544,7 +544,7 @@ function SigningContent() {
               Agreement Signed Successfully
             </h1>
             <p className="text-gray-600 mb-1">
-              The VendEra AI Machine Purchase &amp; Services Agreement has been
+              The Purchase Agreement has been
               signed.
             </p>
             <p className="text-sm text-gray-500 mb-6">
@@ -682,7 +682,7 @@ function SigningContent() {
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-            VendEra AI Machine Purchase &amp; Services Agreement
+            Purchase Agreement
           </h1>
           <p className="text-sm text-gray-500">
             Effective Date: {v.effectiveDate}
@@ -726,7 +726,7 @@ function SigningContent() {
             {/* ---- Preamble ---- */}
             <div>
               <p>
-                This Machine Purchase &amp; Services Agreement (the
+                This Purchase Agreement (the
                 &quot;Agreement&quot;) is entered into as of{" "}
                 <strong>{v.effectiveDate}</strong> (the &quot;Effective
                 Date&quot;), by and between:
