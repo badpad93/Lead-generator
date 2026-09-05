@@ -51,6 +51,8 @@ export default function PricingPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Bulk markup: which tier the "+$5" button bumps.
+  const [markupTier, setMarkupTier] = useState<Tier>(1);
 
   const load = useCallback(async () => {
     const supabase = createBrowserClient();
@@ -100,14 +102,36 @@ export default function PricingPage() {
     if (productId in dirtyVisibility) return dirtyVisibility[productId];
     return !hidden.has(productId);
   }
-  /** Displayed value for a (tier, product) cell: pending edit, then
-   *  stored tier price, then the product list price as the default. */
-  function cellValue(t: Tier, p: Product): number {
+  /** Current effective value for a (tier, product) cell given a dirty map:
+   *  pending edit, then stored tier price, then the product list price. */
+  function effectiveCell(dirty: Record<string, number>, t: Tier, p: Product): number {
     const key = `${t}:${p.id}`;
-    if (key in dirtyPrices) return dirtyPrices[key];
+    if (key in dirty) return dirty[key];
     const stored = tiers[String(t)]?.[p.id];
     if (stored != null) return stored;
     return basePrices[p.id] ?? Number(p.price);
+  }
+  /** Displayed value for a (tier, product) cell. */
+  function cellValue(t: Tier, p: Product): number {
+    return effectiveCell(dirtyPrices, t, p);
+  }
+
+  /** Add a flat increment to every product's price in the chosen tier.
+   *  Staged into pending edits (reviewable + undoable via Save), so
+   *  repeated clicks step by `amount` each time. */
+  function applyMarkup(amount: number) {
+    setDirtyPrices((d) => {
+      const next = { ...d };
+      for (const p of products) {
+        const current = effectiveCell(next, markupTier, p);
+        // Never below $0 (a markdown clamps at zero; base-price warnings
+        // still flag anything below the owner's cost).
+        next[`${markupTier}:${p.id}`] = Math.max(0, Math.round((current + amount) * 100) / 100);
+      }
+      return next;
+    });
+    setNotice(null);
+    setError(null);
   }
 
   async function save() {
@@ -210,6 +234,40 @@ export default function PricingPage() {
             />
           </label>
         ))}
+      </div>
+
+      {/* Bulk markup/markdown — step every price in one tier by $5. */}
+      <div className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <div>
+          <div className="text-sm font-medium">Markup</div>
+          <div className="text-xs text-gray-500">Add or remove $5 from every item&apos;s price in the selected tier. Click again to step another $5. Review, then Save.</div>
+        </div>
+        <label className="text-xs text-gray-500">
+          Tier
+          <select
+            value={markupTier}
+            onChange={(e) => setMarkupTier(Number(e.target.value) as Tier)}
+            className="mt-1 block w-40 border rounded px-2 py-1 text-sm text-gray-900"
+          >
+            {TIERS.map((t) => (
+              <option key={t} value={t}>{tierName(t)}</option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={() => applyMarkup(-5)}
+          className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-100 cursor-pointer"
+        >
+          − $5
+        </button>
+        <button
+          type="button"
+          onClick={() => applyMarkup(5)}
+          className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-100 cursor-pointer"
+        >
+          + $5 to {tierName(markupTier)}
+        </button>
       </div>
 
       <div className="mt-4 overflow-x-auto">
