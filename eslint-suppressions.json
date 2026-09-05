@@ -3024,7 +3024,7 @@
       "count": 1
     }
   },
-  "src/app/resend-verification/page.tsx": {
+  "src/app/resend-verification/ResendClient.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
