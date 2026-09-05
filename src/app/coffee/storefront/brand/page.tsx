@@ -33,13 +33,20 @@ export default function OwnerBrandEditorPage() {
         const body = (await res.json()) as { tenant: Tenant };
         return body.tenant;
       }}
-      saveBrand={async (payload: { brand: Brand; public_page: PublicPage }) => {
+      saveBrand={async (payload: {
+        brand: Brand;
+        public_page: PublicPage;
+        display_name: string;
+        legal_name: string;
+      }) => {
         const res = await fetch("/api/storefront/tenant", {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
             ...(await authHeader()),
           },
+          // The owner PATCH takes fields at the top level (display_name /
+          // legal_name are in its allow-list).
           body: JSON.stringify(payload),
         });
         if (!res.ok) {
