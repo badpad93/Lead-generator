@@ -93,8 +93,8 @@ function authRequestHasStorefrontContext(req: NextRequest): boolean {
 
 export function isCustomerShellRequest(req: NextRequest): boolean {
   const p = req.nextUrl.pathname;
-  // Storefront + invitation landing pages are always operator-shell.
-  if (p.startsWith("/coffee/o/") || p.startsWith("/coffee/invite/")) return true;
+  // Storefront, invitation, and public quote pages are always operator-shell.
+  if (p.startsWith("/coffee/o/") || p.startsWith("/coffee/invite/") || p.startsWith("/coffee/quote/")) return true;
   if (!isAuthShellPath(p)) return false;
   return authRequestHasStorefrontContext(req);
 }

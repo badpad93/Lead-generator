@@ -189,6 +189,9 @@ export default function StorefrontDashboardPage() {
         <DashCard href="/coffee/storefront/invitations" title="Invitations">
           Invite new customers with a one-shot enrollment link.
         </DashCard>
+        <DashCard href="/coffee/storefront/quotes" title="Quotes">
+          Build and send branded quotes at a chosen pricing tier.
+        </DashCard>
       </div>
 
     </div>

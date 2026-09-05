@@ -158,6 +158,40 @@ export async function sendInvitationEmail(params: {
   }
 }
 
+// ─── Quote ─────────────────────────────────────────────────────────
+
+export async function sendQuoteEmail(params: {
+  tenant: Pick<StorefrontTenant, "slug" | "display_name" | "legal_name" | "brand" | "support_email">;
+  to: string;
+  recipientName?: string | null;
+  total: number;
+  quoteUrl: string;
+}): Promise<void> {
+  const resend = getResend();
+  if (!resend) return;
+  const body = `
+    <h1 style="margin:0 0 12px 0;font-size:22px;">Your coffee service quote</h1>
+    <p style="margin:0 0 12px 0;color:#333;">${params.recipientName ? escapeHtml(params.recipientName) + "," : "Hello,"} ${escapeHtml(params.tenant.display_name)} has prepared a quote for you.</p>
+    <p style="margin:0 0 20px 0;color:#333;">Quote total: <strong>${money(params.total)}</strong></p>
+    <p style="margin:0 0 24px 0;"><a href="${escapeHtml(params.quoteUrl)}" style="background:#111;color:white;padding:12px 20px;border-radius:6px;text-decoration:none;display:inline-block;">View quote</a></p>
+    <p style="margin:0;font-size:12px;color:#666;">Or paste this link into your browser:<br/>${escapeHtml(params.quoteUrl)}</p>
+  `;
+  try {
+    await resend.emails.send({
+      ...tenantSender(params.tenant),
+      to: params.to,
+      subject: `Coffee Service Quote from ${params.tenant.display_name}`,
+      html: shell({
+        tenant: params.tenant,
+        preheader: `${params.tenant.display_name} sent you a quote`,
+        body,
+      }),
+    });
+  } catch (err) {
+    console.error("[storefront/emails] quote failed", err);
+  }
+}
+
 // ─── Enrollment welcome ────────────────────────────────────────────
 
 export async function sendEnrollmentWelcomeEmail(params: {

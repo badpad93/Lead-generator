@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const userId = await getUserIdFromRequest(req);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = (await req.json().catch(() => ({}))) as { token?: string };
+  const body = (await req.json().catch(() => ({}))) as { token?: string; quote_token?: string };
   if (!body.token) return NextResponse.json({ error: "token required" }, { status: 400 });
 
   const forwardedFor = req.headers.get("x-forwarded-for");
@@ -65,6 +65,16 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       console.warn("[storefront/enrollment/consume] welcome email failed", err);
+    }
+    // Quote carry-through: a prospect who enrolled via a quote gets the
+    // quoted tier assigned deterministically (token-verified, tenant-safe).
+    if (body.quote_token) {
+      try {
+        const { assignTierFromQuoteOnEnroll } = await import("@/lib/storefront/quotes");
+        await assignTierFromQuoteOnEnroll(body.quote_token, userId);
+      } catch (err) {
+        console.warn("[storefront/enrollment/consume] quote tier assignment failed", err);
+      }
     }
     return NextResponse.json({ ok: true, tenant_slug: tenantSlug, ...result });
   } catch (err) {
