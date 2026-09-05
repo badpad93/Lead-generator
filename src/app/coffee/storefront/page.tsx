@@ -179,8 +179,8 @@ export default function StorefrontDashboardPage() {
         <DashCard href="/coffee/storefront/brand" title="Brand & appearance">
           Logo, colors, hero copy, and your storefront name — what customers see on your public page.
         </DashCard>
-        <DashCard href="/coffee/storefront/pricing" title="Pricing">
-          Set your customer-facing prices and per-customer overrides.
+        <DashCard href="/coffee/storefront/pricing" title="Pricing & item visibility">
+          Set tier prices, and hide or show individual items on your storefront.
         </DashCard>
         <DashCard href="/coffee/storefront/customers" title="Customers">
           Manage the accounts enrolled with your storefront.
