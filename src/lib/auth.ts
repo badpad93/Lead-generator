@@ -167,14 +167,26 @@ export async function ensureSignedOut(): Promise<boolean> {
   return session === null;
 }
 
+/**
+ * Build the /auth/callback redirect URL for a LOGIN-flow OAuth start,
+ * carrying the storefront slug so the operator's branding context
+ * survives the provider round-trip. Branding only — never auth.
+ */
+function loginCallbackUrl(storefrontSlug?: string | null): string {
+  const url = new URL(`${getSiteUrl()}/auth/callback`);
+  url.searchParams.set("flow", "login");
+  if (storefrontSlug) url.searchParams.set("storefront", storefrontSlug);
+  return url.toString();
+}
+
 /** Sign in with Google OAuth for LOGIN flow */
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(storefrontSlug?: string | null): Promise<void> {
   const supabase = createBrowserClient();
   storeAuthFlow("login");
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${getSiteUrl()}/auth/callback?flow=login`,
+      redirectTo: loginCallbackUrl(storefrontSlug),
       skipBrowserRedirect: false,
       queryParams: {
         prompt: "select_account",
@@ -206,13 +218,13 @@ export async function signUpWithGoogle(role?: string): Promise<void> {
 }
 
 /** Sign in with Microsoft OAuth for LOGIN flow */
-export async function signInWithMicrosoft(): Promise<void> {
+export async function signInWithMicrosoft(storefrontSlug?: string | null): Promise<void> {
   const supabase = createBrowserClient();
   storeAuthFlow("login");
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "azure",
     options: {
-      redirectTo: `${getSiteUrl()}/auth/callback?flow=login`,
+      redirectTo: loginCallbackUrl(storefrontSlug),
       skipBrowserRedirect: false,
       scopes: "email",
     },
@@ -246,9 +258,11 @@ export async function signOut(): Promise<void> {
 }
 
 /** Sign in with Yahoo OAuth for LOGIN flow */
-export function signInWithYahoo(): void {
+export function signInWithYahoo(storefrontSlug?: string | null): void {
   storeAuthFlow("login");
-  window.location.href = "/api/auth/yahoo?flow=login";
+  const params = new URLSearchParams({ flow: "login" });
+  if (storefrontSlug) params.set("storefront", storefrontSlug);
+  window.location.href = `/api/auth/yahoo?${params.toString()}`;
 }
 
 /** Sign in with Yahoo OAuth for SIGNUP flow */

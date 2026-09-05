@@ -1,0 +1,498 @@
+"use client";
+
+import { Suspense, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import {
+  signInWithGoogle,
+  signInWithMicrosoft,
+  signInWithYahoo,
+  storeRedirectAfterLogin,
+  consumeInviteToken,
+} from "@/lib/auth";
+import { createBrowserClient } from "@/lib/supabase";
+import type { AuthBrand } from "@/lib/storefrontAuthContext";
+
+interface LoginBrand {
+  slug: string;
+  display_name: string;
+  logo_url: string | null;
+  primary_color: string;
+  accent_color: string;
+}
+
+function LoginContent({ initialBrand }: { initialBrand: AuthBrand | null }) {
+  const searchParams = useSearchParams();
+  const [loading, setLoading] = useState<"google" | "microsoft" | "yahoo" | "email" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  // Storefront-branded login. The operator brand is resolved ON THE
+  // SERVER (from ?storefront=, the durable vc_sf_ctx cookie, or a
+  // stashed invite) and seeded here, so the page renders already
+  // branded — no client fetch flash, and the brand survives a login
+  // bounce that dropped the ?storefront= param. Cosmetic only; the
+  // auth flow is identical and an unknown slug falls back to generic.
+  const storefrontSlug = searchParams.get("storefront") || initialBrand?.slug || null;
+
+  // Storefront invite consumption for EMAIL/PASSWORD tenants. The
+  // invite token stashed at signup was only ever consumed by the
+  // OAuth /auth/callback — email signups verify → land here → sign
+  // in, and the token sat unconsumed, so the tenant never enrolled
+  // and fell into the generic operator flow. Consume it here after
+  // a successful sign-in and land them directly on the storefront.
+  async function tryConsumeInvite(accessToken: string): Promise<string | null> {
+    const inviteToken = consumeInviteToken();
+    if (inviteToken) {
+      try {
+        const res = await fetch("/api/storefront/enrollment/consume", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ token: inviteToken }),
+        });
+        if (res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { tenant_slug?: string | null };
+          return data.tenant_slug ? `/coffee/o/${data.tenant_slug}` : "/dashboard";
+        }
+        // Invalid / expired / linked-to-another-tenant — the invite
+        // page renders the correct explanatory state for each.
+        return `/coffee/invite/${inviteToken}`;
+      } catch {
+        return `/coffee/invite/${inviteToken}`;
+      }
+    }
+    // No stashed token (lost across redirects / different browser).
+    // Server-side fallback: if a pending invitation is addressed to
+    // this account's email, claim it — authenticating as the email
+    // is proof of ownership. 404 NO_INVITATION just means "not a
+    // storefront customer" and the normal flow continues.
+    try {
+      const res = await fetch("/api/storefront/enrollment/claim-by-email", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { tenant_slug?: string | null };
+        if (data.tenant_slug) return `/coffee/o/${data.tenant_slug}`;
+      }
+    } catch {}
+    return null;
+  }
+  const [storefront, setStorefront] = useState<LoginBrand | null>(initialBrand);
+  useEffect(() => {
+    // Refresh from the public endpoint only when an explicit slug is in
+    // the URL and it differs from what the server already gave us.
+    const paramSlug = searchParams.get("storefront");
+    if (!paramSlug || paramSlug === initialBrand?.slug) return;
+    let cancelled = false;
+    fetch(`/api/storefront/public/${encodeURIComponent(paramSlug)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (data: {
+          tenant?: { slug: string; display_name: string; brand?: Record<string, unknown> };
+        } | null) => {
+          if (cancelled || !data?.tenant) return;
+          const brand = data.tenant.brand ?? {};
+          setStorefront({
+            slug: data.tenant.slug,
+            display_name: data.tenant.display_name,
+            logo_url: (brand.logo_url as string) || null,
+            primary_color: (brand.primary_color as string) || "#1a1a1a",
+            accent_color: (brand.accent_color as string) || "#c4a877",
+          });
+        },
+      )
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, initialBrand?.slug]);
+
+  useEffect(() => {
+    const urlError = searchParams.get("error");
+    if (urlError) setError(decodeURIComponent(urlError));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const supabase = createBrowserClient();
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        // Invite consumption first — enrollment is what makes an
+        // invited visitor a customer, so it must run before the
+        // completeness gate can bounce them. Header-auth'd, so it
+        // carries THIS session regardless of stale cookie state.
+        const inviteRedirect = await tryConsumeInvite(session.access_token);
+        if (inviteRedirect) {
+          window.location.href = inviteRedirect;
+          return;
+        }
+        try {
+          const res = await fetch("/api/auth/me", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (res.ok) {
+            const profile = await res.json();
+            // Storefront customers skip the completeness gate —
+            // their shipping info is collected at checkout, and
+            // /complete-profile would strand them away from the
+            // shop they were invited to.
+            const isStorefrontCustomer =
+              profile.role === "customer" || !!profile.storefront_tenant_id;
+            if (
+              !isStorefrontCustomer &&
+              (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip)
+            ) {
+              window.location.href = "/complete-profile";
+              return;
+            }
+          }
+        } catch {}
+        const redirect = searchParams.get("redirect") || "/dashboard";
+        window.location.href = redirect;
+      } else {
+        setChecking(false);
+      }
+    });
+  }, [searchParams]);
+
+  async function handleGoogleLogin() {
+    setLoading("google");
+    setError(null);
+    const redirect = searchParams.get("redirect") || "/dashboard";
+    storeRedirectAfterLogin(redirect);
+    try {
+      await signInWithGoogle(storefrontSlug);
+    } catch {
+      setError("Failed to start Google login. Please try again.");
+      setLoading(null);
+    }
+  }
+
+  async function handleMicrosoftLogin() {
+    setLoading("microsoft");
+    setError(null);
+    const redirect = searchParams.get("redirect") || "/dashboard";
+    storeRedirectAfterLogin(redirect);
+    try {
+      await signInWithMicrosoft(storefrontSlug);
+    } catch {
+      setError("Failed to start Microsoft login. Please try again.");
+      setLoading(null);
+    }
+  }
+
+  function handleYahooLogin() {
+    setLoading("yahoo");
+    setError(null);
+    const redirect = searchParams.get("redirect") || "/dashboard";
+    storeRedirectAfterLogin(redirect);
+    signInWithYahoo(storefrontSlug);
+  }
+
+  async function handleEmailLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!email.trim()) {
+      setError("Email is required");
+      return;
+    }
+    if (!password) {
+      setError("Password is required");
+      return;
+    }
+    setLoading("email");
+    try {
+      const supabase = createBrowserClient();
+      const { data, error: signInErr } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      if (signInErr || !data.session) {
+        setError(signInErr?.message || "Invalid email or password");
+        setLoading(null);
+        return;
+      }
+
+      // Verify email_verified on profile before letting them in
+      const profileRes = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
+      const profile = profileRes.ok ? await profileRes.json() : null;
+      if (profile?.email_verified === false) {
+        window.location.href = storefrontSlug
+          ? `/verify-email-required?storefront=${encodeURIComponent(storefrontSlug)}`
+          : "/verify-email-required";
+        return;
+      }
+
+      // Invite consumption runs BEFORE the completeness gate. The
+      // reverse order stranded invited tenants: a profile whose
+      // role write was rejected (or whose fields were incomplete)
+      // bounced to /complete-profile before the pending invitation
+      // could enroll + exempt them. Enrollment is the thing that
+      // makes them a customer — it must get first crack. (Both the
+      // stashed-token consume and the claim-by-email fallback are
+      // Authorization-header calls, so they carry THIS session
+      // regardless of any stale SSR cookie state.)
+      const inviteRedirect = await tryConsumeInvite(data.session.access_token);
+      if (inviteRedirect) {
+        window.location.href = inviteRedirect;
+        return;
+      }
+
+      if (profile) {
+        // Storefront customers skip the completeness gate — see the
+        // session-restore check above for the reasoning.
+        const isStorefrontCustomer =
+          profile.role === "customer" || !!profile.storefront_tenant_id;
+        if (
+          !isStorefrontCustomer &&
+          (!profile.phone || !profile.address || !profile.city || !profile.state || !profile.zip)
+        ) {
+          window.location.href = "/complete-profile";
+          return;
+        }
+      }
+
+      const redirect = searchParams.get("redirect") || "/dashboard";
+      window.location.href = redirect;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sign in failed");
+      setLoading(null);
+    }
+  }
+
+  if (checking) {
+    // Keep the operator's brand on screen during the session-restore
+    // check so first paint is already branded (the brand is server-
+    // seeded via initialBrand, not fetched on the client).
+    return (
+      <div className="min-h-[calc(100vh-160px)] flex flex-col items-center justify-center px-4 gap-6">
+        {storefront ? (
+          <div className="text-center">
+            {storefront.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={storefront.logo_url}
+                alt={`${storefront.display_name} logo`}
+                className="mx-auto mb-3 h-12 w-auto"
+              />
+            ) : null}
+            <div className="text-lg font-semibold text-black-primary">{storefront.display_name}</div>
+            <div className="text-xs text-black-primary/40">Powered by Vending Connector</div>
+          </div>
+        ) : null}
+        <Loader2 className="w-8 h-8 animate-spin text-green-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[calc(100vh-160px)] flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-lg">
+        {/* Header — storefront-branded when a brand resolved */}
+        {storefront ? (
+          <div className="text-center mb-8">
+            {storefront.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={storefront.logo_url}
+                alt={`${storefront.display_name} logo`}
+                className="mx-auto mb-4 h-14 w-auto"
+              />
+            ) : null}
+            <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">
+              Sign in to {storefront.display_name}
+            </h1>
+            <p className="text-black-primary/60 mt-2">
+              Order coffee and supplies at your prices
+            </p>
+            <p className="mt-1 text-xs text-black-primary/40">Powered by Vending Connector</p>
+          </div>
+        ) : (
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">Welcome Back</h1>
+            <p className="text-black-primary/60 mt-2">Sign in to your Vending Connector account</p>
+          </div>
+        )}
+
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8">
+          {/* Error alert */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          {/* Email/Password Sign In (primary) */}
+          <form onSubmit={handleEmailLogin} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={!!loading}
+                placeholder="you@example.com"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary/30 disabled:bg-gray-50"
+                autoComplete="email"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={!!loading}
+                placeholder="Enter your password"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-green-primary focus:outline-none focus:ring-1 focus:ring-green-primary/30 disabled:bg-gray-50"
+                autoComplete="current-password"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!!loading}
+              className={`w-full py-3 px-4 font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer ${
+                storefront ? "" : "bg-green-primary hover:bg-green-hover text-white"
+              }`}
+              style={
+                storefront
+                  ? { background: storefront.primary_color, color: storefront.accent_color }
+                  : undefined
+              }
+            >
+              {loading === "email" ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </button>
+
+            <div className="text-center">
+              <a
+                href={
+                  storefrontSlug
+                    ? `/forgot-password?storefront=${encodeURIComponent(storefrontSlug)}`
+                    : "/forgot-password"
+                }
+                className="text-xs text-green-primary hover:underline"
+              >
+                Forgot password?
+              </a>
+            </div>
+          </form>
+
+          {storefront ? (
+            // Storefront enrollment is invitation-only — a generic
+            // /signup link here would drop the customer into the
+            // operator signup flow with no way to enroll. Point them
+            // at their operator instead.
+            <p className="mt-4 text-center text-sm text-black-primary/60">
+              Don&apos;t have an account? Ask {storefront.display_name} for an
+              invite link.
+            </p>
+          ) : (
+            <p className="mt-4 text-center text-sm text-black-primary/60">
+              Don&apos;t have an account?{" "}
+              <a href="/signup" className="text-green-primary hover:underline font-medium">
+                Create one
+              </a>
+            </p>
+          )}
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+            <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or</span></div>
+          </div>
+
+          {/* OAuth buttons (secondary) */}
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={!!loading}
+              className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 cursor-pointer border border-gray-300 shadow-sm"
+            >
+              {loading === "google" ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Connecting to Google...</>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                  </svg>
+                  Continue with Google
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleMicrosoftLogin}
+              disabled={!!loading}
+              className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 cursor-pointer border border-gray-300 shadow-sm"
+            >
+              {loading === "microsoft" ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Connecting to Microsoft...</>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" viewBox="0 0 21 21">
+                    <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+                    <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+                    <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+                    <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+                  </svg>
+                  Continue with Microsoft
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleYahooLogin}
+              disabled={!!loading}
+              className="w-full py-3 px-4 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 cursor-pointer border border-gray-300 shadow-sm"
+            >
+              {loading === "yahoo" ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Connecting to Yahoo...</>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path d="M13.31 9.693l4.655-9.693h-3.516l-2.889 6.487L8.682 0H5.168l4.61 9.693L9.047 24h3.476l.787-14.307z" fill="#6001D2"/>
+                  </svg>
+                  Continue with Yahoo
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="mt-6 text-center">
+            <p className="text-xs text-black-primary/40">
+              By signing in, you agree to our Terms of Service and Privacy Policy.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function LoginClient({ initialBrand }: { initialBrand: AuthBrand | null }) {
+  return (
+    <Suspense>
+      <LoginContent initialBrand={initialBrand} />
+    </Suspense>
+  );
+}

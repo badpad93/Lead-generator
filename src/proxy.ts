@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
+import {
+  SF_CTX_COOKIE,
+  SF_CTX_MAX_AGE,
+  storefrontCtxSlug,
+  storedCtxSlug,
+} from "@/lib/storefrontCtxCookie";
 
 /**
  * Auth model: allowlist-based.
@@ -233,7 +239,23 @@ export async function proxy(req: NextRequest) {
   // protected. Auth pages also flow through so we can bounce
   // signed-in visitors back to /dashboard.
   const isProtected = !isPublicPath(pathname);
-  if (!isProtected && !isAuthPage) return NextResponse.next();
+
+  // Stamp vc_sf_ctx when this request associates the visitor with a
+  // storefront (branding only). Public storefront pages return early
+  // below, so set it on that response too.
+  const ctxSlug = storefrontCtxSlug(req);
+  if (!isProtected && !isAuthPage) {
+    const res = NextResponse.next();
+    if (ctxSlug && ctxSlug !== storedCtxSlug(req)) {
+      res.cookies.set(SF_CTX_COOKIE, ctxSlug, {
+        path: "/",
+        maxAge: SF_CTX_MAX_AGE,
+        sameSite: "lax",
+        httpOnly: false,
+      });
+    }
+    return res;
+  }
 
   // Create a Supabase server client that reads/writes cookies on the request/response
   let response = NextResponse.next({ request: req });
@@ -270,10 +292,13 @@ export async function proxy(req: NextRequest) {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirect", pathname);
+    // Keep the operator's brand on the login screen after a bounce.
+    const brandSlug = ctxSlug || storedCtxSlug(req);
+    if (brandSlug) loginUrl.searchParams.set("storefront", brandSlug);
     const res = NextResponse.redirect(loginUrl);
     // Signed out — drop any stale lock cookie so it can't 403 the next
     // account's API calls (the API leg can't verify which user it was
-    // stamped for).
+    // stamped for). vc_sf_ctx is intentionally KEPT (branding, not auth).
     res.cookies.delete(SF_LOCK_COOKIE);
     return res;
   }
@@ -310,6 +335,16 @@ export async function proxy(req: NextRequest) {
         maxAge: SF_LOCK_TTL_SECONDS,
         sameSite: "lax",
         httpOnly: true,
+      });
+    }
+    // Persist the branding context on authed/auth-page responses too
+    // (e.g. /login?storefront=…) so it survives the next redirect.
+    if (ctxSlug && ctxSlug !== storedCtxSlug(req)) {
+      res.cookies.set(SF_CTX_COOKIE, ctxSlug, {
+        path: "/",
+        maxAge: SF_CTX_MAX_AGE,
+        sameSite: "lax",
+        httpOnly: false,
       });
     }
     return res;
