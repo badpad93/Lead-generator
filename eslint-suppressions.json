@@ -2186,6 +2186,11 @@
       "count": 1
     }
   },
+  "src/app/check-email/CheckEmailClient.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/app/coffee/agreement/page.tsx": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
@@ -2618,12 +2623,9 @@
       "count": 2
     }
   },
-  "src/app/login/page.tsx": {
+  "src/app/login/LoginClient.tsx": {
     "@next/next/no-location-assign-relative-destination": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
+      "count": 2
     },
     "complexity": {
       "count": 3
@@ -3027,8 +3029,8 @@
       "count": 1
     }
   },
-  "src/app/reset-password/page.tsx": {
-    "@next/next/no-location-assign-relative-destination": {
+  "src/app/reset-password/ResetPasswordClient.tsx": {
+    "complexity": {
       "count": 1
     },
     "no-nested-ternary": {
@@ -3612,12 +3614,12 @@
       "count": 1
     }
   },
-  "src/app/verify-email-required/page.tsx": {
-    "@next/next/no-location-assign-relative-destination": {
+  "src/app/verify-email-required/VerifyEmailRequiredClient.tsx": {
+    "complexity": {
       "count": 1
     }
   },
-  "src/app/verify-email/page.tsx": {
+  "src/app/verify-email/VerifyEmailClient.tsx": {
     "complexity": {
       "count": 1
     },
@@ -4207,6 +4209,11 @@
       "count": 3
     },
     "max-lines": {
+      "count": 1
+    }
+  },
+  "src/lib/storefrontAuthContext.ts": {
+    "complexity": {
       "count": 1
     }
   },
