@@ -224,6 +224,7 @@ export default function InvitePage() {
   const primary = (brand.primary_color as string) || "#1a1a1a";
   const accent = (brand.accent_color as string) || "#c4a877";
   const text = (brand.text_color as string) || "#f4f0e8";
+  const logoUrl = (brand.logo_url as string) || null;
 
   if (preview.invitation.expired || preview.invitation.revoked) {
     return (
@@ -257,6 +258,14 @@ export default function InvitePage() {
     <div className="min-h-screen" style={{ background: "#f6f4ef" }}>
       <header className="w-full py-10 px-6" style={{ background: primary, color: text }}>
         <div className="max-w-3xl mx-auto">
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoUrl}
+              alt={`${preview.tenant.display_name} logo`}
+              className="mb-4 h-12 w-auto"
+            />
+          ) : null}
           <div className="text-sm opacity-75">You've been invited to</div>
           <div className="text-3xl font-semibold mt-1" style={{ color: accent }}>
             {preview.tenant.display_name}
@@ -316,6 +325,9 @@ export default function InvitePage() {
               Not now
             </Link>
           </div>
+        </div>
+        <div className="mt-6 text-center text-xs text-gray-400">
+          Powered by Vending Connector
         </div>
       </main>
     </div>

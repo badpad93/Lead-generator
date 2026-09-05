@@ -64,24 +64,37 @@ const AUTH_SHELL_PATHS = new Set([
 
 /**
  * Is this a tenant customer-shell request?
- *   - a storefront page (/coffee/o/{slug}) — ALWAYS, or
+ *   - a storefront page (/coffee/o/{slug}) — ALWAYS,
+ *   - an invitation landing page (/coffee/invite/{token}) — ALWAYS (it is
+ *     inherently part of the operator's customer journey; no cookie/param
+ *     needed, and even an invalid/expired token stays in the minimal shell),
  *   - an auth page WITH storefront context: explicit ?storefront=, an
  *     ?invite_token= param (fresh-browser first-time signup, no cookie
  *     yet), a stashed invite-token cookie, or the durable vc_sf_ctx
  *     cookie (a returning customer hitting a bare /login still qualifies).
- * Branding/shell only — never an authorization decision. The ?invite_token=
- * param merely selects the minimal shell before render; the signup page
- * remains responsible for validating/resolving the invite.
+ * Branding/shell only — never an authorization decision. The token/param
+ * merely selects the minimal shell before render; the invite/signup pages
+ * remain responsible for validating/resolving the invitation.
  */
-export function isCustomerShellRequest(req: NextRequest): boolean {
-  const p = req.nextUrl.pathname;
-  if (p.startsWith("/coffee/o/")) return true;
-  const isAuthPath = AUTH_SHELL_PATHS.has(p) || p.startsWith("/auth/callback");
-  if (!isAuthPath) return false;
+/** Auth pages that adopt the operator shell when storefront context exists. */
+function isAuthShellPath(pathname: string): boolean {
+  return AUTH_SHELL_PATHS.has(pathname) || pathname.startsWith("/auth/callback");
+}
+
+/** Does this auth request carry any storefront branding context? */
+function authRequestHasStorefrontContext(req: NextRequest): boolean {
   return (
     !!storefrontCtxSlug(req) ||
     !!req.nextUrl.searchParams.get("invite_token") ||
     !!storedCtxSlug(req) ||
     !!req.cookies.get(INVITE_TOKEN_COOKIE)?.value
   );
+}
+
+export function isCustomerShellRequest(req: NextRequest): boolean {
+  const p = req.nextUrl.pathname;
+  // Storefront + invitation landing pages are always operator-shell.
+  if (p.startsWith("/coffee/o/") || p.startsWith("/coffee/invite/")) return true;
+  if (!isAuthShellPath(p)) return false;
+  return authRequestHasStorefrontContext(req);
 }

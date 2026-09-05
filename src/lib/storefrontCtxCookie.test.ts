@@ -19,6 +19,13 @@ describe("isCustomerShellRequest", () => {
     expect(isCustomerShellRequest(req("/coffee/o/abc-vending/anything"))).toBe(true);
   });
 
+  it("invitation landing pages always use the customer shell (no cookie/param needed)", () => {
+    // Fresh browser, no vc_sf_ctx / invite cookie — still operator shell.
+    expect(isCustomerShellRequest(req("/coffee/invite/abc123"))).toBe(true);
+    // Even a malformed/invalid token stays in the minimal shell.
+    expect(isCustomerShellRequest(req("/coffee/invite/not-a-valid-token"))).toBe(true);
+  });
+
   it("auth page + explicit ?storefront= uses the customer shell", () => {
     expect(isCustomerShellRequest(req("/login?storefront=abc-vending"))).toBe(true);
     expect(isCustomerShellRequest(req("/forgot-password?storefront=abc-vending"))).toBe(true);
