@@ -1944,6 +1944,11 @@
       "count": 1
     }
   },
+  "src/app/api/storefront/tenant/customer-tiers/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/app/api/storefront/tenant/customers/route.ts": {
     "complexity": {
       "count": 1
@@ -1970,6 +1975,11 @@
     },
     "no-nested-ternary": {
       "count": 1
+    }
+  },
+  "src/app/api/storefront/tenant/tier-prices/route.ts": {
+    "complexity": {
+      "count": 2
     }
   },
   "src/app/api/storefront/tenant/visibility/route.ts": {
@@ -2328,10 +2338,13 @@
   },
   "src/app/coffee/storefront/customers/page.tsx": {
     "complexity": {
-      "count": 2
+      "count": 3
     },
     "no-nested-ternary": {
       "count": 2
+    },
+    "react-hooks/preserve-manual-memoization": {
+      "count": 1
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -2364,7 +2377,7 @@
   },
   "src/app/coffee/storefront/pricing/page.tsx": {
     "complexity": {
-      "count": 3
+      "count": 2
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -3701,6 +3714,11 @@
   "src/lib/coffeeInvoiceRetry.ts": {
     "complexity": {
       "count": 2
+    }
+  },
+  "src/lib/coffeePricing.storefront.test.ts": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/lib/coffeePricing.ts": {

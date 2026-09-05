@@ -124,16 +124,21 @@ export async function POST(req: NextRequest) {
   const assetType = assetTypeRaw as "logo" | "favicon";
 
   // Authorization: figure out which tenant this write targets.
+  //
+  // Order matters. An admin who ALSO owns a storefront uploads a logo
+  // from their OWN storefront brand editor, which (correctly) sends no
+  // tenant_id. The old order checked adminId FIRST and demanded a
+  // tenant_id the owner UI never sends, so admin-owners couldn't upload
+  // their own logo. Resolve as an admin acting on another tenant only
+  // when a tenant_id was explicitly supplied; otherwise fall back to
+  // the caller's own tenant.
   let tenantId: string;
   let actorRole: "operator" | "admin";
-  if (adminId) {
-    if (typeof requestedTenantId !== "string" || !requestedTenantId) {
-      return NextResponse.json(
-        { error: "tenant_id form field required for admin uploads" },
-        { status: 400 },
-      );
-    }
-    const t = await resolveTenantById(requestedTenantId);
+  const explicitTenantId =
+    typeof requestedTenantId === "string" && requestedTenantId ? requestedTenantId : null;
+
+  if (adminId && explicitTenantId) {
+    const t = await resolveTenantById(explicitTenantId);
     if (!t) {
       return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     }
@@ -141,14 +146,20 @@ export async function POST(req: NextRequest) {
     actorRole = "admin";
   } else {
     const owned = await resolveTenantByOwner(userId);
-    if (!owned) {
+    if (owned) {
+      tenantId = owned.id;
+      actorRole = adminId ? "admin" : "operator";
+    } else if (adminId) {
+      return NextResponse.json(
+        { error: "tenant_id form field required for admin uploads" },
+        { status: 400 },
+      );
+    } else {
       return NextResponse.json(
         { error: "No tenant owned by this account" },
         { status: 403 },
       );
     }
-    tenantId = owned.id;
-    actorRole = "operator";
   }
 
   const mime = file.type || "application/octet-stream";
