@@ -56,7 +56,12 @@ export default function AdminBrandEditorPage({
         const body = (await res.json()) as { tenant: Tenant };
         return body.tenant;
       }}
-      saveBrand={async (payload: { brand: Brand; public_page: PublicPage }) => {
+      saveBrand={async (payload: {
+        brand: Brand;
+        public_page: PublicPage;
+        display_name: string;
+        legal_name: string;
+      }) => {
         const res = await fetch(`/api/admin/storefronts/tenants/${id}`, {
           method: "PATCH",
           headers: {
@@ -65,7 +70,12 @@ export default function AdminBrandEditorPage({
           },
           // Admin PATCH takes { patch: {...} }, not top-level fields.
           body: JSON.stringify({
-            patch: { brand: payload.brand, public_page: payload.public_page },
+            patch: {
+              brand: payload.brand,
+              public_page: payload.public_page,
+              display_name: payload.display_name,
+              legal_name: payload.legal_name,
+            },
           }),
         });
         if (!res.ok) {

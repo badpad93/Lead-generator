@@ -8,7 +8,7 @@
  * Each caller supplies:
  *   loadTenant()  — returns the current Tenant (owner uses GET /api/storefront/tenant;
  *                   admin uses GET /api/admin/storefronts/tenants/{id})
- *   saveBrand({ brand, public_page }) — persists and returns the updated Tenant
+ *   saveBrand({ brand, public_page, display_name, legal_name }) — persists and returns the updated Tenant
  *                   (owner uses PATCH /api/storefront/tenant with the fields at top-level;
  *                    admin uses PATCH /api/admin/storefronts/tenants/{id} with { patch: {...} })
  *   backHref, backLabel — the "← …" link at the top-left
@@ -57,6 +57,8 @@ export interface BrandEditorProps {
   saveBrand: (payload: {
     brand: Brand;
     public_page: PublicPage;
+    display_name: string;
+    legal_name: string;
   }) => Promise<Tenant>;
   /**
    * Upload a logo/favicon file and return its public URL. The
@@ -122,6 +124,8 @@ export default function BrandEditor({
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [brand, setBrand] = useState<Brand>({});
   const [publicPage, setPublicPage] = useState<PublicPage>({});
+  const [displayName, setDisplayName] = useState("");
+  const [legalName, setLegalName] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,6 +140,8 @@ export default function BrandEditor({
       if (t) {
         setBrand(t.brand ?? {});
         setPublicPage(t.public_page ?? {});
+        setDisplayName(t.display_name ?? "");
+        setLegalName(t.legal_name ?? "");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -149,11 +155,22 @@ export default function BrandEditor({
   }, [load]);
 
   async function save() {
+    if (!displayName.trim()) {
+      setError("Storefront name can't be empty.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      const t = await saveBrand({ brand, public_page: publicPage });
+      const t = await saveBrand({
+        brand,
+        public_page: publicPage,
+        display_name: displayName.trim(),
+        legal_name: legalName.trim() || displayName.trim(),
+      });
       setTenant(t);
+      setDisplayName(t.display_name ?? "");
+      setLegalName(t.legal_name ?? "");
       setSavedAt(Date.now());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
@@ -181,6 +198,9 @@ export default function BrandEditor({
   const primary = brand.primary_color || DEFAULTS.primary_color;
   const accent = brand.accent_color || DEFAULTS.accent_color;
   const text = brand.text_color || DEFAULTS.text_color;
+  // Preview reflects the in-progress name edits, falling back to the saved ones.
+  const previewName = displayName.trim() || tenant.display_name;
+  const previewLegal = legalName.trim() || previewName;
 
   return (
     <div className="max-w-6xl mx-auto p-8">
@@ -219,6 +239,26 @@ export default function BrandEditor({
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-6">
+          <Section title="Storefront name">
+            <TextField
+              label="Display name (shown to customers everywhere)"
+              value={displayName}
+              onChange={setDisplayName}
+              placeholder="e.g. Twelve28Vend"
+            />
+            <TextField
+              label="Legal name (used in the footer / receipts)"
+              value={legalName}
+              onChange={setLegalName}
+              placeholder="e.g. Twelve28Vend LLC — defaults to the display name"
+            />
+            <p className="text-xs text-gray-500">
+              The display name is the operator brand shown on the storefront,
+              auth screens, and emails. Renaming does not change the storefront
+              URL (<code>/coffee/o/{tenant.slug}</code>).
+            </p>
+          </Section>
+
           <Section title="Logo & favicon">
             <AssetUploader
               label="Logo"
@@ -356,7 +396,7 @@ export default function BrandEditor({
                 )}
                 <div>
                   <div className="text-lg font-semibold">
-                    {tenant.display_name}
+                    {previewName}
                   </div>
                   <div className="text-[10px] opacity-70">
                     Powered by Vending Connector
@@ -368,7 +408,7 @@ export default function BrandEditor({
                   className="text-2xl md:text-3xl font-semibold"
                   style={{ color: accent }}
                 >
-                  {brand.hero_headline || `Coffee from ${tenant.display_name}`}
+                  {brand.hero_headline || `Coffee from ${previewName}`}
                 </h1>
                 {brand.hero_subheadline ? (
                   <p className="mt-2 text-sm opacity-90 max-w-md">
@@ -400,7 +440,7 @@ export default function BrandEditor({
               className="px-6 py-4 text-[11px]"
               style={{ background: primary, color: text, opacity: 0.9 }}
             >
-              © {new Date().getFullYear()} {tenant.legal_name}. All rights
+              © {new Date().getFullYear()} {previewLegal}. All rights
               reserved.
               {brand.footer_note ? (
                 <div className="opacity-80 mt-1">{brand.footer_note}</div>
