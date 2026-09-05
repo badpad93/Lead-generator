@@ -176,8 +176,15 @@ export async function POST(
   if (isFullySigned) {
     try {
       await handleFullySignedAgreement(agreement.id);
-    } catch {
-      // Best-effort — signing itself already succeeded
+    } catch (e) {
+      // Signing itself already succeeded, but record WHY the
+      // post-execution side effects (PDF, invoice) failed so a
+      // "payment didn't trigger" report has a trail to follow.
+      await supabaseAdmin.from("agreement_activity_log").insert({
+        agreement_id: agreement.id,
+        activity_type: "post_sign_processing_failed",
+        description: `handleFullySignedAgreement threw after operator signature: ${e instanceof Error ? e.message : String(e)}`,
+      });
     }
   }
 

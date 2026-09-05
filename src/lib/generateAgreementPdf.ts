@@ -890,17 +890,32 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
 
   const isLocationPlacement = ag.agreement_type === "location_placement";
 
-  // Generate the signed PDF
-  let pdfBytes: Uint8Array;
-  if (isLocationPlacement) {
-    const { generateLocationPlacementPdf } = await import("./generateLocationPlacementPdf");
-    // Signed copy goes to operator + james@ + rep — never the location —
-    // so include the Apex Billing addendum.
-    pdfBytes = await generateLocationPlacementPdf(ag, signatures || [], initials || [], "operator");
-  } else {
-    pdfBytes = await generatePurchaseAgreementPdf(ag, signatures || [], initials || []);
+  // Generate the signed PDF. GUARDED: a render failure here must NOT
+  // abort the function, because the invoice-firing blocks that make
+  // the customer able to pay live BELOW this and the callers swallow
+  // any throw silently. A brittle PDF once meant "signed + countersigned
+  // but payment never triggered." The money path no longer depends on
+  // the document render succeeding.
+  let pdfBuffer: Buffer | null = null;
+  try {
+    let pdfBytes: Uint8Array;
+    if (isLocationPlacement) {
+      const { generateLocationPlacementPdf } = await import("./generateLocationPlacementPdf");
+      // Signed copy goes to operator + james@ + rep — never the location —
+      // so include the Apex Billing addendum.
+      pdfBytes = await generateLocationPlacementPdf(ag, signatures || [], initials || [], "operator");
+    } else {
+      pdfBytes = await generatePurchaseAgreementPdf(ag, signatures || [], initials || []);
+    }
+    pdfBuffer = Buffer.from(pdfBytes);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await supabaseAdmin.from("agreement_activity_log").insert({
+      agreement_id: agreementId,
+      activity_type: "signed_pdf_failed",
+      description: `Signed PDF generation failed (invoice/order still processed): ${msg}`,
+    });
   }
-  const pdfBuffer = Buffer.from(pdfBytes);
 
   const companySlug = isLocationPlacement
     ? (ag.location_business_name || "location").replace(/[^a-zA-Z0-9]/g, "_")
@@ -909,12 +924,14 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
   const fileName = `Signed-${docKind}-${companySlug}-${agreementId.slice(0, 8)}.pdf`;
   const storagePath = `agreements/${agreementId}/${fileName}`;
 
-  // Upload to Supabase storage
+  // Upload to Supabase storage (only if the PDF rendered)
   let publicUrl = "";
   try {
-    const { error: uploadErr } = await supabaseAdmin.storage
-      .from("sales-documents")
-      .upload(storagePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
+    const { error: uploadErr } = pdfBuffer
+      ? await supabaseAdmin.storage
+          .from("sales-documents")
+          .upload(storagePath, pdfBuffer, { contentType: "application/pdf", upsert: true })
+      : { error: new Error("pdf_unavailable") };
 
     if (!uploadErr) {
       const { data: urlData } = supabaseAdmin.storage
@@ -954,7 +971,7 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
   // Email the signed PDF
   // - Purchase agreement: operator + james@
   // - Location placement: operator + james@ + rep (all three get the signed copy)
-  if (process.env.RESEND_API_KEY) {
+  if (process.env.RESEND_API_KEY && pdfBuffer) {
     try {
       const recipients: string[] = [];
       if (isLocationPlacement) {
