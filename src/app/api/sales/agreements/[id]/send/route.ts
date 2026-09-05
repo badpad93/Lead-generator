@@ -198,7 +198,7 @@ export async function POST(
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:40px 24px;color:#111827;">
   <div style="text-align:center;margin-bottom:32px;">
     <h1 style="color:#16a34a;font-size:22px;margin:0;">Apex AI Vending</h1>
-    <p style="color:#6b7280;font-size:14px;margin:8px 0 0;">VendEra AI Machine Purchase &amp; Services Agreement</p>
+    <p style="color:#6b7280;font-size:14px;margin:8px 0 0;">Purchase Agreement</p>
   </div>
 
   <p>Hi ${agreement.operator_legal_name || agreement.operator_company_name},</p>
@@ -239,7 +239,7 @@ export async function POST(
 
   const subject = isLocationPlacement
     ? `Location Placement Agreement — ${agreement.location_business_name || "Your Location"}`
-    : "Your VendEra AI Machine Purchase & Services Agreement";
+    : "Your Purchase Agreement";
 
   // Send email
   try {

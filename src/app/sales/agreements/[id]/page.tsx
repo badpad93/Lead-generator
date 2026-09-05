@@ -1889,7 +1889,7 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
             <p className="text-sm text-gray-500">Apex AI Vending LLC</p>
           </div>
 
-          <p>This VendEra AI Machine Purchase &amp; Services Agreement (this &ldquo;Agreement&rdquo;) is entered into as of <strong>{effectiveDate}</strong> (the &ldquo;Effective Date&rdquo;), by and between:</p>
+          <p>This Purchase Agreement (this &ldquo;Agreement&rdquo;) is entered into as of <strong>{effectiveDate}</strong> (the &ldquo;Effective Date&rdquo;), by and between:</p>
           <p><strong>Apex AI Vending LLC</strong>, a Texas limited liability company (&ldquo;Apex&rdquo; or &ldquo;Company&rdquo;), and</p>
           <p><strong>{companyName}</strong>, with its principal office at {billingAddr} (&ldquo;Operator&rdquo; or &ldquo;Buyer&rdquo;).</p>
           <p className="text-xs text-gray-500 italic">Operator Contact: {legalName}, {title} | Email: {email} | Phone: {phone}</p>
