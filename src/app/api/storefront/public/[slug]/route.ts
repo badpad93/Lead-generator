@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveTenantBySlug } from "@/lib/storefront/tenants";
+import { getHiddenProductIds } from "@/lib/storefront/visibility";
 
 /**
  * Public storefront read — the anonymous /coffee/o/[slug] page hits
@@ -29,7 +30,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
       productsRes.error,
     );
   }
-  const products = productsRes.data ?? [];
+  // Drop items the owner has hidden for this storefront, so every
+  // consumer of this endpoint (quote builder, etc.) matches the public
+  // page, price list and checkout.
+  const hidden = await getHiddenProductIds(tenant.id);
+  const products = (productsRes.data ?? []).filter((p) => !hidden.has(p.id as string));
 
   return NextResponse.json({
     tenant: {
