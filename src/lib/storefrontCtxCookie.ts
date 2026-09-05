@@ -65,10 +65,13 @@ const AUTH_SHELL_PATHS = new Set([
 /**
  * Is this a tenant customer-shell request?
  *   - a storefront page (/coffee/o/{slug}) — ALWAYS, or
- *   - an auth page WITH storefront context: explicit ?storefront=, a
- *     stashed invite token, or the durable vc_sf_ctx cookie (a returning
- *     customer hitting a bare /login still qualifies).
- * Branding/shell only — never an authorization decision.
+ *   - an auth page WITH storefront context: explicit ?storefront=, an
+ *     ?invite_token= param (fresh-browser first-time signup, no cookie
+ *     yet), a stashed invite-token cookie, or the durable vc_sf_ctx
+ *     cookie (a returning customer hitting a bare /login still qualifies).
+ * Branding/shell only — never an authorization decision. The ?invite_token=
+ * param merely selects the minimal shell before render; the signup page
+ * remains responsible for validating/resolving the invite.
  */
 export function isCustomerShellRequest(req: NextRequest): boolean {
   const p = req.nextUrl.pathname;
@@ -77,6 +80,7 @@ export function isCustomerShellRequest(req: NextRequest): boolean {
   if (!isAuthPath) return false;
   return (
     !!storefrontCtxSlug(req) ||
+    !!req.nextUrl.searchParams.get("invite_token") ||
     !!storedCtxSlug(req) ||
     !!req.cookies.get(INVITE_TOKEN_COOKIE)?.value
   );

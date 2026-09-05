@@ -33,6 +33,12 @@ describe("isCustomerShellRequest", () => {
     expect(isCustomerShellRequest(req("/signup", "vc_storefront_invite_token=sometoken"))).toBe(true);
   });
 
+  it("fresh-browser /signup?invite_token= (no cookies) uses the customer shell", () => {
+    // First-time invited-customer signup: the token is only in the URL,
+    // no vc_sf_ctx / invite cookie exists yet. Must still drop VC chrome.
+    expect(isCustomerShellRequest(req("/signup?invite_token=abc123"))).toBe(true);
+  });
+
   it("auth/callback with context uses the customer shell", () => {
     expect(isCustomerShellRequest(req("/auth/callback?flow=login&storefront=abc-vending"))).toBe(true);
     expect(isCustomerShellRequest(req("/auth/callback", "vc_sf_ctx=abc-vending"))).toBe(true);
