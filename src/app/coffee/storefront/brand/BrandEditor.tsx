@@ -212,7 +212,7 @@ export default function BrandEditor({
           <h1 className="text-2xl font-semibold">{headline}</h1>
           <p className="text-sm text-gray-600 mt-1">
             {editingContextNote ??
-              `Live preview shows how the public page at /coffee/o/${tenant.slug} will look.`}
+              `Live preview shows how your public storefront page will look.`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -254,8 +254,8 @@ export default function BrandEditor({
             />
             <p className="text-xs text-gray-500">
               The display name is the operator brand shown on the storefront,
-              auth screens, and emails. Renaming does not change the storefront
-              URL (<code>/coffee/o/{tenant.slug}</code>).
+              auth screens, and emails. Renaming updates the name everywhere
+              customers see it; your storefront&apos;s web address stays the same.
             </p>
           </Section>
 
@@ -448,8 +448,8 @@ export default function BrandEditor({
             </div>
           </div>
           <p className="mt-3 text-xs text-gray-500">
-            Preview updates as you type. Click Save to publish. Changes are live
-            on <code>/coffee/o/{tenant.slug}</code> immediately after save.
+            Preview updates as you type. Click Save to publish — changes are live
+            on your public storefront page immediately after save.
           </p>
         </div>
       </div>

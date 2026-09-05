@@ -144,7 +144,6 @@ export default function StorefrontDashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold">{tenant.display_name}</h1>
           <div className="text-sm text-gray-600 mt-1">
-            /coffee/o/{tenant.slug} ·{" "}
             <span
               className={
                 tenant.status === "approved"
@@ -178,7 +177,7 @@ export default function StorefrontDashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
         <DashCard href="/coffee/storefront/brand" title="Brand & appearance">
-          Logo, colors, hero copy — what customers see at /coffee/o/{tenant.slug}.
+          Logo, colors, hero copy, and your storefront name — what customers see on your public page.
         </DashCard>
         <DashCard href="/coffee/storefront/pricing" title="Pricing">
           Set your customer-facing prices and per-customer overrides.
