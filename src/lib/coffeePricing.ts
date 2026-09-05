@@ -262,17 +262,29 @@ async function applyStorefrontOverlay(
   bases: Map<string, ProductBaseRow>,
   ctx: StorefrontContext,
 ): Promise<void> {
-  const [tenantResp, tenantPriceResp, customerPriceResp, proposalPrices] = await Promise.all([
+  // Which pricing tier is this customer assigned to for this
+  // storefront? Absent row = Tier 1 (migration 185).
+  const { data: tierRow } = await supabaseAdmin
+    .from("storefront_customer_tiers")
+    .select("tier")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("customer_profile_id", ctx.customerProfileId)
+    .maybeSingle();
+  const customerTier = Number((tierRow as { tier?: number } | null)?.tier) || 1;
+
+  const [tenantResp, tierPriceResp, customerPriceResp, proposalPrices] = await Promise.all([
     supabaseAdmin
       .from("storefront_tenants")
       .select("id, base_pricing_tier_id")
       .eq("id", ctx.tenantId)
       .maybeSingle(),
+    // The owner's price for this customer's tier. A missing row falls
+    // through to the product list price below.
     supabaseAdmin
-      .from("storefront_tenant_prices")
+      .from("storefront_tenant_tier_prices")
       .select("product_id, customer_price")
       .eq("tenant_id", ctx.tenantId)
-      .eq("active", true)
+      .eq("tier", customerTier)
       .in("product_id", productIds),
     supabaseAdmin
       .from("storefront_customer_prices")
@@ -305,7 +317,7 @@ async function applyStorefrontOverlay(
     }
     return m;
   };
-  const tenantPrices = toPriceMap(tenantPriceResp.data);
+  const tenantPrices = toPriceMap(tierPriceResp.data);
   const customerPrices = toPriceMap(customerPriceResp.data);
 
   for (const pid of productIds) {

@@ -25,6 +25,37 @@ export default function CustomersPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  // Pricing-tier assignment (migration 185). Absent = Tier 1.
+  const [tierAssignments, setTierAssignments] = useState<Record<string, number>>({});
+  const [tierNames, setTierNames] = useState<Record<string, string>>({ "1": "Tier 1", "2": "Tier 2", "3": "Tier 3" });
+  const [savingTier, setSavingTier] = useState<string | null>(null);
+
+  async function handleTierChange(customerId: string, tier: number) {
+    setSavingTier(customerId);
+    setError(null);
+    const prev = tierAssignments[customerId] ?? 1;
+    setTierAssignments((a) => ({ ...a, [customerId]: tier }));
+    try {
+      const supabase = createBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch("/api/storefront/tenant/customer-tiers", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({ entries: [{ customer_profile_id: customerId, tier }] }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (e) {
+      setTierAssignments((a) => ({ ...a, [customerId]: prev })); // revert
+      setError(e instanceof Error ? e.message : "Could not update tier");
+    } finally {
+      setSavingTier(null);
+    }
+  }
 
   // Delete a customer entirely. Customer-only accounts are removed
   // outright (login killed); accounts with other platform roles are
@@ -68,12 +99,23 @@ export default function CustomersPage() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const res = await fetch("/api/storefront/tenant/customers", {
-        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
-      });
+      const auth = { Authorization: `Bearer ${session?.access_token ?? ""}` };
+      const [res, tierRes, priceRes] = await Promise.all([
+        fetch("/api/storefront/tenant/customers", { headers: auth }),
+        fetch("/api/storefront/tenant/customer-tiers", { headers: auth }),
+        fetch("/api/storefront/tenant/tier-prices", { headers: auth }),
+      ]);
       if (!res.ok) throw new Error(await res.text());
       const body = (await res.json()) as { customers: Customer[] };
       setCustomers(body.customers);
+      if (tierRes.ok) {
+        const tb = (await tierRes.json()) as { assignments?: Record<string, number> };
+        setTierAssignments(tb.assignments ?? {});
+      }
+      if (priceRes.ok) {
+        const pb = (await priceRes.json()) as { tier_names?: Record<string, string> };
+        if (pb.tier_names) setTierNames(pb.tier_names);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -103,6 +145,7 @@ export default function CustomersPage() {
           <tr>
             <th className="py-2">Customer</th>
             <th className="py-2">Location</th>
+            <th className="py-2">Pricing tier</th>
             <th className="py-2 text-right">Orders</th>
             <th className="py-2 text-right">Lifetime spend</th>
             <th className="py-2 text-right">Your commission</th>
@@ -112,13 +155,13 @@ export default function CustomersPage() {
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={6} className="py-4 text-gray-500">
+              <td colSpan={7} className="py-4 text-gray-500">
                 Loading…
               </td>
             </tr>
           ) : customers.length === 0 ? (
             <tr>
-              <td colSpan={6} className="py-4 text-gray-500">
+              <td colSpan={7} className="py-4 text-gray-500">
                 No customers yet.{" "}
                 <Link
                   href="/coffee/storefront/invitations"
@@ -138,6 +181,18 @@ export default function CustomersPage() {
                 </td>
                 <td className="py-2 text-gray-600">
                   {[c.city, c.state].filter(Boolean).join(", ") || "—"}
+                </td>
+                <td className="py-2">
+                  <select
+                    value={tierAssignments[c.id] ?? 1}
+                    disabled={savingTier === c.id}
+                    onChange={(e) => handleTierChange(c.id, Number(e.target.value))}
+                    className="border rounded px-2 py-1 text-xs disabled:opacity-50"
+                  >
+                    {[1, 2, 3].map((t) => (
+                      <option key={t} value={t}>{tierNames[String(t)] ?? `Tier ${t}`}</option>
+                    ))}
+                  </select>
                 </td>
                 <td className="py-2 text-right">{c.orderCount}</td>
                 <td className="py-2 text-right">${c.lifetimeSpend.toFixed(2)}</td>

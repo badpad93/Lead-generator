@@ -27,7 +27,7 @@ interface Scenario {
     price: number;
     is_active: boolean;
   }>;
-  tenantPrices: Array<{ tenant_id: string; product_id: string; customer_price: number; active: boolean }>;
+  tenantPrices: Array<{ tenant_id: string; tier: number; product_id: string; customer_price: number; active: boolean }>;
   customerPrices: Array<{
     customer_profile_id: string;
     product_id: string;
@@ -74,8 +74,10 @@ vi.mock("@/lib/supabaseAdmin", () => ({
           return chain(scenario.products);
         case "coffee_product_tier_prices":
           return chain(scenario.tierPrices);
-        case "storefront_tenant_prices":
+        case "storefront_tenant_tier_prices":
           return chain(scenario.tenantPrices);
+        case "storefront_customer_tiers":
+          return chain([]);
         case "storefront_customer_prices":
           return chain(scenario.customerPrices);
         case "coffee_pricing_proposals":
@@ -162,6 +164,7 @@ describe("storefront overlay — precedence", () => {
   it("tenant price beats product list price", async () => {
     scenario.tenantPrices.push({
       tenant_id: TENANT_ID,
+      tier: 1,
       product_id: PRODUCT_A,
       customer_price: 48.0,
       active: true,
@@ -175,6 +178,7 @@ describe("storefront overlay — precedence", () => {
   it("customer override beats tenant price", async () => {
     scenario.tenantPrices.push({
       tenant_id: TENANT_ID,
+      tier: 1,
       product_id: PRODUCT_A,
       customer_price: 48.0,
       active: true,
@@ -226,14 +230,30 @@ describe("storefront overlay — precedence", () => {
     expect(e.storefront!.price_source).toBe("customer_override");
   });
 
-  it("inactive tenant/customer prices are ignored", async () => {
+  it("a tier price applies for the customer's default (tier 1)", async () => {
+    // Tier prices have no active flag — a row means it's set. The
+    // customer defaults to tier 1 (no storefront_customer_tiers row).
     scenario.tenantPrices.push({
       tenant_id: TENANT_ID,
+      tier: 1,
       product_id: PRODUCT_A,
       customer_price: 48.0,
+      active: true,
+    });
+    const e = await resolveA();
+    expect(e.price).toBe(48.0);
+    expect(e.storefront!.price_source).toBe("tenant_price");
+  });
+
+  it("an inactive per-customer override is ignored", async () => {
+    scenario.customerPrices.push({
+      customer_profile_id: CUSTOMER_ID,
+      product_id: PRODUCT_A,
+      customer_price: 39.0,
       active: false,
     });
     const e = await resolveA();
+    // Falls through the inactive override to the product list price.
     expect(e.storefront!.price_source).toBe("product_recommended");
   });
 });
@@ -278,6 +298,7 @@ describe("storefront overlay — invariants", () => {
   it("rounds sell, base, and commission to 2dp", async () => {
     scenario.tenantPrices.push({
       tenant_id: TENANT_ID,
+      tier: 1,
       product_id: PRODUCT_A,
       customer_price: 48.555,
       active: true,
