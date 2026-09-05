@@ -65,6 +65,7 @@ const PUBLIC_PREFIXES = [
   "/coffee/guest-track/",
   "/coffee/o/",              // public branded storefront tenant pages
   "/coffee/invite/",          // storefront enrollment landing pages
+  "/coffee/quote/",           // public branded quote pages (token in URL)
   "/api/storefront/public/",  // anonymous storefront reads (product list, tenant hero)
   "/api/storefront/enrollment/", // token-verify + consume from the invite page
   "/financing/",             // /financing/complete-application + any future step

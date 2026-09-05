@@ -1934,6 +1934,19 @@
       "count": 1
     }
   },
+  "src/app/api/storefront/quotes/[id]/send/route.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/api/storefront/quotes/route.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
   "src/app/api/storefront/tenant/brand-asset/route.ts": {
     "complexity": {
       "count": 1
@@ -2321,6 +2334,22 @@
       "count": 1
     }
   },
+  "src/app/coffee/quote/[token]/QuoteAccept.tsx": {
+    "@next/next/no-location-assign-relative-destination": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/app/coffee/quote/[token]/page.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/app/coffee/storefront/brand/BrandEditor.tsx": {
     "complexity": {
       "count": 1
@@ -2385,6 +2414,22 @@
       "count": 2
     },
     "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/coffee/storefront/quotes/new/QuoteBuilder.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/coffee/storefront/quotes/page.tsx": {
+    "no-nested-ternary": {
       "count": 1
     }
   },
