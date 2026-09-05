@@ -124,7 +124,9 @@ export default function PricingPage() {
       const next = { ...d };
       for (const p of products) {
         const current = effectiveCell(next, markupTier, p);
-        next[`${markupTier}:${p.id}`] = Math.round((current + amount) * 100) / 100;
+        // Never below $0 (a markdown clamps at zero; base-price warnings
+        // still flag anything below the owner's cost).
+        next[`${markupTier}:${p.id}`] = Math.max(0, Math.round((current + amount) * 100) / 100);
       }
       return next;
     });
@@ -234,11 +236,11 @@ export default function PricingPage() {
         ))}
       </div>
 
-      {/* Bulk markup — add $5 to every price in one tier at a time. */}
+      {/* Bulk markup/markdown — step every price in one tier by $5. */}
       <div className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
         <div>
           <div className="text-sm font-medium">Markup</div>
-          <div className="text-xs text-gray-500">Add $5 to every item&apos;s price in the selected tier. Click again to add another $5. Review, then Save.</div>
+          <div className="text-xs text-gray-500">Add or remove $5 from every item&apos;s price in the selected tier. Click again to step another $5. Review, then Save.</div>
         </div>
         <label className="text-xs text-gray-500">
           Tier
@@ -252,6 +254,13 @@ export default function PricingPage() {
             ))}
           </select>
         </label>
+        <button
+          type="button"
+          onClick={() => applyMarkup(-5)}
+          className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-100 cursor-pointer"
+        >
+          − $5
+        </button>
         <button
           type="button"
           onClick={() => applyMarkup(5)}
