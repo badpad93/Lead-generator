@@ -42,6 +42,7 @@ const PUBLIC_EXACT = new Set<string>([
   "/careers",
   "/request-location",
   "/financing",
+  "/assistant",              // AI assistant — anonymous exploration allowed; the page 404s while assistant.enabled is off
   // Root static assets.
   "/favicon.ico",
   "/robots.txt",
@@ -108,7 +109,7 @@ function isCustomerAllowedPage(pathname: string): boolean {
 
 /** API families an enrolled customer's pages actually use. */
 const CUSTOMER_API_PREFIXES = [
-  "/api/auth/",
+  "/api/assistant/", "/api/auth/",
   "/api/storefront/",
   "/api/coffee/",
   "/api/account/",

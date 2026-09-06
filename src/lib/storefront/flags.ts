@@ -36,10 +36,22 @@
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-export type StorefrontFlagKey =
+/**
+ * Platform-wide flag keys. The assistant keys (migration 187) share this
+ * reader so they inherit the same fail-closed, server-only, short-TTL
+ * semantics. Only `assistant.enabled` gates behavior in Phase 1; the
+ * other two are reserved and attach to nothing.
+ */
+export type PlatformFlagKey =
   | "storefront.public_pages_enabled"
   | "storefront.enrollment_enabled"
-  | "storefront.checkout_enabled";
+  | "storefront.checkout_enabled"
+  | "assistant.enabled"
+  | "assistant.write_tools_enabled"
+  | "assistant.checkout_enabled";
+
+/** Back-compat alias — existing storefront callers keep compiling. */
+export type StorefrontFlagKey = PlatformFlagKey;
 
 const FLAG_TTL_MS = 45_000;
 
