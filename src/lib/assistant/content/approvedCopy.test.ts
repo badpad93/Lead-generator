@@ -1,4 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// catalogSearch transitively imports the Supabase admin client, whose env
+// guard runs at import time. CI's test job has no Supabase variables, so
+// stub the client like every other assistant test; nothing here touches
+// the database.
+vi.mock("@/lib/supabaseAdmin", () => ({ supabaseAdmin: { from: () => { throw new Error("unused"); } } }));
 import { APPROVED_COPY, APPROVED_COPY_VERSION } from "./approvedCopy";
 import { PROMPT_VERSION } from "../config";
 import { LOCATION_OFFERINGS, locationDetails } from "../catalogSearch";
