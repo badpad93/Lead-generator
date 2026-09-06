@@ -4,7 +4,10 @@ import { Resend } from "resend";
 import { pdfSafeInline, pdfSafeMultiline } from "./pdfSafeText";
 import {
   agreementTotals,
+  lineTotal,
+  sumLines,
   type ItemCategory,
+  type LineItemLike,
   type SnapshotLine,
 } from "@/lib/pricing/lineItems";
 import { buildOrderItemsFromAgreement } from "@/lib/agreements/sync";
@@ -1386,8 +1389,10 @@ async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
   if (items.length === 0) return;
 
   // Upfront total excludes the deferred location-services balance.
+  // Totals read through the canonical calculator so a $0 / 100%-
+  // discounted line stays $0 instead of being repriced to full.
   const upfrontItems = items.filter((i) => i.status !== "pending_fulfillment");
-  const totalValue = upfrontItems.reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
+  const totalValue = sumLines(upfrontItems as LineItemLike[]);
 
   const { data: order, error: orderErr } = await supabaseAdmin
     .from("sales_orders")
@@ -1444,7 +1449,7 @@ async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
       // every discounted line.
       const lineItems = upfrontItems.map((item) => {
         const quantity = Number(item.quantity) || 1;
-        const total = Number(item.total_price) || 0;
+        const total = lineTotal(item as LineItemLike);
         return {
           description: String(item.service_name || "Service"),
           amount: Math.round((total / quantity + Number.EPSILON) * 100) / 100,
@@ -1486,13 +1491,16 @@ async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
       .map((item) => {
         const qty = Number(item.quantity) || 1;
         const unitPrice = Number(item.unit_price) || 0;
-        const lineTotal = Number(item.total_price) || qty * unitPrice;
+        // Authoritative stored total via the canonical calculator. The
+        // old `Number(total_price) || qty * unitPrice` idiom repriced a
+        // $0 or 100%-discounted line back to full because 0 is falsy.
+        const rowTotal = lineTotal(item as LineItemLike);
         return `
           <tr>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#111;">${item.service_name}</td>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151;text-align:center;">${qty}</td>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151;text-align:right;">$${unitPrice.toFixed(2)}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151;text-align:right;">$${lineTotal.toFixed(2)}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151;text-align:right;">$${rowTotal.toFixed(2)}</td>
           </tr>`;
       })
       .join("");

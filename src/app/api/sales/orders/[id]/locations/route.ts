@@ -6,8 +6,8 @@ import {
   TIER_PRICES,
   TEN_TEN_TEN_PRICE,
   coerceTier,
-  type BusinessHours,
-  type MachinesRequested,
+  coerceBusinessHours,
+  coerceMachinesRequested,
   type LocationTier,
 } from "@/lib/pricing/locationPricing";
 
@@ -32,8 +32,6 @@ import {
 interface AttachBody {
   lead_id?: string;
 }
-
-const VALID_HOURS: BusinessHours[] = ["low", "medium", "high", "24/7"];
 
 function labelForTier(t: LocationTier): string {
   return t === 1 ? "Basic" : t === 2 ? "Premium" : "Elite";
@@ -167,17 +165,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         { status: 400 },
       );
     }
-    const bh = VALID_HOURS.includes(location.business_hours as BusinessHours)
-      ? (location.business_hours as BusinessHours)
-      : "low";
-    const machinesReq = Math.max(1, Math.min(4, Number(location.machines_requested))) as MachinesRequested;
     let result;
     try {
       result = calculateLocationPrice({
         employees: Number(location.employee_count) || 0,
         foot_traffic: Number(location.traffic_count) || 0,
-        business_hours: bh,
-        machines_requested: machinesReq,
+        business_hours: coerceBusinessHours(location.business_hours),
+        machines_requested: coerceMachinesRequested(location.machines_requested),
         is_ten_ten_ten: false,
       });
     } catch (e) {

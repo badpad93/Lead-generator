@@ -13,6 +13,7 @@ import AttributionPanel from "./AttributionPanel";
 import CommissionOverridePanel from "./CommissionOverridePanel";
 import SourcedLocationsPanel from "./SourcedLocationsPanel";
 import { deriveNextAction, deriveFlowState } from "@/lib/salesOrderNextAction";
+import { computeLineTotal, round2 } from "@/lib/pricing/lineItems";
 
 interface OrderItem {
   id: string;
@@ -1139,6 +1140,16 @@ interface CustomLineItem {
   description: string;
   quantity: string;
   unit_price: string;
+  // Carried from the order line so the receipt total honours the same
+  // discount the order/agreement do. Not editable in the modal UI — a
+  // rep editing qty/unit_price still keeps the line's discount.
+  discount_percent: string;
+}
+
+/** Authoritative per-line total for a receipt line, via the canonical
+ *  calculator (discount-aware; a $0 line stays $0). */
+function receiptLineTotal(i: CustomLineItem): number {
+  return computeLineTotal(i.quantity, i.unit_price, i.discount_percent);
 }
 
 function CustomReceiptModal({ order, token, onClose, onSent }: CustomReceiptModalProps) {
@@ -1164,15 +1175,19 @@ function CustomReceiptModal({ order, token, onClose, onSent }: CustomReceiptModa
           description: i.description || "",
           quantity: String(i.quantity || 1),
           unit_price: String(i.unit_price || 0),
+          discount_percent: String(i.discount_percent ?? 0),
         }))
-      : [{ service_name: "", description: "", quantity: "1", unit_price: "0" }],
+      : [{ service_name: "", description: "", quantity: "1", unit_price: "0", discount_percent: "0" }],
   );
 
-  const itemsSubtotal = items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unit_price) || 0), 0);
+  // Discount-aware subtotal via the canonical calculator — matches the
+  // order/agreement totals instead of the old discount-blind
+  // qty * unit_price, which over-charged every discounted line.
+  const itemsSubtotal = round2(items.reduce((s, i) => s + receiptLineTotal(i), 0));
   const finalAmount = amount ? Number(amount) : itemsSubtotal;
 
   function addItem() {
-    setItems([...items, { service_name: "", description: "", quantity: "1", unit_price: "0" }]);
+    setItems([...items, { service_name: "", description: "", quantity: "1", unit_price: "0", discount_percent: "0" }]);
   }
   function updateItem(idx: number, field: keyof CustomLineItem, value: string) {
     const copy = [...items];
@@ -1212,7 +1227,8 @@ function CustomReceiptModal({ order, token, onClose, onSent }: CustomReceiptModa
           description: i.description || null,
           quantity: Number(i.quantity) || 1,
           unit_price: Number(i.unit_price) || 0,
-          total_price: (Number(i.quantity) || 0) * (Number(i.unit_price) || 0),
+          discount_percent: Number(i.discount_percent) || 0,
+          total_price: receiptLineTotal(i),
         })),
       custom_notes: notes || null,
       custom_stamp_label: stampLabel || null,
