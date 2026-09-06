@@ -302,7 +302,12 @@ export async function POST(req: Request) {
           assigned_rep_id: ownerRep,
           document_type: "order",
           order_type: "location_services",
-          order_status: "sent",
+          // A deposit invoice is sent immediately (invoice_status below),
+          // so the canonical lifecycle state is "invoice_sent" (awaiting
+          // deposit payment) — recognized by deriveFlowState. The old
+          // "sent" value was not a supported order_status. Legacy `status`
+          // keeps its compatibility value for now (Phase 5C-a1).
+          order_status: "invoice_sent",
           status: "sent",
           total_value: totalValueDollars,
           deposit_amount: depositDollars,
