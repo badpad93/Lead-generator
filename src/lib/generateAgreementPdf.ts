@@ -11,6 +11,7 @@ import {
 } from "@/lib/pricing/lineItems";
 import { buildOrderItemsFromAgreement } from "@/lib/agreements/sync";
 import { initialsKeyFor, type AgreementSectionId } from "@/lib/agreements/sections";
+import { wrapText, measureWrappedHeight, ellipsize } from "@/lib/pdf/layout";
 import {
   buildAgreement,
   type NumberedClause,
@@ -71,6 +72,13 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     if (y - needed < BOTTOM_MARGIN) newPage();
   }
 
+  /** Reserve `height` of vertical space above the footer; start a new
+   *  page if it won't fit. Semantic alias of checkPage for measured
+   *  blocks. */
+  function ensureSpace(height: number) {
+    if (y - height < BOTTOM_MARGIN) newPage();
+  }
+
   function drawText(
     p: PDFPage,
     text: string,
@@ -92,21 +100,24 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     });
   }
 
-  function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-    const words = text.split(" ");
-    const lines: string[] = [];
-    let current = "";
-    for (const word of words) {
-      const test = current ? `${current} ${word}` : word;
-      if (font.widthOfTextAtSize(test, size) > maxWidth) {
-        if (current) lines.push(current);
-        current = word;
-      } else {
-        current = test;
-      }
+  /** Draw wrapped text inside a column [x, x+maxWidth], measuring each
+   *  line and breaking to a new page before any line would cross the
+   *  footer. Every line fits maxWidth (long tokens are hard-broken). */
+  function drawWrappedInBox(
+    text: string,
+    x: number,
+    maxWidth: number,
+    font: PDFFont,
+    size: number,
+    color = gray,
+  ) {
+    const lineHeight = size + 4;
+    const lines = wrapText(pdfSafeMultiline(text), font, size, maxWidth);
+    for (const line of lines) {
+      ensureSpace(lineHeight);
+      if (line !== "") drawText(page, line, x, y, font, size, color);
+      y -= lineHeight;
     }
-    if (current) lines.push(current);
-    return lines;
   }
 
   function drawWrapped(
@@ -116,25 +127,7 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     color = gray,
     indent = 0,
   ) {
-    // Preserve author-provided paragraph breaks by splitting on newlines
-    // first, then word-wrap each paragraph.
-    const safe = pdfSafeMultiline(text);
-    const paragraphs = safe.split("\n");
-    for (let p = 0; p < paragraphs.length; p++) {
-      const para = paragraphs[p];
-      if (para === "") {
-        // Blank line — just advance
-        checkPage(size + 4);
-        y -= size + 4;
-        continue;
-      }
-      const lines = wrapText(para, font, size, MAX_W - indent);
-      for (const line of lines) {
-        checkPage(size + 6);
-        drawText(page, line, LEFT + indent, y, font, size, color);
-        y -= size + 4;
-      }
-    }
+    drawWrappedInBox(text, LEFT + indent, MAX_W - indent, font, size, color);
   }
 
   // Initials bind to the section's STABLE id (from clauses/sections),
@@ -162,11 +155,24 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     y -= 14;
   }
 
+  // A label in the left gutter with its value wrapped in the column to
+  // its right, so long values (addresses, company names) never run past
+  // the margin. Advances by the taller of the two.
+  const VALUE_X = LEFT + 180;
+  const VALUE_W = RIGHT - VALUE_X;
   function labelValue(label: string, value: string) {
-    checkPage(18);
-    drawText(page, label, LEFT, y, helvetica, 8, gray);
-    drawText(page, value || "—", LEFT + 180, y, helveticaBold, 9, dark);
-    y -= 16;
+    const text = value || "—";
+    const valueHeight = measureWrappedHeight(text, helveticaBold, 9, VALUE_W, 13);
+    ensureSpace(Math.max(16, valueHeight));
+    const top = y;
+    drawText(page, label, LEFT, top, helvetica, 8, gray);
+    const lines = wrapText(text, helveticaBold, 9, VALUE_W);
+    let vy = top;
+    for (const line of lines) {
+      drawText(page, line, VALUE_X, vy, helveticaBold, 9, dark);
+      vy -= 13;
+    }
+    y = Math.min(top - 16, vy) - 3;
   }
 
   function money(n: unknown): string {
@@ -222,21 +228,53 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   drawText(page, "PARTIES", LEFT, y, helveticaBold, 8, gray);
   y -= 20;
 
-  drawText(page, "SERVICE PROVIDER", LEFT, y, helveticaBold, 8, gray);
-  drawText(page, "OPERATOR", LEFT + 260, y, helveticaBold, 8, gray);
-  y -= 16;
-  drawText(page, ag.apex_company_name || "Apex AI Vending LLC", LEFT, y, helveticaBold, 10, dark);
-  drawText(page, ag.operator_company_name || "—", LEFT + 260, y, helveticaBold, 10, dark);
-  y -= 14;
-  drawText(page, ag.apex_representative_name || "—", LEFT, y, helvetica, 9, gray);
-  drawText(page, ag.operator_legal_name || "—", LEFT + 260, y, helvetica, 9, gray);
-  y -= 14;
-  drawText(page, ag.apex_representative_email || "", LEFT, y, helvetica, 8, gray);
-  drawText(page, ag.operator_email || "", LEFT + 260, y, helvetica, 8, gray);
-  y -= 14;
-  drawText(page, "", LEFT, y, helvetica, 8, gray);
-  drawText(page, ag.operator_phone || "", LEFT + 260, y, helvetica, 8, gray);
-  y -= 20;
+  // Two wrapped columns. Each stacked field wraps within its column so a
+  // long company name, legal name or email never overflows the margin or
+  // spills into the other column. The row advances by the taller column.
+  const COL_L_X = LEFT;
+  const COL_R_X = LEFT + 270;
+  const COL_L_W = COL_R_X - COL_L_X - 12;
+  const COL_R_W = RIGHT - COL_R_X;
+  interface PartyField { text: string; font: PDFFont; size: number; color: ReturnType<typeof rgb>; }
+  const providerFields: PartyField[] = [
+    { text: "SERVICE PROVIDER", font: helveticaBold, size: 8, color: gray },
+    { text: ag.apex_company_name || "Apex AI Vending LLC", font: helveticaBold, size: 10, color: dark },
+    { text: ag.apex_representative_name || "—", font: helvetica, size: 9, color: gray },
+    { text: ag.apex_representative_email || "", font: helvetica, size: 8, color: gray },
+  ].filter((f) => f.text !== "");
+  const operatorFields: PartyField[] = [
+    { text: "OPERATOR", font: helveticaBold, size: 8, color: gray },
+    { text: ag.operator_company_name || "—", font: helveticaBold, size: 10, color: dark },
+    { text: ag.operator_legal_name || "—", font: helvetica, size: 9, color: gray },
+    { text: ag.operator_email || "", font: helvetica, size: 8, color: gray },
+    { text: ag.operator_phone || "", font: helvetica, size: 8, color: gray },
+  ].filter((f) => f.text !== "");
+
+  function partyColumnHeight(fields: PartyField[], width: number): number {
+    return fields.reduce(
+      (h, f) => h + measureWrappedHeight(f.text, f.font, f.size, width, f.size + 4),
+      0,
+    );
+  }
+  function drawPartyColumn(fields: PartyField[], x: number, width: number, top: number): number {
+    let cy = top;
+    for (const f of fields) {
+      for (const line of wrapText(f.text, f.font, f.size, width)) {
+        drawText(page, line, x, cy, f.font, f.size, f.color);
+        cy -= f.size + 4;
+      }
+    }
+    return cy;
+  }
+  const partiesHeight = Math.max(
+    partyColumnHeight(providerFields, COL_L_W),
+    partyColumnHeight(operatorFields, COL_R_W),
+  );
+  ensureSpace(partiesHeight + 8);
+  const partiesTop = y;
+  drawPartyColumn(providerFields, COL_L_X, COL_L_W, partiesTop);
+  drawPartyColumn(operatorFields, COL_R_X, COL_R_W, partiesTop);
+  y = partiesTop - partiesHeight - 8;
 
   /* ================================================================ */
   /*  CANONICAL AGREEMENT CONTENT                                     */
@@ -251,22 +289,30 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     ? (ag.line_items_snapshot as SnapshotLine[])
     : [];
 
+  // Headings stay with the start of their body: reserve the heading plus
+  // ~2 lines so a heading never sits alone at the foot of a page.
   function sectionHeaderNum(num: number, title: string) {
-    checkPage(34);
+    ensureSpace(34 + 26);
     y -= 12;
     drawLine(y + 6);
     y -= 6;
-    drawText(page, `Section ${num}: ${title}`, LEFT, y, helveticaBold, 9, dark);
-    y -= 16;
+    for (const line of wrapText(`Section ${num}: ${title}`, helveticaBold, 9, MAX_W)) {
+      drawText(page, line, LEFT, y, helveticaBold, 9, dark);
+      y -= 13;
+    }
+    y -= 3;
   }
 
   function scheduleHeader(title: string) {
-    checkPage(40);
+    ensureSpace(40 + 24);
     y -= 10;
     drawLine(y);
     y -= 20;
-    drawText(page, title.toUpperCase(), LEFT, y, helveticaBold, 10, green);
-    y -= 20;
+    for (const line of wrapText(title.toUpperCase(), helveticaBold, 10, MAX_W)) {
+      drawText(page, line, LEFT, y, helveticaBold, 10, green);
+      y -= 14;
+    }
+    y -= 6;
   }
 
   function drawParagraph(block: ClauseBlock) {
@@ -276,76 +322,101 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     y -= 2;
   }
 
-  function truncateTo(text: string, font: PDFFont, size: number, maxWidth: number): string {
-    if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
-    let out = text;
-    while (out.length > 1 && font.widthOfTextAtSize(`${out}...`, size) > maxWidth) {
-      out = out.slice(0, -1);
-    }
-    return `${out}...`;
+  /** Draw text so its RIGHT edge sits at `rightX` (currency columns). */
+  function drawRightEdge(text: string, rightX: number, yPos: number, font: PDFFont, size: number, color = dark) {
+    drawText(page, text, rightX - font.widthOfTextAtSize(text, size), yPos, font, size, color);
   }
 
-  function drawRightAt(text: string, font: PDFFont, size: number, color = dark) {
-    drawText(page, text, RIGHT - 4 - font.widthOfTextAtSize(text, size), y, font, size, color);
+  // Schedule A line-item table geometry. Numeric columns are addressed by
+  // their RIGHT edge and right-aligned, so currency values stay separated
+  // and never collide with the description column, however large.
+  const TBL_ITEM_X = LEFT + 4;
+  const TBL_ITEM_W = 176;                 // wraps; never truncated
+  const TBL_CAT_X = LEFT + 188;
+  const TBL_CAT_W = 74;                    // display tag; may ellipsize
+  const TBL_QTY_R = LEFT + 300;
+  const TBL_UNIT_R = LEFT + 384;
+  const TBL_DISC_R = LEFT + 424;
+  const TBL_TOTAL_R = RIGHT - 4;
+
+  function drawLineItemsHeader() {
+    page.drawRectangle({ x: LEFT, y: y - 4, width: MAX_W, height: 18, color: lightBg });
+    drawText(page, "Item", TBL_ITEM_X, y, helveticaBold, 8, dark);
+    drawText(page, "Category", TBL_CAT_X, y, helveticaBold, 8, dark);
+    drawRightEdge("Qty", TBL_QTY_R, y, helveticaBold, 8, dark);
+    drawRightEdge("Unit Price", TBL_UNIT_R, y, helveticaBold, 8, dark);
+    drawRightEdge("Disc", TBL_DISC_R, y, helveticaBold, 8, dark);
+    drawRightEdge("Line Total", TBL_TOTAL_R, y, helveticaBold, 8, dark);
+    y -= 18;
   }
 
   // Schedule A: every line on the order, verbatim from the Phase-1
   // snapshot — so coffee, coolers, financing and custom lines all appear
-  // in the signed contract, not just equipment.
+  // in the signed contract, not just equipment. Item names and
+  // descriptions WRAP (contract text is never truncated); each row is
+  // measured before drawing so it can't cross the footer, and the header
+  // repeats after a page break.
   function drawLineItemsTable() {
-    const COL_ITEM = LEFT + 4;
-    const COL_CAT = LEFT + 190;
-    const COL_QTY = LEFT + 296;
-    const COL_UNIT = LEFT + 336;
-    const COL_DISC = LEFT + 410;
-
-    const drawItemHeader = () => {
-      page.drawRectangle({ x: LEFT, y: y - 4, width: MAX_W, height: 18, color: lightBg });
-      drawText(page, "Item", COL_ITEM, y, helveticaBold, 8, dark);
-      drawText(page, "Category", COL_CAT, y, helveticaBold, 8, dark);
-      drawText(page, "Qty", COL_QTY, y, helveticaBold, 8, dark);
-      drawText(page, "Unit Price", COL_UNIT, y, helveticaBold, 8, dark);
-      drawText(page, "Disc", COL_DISC, y, helveticaBold, 8, dark);
-      drawRightAt("Line Total", helveticaBold, 8, dark);
-      y -= 18;
-    };
-
-    if (snapshotLines.length > 0) {
-      checkPage(50);
-      drawItemHeader();
-      for (const line of snapshotLines) {
-        const before = y;
-        checkPage(30);
-        if (y > before) drawItemHeader();
-        drawText(page, truncateTo(line.service_name || "Item", helvetica, 8.5, 178), COL_ITEM, y, helvetica, 8.5, dark);
-        drawText(page, truncateTo(CATEGORY_LABEL[line.category] ?? "Other", helvetica, 8, 100), COL_CAT, y, helvetica, 8, gray);
-        drawText(page, String(line.quantity ?? 1), COL_QTY, y, helvetica, 8.5, dark);
-        drawText(page, money(line.unit_price), COL_UNIT, y, helvetica, 8.5, dark);
-        drawText(
-          page,
-          Number(line.discount_percent) > 0 ? `${Number(line.discount_percent)}%` : "—",
-          COL_DISC, y, helvetica, 8.5,
-          Number(line.discount_percent) > 0 ? green : gray,
-        );
-        drawRightAt(money(line.total_price), helveticaBold, 8.5, dark);
-        y -= 14;
-        if (line.description) {
-          drawText(page, truncateTo(String(line.description), helvetica, 7.5, MAX_W - 20), COL_ITEM + 6, y, helvetica, 7.5, gray);
-          y -= 12;
-        }
-        if (line.deferred) {
-          drawText(page, "Invoiced on fulfillment — not included in the amount due prior to procurement", COL_ITEM + 6, y, helvetica, 7.5, gray);
-          y -= 12;
-        }
-        drawLine(y + 4);
-        y -= 6;
-      }
-    } else {
-      // Pre-snapshot fallback — only equipment scalars are expressible.
+    if (snapshotLines.length === 0) {
       labelValue("Machine Model", v.model);
       labelValue("Quantity", String(v.qty));
       labelValue("Unit Price", v.unitPrice);
       labelValue("Equipment Subtotal", v.subtotal);
+      return;
+    }
+
+    ensureSpace(18 + 20);
+    drawLineItemsHeader();
+
+    for (const line of snapshotLines) {
+      const nameLines = wrapText(line.service_name || "Item", helvetica, 8.5, TBL_ITEM_W);
+      const descLines = line.description
+        ? wrapText(String(line.description), helvetica, 7.5, TBL_ITEM_W - 6)
+        : [];
+      const deferredLines = line.deferred
+        ? wrapText(
+            "Invoiced on fulfillment — not included in the amount due prior to procurement",
+            helvetica, 7.5, MAX_W - 12,
+          )
+        : [];
+      const rowHeight = nameLines.length * 11 + descLines.length * 10 + deferredLines.length * 10 + 8;
+
+      // Keep the whole row together; repeat the header if it lands on a
+      // fresh page.
+      if (y - rowHeight < BOTTOM_MARGIN) {
+        newPage();
+        ensureSpace(18 + 20);
+        drawLineItemsHeader();
+      }
+
+      const rowTop = y;
+      // Numeric cells on the first line of the row, right-aligned.
+      drawRightEdge(String(line.quantity ?? 1), TBL_QTY_R, rowTop, helvetica, 8.5, dark);
+      drawRightEdge(money(line.unit_price), TBL_UNIT_R, rowTop, helvetica, 8.5, dark);
+      drawRightEdge(
+        Number(line.discount_percent) > 0 ? `${Number(line.discount_percent)}%` : "—",
+        TBL_DISC_R, rowTop, helvetica, 8.5,
+        Number(line.discount_percent) > 0 ? green : gray,
+      );
+      drawRightEdge(money(line.total_price), TBL_TOTAL_R, rowTop, helveticaBold, 8.5, dark);
+
+      // Item name (wrapped) + category tag beside the first line.
+      drawText(page, ellipsize(CATEGORY_LABEL[line.category] ?? "Other", helvetica, 8, TBL_CAT_W), TBL_CAT_X, rowTop, helvetica, 8, gray);
+      let ty = rowTop;
+      for (const nl of nameLines) {
+        drawText(page, nl, TBL_ITEM_X, ty, helvetica, 8.5, dark);
+        ty -= 11;
+      }
+      for (const dl of descLines) {
+        drawText(page, dl, TBL_ITEM_X + 6, ty, helvetica, 7.5, gray);
+        ty -= 10;
+      }
+      for (const dl of deferredLines) {
+        drawText(page, dl, TBL_ITEM_X + 6, ty, helvetica, 7.5, gray);
+        ty -= 10;
+      }
+      y = rowTop - rowHeight;
+      drawLine(y + 4);
     }
   }
 
@@ -375,9 +446,9 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
         labelValue("Free Storage Period", `${v.freeStorageMonths} month${v.freeStorageMonths !== 1 ? "s" : ""}`);
         break;
       case "payment":
-        checkPage(30);
+        ensureSpace(24);
         drawText(page, "Total Due Prior to Procurement", LEFT + 4, y, helveticaBold, 10, dark);
-        drawText(page, v.totalDue, RIGHT - 4 - helveticaBold.widthOfTextAtSize(v.totalDue, 12), y, helveticaBold, 12, green);
+        drawRightEdge(v.totalDue, TBL_TOTAL_R, y, helveticaBold, 12, green);
         y -= 18;
         if (v.depositOnly) {
           drawWrapped(`+ ${v.locationBalance} Location Services balance due upon fulfillment of secured locations`, helvetica, 8, gray);
@@ -421,7 +492,76 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   /* ================================================================ */
   /*  SIGNATURE BLOCKS                                                */
   /* ================================================================ */
-  checkPage(160);
+  const operatorSig = signatures.find((s: { signer_type: string }) => s.signer_type === "operator");
+  const apexSig = signatures.find((s: { signer_type: string }) => s.signer_type === "apex");
+
+  interface SigLike {
+    signature_data?: string; signer_name?: string; signer_title?: string;
+    signer_company?: string; signer_email?: string; ip_address?: string;
+  }
+
+  function sigMeta(sig: SigLike | undefined, includeIp: boolean): string[] {
+    const m: string[] = [];
+    if (sig?.signer_company) m.push(`Company: ${sig.signer_company}`);
+    if (sig?.signer_email) m.push(`Email: ${sig.signer_email}`);
+    if (includeIp && sig?.ip_address) m.push(`IP: ${sig.ip_address}`);
+    return m;
+  }
+  // Height of a whole signature block, so it can be kept on one page.
+  function sigBlockHeight(sig: SigLike | undefined, meta: string[]): number {
+    return 20 + (sig ? 22 : 0) + 4 * 28 + (meta.length > 0 ? 2 + meta.length * 15 : 0);
+  }
+  // Draws heading + four signature fields (Signature / Printed Name /
+  // Title / Date) + optional meta. Assumes the caller ensured the block
+  // fits, so it never splits across a page or into the footer.
+  function drawSignatureBlock(
+    heading: string,
+    sig: SigLike | undefined,
+    signedAt: string | null | undefined,
+    meta: string[],
+  ) {
+    drawText(page, heading, LEFT, y, helveticaBold, 9, gray);
+    y -= 20;
+    if (sig?.signature_data) { drawText(page, sig.signature_data, LEFT, y, helveticaBold, 14, dark); y -= 22; }
+    const signedStr = signedAt ? new Date(signedAt).toLocaleDateString() : "";
+    // Signature
+    drawLine(y + 2);
+    drawText(page, "Signature", LEFT, y - 10, helvetica, 8, gray);
+    if (sig) drawText(page, "Electronically signed", LEFT + 120, y - 10, helvetica, 7, green);
+    y -= 28;
+    // Printed Name
+    if (sig?.signer_name) drawText(page, ellipsize(sig.signer_name, helveticaBold, 10, 260), LEFT, y + 6, helveticaBold, 10, dark);
+    drawLine(y + 2);
+    drawText(page, "Printed Name", LEFT, y - 10, helvetica, 8, gray);
+    if (signedStr) drawText(page, `Signed: ${signedStr}`, LEFT + 300, y - 10, helvetica, 8, green);
+    y -= 28;
+    // Title
+    if (sig?.signer_title) drawText(page, ellipsize(sig.signer_title, helvetica, 9, 260), LEFT, y + 6, helvetica, 9, dark);
+    drawLine(y + 2);
+    drawText(page, "Title", LEFT, y - 10, helvetica, 8, gray);
+    y -= 28;
+    // Date
+    if (signedStr) drawText(page, signedStr, LEFT, y + 6, helvetica, 9, dark);
+    drawLine(y + 2);
+    drawText(page, "Date", LEFT, y - 10, helvetica, 8, gray);
+    // Meta lines
+    if (meta.length > 0) {
+      y -= 2;
+      for (const m of meta) {
+        y -= 15;
+        drawText(page, ellipsize(m, helvetica, 8, MAX_W), LEFT, y, helvetica, 8, gray);
+      }
+    }
+    y -= 30;
+  }
+
+  const opMeta = sigMeta(operatorSig, true);
+  const apexMeta = sigMeta(apexSig, false);
+  const opHeight = sigBlockHeight(operatorSig, opMeta);
+  const apexHeight = sigBlockHeight(apexSig, apexMeta);
+
+  // Keep the SIGNATURES heading + intro with the operator block.
+  ensureSpace(16 + 24 + 24 + opHeight);
   y -= 16;
   drawLine(y);
   y -= 24;
@@ -433,95 +573,10 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   );
   y -= 12;
 
-  const operatorSig = signatures.find((s: { signer_type: string }) => s.signer_type === "operator");
-  const apexSig = signatures.find((s: { signer_type: string }) => s.signer_type === "apex");
+  drawSignatureBlock("OPERATOR", operatorSig, ag.operator_signed_at, opMeta);
 
-  // Operator signature block
-  drawText(page, "OPERATOR", LEFT, y, helveticaBold, 9, gray);
-  y -= 20;
-  if (operatorSig) {
-    drawText(page, operatorSig.signature_data, LEFT, y, helveticaBold, 14, dark);
-    y -= 8;
-  }
-  drawLine(y + 2);
-  drawText(page, "Signature", LEFT, y - 10, helvetica, 8, gray);
-  if (operatorSig) {
-    drawText(page, `Electronically signed`, LEFT + 100, y - 10, helvetica, 7, green);
-  }
-  y -= 28;
-  if (operatorSig) {
-    drawText(page, operatorSig.signer_name, LEFT, y + 6, helveticaBold, 10, dark);
-  }
-  drawLine(y + 2);
-  drawText(page, "Printed Name", LEFT, y - 10, helvetica, 8, gray);
-  if (ag.operator_signed_at) {
-    drawText(page, `Signed: ${new Date(ag.operator_signed_at).toLocaleDateString()}`, LEFT + 300, y - 10, helvetica, 8, green);
-  }
-  y -= 28;
-  if (operatorSig?.signer_title) {
-    drawText(page, operatorSig.signer_title, LEFT, y + 6, helvetica, 9, dark);
-  }
-  drawLine(y + 2);
-  drawText(page, "Title", LEFT, y - 10, helvetica, 8, gray);
-  y -= 28;
-  if (ag.operator_signed_at) {
-    drawText(page, new Date(ag.operator_signed_at).toLocaleDateString(), LEFT, y + 6, helvetica, 9, dark);
-  }
-  drawLine(y + 2);
-  drawText(page, "Date", LEFT, y - 10, helvetica, 8, gray);
-  if (operatorSig?.signer_company) {
-    y -= 16;
-    drawText(page, `Company: ${operatorSig.signer_company}`, LEFT, y, helvetica, 8, gray);
-  }
-  if (operatorSig?.signer_email) {
-    y -= 14;
-    drawText(page, `Email: ${operatorSig.signer_email}`, LEFT, y, helvetica, 8, gray);
-  }
-  if (operatorSig?.ip_address) {
-    y -= 14;
-    drawText(page, `IP: ${operatorSig.ip_address}`, LEFT, y, helvetica, 7, gray);
-  }
-
-  y -= 30;
-
-  // Apex signature block
-  checkPage(160);
-  drawText(page, "APEX AI VENDING LLC", LEFT, y, helveticaBold, 9, gray);
-  y -= 20;
-  if (apexSig) {
-    drawText(page, apexSig.signature_data, LEFT, y, helveticaBold, 14, dark);
-    y -= 8;
-  }
-  drawLine(y + 2);
-  drawText(page, "Signature", LEFT, y - 10, helvetica, 8, gray);
-  if (apexSig) {
-    drawText(page, `Electronically signed`, LEFT + 100, y - 10, helvetica, 7, green);
-  }
-  y -= 28;
-  if (apexSig) {
-    drawText(page, apexSig.signer_name, LEFT, y + 6, helveticaBold, 10, dark);
-  }
-  drawLine(y + 2);
-  drawText(page, "Printed Name", LEFT, y - 10, helvetica, 8, gray);
-  if (ag.apex_signed_at) {
-    drawText(page, `Signed: ${new Date(ag.apex_signed_at).toLocaleDateString()}`, LEFT + 300, y - 10, helvetica, 8, green);
-  }
-  y -= 28;
-  if (apexSig?.signer_title) {
-    drawText(page, apexSig.signer_title, LEFT, y + 6, helvetica, 9, dark);
-  }
-  drawLine(y + 2);
-  drawText(page, "Title", LEFT, y - 10, helvetica, 8, gray);
-  y -= 28;
-  if (ag.apex_signed_at) {
-    drawText(page, new Date(ag.apex_signed_at).toLocaleDateString(), LEFT, y + 6, helvetica, 9, dark);
-  }
-  drawLine(y + 2);
-  drawText(page, "Date", LEFT, y - 10, helvetica, 8, gray);
-  if (apexSig?.signer_email) {
-    y -= 16;
-    drawText(page, `Email: ${apexSig.signer_email}`, LEFT, y, helvetica, 8, gray);
-  }
+  ensureSpace(apexHeight);
+  drawSignatureBlock("APEX AI VENDING LLC", apexSig, ag.apex_signed_at, apexMeta);
 
   // Final footer on last page
   drawText(page, "Apex AI Vending — Purchase Agreement", LEFT, 30, helvetica, 7, gray);

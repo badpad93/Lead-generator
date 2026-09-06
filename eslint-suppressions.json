@@ -3823,9 +3823,14 @@
       "count": 1
     }
   },
+  "src/lib/generateAgreementPdf.test.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
   "src/lib/generateAgreementPdf.ts": {
     "complexity": {
-      "count": 7
+      "count": 8
     },
     "max-depth": {
       "count": 5
@@ -3834,7 +3839,7 @@
       "count": 1
     },
     "max-params": {
-      "count": 2
+      "count": 4
     }
   },
   "src/lib/generateLocationPlacementPdf.ts": {
@@ -4115,6 +4120,17 @@
   "src/lib/pdf/contractorOnboardingPdf.ts": {
     "complexity": {
       "count": 2
+    }
+  },
+  "src/lib/pdf/layout.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
     }
   },
   "src/lib/pdf/manufacturerAgreementPdf.ts": {
