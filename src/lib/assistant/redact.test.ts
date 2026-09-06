@@ -1,0 +1,54 @@
+import { describe, it, expect } from "vitest";
+import { detectPrivateFinancingData, redactUserMessage, SENSITIVE_INPUT_NOTICE } from "./redact";
+
+describe("redactUserMessage", () => {
+  it("redacts a Luhn-valid card number and explains", () => {
+    const r = redactUserMessage("my card is 4111 1111 1111 1111 thanks", 2000);
+    expect(r.rejected).toBe(false);
+    expect(r.text).toContain("[card number removed]");
+    expect(r.text).not.toContain("4111");
+    expect(r.redactions).toContain("card number");
+    expect(r.notice).toBe(SENSITIVE_INPUT_NOTICE);
+  });
+
+  it("does not redact ordinary long numbers that fail Luhn (order numbers, quantities)", () => {
+    const r = redactUserMessage("order VC-1725600000000 for 12 cases at $45.00, call 555-123-4567", 2000);
+    expect(r.rejected).toBe(false);
+    expect(r.text).toContain("VC-1725600000000");
+    expect(r.text).toContain("$45.00");
+    expect(r.text).toContain("555-123-4567");
+    expect(r.redactions).toEqual([]);
+  });
+
+  it("redacts SSNs", () => {
+    const r = redactUserMessage("ssn 123-45-6789", 2000);
+    // Mentioning "ssn" is treated as private financing data and rejected outright.
+    expect(r.rejected).toBe(true);
+    const r2 = redactUserMessage("the number is 123-45-6789 ok", 2000);
+    expect(r2.text).toContain("[SSN removed]");
+    expect(r2.text).not.toContain("6789");
+  });
+
+  it("redacts routing and account numbers with context", () => {
+    const r = redactUserMessage("routing 021000021 and account number 1234567890", 2000);
+    expect(r.text).not.toContain("021000021");
+    expect(r.text).not.toContain("1234567890");
+    expect(r.redactions).toContain("bank account or routing number");
+  });
+
+  it("rejects volunteered private financing data without storing it", () => {
+    for (const msg of ["My credit score is 720, can I get financing?", "our annual income is $250,000", "I filed for bankruptcy in 2019"]) {
+      const r = redactUserMessage(msg, 2000);
+      expect(r.rejected).toBe(true);
+      expect(r.text).toBe("");
+      expect(r.notice).toBe(SENSITIVE_INPUT_NOTICE);
+    }
+    expect(detectPrivateFinancingData("Which brewer is best for a small office?")).toBe(false);
+  });
+
+  it("enforces the length limit", () => {
+    const r = redactUserMessage("x".repeat(201), 200);
+    expect(r.rejected).toBe(true);
+    expect(r.notice).toContain("200");
+  });
+});
