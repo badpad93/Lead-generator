@@ -95,14 +95,21 @@ describe("Phase 4 — agreement destructive actions behind an overflow menu", ()
   });
 });
 
-describe("Phase 4 — no backend endpoints deleted", () => {
-  it("all receipt / remaining-balance endpoints still exist on disk", () => {
+describe("Phase 4/5A — canonical endpoints preserved", () => {
+  it("receipt + canonical remaining-balance endpoints still exist on disk", () => {
     for (const rel of [
-      "src/app/api/sales/orders/[id]/send-remaining-balance/route.ts",
       "src/app/api/sales/orders/[id]/send-receipt/route.ts",
       "src/app/api/sales/orders/[id]/locations/invoice-remaining/route.ts",
     ]) {
       expect(existsSync(ROOT + rel), rel).toBe(true);
     }
+  });
+
+  it("the orphaned send-remaining-balance route was removed in Phase 5A", () => {
+    // Phase 4 removed its only UI caller; Phase 5A removed the now-dead
+    // route. invoice-remaining (above) is the single remaining-balance path.
+    expect(
+      existsSync(ROOT + "src/app/api/sales/orders/[id]/send-remaining-balance/route.ts"),
+    ).toBe(false);
   });
 });
