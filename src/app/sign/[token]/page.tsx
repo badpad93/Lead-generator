@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useParams } from "next/navigation";
 import { getRequiredInitialKeys } from "@/lib/agreementInitials";
+import { resolveAgreementSections, createSectionNumberer } from "@/lib/agreements/sections";
 import {
   Loader2,
   CheckCircle2,
@@ -533,6 +534,36 @@ function SigningContent() {
     );
   }
 
+  /* ---------- Agreement structure (shared source) ---------- */
+  // Inclusion + contiguous numbering come from src/lib/agreements/sections.ts,
+  // the single source shared with the PDF and the required-initials set.
+  // Numbers are assigned only to INCLUDED sections, so skipping a
+  // conditional section never leaves a gap; legal cross-references
+  // resolve through sn(...) rather than hardcoded literals, so they stay
+  // correct after renumbering.
+  const sec = resolveAgreementSections(agreement);
+  const numr = createSectionNumberer();
+  numr.assign("recitals");
+  numr.assign("definitions");
+  if (sec.equipment) numr.assign("equipment_purchase");
+  if (sec.shipping) numr.assign("shipping_freight");
+  if (sec.location) numr.assign("location_services");
+  numr.assign("payment_terms");
+  if (sec.location) numr.assign("location_service_payment");
+  if (sec.storage) numr.assign("storage_program");
+  for (const id of [
+    "warranty", "limitation_liability", "indemnification",
+    "intellectual_property", "confidentiality", "term_termination",
+    "force_majeure", "compliance_laws", "assignment",
+    "independent_contractor", "notices", "governing_law",
+    "entire_agreement", "amendments", "severability", "waiver",
+    "counterparts", "headings", "no_third_party", "survival",
+    "good_faith", "electronic_signatures", "acknowledgment",
+  ]) {
+    numr.assign(id);
+  }
+  const sn = (id: string): number => numr.numberOf(id) ?? 0;
+
   /* ---------- Already Fully Signed ---------- */
   if (isSigned) {
     return (
@@ -558,7 +589,7 @@ function SigningContent() {
               <p className="text-xs font-medium text-green-700 uppercase tracking-wider mb-2">
                 Agreement Details
               </p>
-              {agreement.include_equipment !== false && (
+              {sec.equipment && (
                 <p className="text-sm text-gray-700">
                   <span className="font-semibold">
                     {agreement.machine_quantity}x {agreement.machine_model}
@@ -749,26 +780,26 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 1 ============ */}
-            <SectionHeader num={1} title="Recitals" />
+            <SectionHeader num={sn("recitals")} title="Recitals" />
             <div>
               <p>
                 WHEREAS, Seller is in the business of selling smart vending
                 machines and providing location placement, shipping, logistics,
                 and storage services;
               </p>
-              {agreement.include_equipment !== false && agreement.include_location_services !== false && (
+              {sec.equipment && sec.location && (
                 <p className="mt-3">
                   WHEREAS, Buyer desires to purchase one or more vending machines
                   and engage Seller for location placement services;
                 </p>
               )}
-              {agreement.include_equipment !== false && agreement.include_location_services === false && (
+              {sec.equipment && !sec.location && (
                 <p className="mt-3">
                   WHEREAS, Buyer desires to purchase one or more vending machines
                   from Seller;
                 </p>
               )}
-              {agreement.include_equipment === false && agreement.include_location_services !== false && (
+              {!sec.equipment && sec.location && (
                 <p className="mt-3">
                   WHEREAS, Buyer desires to engage Seller to provide location
                   placement services for vending machines;
@@ -783,21 +814,21 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 2 ============ */}
-            <SectionHeader num={2} title="Definitions" />
+            <SectionHeader num={sn("definitions")} title="Definitions" />
             <div className="space-y-2">
-              {agreement.include_equipment !== false && (
+              {sec.equipment && (
                 <p>
                   <strong>&quot;Equipment&quot;</strong> means the{" "}
                   {v.model} vending machine(s) specified in Schedule A.
                 </p>
               )}
-              {agreement.include_location_services !== false && (
+              {sec.location && (
                 <>
                   <p>
                     <strong>&quot;Location Services&quot;</strong> means the
                     services provided by Seller to identify, vet, and secure
                     suitable vending machine placement locations on behalf of Buyer,
-                    as further described in Section 5 and Schedule B.
+                    as further described in Section {sn("location_services")} and Schedule B.
                   </p>
                   <p>
                     <strong>&quot;Secured Location&quot;</strong> means a location
@@ -807,14 +838,14 @@ function SigningContent() {
                   </p>
                 </>
               )}
-              {agreement.include_shipping_storage !== false && (
+              {sec.shipping && (
                 <p>
                   <strong>&quot;Storage Program&quot;</strong> means Seller&apos;s
                   optional warehousing and storage services for Equipment prior to
-                  deployment, as further described in Section 8 and Schedule C.
+                  deployment, as further described in Section {sn("storage_program")} and Schedule C.
                 </p>
               )}
-              {agreement.include_equipment !== false && (
+              {sec.equipment && (
                 <>
                   <p>
                     <strong>&quot;Procurement&quot;</strong> means the process of
@@ -836,8 +867,8 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 3: Equipment Purchase ============ */}
-            {agreement.include_equipment !== false && (<>
-            <SectionHeader num={3} title="Equipment Purchase" requiresInitials />
+            {sec.equipment && (<>
+            <SectionHeader num={sn("equipment_purchase")} title="Equipment Purchase" requiresInitials />
             <div>
               <p>
                 <strong>3.1 Equipment Description.</strong> Seller agrees to
@@ -907,9 +938,9 @@ function SigningContent() {
             </>)}
 
             {/* ============ SECTION 4: Shipping & Freight ============ */}
-            {agreement.include_shipping_storage !== false && (<>
+            {sec.shipping && (<>
             <SectionHeader
-              num={4}
+              num={sn("shipping_freight")}
               title="Shipping &amp; Freight"
               requiresInitials
             />
@@ -956,7 +987,7 @@ function SigningContent() {
                 {Number(agreement.storage_fee_per_machine_month) > 0 ? (
                   <>
                     {" "}or, if Buyer has enrolled in the Storage Program
-                    (Section 8), to Seller&apos;s warehouse facility
+                    (Section {sn("storage_program")}), to Seller&apos;s warehouse facility
                   </>
                 ) : null}
                 .
@@ -978,9 +1009,9 @@ function SigningContent() {
             </>)}
 
             {/* ============ SECTION 5: Location Services ============ */}
-            {agreement.include_location_services !== false && (<>
+            {sec.location && (<>
             <SectionHeader
-              num={5}
+              num={sn("location_services")}
               title="Location Services"
               requiresInitials
             />
@@ -1068,7 +1099,7 @@ function SigningContent() {
 
             {/* ============ SECTION 6: Payment Terms ============ */}
             <SectionHeader
-              num={6}
+              num={sn("payment_terms")}
               title="Payment Terms"
               requiresInitials
             />
@@ -1086,7 +1117,7 @@ function SigningContent() {
                     {v.totalDue}
                   </span>
                 </div>
-                {agreement.location_services_deposit_only && agreement.include_location_services !== false && (
+                {agreement.location_services_deposit_only && sec.location && (
                   <p className="mt-2 text-xs text-green-700 italic">
                     + {currency(Math.max(0, (Number(agreement.max_location_service_value) || 0) - (Number(agreement.location_services_deposit_amount) || 0)))} Location Services balance due upon fulfillment of secured locations
                   </p>
@@ -1129,9 +1160,9 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 7: Location Service Payment Terms ============ */}
-            {agreement.include_location_services !== false && (<>
+            {sec.location && (<>
             <SectionHeader
-              num={7}
+              num={sn("location_service_payment")}
               title="Location Service Payment Terms"
               requiresInitials
             />
@@ -1175,7 +1206,7 @@ function SigningContent() {
                 <strong>7.4 Refund Policy.</strong> Location Services fees are
                 non-refundable once a location has been secured and delivered to
                 Buyer, unless the location is rejected within the allowance
-                specified in Section 5.4 and no replacement is provided.
+                specified in Section {sn("location_services")}.4 and no replacement is provided.
               </p>
               <InitialsField
                 sectionKey="section_7"
@@ -1192,10 +1223,10 @@ function SigningContent() {
                 so an unset fee must not put a $/month charge in the
                 contract. Initials gating in getRequiredInitials
                 matches this condition. */}
-            {agreement.include_shipping_storage !== false &&
+            {sec.shipping &&
               Number(agreement.storage_fee_per_machine_month) > 0 && (<>
             <SectionHeader
-              num={8}
+              num={sn("storage_program")}
               title="Storage Program"
               requiresInitials
             />
@@ -1266,7 +1297,7 @@ function SigningContent() {
             </>)}
 
             {/* ============ SECTION 9 ============ */}
-            <SectionHeader num={9} title="Warranty" />
+            <SectionHeader num={sn("warranty")} title="Warranty" />
             <div>
               <p>
                 <strong>9.1 Manufacturer&apos;s Warranty.</strong> Equipment is
@@ -1298,7 +1329,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 10 ============ */}
-            <SectionHeader num={10} title="Limitation of Liability" />
+            <SectionHeader num={sn("limitation_liability")} title="Limitation of Liability" />
             <div>
               <p>
                 <strong>10.1</strong> IN NO EVENT SHALL EITHER PARTY BE LIABLE
@@ -1317,7 +1348,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 11 ============ */}
-            <SectionHeader num={11} title="Indemnification" />
+            <SectionHeader num={sn("indemnification")} title="Indemnification" />
             <div>
               <p>
                 <strong>11.1</strong> Each Party shall indemnify, defend, and
@@ -1334,7 +1365,7 @@ function SigningContent() {
 
             {/* ============ SECTION 12 ============ */}
             <SectionHeader
-              num={12}
+              num={sn("intellectual_property")}
               title="Intellectual Property &amp; Software"
             />
             <div>
@@ -1359,7 +1390,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 13 ============ */}
-            <SectionHeader num={13} title="Confidentiality" />
+            <SectionHeader num={sn("confidentiality")} title="Confidentiality" />
             <div>
               <p>
                 <strong>13.1</strong> Each Party agrees to maintain the
@@ -1384,7 +1415,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 14 ============ */}
-            <SectionHeader num={14} title="Term and Termination" />
+            <SectionHeader num={sn("term_termination")} title="Term and Termination" />
             <div>
               <p>
                 <strong>14.1 Term.</strong> This Agreement shall be effective as
@@ -1415,7 +1446,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 15 ============ */}
-            <SectionHeader num={15} title="Force Majeure" />
+            <SectionHeader num={sn("force_majeure")} title="Force Majeure" />
             <div>
               <p>
                 Neither Party shall be liable for any failure or delay in
@@ -1433,7 +1464,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 16 ============ */}
-            <SectionHeader num={16} title="Compliance with Laws" />
+            <SectionHeader num={sn("compliance_laws")} title="Compliance with Laws" />
             <div>
               <p>
                 Each Party shall comply with all applicable federal, state, and
@@ -1445,7 +1476,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 17 ============ */}
-            <SectionHeader num={17} title="Assignment" />
+            <SectionHeader num={sn("assignment")} title="Assignment" />
             <div>
               <p>
                 Neither Party may assign this Agreement without the prior
@@ -1458,7 +1489,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 18 ============ */}
-            <SectionHeader num={18} title="Independent Contractor" />
+            <SectionHeader num={sn("independent_contractor")} title="Independent Contractor" />
             <div>
               <p>
                 The relationship between the Parties is that of independent
@@ -1470,7 +1501,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 19 ============ */}
-            <SectionHeader num={19} title="Notices" />
+            <SectionHeader num={sn("notices")} title="Notices" />
             <div>
               <p>
                 All notices required or permitted under this Agreement shall be
@@ -1484,7 +1515,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 20 ============ */}
-            <SectionHeader num={20} title="Governing Law &amp; Dispute Resolution" />
+            <SectionHeader num={sn("governing_law")} title="Governing Law &amp; Dispute Resolution" />
             <div>
               <p>
                 <strong>20.1 Governing Law.</strong> This Agreement shall be
@@ -1515,7 +1546,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 21 ============ */}
-            <SectionHeader num={21} title="Entire Agreement" />
+            <SectionHeader num={sn("entire_agreement")} title="Entire Agreement" />
             <div>
               <p>
                 This Agreement, including all Schedules and Exhibits attached
@@ -1527,7 +1558,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 22 ============ */}
-            <SectionHeader num={22} title="Amendments" />
+            <SectionHeader num={sn("amendments")} title="Amendments" />
             <div>
               <p>
                 This Agreement may only be amended or modified by a written
@@ -1538,7 +1569,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 23 ============ */}
-            <SectionHeader num={23} title="Severability" />
+            <SectionHeader num={sn("severability")} title="Severability" />
             <div>
               <p>
                 If any provision of this Agreement is held to be invalid,
@@ -1550,7 +1581,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 24 ============ */}
-            <SectionHeader num={24} title="Waiver" />
+            <SectionHeader num={sn("waiver")} title="Waiver" />
             <div>
               <p>
                 The failure of either Party to enforce any right or provision
@@ -1561,7 +1592,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 25 ============ */}
-            <SectionHeader num={25} title="Counterparts" />
+            <SectionHeader num={sn("counterparts")} title="Counterparts" />
             <div>
               <p>
                 This Agreement may be executed in counterparts, each of which
@@ -1573,7 +1604,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 26 ============ */}
-            <SectionHeader num={26} title="Headings" />
+            <SectionHeader num={sn("headings")} title="Headings" />
             <div>
               <p>
                 The headings in this Agreement are for convenience of reference
@@ -1583,7 +1614,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 27 ============ */}
-            <SectionHeader num={27} title="No Third-Party Beneficiaries" />
+            <SectionHeader num={sn("no_third_party")} title="No Third-Party Beneficiaries" />
             <div>
               <p>
                 This Agreement is for the sole benefit of the Parties and their
@@ -1594,7 +1625,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 28 ============ */}
-            <SectionHeader num={28} title="Survival" />
+            <SectionHeader num={sn("survival")} title="Survival" />
             <div>
               <p>
                 The provisions of Sections 9, 10, 11, 12, 13, 20, 27, and 28
@@ -1603,7 +1634,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 29 ============ */}
-            <SectionHeader num={29} title="Good Faith" />
+            <SectionHeader num={sn("good_faith")} title="Good Faith" />
             <div>
               <p>
                 Each Party shall act in good faith in the performance of its
@@ -1615,7 +1646,7 @@ function SigningContent() {
 
             {/* ============ SECTION 30 ============ */}
             <SectionHeader
-              num={30}
+              num={sn("electronic_signatures")}
               title="Electronic Signatures &amp; Consent"
             />
             <div>
@@ -1637,7 +1668,7 @@ function SigningContent() {
             </div>
 
             {/* ============ SECTION 31 ============ */}
-            <SectionHeader num={31} title="Acknowledgment" />
+            <SectionHeader num={sn("acknowledgment")} title="Acknowledgment" />
             <div>
               <p>
                 Each Party acknowledges that it has read this Agreement, fully
@@ -1655,7 +1686,7 @@ function SigningContent() {
             <hr className="border-gray-200 my-8" />
 
             {/* ============ SCHEDULE A ============ */}
-            {agreement.include_equipment !== false && (
+            {sec.equipment && (
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">
                 Schedule A &mdash; Equipment Order Details
@@ -1720,7 +1751,7 @@ function SigningContent() {
             )}
 
             {/* ============ SCHEDULE B ============ */}
-            {agreement.include_location_services !== false && (
+            {sec.location && (
             <div className="mt-8">
               <h2 className="text-xl font-bold text-gray-900 mb-1">
                 Schedule B &mdash; Location Services Details
@@ -1790,7 +1821,7 @@ function SigningContent() {
             )}
 
             {/* ============ SCHEDULE C ============ */}
-            {agreement.include_shipping_storage !== false && (
+            {sec.shipping && (
             <div className="mt-8">
               <h2 className="text-xl font-bold text-gray-900 mb-1">
                 Schedule C &mdash; Shipping &amp; Storage Details
@@ -2069,7 +2100,7 @@ function SigningContent() {
 
               <p className="mt-3 text-xs text-center text-gray-400">
                 By clicking &quot;Sign Agreement,&quot; you agree to the terms
-                above and consent to electronic signature per Section 30.
+                above and consent to electronic signature per Section {sn("electronic_signatures")}.
               </p>
             </div>
           </div>

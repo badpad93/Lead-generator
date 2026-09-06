@@ -3706,11 +3706,6 @@
       "count": 1
     }
   },
-  "src/lib/agreementInitials.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/lib/agreementInvoicing.ts": {
     "complexity": {
       "count": 1

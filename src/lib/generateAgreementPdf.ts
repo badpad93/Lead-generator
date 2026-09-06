@@ -11,6 +11,12 @@ import {
   type SnapshotLine,
 } from "@/lib/pricing/lineItems";
 import { buildOrderItemsFromAgreement } from "@/lib/agreements/sync";
+import {
+  resolveAgreementSections,
+  createSectionNumberer,
+  initialsKeyFor,
+  type AgreementSectionId,
+} from "@/lib/agreements/sections";
 
 const CATEGORY_LABEL: Record<ItemCategory, string> = {
   equipment: "Equipment",
@@ -142,31 +148,34 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     }
   }
 
-  function sectionHeader(num: number, title: string) {
+  // Display numbers are assigned sequentially as sections are emitted,
+  // so skipping a conditional section never leaves a gap (2 -> 6). The
+  // initials box binds to the section's STABLE id, not its display
+  // number, so it stays correct after renumbering.
+  const numberer = createSectionNumberer();
+
+  function sectionHeader(id: string, title: string) {
     checkPage(34);
     y -= 12;
     drawLine(y + 6);
     y -= 6;
+    const num = numberer.assign(id);
     drawText(page, `Section ${num}: ${title}`, LEFT, y, helveticaBold, 9, dark);
     y -= 16;
-    currentSectionNum = num;
+    currentInitialsKey = initialsKeyFor(id as AgreementSectionId) ?? null;
     currentScheduleKey = "";
   }
 
-  const SECTION_KEY_MAP: Record<number, string> = {
-    3: "section_3", 4: "section_4", 5: "section_5", 6: "section_6",
-    7: "section_7", 8: "section_8",
-  };
   const SCHEDULE_KEY_MAP: Record<string, string> = {
     A: "schedule_a", B: "schedule_b", C: "schedule_c",
   };
-  let currentSectionNum = 0;
+  let currentInitialsKey: string | null = null;
   let currentScheduleKey = "";
 
   function getInitialsForSection(): string | null {
     const key = currentScheduleKey
       ? SCHEDULE_KEY_MAP[currentScheduleKey]
-      : SECTION_KEY_MAP[currentSectionNum];
+      : currentInitialsKey;
     if (!key) return null;
     const found = initials.find(
       (i: { section_key: string; signer_type: string }) =>
@@ -267,13 +276,13 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   /*  SECTIONS 1-31                                                   */
   /* ================================================================ */
 
-  sectionHeader(1, "Recitals");
+  sectionHeader("recitals", "Recitals");
   drawWrapped(
     `This Purchase Agreement ("Agreement") is entered into as of ${effectiveDate} by and between ${ag.apex_company_name || "Apex AI Vending LLC"} ("Apex" or "Company") and ${ag.operator_company_name || "[Operator]"} ("Operator"). Apex is engaged in the business of selling vending equipment and providing related products and services. The Operator desires to purchase the products and services described in this Agreement.`,
     helvetica, 8.5, gray,
   );
 
-  sectionHeader(2, "Definitions");
+  sectionHeader("definitions", "Definitions");
   const definitions = [
     `"VendEra AI Machine" means the smart vending machine model ${ag.machine_model || "[Model]"} manufactured or distributed by Apex.`,
     `"Location Services" means Apex's service of identifying, vetting, and securing commercial locations for machine placement.`,
@@ -293,23 +302,20 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     : [];
   const hasSnapshot = snapshotLines.length > 0;
   const snapTotals = hasSnapshot ? agreementTotals(snapshotLines) : null;
-  const hasCategory = (c: ItemCategory) => snapshotLines.some((l) => l.category === c);
 
-  // A section renders when the order actually contains that kind of
-  // line — and a rep can still switch one off explicitly.
-  const includeEquipment =
-    ag.include_equipment !== false && (hasSnapshot ? hasCategory("equipment") : true);
-  const includeLocationServices =
-    ag.include_location_services !== false &&
-    (hasSnapshot ? hasCategory("location_services") : true);
-  const includeShippingStorage =
-    ag.include_shipping_storage !== false && (hasSnapshot ? hasCategory("freight") : true);
-  const includeCoffee = hasSnapshot && hasCategory("coffee");
-  const includeFinancing =
-    ag.include_financing === true || (hasSnapshot && hasCategory("financing"));
+  // Inclusion is decided by the single shared, deterministic resolver —
+  // snapshot categories when a snapshot exists, else an explicit include
+  // flag, else narrow scalar evidence. No `hasSnapshot ? … : true`
+  // fallback that silently turned conditional clauses on.
+  const sections = resolveAgreementSections(ag);
+  const includeEquipment = sections.equipment;
+  const includeLocationServices = sections.location;
+  const includeShippingStorage = sections.shipping;
+  const includeCoffee = sections.coffee;
+  const includeFinancing = sections.financing;
 
   if (includeEquipment) {
-    sectionHeader(3, "Equipment Purchase");
+    sectionHeader("equipment_purchase", "Equipment Purchase");
     labelValue("Machine Model", ag.machine_model || "—");
     labelValue("Quantity", String(ag.machine_quantity || 0));
     labelValue("Unit Price", money(ag.machine_unit_price));
@@ -323,7 +329,7 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   }
 
   if (includeLocationServices) {
-    sectionHeader(4, "Location Services");
+    sectionHeader("location_services", "Location Services");
     labelValue("Locations Purchased", String(ag.locations_purchased || 0));
     labelValue("Fee per Location Secured", money(ag.location_fee_per_secured));
     labelValue("Max Location Service Value", money(ag.max_location_service_value));
@@ -357,7 +363,7 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     // a line item in the quote/order flow, so an unset fee must not
     // put a $/month charge in the contract.
     const hasStorage = Number(ag.storage_fee_per_machine_month) > 0;
-    sectionHeader(5, hasStorage ? "Shipping & Storage" : "Shipping & Freight");
+    sectionHeader("shipping_freight", hasStorage ? "Shipping & Storage" : "Shipping & Freight");
     // One freight rate — the standard/discounted framing displayed
     // DB-default rates ($500/$375) that existed nowhere on the order.
     labelValue("Freight per Machine", money(ag.freight_per_machine));
@@ -377,7 +383,7 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     initialsPlaceholder();
   }
 
-  sectionHeader(6, "Payment Terms");
+  sectionHeader("payment_terms", "Payment Terms");
   labelValue("Total Due Prior to Procurement", money(ag.total_due_prior_to_procurement));
   labelValue("Payment Due Date", ag.payment_due_date || "Upon execution");
   labelValue("Payment Method", ag.payment_method_notes || "Wire transfer, ACH, or certified check");
@@ -388,19 +394,22 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   );
   initialsPlaceholder();
 
-  sectionHeader(7, "Delivery & Installation");
+  // Delivery and Warranties are general sections that do not require
+  // initials. They previously drew an initials box bound to keys
+  // section_7 / section_8 — which are the operator's Location-Service-
+  // Payment and Storage initials on the signing page — so the executed
+  // PDF showed the wrong initials against the wrong clause. No box here.
+  sectionHeader("delivery_installation", "Delivery & Installation");
   drawWrapped(
     "Apex will coordinate delivery to the Operator's specified address. Standard delivery timeframe is 4-8 weeks from payment confirmation, subject to manufacturer availability. Operator is responsible for ensuring adequate site preparation including electrical access (standard 120V outlet), sufficient floor space, and ADA-compliant placement. Apex may offer optional installation services at additional cost.",
     helvetica, 8.5, gray,
   );
-  initialsPlaceholder();
 
-  sectionHeader(8, "Warranties & Representations");
+  sectionHeader("warranties", "Warranties & Representations");
   drawWrapped(
     "Apex warrants that: (a) all machines are new and conform to published specifications; (b) machines will be free from material defects for 12 months from delivery; (c) Apex has authority to sell the machines; (d) location services will be performed with reasonable care and diligence. THE FOREGOING WARRANTIES ARE EXCLUSIVE AND IN LIEU OF ALL OTHER WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.",
     helvetica, 8.5, gray,
   );
-  initialsPlaceholder();
 
   const remainingSections: Array<{ num: number; title: string; text: string }> = [
     { num: 9, title: "Intellectual Property", text: "The VendEra AI software, branding, and proprietary systems remain the exclusive intellectual property of Apex. Operator receives a non-exclusive, non-transferable license to use the machine software for its intended vending purpose. Operator shall not reverse engineer, modify, or create derivative works from any Apex software or technology." },
@@ -428,8 +437,12 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     { num: 31, title: "Additional Terms", text: ag.customer_notes || "No additional terms specified." },
   ];
 
+  // These general sections are always present and never require
+  // initials. They flow through the shared numberer (keyed by a stable
+  // id derived from their original slot) so their printed numbers stay
+  // contiguous after any conditional section above them was skipped.
   for (const sec of remainingSections) {
-    sectionHeader(sec.num, sec.title);
+    sectionHeader(`general_${sec.num}`, sec.title);
     drawWrapped(sec.text, helvetica, 8.5, gray);
   }
 
@@ -481,7 +494,6 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     drawText(page, "SCHEDULE A: ORDER LINE ITEMS", LEFT, y, helveticaBold, 10, green);
     y -= 22;
     currentScheduleKey = "A";
-    currentSectionNum = 0;
 
     drawItemHeader();
 
@@ -540,7 +552,6 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     drawText(page, "SCHEDULE A: EQUIPMENT DETAILS", LEFT, y, helveticaBold, 10, green);
     y -= 20;
     currentScheduleKey = "A";
-    currentSectionNum = 0;
 
     checkPage(80);
     page.drawRectangle({ x: LEFT, y: y - 4, width: MAX_W, height: 18, color: lightBg });

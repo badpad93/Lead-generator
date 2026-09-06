@@ -9,6 +9,10 @@ import SourceOrderPanels, {
   type CoffeeSupplySnapshot,
 } from "./SourceOrderPanels";
 import {
+  resolveAgreementSections,
+  type AgreementSectionSource,
+} from "@/lib/agreements/sections";
+import {
   Loader2,
   ArrowLeft,
   Save,
@@ -266,6 +270,9 @@ function currency(v: number | string | null | undefined): string {
 }
 
 function agreementToForm(ag: Agreement): FormData {
+  const resolvedSections = resolveAgreementSections(
+    ag as unknown as AgreementSectionSource,
+  );
   return {
     operator_company_name: ag.operator_company_name || "",
     operator_legal_name: ag.operator_legal_name || "",
@@ -298,9 +305,13 @@ function agreementToForm(ag: Agreement): FormData {
     internal_notes: ag.internal_notes || "",
     customer_notes: ag.customer_notes || "",
     include_operator: ag.include_operator !== false,
-    include_equipment: ag.include_equipment !== false,
-    include_location_services: ag.include_location_services !== false,
-    include_shipping_storage: ag.include_shipping_storage !== false,
+    // Deterministic inclusion from the shared resolver (snapshot
+    // categories, else explicit flag, else narrow evidence) — never the
+    // old `!== false` that turned an unset column into "included". The
+    // operator can still toggle any of these in the form afterward.
+    include_equipment: resolvedSections.equipment,
+    include_location_services: resolvedSections.location,
+    include_shipping_storage: resolvedSections.shipping,
     auto_send_invoice_on_signing: ag.auto_send_invoice_on_signing === true,
     send_to_marketplace: ag.send_to_marketplace != null
       ? ag.send_to_marketplace === true
@@ -1870,6 +1881,14 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
   const apexRepTitle = agreement.apex_representative_title || "Representative";
   const apexRepEmail = agreement.apex_representative_email || "[Apex Email]";
 
+  // Contiguous clause numbering: cn() returns the next number and is
+  // called in document order, so a skipped schedule never leaves a gap
+  // (the preview previously used hardcoded literals 1..31). Reset each
+  // render. The preview has no in-text cross-references, so an in-order
+  // counter is sufficient here.
+  let clauseNo = 0;
+  const cn = () => ++clauseNo;
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:p-8">
       <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl my-4">
@@ -1905,9 +1924,9 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
                 </table>
               </div>
 
-              <p><strong>1. Equipment Purchase.</strong> Apex agrees to sell and Operator agrees to purchase {qty} {machineModel} machine{qty > 1 ? "s" : ""} (the &ldquo;Equipment&rdquo;) at a per-unit price of ${currency(unitPrice)}, for a total equipment cost of <strong>${currency(computed.equipmentSubtotal)}</strong>.</p>
-              <p><strong>2. Machine Specifications.</strong> Each VendEra AI Smart Vending Machine includes: AI-powered product recognition, touchscreen display, cashless payment system, remote monitoring capabilities, cloud-based inventory management, and temperature control system.</p>
-              <p><strong>3. Warranty.</strong> Each machine is covered by a standard manufacturer&rsquo;s warranty of twelve (12) months from the date of delivery.</p>
+              <p><strong>{cn()}. Equipment Purchase.</strong> Apex agrees to sell and Operator agrees to purchase {qty} {machineModel} machine{qty > 1 ? "s" : ""} (the &ldquo;Equipment&rdquo;) at a per-unit price of ${currency(unitPrice)}, for a total equipment cost of <strong>${currency(computed.equipmentSubtotal)}</strong>.</p>
+              <p><strong>{cn()}. Machine Specifications.</strong> Each VendEra AI Smart Vending Machine includes: AI-powered product recognition, touchscreen display, cashless payment system, remote monitoring capabilities, cloud-based inventory management, and temperature control system.</p>
+              <p><strong>{cn()}. Warranty.</strong> Each machine is covered by a standard manufacturer&rsquo;s warranty of twelve (12) months from the date of delivery.</p>
               <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
             </>
           )}
@@ -1922,13 +1941,13 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
                   <tbody><tr className="border-t border-gray-100"><td className="px-4 py-2">Location Sourcing &amp; Placement</td><td className="px-4 py-2 text-center">{locPurchased}</td><td className="px-4 py-2 text-right">${currency(locFee)}</td><td className="px-4 py-2 text-right font-medium">${currency(computed.maxLocationServiceValue)}</td></tr></tbody>
                 </table>
               </div>
-              <p><strong>4. Location Services.</strong> Apex will source and secure {locPurchased} vending location{locPurchased > 1 ? "s" : ""} at ${currency(locFee)} per secured location, max <strong>${currency(computed.maxLocationServiceValue)}</strong>.</p>
-              <p><strong>5. Service Timeline.</strong> Apex shall use commercially reasonable efforts to secure locations within {timelineDays} days.</p>
-              <p><strong>6. Rejection Allowance.</strong> {rejectionAllowance}.</p>
+              <p><strong>{cn()}. Location Services.</strong> Apex will source and secure {locPurchased} vending location{locPurchased > 1 ? "s" : ""} at ${currency(locFee)} per secured location, max <strong>${currency(computed.maxLocationServiceValue)}</strong>.</p>
+              <p><strong>{cn()}. Service Timeline.</strong> Apex shall use commercially reasonable efforts to secure locations within {timelineDays} days.</p>
+              <p><strong>{cn()}. Rejection Allowance.</strong> {rejectionAllowance}.</p>
               {form.location_services_deposit_only ? (
-                <p><strong>7. Location Service Payment.</strong> A non-refundable deposit of <strong>${currency(computed.locationUpfront)}</strong> is due prior to procurement. The remaining balance of <strong>${currency(computed.locationRemaining)}</strong> shall be invoiced upon fulfillment of secured locations and is due on receipt.</p>
+                <p><strong>{cn()}. Location Service Payment.</strong> A non-refundable deposit of <strong>${currency(computed.locationUpfront)}</strong> is due prior to procurement. The remaining balance of <strong>${currency(computed.locationRemaining)}</strong> shall be invoiced upon fulfillment of secured locations and is due on receipt.</p>
               ) : (
-                <p><strong>7. Location Service Payment.</strong> {locPaymentTerms}.</p>
+                <p><strong>{cn()}. Location Service Payment.</strong> {locPaymentTerms}.</p>
               )}
               <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
             </>
@@ -1953,9 +1972,9 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
                   </tbody>
                 </table>
               </div>
-              <p><strong>8. Shipping.</strong> Freight is ${currency(freightPer)} per machine for a total of <strong>${currency(computed.freightTotal)}</strong>. Delivery: {deliveryAddr || "[Delivery Address]"}.</p>
+              <p><strong>{cn()}. Shipping.</strong> Freight is ${currency(freightPer)} per machine for a total of <strong>${currency(computed.freightTotal)}</strong>. Delivery: {deliveryAddr || "[Delivery Address]"}.</p>
               {storageFee > 0 && (
-                <p><strong>9. Storage.</strong> {freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""} free storage. After that, ${currency(storageFee)} per machine per month.</p>
+                <p><strong>{cn()}. Storage.</strong> {freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""} free storage. After that, ${currency(storageFee)} per machine per month.</p>
               )}
               <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
             </>
@@ -1989,32 +2008,32 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
               )}
             </div>
           </div>
-          <p><strong>10. Payment Due Date.</strong> Full payment of <strong>${currency(computed.totalDue)}</strong> is due on or before <strong>{paymentDueDate}</strong>.</p>
-          <p><strong>11. Payment Method.</strong> {form.payment_method_notes || "Payment may be made via wire transfer, ACH, certified check, or other method approved by Apex."}</p>
+          <p><strong>{cn()}. Payment Due Date.</strong> Full payment of <strong>${currency(computed.totalDue)}</strong> is due on or before <strong>{paymentDueDate}</strong>.</p>
+          <p><strong>{cn()}. Payment Method.</strong> {form.payment_method_notes || "Payment may be made via wire transfer, ACH, certified check, or other method approved by Apex."}</p>
           <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
 
           <hr className="my-4" />
           <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">GENERAL TERMS &amp; CONDITIONS</h2>
-          <p><strong>12. Ownership &amp; Title.</strong> Title passes upon receipt of full payment. Risk of loss transfers upon delivery.</p>
-          <p><strong>13. Installation &amp; Setup.</strong> Operator is responsible for installation. Apex provides remote setup assistance.</p>
-          <p><strong>14. Returns &amp; Cancellations.</strong> Orders may be cancelled prior to procurement. After ordering, up to 15% restocking fee.</p>
-          <p><strong>15. Limitation of Liability.</strong> Apex&rsquo;s total liability shall not exceed total amount paid. No indirect/consequential damages.</p>
-          <p><strong>16. Indemnification.</strong> Operator indemnifies Apex from claims arising from use of Equipment.</p>
-          <p><strong>17. Force Majeure.</strong> Neither party liable for delays beyond reasonable control.</p>
-          <p><strong>18. Confidentiality.</strong> Both parties maintain confidentiality of pricing and business terms.</p>
-          <p><strong>19. Intellectual Property.</strong> All embedded IP remains Apex&rsquo;s property. Non-exclusive license granted to Operator.</p>
-          <p><strong>20. Compliance.</strong> Operator shall comply with all applicable laws.</p>
-          <p><strong>21. Non-Solicitation.</strong> 12-month non-solicitation of employees/contractors.</p>
-          <p><strong>22. Assignment.</strong> No assignment without prior written consent of Apex.</p>
-          <p><strong>23. Amendment.</strong> Written instrument signed by both parties required.</p>
-          <p><strong>24. Severability.</strong> Invalid provisions do not affect remaining provisions.</p>
-          <p><strong>25. Waiver.</strong> Failure to enforce does not constitute waiver.</p>
-          <p><strong>26. Notices.</strong> Written notices to specified addresses.</p>
-          <p><strong>27. Entire Agreement.</strong> This Agreement constitutes the entire agreement.</p>
-          <p><strong>28. Governing Law.</strong> Governed by laws of {governingState}.</p>
-          <p><strong>29. Dispute Resolution.</strong> Binding arbitration in {venueState}.</p>
-          <p><strong>30. Term &amp; Expiration.</strong> Effective as of {effectiveDate}, remains in effect until obligations fulfilled or {expirationDate}.</p>
-          <p><strong>31. Electronic Signatures.</strong> Electronic signatures deemed original.</p>
+          <p><strong>{cn()}. Ownership &amp; Title.</strong> Title passes upon receipt of full payment. Risk of loss transfers upon delivery.</p>
+          <p><strong>{cn()}. Installation &amp; Setup.</strong> Operator is responsible for installation. Apex provides remote setup assistance.</p>
+          <p><strong>{cn()}. Returns &amp; Cancellations.</strong> Orders may be cancelled prior to procurement. After ordering, up to 15% restocking fee.</p>
+          <p><strong>{cn()}. Limitation of Liability.</strong> Apex&rsquo;s total liability shall not exceed total amount paid. No indirect/consequential damages.</p>
+          <p><strong>{cn()}. Indemnification.</strong> Operator indemnifies Apex from claims arising from use of Equipment.</p>
+          <p><strong>{cn()}. Force Majeure.</strong> Neither party liable for delays beyond reasonable control.</p>
+          <p><strong>{cn()}. Confidentiality.</strong> Both parties maintain confidentiality of pricing and business terms.</p>
+          <p><strong>{cn()}. Intellectual Property.</strong> All embedded IP remains Apex&rsquo;s property. Non-exclusive license granted to Operator.</p>
+          <p><strong>{cn()}. Compliance.</strong> Operator shall comply with all applicable laws.</p>
+          <p><strong>{cn()}. Non-Solicitation.</strong> 12-month non-solicitation of employees/contractors.</p>
+          <p><strong>{cn()}. Assignment.</strong> No assignment without prior written consent of Apex.</p>
+          <p><strong>{cn()}. Amendment.</strong> Written instrument signed by both parties required.</p>
+          <p><strong>{cn()}. Severability.</strong> Invalid provisions do not affect remaining provisions.</p>
+          <p><strong>{cn()}. Waiver.</strong> Failure to enforce does not constitute waiver.</p>
+          <p><strong>{cn()}. Notices.</strong> Written notices to specified addresses.</p>
+          <p><strong>{cn()}. Entire Agreement.</strong> This Agreement constitutes the entire agreement.</p>
+          <p><strong>{cn()}. Governing Law.</strong> Governed by laws of {governingState}.</p>
+          <p><strong>{cn()}. Dispute Resolution.</strong> Binding arbitration in {venueState}.</p>
+          <p><strong>{cn()}. Term &amp; Expiration.</strong> Effective as of {effectiveDate}, remains in effect until obligations fulfilled or {expirationDate}.</p>
+          <p><strong>{cn()}. Electronic Signatures.</strong> Electronic signatures deemed original.</p>
           {customerNotes && (<><hr className="my-4" /><h2 className="text-base font-bold text-gray-900 mt-6 mb-2">ADDITIONAL NOTES</h2><p>{customerNotes}</p></>)}
           <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
 
