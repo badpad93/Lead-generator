@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import { computeLineTotal, orderTotals, type LineItemLike } from "@/lib/pricing/lineItems";
 
 export async function GET(req: NextRequest) {
   const user = await getSalesUser(req);
@@ -123,19 +124,15 @@ export async function POST(req: NextRequest) {
     location_deposit_amount?: number;
   };
   const itemList: Item[] = Array.isArray(items) ? items : [];
-  const total = itemList.reduce((sum, i) => {
-    const qty = Number(i.quantity) || 1;
-    const price = Number(i.unit_price || i.price) || 0;
-    const discount = Number(i.discount_percent) || 0;
-    return sum + qty * price * (1 - discount / 100);
-  }, 0);
 
-  const depositTotal = itemList.reduce((sum, i) => {
-    if (i.deposit_required && i.location_deposit_amount) {
-      return sum + Number(i.location_deposit_amount);
-    }
-    return sum;
-  }, 0);
+  // Totals flow through the canonical calculator so CREATE and EDIT
+  // apply identical rules (quantity, unit price, discounts, zero-dollar
+  // lines, legacy `price`-only rows, rounding). Previously this route
+  // computed `qty * price * (1 - d/100)` inline — the only create path
+  // that bypassed the pricing library.
+  const totals = orderTotals(itemList as LineItemLike[]);
+  const total = totals.grandTotal;
+  const depositTotal = totals.depositTotal;
 
   const { data: order, error } = await supabaseAdmin
     .from("sales_orders")
@@ -174,7 +171,7 @@ export async function POST(req: NextRequest) {
         const qty = Number(i.quantity) || 1;
         const unitPrice = Number(i.unit_price || i.price) || 0;
         const discount = Number(i.discount_percent) || 0;
-        const lineTotal = qty * unitPrice * (1 - discount / 100);
+        const lineTotal = computeLineTotal(qty, unitPrice, discount);
         return {
           order_id: order.id,
           service_name: i.item_name || i.service_name || "",

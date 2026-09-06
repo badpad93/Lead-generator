@@ -3,8 +3,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 import {
   calculateLocationPrice,
-  BusinessHours,
-  MachinesRequested,
+  coerceBusinessHours,
+  coerceMachinesRequested,
 } from "@/lib/pricing/locationPricing";
 
 export async function POST(
@@ -31,8 +31,8 @@ export async function POST(
 
   const employees = body.employees ?? location.employee_count ?? 0;
   const foot_traffic = body.foot_traffic ?? location.traffic_count ?? 0;
-  const business_hours: BusinessHours = body.business_hours ?? location.business_hours ?? "low";
-  const machines_requested: MachinesRequested = body.machines_requested ?? location.machines_requested ?? 1;
+  const business_hours = coerceBusinessHours(body.business_hours ?? location.business_hours);
+  const machines_requested = coerceMachinesRequested(body.machines_requested ?? location.machines_requested);
 
   try {
     const result = calculateLocationPrice({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
 import { createAgreementFromOrder, AgreementCreationError } from "@/lib/salesAgreements";
+import { DEFAULT_LOCATION_PRICE } from "@/lib/pricing/locationPricing";
 
 /* ------------------------------------------------------------------ */
 /*  GET — List all agreements (optionally filter by status)            */
@@ -209,10 +210,20 @@ export async function POST(req: NextRequest) {
       machine_unit_price: body.machine_unit_price || 3700,
       equipment_subtotal: (body.machine_quantity || 1) * (body.machine_unit_price || 3700),
 
-      // Location services
+      // Location services.
+      //
+      // This is the STANDALONE (no-order) builder, so there is no order
+      // snapshot to read — the rep supplies the numbers. When a per-
+      // location fee isn't supplied we fall back to the location pricing
+      // engine's single-source default (DEFAULT_LOCATION_PRICE) rather
+      // than an independent magic `|| 400` that competed with the engine
+      // and pretended to be a computed price. `??` so an explicit 0 is
+      // honoured instead of being repriced. (From-order agreements ride
+      // createAgreementFromOrder above and read the frozen snapshot.)
       locations_purchased: body.locations_purchased || 0,
-      location_fee_per_secured: body.location_fee_per_secured || 400,
-      max_location_service_value: (body.locations_purchased || 0) * (body.location_fee_per_secured || 400),
+      location_fee_per_secured: body.location_fee_per_secured ?? DEFAULT_LOCATION_PRICE,
+      max_location_service_value:
+        (body.locations_purchased || 0) * (body.location_fee_per_secured ?? DEFAULT_LOCATION_PRICE),
 
       // Freight / shipping — all rate fields track the one supplied
       // rate so the contract text can't show a phantom "standard"

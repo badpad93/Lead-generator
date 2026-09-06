@@ -3,6 +3,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
 import {
   calculateLocationPrice,
+  coerceBusinessHours,
+  coerceMachinesRequested,
   TIER_PRICES,
   TEN_TEN_TEN_PRICE,
 } from "@/lib/pricing/locationPricing";
@@ -165,8 +167,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const pricing = calculateLocationPrice({
     employees: Number(pricingOverrides.employees ?? 0) || 0,
     foot_traffic: Number(pricingOverrides.foot_traffic ?? 0) || 0,
-    business_hours: pricingOverrides.business_hours ?? "medium",
-    machines_requested: pricingOverrides.machines_requested ?? 1,
+    // Single shared missing-field default — was "medium" here and "low"
+    // everywhere else, which priced the same location differently
+    // depending on the route.
+    business_hours: coerceBusinessHours(pricingOverrides.business_hours),
+    machines_requested: coerceMachinesRequested(pricingOverrides.machines_requested),
     is_ten_ten_ten: isTenTenTen,
   });
 

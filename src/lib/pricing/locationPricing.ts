@@ -28,19 +28,49 @@ export interface PricingResult {
   is_ten_ten_ten: boolean;
 }
 
-const HOURS_SCORES: Record<BusinessHours, number> = {
+export const HOURS_SCORES: Record<BusinessHours, number> = {
   low: 10,
   medium: 20,
   high: 30,
   "24/7": 40,
 };
 
-const MACHINE_SCORES: Record<MachinesRequested, number> = {
+export const MACHINE_SCORES: Record<MachinesRequested, number> = {
   1: 8,
   2: 15,
   3: 23,
   4: 30,
 };
+
+export const VALID_BUSINESS_HOURS: BusinessHours[] = ["low", "medium", "high", "24/7"];
+
+/**
+ * The single default for a missing / invalid business_hours input.
+ *
+ * Before this, callers disagreed — the lead→order converter defaulted a
+ * missing value to "medium" (20 pts) while every other route defaulted
+ * to "low" (10 pts), so the same location could be priced a tier apart
+ * depending on which route stamped it. "low" is the conservative choice
+ * (it never silently over-charges) and matches the majority of callers.
+ */
+export const DEFAULT_BUSINESS_HOURS: BusinessHours = "low";
+
+/** Coerce any raw value into a valid BusinessHours, falling back to the
+ *  single shared default. Use this on every pricing-input path so the
+ *  missing-field behaviour is identical everywhere. */
+export function coerceBusinessHours(raw: unknown): BusinessHours {
+  return VALID_BUSINESS_HOURS.includes(raw as BusinessHours)
+    ? (raw as BusinessHours)
+    : DEFAULT_BUSINESS_HOURS;
+}
+
+/** Coerce any raw value into a valid MachinesRequested (1..4), clamping
+ *  out-of-range numbers and falling back to 1 when absent. */
+export function coerceMachinesRequested(raw: unknown): MachinesRequested {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(1, Math.min(4, Math.round(n))) as MachinesRequested;
+}
 
 /**
  * Three-tier ladder — Basic / Premium / Elite.
@@ -91,6 +121,28 @@ const TIERS: { min: number; tier: LocationTier; label: string }[] = [
   { min: 60, tier: 2, label: "Premium" },
   { min: 0,  tier: 1, label: "Basic" },
 ];
+
+/** The score components (traffic / hours / machines) for a set of
+ *  inputs, using the same formulas as calculateLocationPrice. Exposed so
+ *  callers that only need the breakdown for display — e.g. rebuilding a
+ *  PricingResult around an already-stored price — don't re-hardcode the
+ *  scoring maps and drift from the engine. */
+export function scoreBreakdown(input: {
+  employees: number;
+  foot_traffic: number;
+  business_hours: BusinessHours;
+  machines_requested: MachinesRequested;
+}): { traffic_score: number; hours_score: number; machine_score: number; total_score: number } {
+  const trafficScore = Math.min(((input.employees + input.foot_traffic) / 500) * 30, 30);
+  const hoursScore = HOURS_SCORES[input.business_hours] ?? HOURS_SCORES[DEFAULT_BUSINESS_HOURS];
+  const machineScore = MACHINE_SCORES[input.machines_requested] ?? MACHINE_SCORES[1];
+  return {
+    traffic_score: Math.round(trafficScore * 100) / 100,
+    hours_score: hoursScore,
+    machine_score: machineScore,
+    total_score: Math.round(Math.min(trafficScore + hoursScore + machineScore, 100)),
+  };
+}
 
 export function calculateLocationPrice(input: PricingInput): PricingResult {
   if (input.employees < 0) throw new Error("employees must be >= 0");

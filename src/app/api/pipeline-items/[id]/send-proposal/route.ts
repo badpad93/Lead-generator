@@ -3,8 +3,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
 import {
   calculateLocationPrice,
-  BusinessHours,
-  MachinesRequested,
+  coerceBusinessHours,
+  coerceMachinesRequested,
+  scoreBreakdown,
   PricingResult,
   coerceTier,
 } from "@/lib/pricing/locationPricing";
@@ -74,8 +75,8 @@ export async function POST(
       pricing = calculateLocationPrice({
         employees: location.employee_count ?? 0,
         foot_traffic: location.traffic_count ?? 0,
-        business_hours: location.business_hours as BusinessHours,
-        machines_requested: location.machines_requested as MachinesRequested,
+        business_hours: coerceBusinessHours(location.business_hours),
+        machines_requested: coerceMachinesRequested(location.machines_requested),
       });
       await supabaseAdmin
         .from("locations")
@@ -91,11 +92,21 @@ export async function POST(
     }
   } else if (location.pricing_score != null) {
     const tier = coerceTier(location.pricing_tier);
+    // Rebuild a PricingResult around the ALREADY-STORED price — the
+    // authoritative snapshot. The score breakdown is display-only and
+    // comes from the engine's shared helper rather than re-hardcoding
+    // the scoring maps here (which had drifted from the engine).
+    const breakdown = scoreBreakdown({
+      employees: location.employee_count ?? 0,
+      foot_traffic: location.traffic_count ?? 0,
+      business_hours: coerceBusinessHours(location.business_hours),
+      machines_requested: coerceMachinesRequested(location.machines_requested),
+    });
     pricing = {
       total_score: location.pricing_score,
-      traffic_score: Math.min(((location.employee_count ?? 0) + (location.traffic_count ?? 0)) / 500 * 30, 30),
-      hours_score: ({ low: 10, medium: 20, high: 30, "24/7": 40 } as Record<string, number>)[location.business_hours ?? "low"] ?? 10,
-      machine_score: ({ 1: 8, 2: 15, 3: 23, 4: 30 } as Record<number, number>)[location.machines_requested ?? 1] ?? 8,
+      traffic_score: breakdown.traffic_score,
+      hours_score: breakdown.hours_score,
+      machine_score: breakdown.machine_score,
       tier,
       tier_label: `Tier ${tier}`,
       price: Number(location.pricing_price),
