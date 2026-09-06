@@ -24,6 +24,16 @@ export async function GET(
   if (error || !ag)
     return NextResponse.json({ error: "Agreement not found" }, { status: 404 });
 
+  // Signed-text immutability: once an agreement is fully signed, the
+  // executed PDF is frozen as a stored file (signed_pdf_url, written by
+  // handleFullySignedAgreement). Serve that stored artifact instead of
+  // regenerating from current clause code, so a later deploy of new
+  // agreement language can never change what an already-signed customer
+  // downloads. Drafts/sent (no signed_pdf_url yet) still render live.
+  if (typeof ag.signed_pdf_url === "string" && ag.signed_pdf_url) {
+    return NextResponse.redirect(ag.signed_pdf_url);
+  }
+
   // Fetch signatures and initials
   const [{ data: signatures }, { data: initials }] = await Promise.all([
     supabaseAdmin

@@ -3,7 +3,6 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { Resend } from "resend";
 import { pdfSafeInline, pdfSafeMultiline } from "./pdfSafeText";
 import {
-  agreementTotals,
   lineTotal,
   sumLines,
   type ItemCategory,
@@ -11,12 +10,13 @@ import {
   type SnapshotLine,
 } from "@/lib/pricing/lineItems";
 import { buildOrderItemsFromAgreement } from "@/lib/agreements/sync";
+import { initialsKeyFor, type AgreementSectionId } from "@/lib/agreements/sections";
 import {
-  resolveAgreementSections,
-  createSectionNumberer,
-  initialsKeyFor,
-  type AgreementSectionId,
-} from "@/lib/agreements/sections";
+  buildAgreement,
+  type NumberedClause,
+  type ClauseBlock,
+  type ClauseTableKey,
+} from "@/lib/agreements/clauses";
 
 const CATEGORY_LABEL: Record<ItemCategory, string> = {
   equipment: "Equipment",
@@ -26,17 +26,6 @@ const CATEGORY_LABEL: Record<ItemCategory, string> = {
   financing: "Financing",
   other: "Other",
 };
-
-/** Order the payment summary groups appear in. */
-const CATEGORY_ORDER: ItemCategory[] = [
-  "equipment",
-  "coffee",
-  "location_services",
-  "freight",
-  "financing",
-  "other",
-];
-
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 
@@ -148,38 +137,15 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     }
   }
 
-  // Display numbers are assigned sequentially as sections are emitted,
-  // so skipping a conditional section never leaves a gap (2 -> 6). The
-  // initials box binds to the section's STABLE id, not its display
-  // number, so it stays correct after renumbering.
-  const numberer = createSectionNumberer();
-
-  function sectionHeader(id: string, title: string) {
-    checkPage(34);
-    y -= 12;
-    drawLine(y + 6);
-    y -= 6;
-    const num = numberer.assign(id);
-    drawText(page, `Section ${num}: ${title}`, LEFT, y, helveticaBold, 9, dark);
-    y -= 16;
-    currentInitialsKey = initialsKeyFor(id as AgreementSectionId) ?? null;
-    currentScheduleKey = "";
-  }
-
-  const SCHEDULE_KEY_MAP: Record<string, string> = {
-    A: "schedule_a", B: "schedule_b", C: "schedule_c",
-  };
+  // Initials bind to the section's STABLE id (from clauses/sections),
+  // never a display number, so the right box stays with the right clause.
   let currentInitialsKey: string | null = null;
-  let currentScheduleKey = "";
 
   function getInitialsForSection(): string | null {
-    const key = currentScheduleKey
-      ? SCHEDULE_KEY_MAP[currentScheduleKey]
-      : currentInitialsKey;
-    if (!key) return null;
+    if (!currentInitialsKey) return null;
     const found = initials.find(
       (i: { section_key: string; signer_type: string }) =>
-        i.section_key === key && i.signer_type === "operator",
+        i.section_key === currentInitialsKey && i.signer_type === "operator",
     );
     return found ? found.initials_data : null;
   }
@@ -273,189 +239,43 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
   y -= 20;
 
   /* ================================================================ */
-  /*  SECTIONS 1-31                                                   */
+  /*  CANONICAL AGREEMENT CONTENT                                     */
+  /*  Rendered from src/lib/agreements/clauses.ts — the single source */
+  /*  the customer signing page uses. This PDF is a renderer, not an  */
+  /*  author of contract terms.                                       */
   /* ================================================================ */
+  const built = buildAgreement(ag);
+  const v = built.values;
 
-  sectionHeader("recitals", "Recitals");
-  drawWrapped(
-    `This Purchase Agreement ("Agreement") is entered into as of ${effectiveDate} by and between ${ag.apex_company_name || "Apex AI Vending LLC"} ("Apex" or "Company") and ${ag.operator_company_name || "[Operator]"} ("Operator"). Apex is engaged in the business of selling vending equipment and providing related products and services. The Operator desires to purchase the products and services described in this Agreement.`,
-    helvetica, 8.5, gray,
-  );
-
-  sectionHeader("definitions", "Definitions");
-  const definitions = [
-    `"VendEra AI Machine" means the smart vending machine model ${ag.machine_model || "[Model]"} manufactured or distributed by Apex.`,
-    `"Location Services" means Apex's service of identifying, vetting, and securing commercial locations for machine placement.`,
-    `"Procurement" means the ordering, manufacturing, and preparation of machines for delivery.`,
-    `"Effective Date" means ${effectiveDate}.`,
-  ];
-  for (const def of definitions) {
-    drawWrapped(`• ${def}`, helvetica, 8.5, gray, 8);
-    y -= 2;
-  }
-
-  // The contract is built from the order's line items. line_items_snapshot
-  // holds every line verbatim (migration 176); the scalar columns are a
-  // derived cache kept only so pre-176 agreements still render.
   const snapshotLines: SnapshotLine[] = Array.isArray(ag.line_items_snapshot)
     ? (ag.line_items_snapshot as SnapshotLine[])
     : [];
-  const hasSnapshot = snapshotLines.length > 0;
-  const snapTotals = hasSnapshot ? agreementTotals(snapshotLines) : null;
 
-  // Inclusion is decided by the single shared, deterministic resolver —
-  // snapshot categories when a snapshot exists, else an explicit include
-  // flag, else narrow scalar evidence. No `hasSnapshot ? … : true`
-  // fallback that silently turned conditional clauses on.
-  const sections = resolveAgreementSections(ag);
-  const includeEquipment = sections.equipment;
-  const includeLocationServices = sections.location;
-  const includeShippingStorage = sections.shipping;
-  const includeCoffee = sections.coffee;
-  const includeFinancing = sections.financing;
-
-  if (includeEquipment) {
-    sectionHeader("equipment_purchase", "Equipment Purchase");
-    labelValue("Machine Model", ag.machine_model || "—");
-    labelValue("Quantity", String(ag.machine_quantity || 0));
-    labelValue("Unit Price", money(ag.machine_unit_price));
-    labelValue("Equipment Subtotal", money(ag.equipment_subtotal));
-    y -= 4;
-    drawWrapped(
-      "Operator agrees to purchase the above-described VendEra AI Machine(s) at the stated unit price. All machines are new and come with standard manufacturer warranties. Apex warrants that machines will be free from defects in materials and workmanship for a period of twelve (12) months from delivery.",
-      helvetica, 8.5, gray,
-    );
-    initialsPlaceholder();
+  function sectionHeaderNum(num: number, title: string) {
+    checkPage(34);
+    y -= 12;
+    drawLine(y + 6);
+    y -= 6;
+    drawText(page, `Section ${num}: ${title}`, LEFT, y, helveticaBold, 9, dark);
+    y -= 16;
   }
 
-  if (includeLocationServices) {
-    sectionHeader("location_services", "Location Services");
-    labelValue("Locations Purchased", String(ag.locations_purchased || 0));
-    labelValue("Fee per Location Secured", money(ag.location_fee_per_secured));
-    labelValue("Max Location Service Value", money(ag.max_location_service_value));
-    labelValue("Rejection Allowance", ag.location_rejection_allowance || "Per service terms");
-    labelValue("Service Timeline", ag.location_service_timeline_days ? `${ag.location_service_timeline_days} days` : "Per service terms");
-    if (ag.location_services_deposit_only) {
-      const deposit = Math.min(Number(ag.location_services_deposit_amount) || 0, Number(ag.max_location_service_value) || 0);
-      const remaining = Math.max(0, Number(ag.max_location_service_value) - deposit);
-      labelValue("Deposit Due Upfront", money(deposit));
-      labelValue("Balance Due on Fulfillment", money(remaining));
-    }
-    y -= 4;
-    drawWrapped(
-      "If Operator has elected location services, Apex will identify and secure suitable commercial locations for machine placement. Each location will meet minimum traffic and suitability criteria. Operator may reject a proposed location within the allowance specified above; additional rejections may incur supplemental fees.",
-      helvetica, 8.5, gray,
-    );
-    if (ag.location_services_deposit_only) {
-      y -= 4;
-      const deposit = Math.min(Number(ag.location_services_deposit_amount) || 0, Number(ag.max_location_service_value) || 0);
-      const remaining = Math.max(0, Number(ag.max_location_service_value) - deposit);
-      drawWrapped(
-        `Payment Schedule: A non-refundable deposit of ${money(deposit)} is due prior to procurement. The remaining balance of ${money(remaining)} shall be invoiced upon fulfillment of secured locations and is due on receipt.`,
-        helvetica, 8.5, gray,
-      );
-    }
-    initialsPlaceholder();
+  function scheduleHeader(title: string) {
+    checkPage(40);
+    y -= 10;
+    drawLine(y);
+    y -= 20;
+    drawText(page, title.toUpperCase(), LEFT, y, helveticaBold, 10, green);
+    y -= 20;
   }
 
-  if (includeShippingStorage) {
-    // Storage lines only when a fee is actually set — storage is not
-    // a line item in the quote/order flow, so an unset fee must not
-    // put a $/month charge in the contract.
-    const hasStorage = Number(ag.storage_fee_per_machine_month) > 0;
-    sectionHeader("shipping_freight", hasStorage ? "Shipping & Storage" : "Shipping & Freight");
-    // One freight rate — the standard/discounted framing displayed
-    // DB-default rates ($500/$375) that existed nowhere on the order.
-    labelValue("Freight per Machine", money(ag.freight_per_machine));
-    labelValue(`Freight Total (${ag.machine_quantity || 0} machine${(ag.machine_quantity || 0) === 1 ? "" : "s"})`, money(ag.freight_total));
-    if (hasStorage) {
-      labelValue("Storage Fee per Machine / Month", money(ag.storage_fee_per_machine_month));
-      labelValue("Free Storage Period", `${ag.free_storage_months || 0} month${(ag.free_storage_months || 0) === 1 ? "" : "s"}`);
-    }
-    y -= 4;
-    drawWrapped(
-      "Freight charges cover shipping from the distribution center to the Operator's designated delivery address. Machines are shipped via common carrier. Risk of loss transfers to Operator upon delivery." +
-        (hasStorage
-          ? " Storage fees apply if Operator is unable to accept delivery within the free storage period."
-          : ""),
-      helvetica, 8.5, gray,
-    );
-    initialsPlaceholder();
+  function drawParagraph(block: ClauseBlock) {
+    if (block.kind !== "p") return;
+    const text = block.label ? `${block.label} ${block.text}` : block.text;
+    drawWrapped(text, helvetica, 8.5, block.caps ? dark : gray);
+    y -= 2;
   }
 
-  sectionHeader("payment_terms", "Payment Terms");
-  labelValue("Total Due Prior to Procurement", money(ag.total_due_prior_to_procurement));
-  labelValue("Payment Due Date", ag.payment_due_date || "Upon execution");
-  labelValue("Payment Method", ag.payment_method_notes || "Wire transfer, ACH, or certified check");
-  y -= 4;
-  drawWrapped(
-    "Full payment of the Total Due Prior to Procurement is required before Apex will initiate machine procurement or begin location services. Late payments are subject to a 1.5% monthly interest charge. Returned payments incur a $50 processing fee.",
-    helvetica, 8.5, gray,
-  );
-  initialsPlaceholder();
-
-  // Delivery and Warranties are general sections that do not require
-  // initials. They previously drew an initials box bound to keys
-  // section_7 / section_8 — which are the operator's Location-Service-
-  // Payment and Storage initials on the signing page — so the executed
-  // PDF showed the wrong initials against the wrong clause. No box here.
-  sectionHeader("delivery_installation", "Delivery & Installation");
-  drawWrapped(
-    "Apex will coordinate delivery to the Operator's specified address. Standard delivery timeframe is 4-8 weeks from payment confirmation, subject to manufacturer availability. Operator is responsible for ensuring adequate site preparation including electrical access (standard 120V outlet), sufficient floor space, and ADA-compliant placement. Apex may offer optional installation services at additional cost.",
-    helvetica, 8.5, gray,
-  );
-
-  sectionHeader("warranties", "Warranties & Representations");
-  drawWrapped(
-    "Apex warrants that: (a) all machines are new and conform to published specifications; (b) machines will be free from material defects for 12 months from delivery; (c) Apex has authority to sell the machines; (d) location services will be performed with reasonable care and diligence. THE FOREGOING WARRANTIES ARE EXCLUSIVE AND IN LIEU OF ALL OTHER WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.",
-    helvetica, 8.5, gray,
-  );
-
-  const remainingSections: Array<{ num: number; title: string; text: string }> = [
-    { num: 9, title: "Intellectual Property", text: "The VendEra AI software, branding, and proprietary systems remain the exclusive intellectual property of Apex. Operator receives a non-exclusive, non-transferable license to use the machine software for its intended vending purpose. Operator shall not reverse engineer, modify, or create derivative works from any Apex software or technology." },
-    { num: 10, title: "Data & Telemetry", text: "VendEra AI machines transmit operational data including sales, inventory, and performance metrics. Apex and Operator both have access to machine performance data via the VendEra dashboard. Apex may use aggregated, anonymized data for product improvement. Operator owns all customer transaction data collected at their locations." },
-    { num: 11, title: "Maintenance & Support", text: "Apex provides technical support via phone and email during business hours. Warranty repairs are covered under the 12-month warranty. Post-warranty repairs and parts are available at published rates. Operator is responsible for routine cleaning and restocking of machines." },
-    { num: 12, title: "Insurance", text: "Operator shall maintain general commercial liability insurance with minimum coverage of $1,000,000 per occurrence covering the machines and their operation. Apex maintains product liability insurance for manufacturing defects. Certificates of insurance shall be provided upon request." },
-    { num: 13, title: "Indemnification", text: "Each party agrees to indemnify, defend, and hold harmless the other party from claims, damages, and expenses arising from: (a) the indemnifying party's negligence or willful misconduct; (b) breach of this Agreement; (c) violation of applicable laws. Operator indemnifies Apex against claims arising from machine operation, placement, and customer interactions at Operator's locations." },
-    { num: 14, title: "Limitation of Liability", text: "IN NO EVENT SHALL EITHER PARTY BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES. APEX'S TOTAL LIABILITY UNDER THIS AGREEMENT SHALL NOT EXCEED THE TOTAL AMOUNT PAID BY OPERATOR UNDER THIS AGREEMENT. These limitations apply regardless of the form of action, whether in contract, tort, strict liability, or otherwise." },
-    { num: 15, title: "Confidentiality", text: "Both parties agree to maintain the confidentiality of proprietary information disclosed in connection with this Agreement, including pricing, business plans, customer data, and technical specifications. Confidentiality obligations survive termination for a period of two (2) years." },
-    { num: 16, title: "Term & Termination", text: "This Agreement is effective as of the Effective Date and continues until all obligations are fulfilled. Either party may terminate for material breach upon 30 days' written notice if the breach remains uncured. Upon termination, payment obligations for delivered machines and completed services remain in effect." },
-    { num: 17, title: "Force Majeure", text: "Neither party shall be liable for delays or failures in performance caused by events beyond reasonable control, including natural disasters, pandemics, government actions, supply chain disruptions, or shipping carrier delays. The affected party shall promptly notify the other and use reasonable efforts to mitigate the impact." },
-    { num: 18, title: "Assignment", text: "Neither party may assign this Agreement without the prior written consent of the other party, except that either party may assign to an affiliate or successor in connection with a merger, acquisition, or sale of substantially all assets." },
-    { num: 19, title: "Governing Law", text: `This Agreement shall be governed by and construed in accordance with the laws of the State of ${ag.governing_state || "Nevada"}, without regard to conflict of law principles.` },
-    { num: 20, title: "Dispute Resolution", text: `Any dispute arising under this Agreement shall first be subject to good-faith negotiation for 30 days. If unresolved, disputes shall be submitted to binding arbitration in ${ag.venue_state || ag.governing_state || "Nevada"} under the rules of the American Arbitration Association. The prevailing party shall be entitled to recover reasonable attorney's fees.` },
-    { num: 21, title: "Notices", text: "All notices under this Agreement shall be in writing and delivered by email (with read receipt), certified mail, or overnight courier to the addresses specified in this Agreement. Notices are effective upon confirmed receipt." },
-    { num: 22, title: "Entire Agreement", text: "This Agreement constitutes the entire agreement between the parties regarding its subject matter and supersedes all prior negotiations, representations, and agreements. No amendment or modification shall be effective unless in writing and signed by both parties." },
-    { num: 23, title: "Severability", text: "If any provision of this Agreement is held to be invalid or unenforceable, the remaining provisions shall continue in full force and effect. The invalid provision shall be modified to the minimum extent necessary to make it valid and enforceable." },
-    { num: 24, title: "Waiver", text: "The failure of either party to enforce any right or provision of this Agreement shall not constitute a waiver of such right or provision. Any waiver must be in writing and signed by the waiving party." },
-    { num: 25, title: "Counterparts", text: "This Agreement may be executed in counterparts, each of which shall be deemed an original. Electronic signatures shall be deemed original signatures for all purposes." },
-    { num: 26, title: "Survival", text: "Provisions regarding payment obligations, warranties, indemnification, limitation of liability, confidentiality, intellectual property, and dispute resolution shall survive termination or expiration of this Agreement." },
-    { num: 27, title: "Independent Contractors", text: "The parties are independent contractors. Nothing in this Agreement creates a partnership, joint venture, agency, or employment relationship between the parties." },
-    { num: 28, title: "Compliance with Laws", text: "Both parties shall comply with all applicable federal, state, and local laws, regulations, and ordinances in the performance of this Agreement, including health and safety regulations applicable to vending operations." },
-    { num: 29, title: "Publicity", text: "Neither party shall use the other party's name, logo, or trademarks in any publicity, advertising, or marketing materials without prior written consent." },
-    { num: 30, title: "ADA & Accessibility", text: "Operator is responsible for ensuring machine placement complies with the Americans with Disabilities Act and all applicable accessibility requirements." },
-    { num: 31, title: "Additional Terms", text: ag.customer_notes || "No additional terms specified." },
-  ];
-
-  // These general sections are always present and never require
-  // initials. They flow through the shared numberer (keyed by a stable
-  // id derived from their original slot) so their printed numbers stay
-  // contiguous after any conditional section above them was skipped.
-  for (const sec of remainingSections) {
-    sectionHeader(`general_${sec.num}`, sec.title);
-    drawWrapped(sec.text, helvetica, 8.5, gray);
-  }
-
-  /* ================================================================ */
-  /*  SCHEDULE A — Order Line Items                                   */
-  /* ================================================================ */
-  // Every line on the order, verbatim.
-  //
-  // This used to be a single hardcoded "VendEra AI Machine" row built
-  // from machine_model / machine_quantity / machine_unit_price, so
-  // coffee, coolers, financing and any rep-entered custom line never
-  // appeared in the signed contract at all, and two machine lines at
-  // different prices collapsed into one row at the first line's price.
   function truncateTo(text: string, font: PDFFont, size: number, maxWidth: number): string {
     if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
     let out = text;
@@ -469,7 +289,10 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     drawText(page, text, RIGHT - 4 - font.widthOfTextAtSize(text, size), y, font, size, color);
   }
 
-  if (hasSnapshot) {
+  // Schedule A: every line on the order, verbatim from the Phase-1
+  // snapshot — so coffee, coolers, financing and custom lines all appear
+  // in the signed contract, not just equipment.
+  function drawLineItemsTable() {
     const COL_ITEM = LEFT + 4;
     const COL_CAT = LEFT + 190;
     const COL_QTY = LEFT + 296;
@@ -487,277 +310,113 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
       y -= 18;
     };
 
-    checkPage(70);
-    y -= 10;
-    drawLine(y);
-    y -= 20;
-    drawText(page, "SCHEDULE A: ORDER LINE ITEMS", LEFT, y, helveticaBold, 10, green);
-    y -= 22;
-    currentScheduleKey = "A";
-
-    drawItemHeader();
-
-    for (const line of snapshotLines) {
-      const before = y;
-      checkPage(30);
-      if (y > before) drawItemHeader(); // a new page started — repeat the header
-
-      const name = truncateTo(line.service_name || "Item", helvetica, 8.5, 178);
-      drawText(page, name, COL_ITEM, y, helvetica, 8.5, dark);
-      drawText(
-        page,
-        truncateTo(CATEGORY_LABEL[line.category] ?? "Other", helvetica, 8, 100),
-        COL_CAT, y, helvetica, 8, gray,
-      );
-      drawText(page, String(line.quantity ?? 1), COL_QTY, y, helvetica, 8.5, dark);
-      drawText(page, money(line.unit_price), COL_UNIT, y, helvetica, 8.5, dark);
-      drawText(
-        page,
-        Number(line.discount_percent) > 0 ? `${Number(line.discount_percent)}%` : "—",
-        COL_DISC, y, helvetica, 8.5,
-        Number(line.discount_percent) > 0 ? green : gray,
-      );
-      drawRightAt(money(line.total_price), helveticaBold, 8.5, dark);
-      y -= 14;
-
-      if (line.description) {
-        const desc = truncateTo(String(line.description), helvetica, 7.5, MAX_W - 20);
-        drawText(page, desc, COL_ITEM + 6, y, helvetica, 7.5, gray);
-        y -= 12;
-      }
-      if (line.deferred) {
+    if (snapshotLines.length > 0) {
+      checkPage(50);
+      drawItemHeader();
+      for (const line of snapshotLines) {
+        const before = y;
+        checkPage(30);
+        if (y > before) drawItemHeader();
+        drawText(page, truncateTo(line.service_name || "Item", helvetica, 8.5, 178), COL_ITEM, y, helvetica, 8.5, dark);
+        drawText(page, truncateTo(CATEGORY_LABEL[line.category] ?? "Other", helvetica, 8, 100), COL_CAT, y, helvetica, 8, gray);
+        drawText(page, String(line.quantity ?? 1), COL_QTY, y, helvetica, 8.5, dark);
+        drawText(page, money(line.unit_price), COL_UNIT, y, helvetica, 8.5, dark);
         drawText(
           page,
-          "Invoiced on fulfillment — not included in the amount due prior to procurement",
-          COL_ITEM + 6, y, helvetica, 7.5, gray,
+          Number(line.discount_percent) > 0 ? `${Number(line.discount_percent)}%` : "—",
+          COL_DISC, y, helvetica, 8.5,
+          Number(line.discount_percent) > 0 ? green : gray,
         );
-        y -= 12;
-      }
-      drawLine(y + 4);
-      y -= 6;
-    }
-
-    if (ag.machine_notes) {
-      y -= 4;
-      drawWrapped(`Notes: ${ag.machine_notes}`, helvetica, 8, gray);
-    }
-    initialsPlaceholder();
-  } else if (includeEquipment) {
-    // Pre-migration-176 agreement: no snapshot exists, so fall back to
-    // the scalar columns. Only equipment and freight can be expressed.
-    checkPage(60);
-    y -= 10;
-    drawLine(y);
-    y -= 20;
-    drawText(page, "SCHEDULE A: EQUIPMENT DETAILS", LEFT, y, helveticaBold, 10, green);
-    y -= 20;
-    currentScheduleKey = "A";
-
-    checkPage(80);
-    page.drawRectangle({ x: LEFT, y: y - 4, width: MAX_W, height: 18, color: lightBg });
-    drawText(page, "Item", LEFT + 4, y, helveticaBold, 8, dark);
-    drawText(page, "Model", LEFT + 140, y, helveticaBold, 8, dark);
-    drawText(page, "Qty", LEFT + 310, y, helveticaBold, 8, dark);
-    drawText(page, "Unit Price", LEFT + 370, y, helveticaBold, 8, dark);
-    drawText(page, "Subtotal", LEFT + 450, y, helveticaBold, 8, dark);
-    y -= 20;
-
-    drawText(page, "VendEra AI Machine", LEFT + 4, y, helvetica, 8.5, dark);
-    drawText(page, ag.machine_model || "—", LEFT + 140, y, helvetica, 8.5, dark);
-    drawText(page, String(ag.machine_quantity || 0), LEFT + 310, y, helvetica, 8.5, dark);
-    drawText(page, money(ag.machine_unit_price), LEFT + 370, y, helvetica, 8.5, dark);
-    drawText(page, money(ag.equipment_subtotal), LEFT + 450, y, helveticaBold, 8.5, dark);
-    y -= 16;
-    drawLine(y);
-    y -= 16;
-
-    if (includeShippingStorage && Number(ag.freight_total) > 0) {
-      drawText(page, "Freight", LEFT + 4, y, helvetica, 8.5, dark);
-      drawText(page, `${money(ag.freight_per_machine)} x ${ag.machine_quantity || 0}`, LEFT + 310, y, helvetica, 8.5, dark);
-      drawText(page, money(ag.freight_total), LEFT + 450, y, helveticaBold, 8.5, dark);
-      y -= 16;
-      drawLine(y);
-      y -= 16;
-    }
-    if (ag.machine_notes) {
-      y -= 4;
-      drawWrapped(`Notes: ${ag.machine_notes}`, helvetica, 8, gray);
-    }
-    initialsPlaceholder();
-  }
-
-  /* ================================================================ */
-  /*  SCHEDULE B — Location Services                                  */
-  /* ================================================================ */
-  if (includeLocationServices) {
-    checkPage(60);
-    y -= 10;
-    drawLine(y);
-    y -= 20;
-    drawText(page, "SCHEDULE B: LOCATION SERVICES", LEFT, y, helveticaBold, 10, green);
-    y -= 20;
-    currentScheduleKey = "B";
-
-    labelValue("Locations Purchased", String(ag.locations_purchased || 0));
-    labelValue("Fee per Location Secured", money(ag.location_fee_per_secured));
-    labelValue("Maximum Service Value", money(ag.max_location_service_value));
-    labelValue("Rejection Allowance", ag.location_rejection_allowance || "Per service terms");
-    labelValue("Service Timeline", ag.location_service_timeline_days ? `${ag.location_service_timeline_days} days` : "Per service terms");
-    labelValue("Payment Terms", ag.location_payment_terms || "Included in total due");
-    y -= 4;
-    drawWrapped(
-      "Location services include site identification, traffic analysis, decision-maker outreach, and lease/placement agreement facilitation. Locations that do not meet Operator's reasonable criteria may be rejected within the allowance above.",
-      helvetica, 8.5, gray,
-    );
-    initialsPlaceholder();
-  }
-
-  /* ================================================================ */
-  /*  PAYMENT SUMMARY — grouped from the line items, and it adds up   */
-  /* ================================================================ */
-  // The total printed here is the arithmetic sum of the rows above it.
-  // It previously came from total_due_prior_to_procurement, which the
-  // creation route computed as equipment + freight only — so a contract
-  // listing Equipment, Location Services and Freight printed a total
-  // that omitted the location-services row sitting directly above it.
-  checkPage(110);
-  y -= 10;
-  drawLine(y);
-  y -= 20;
-  drawText(page, "PAYMENT SUMMARY", LEFT, y, helveticaBold, 10, green);
-  y -= 18;
-
-  let summaryTotal = 0;
-  const deferredRows: Array<{ label: string; amount: number }> = [];
-
-  if (hasSnapshot && snapTotals) {
-    for (const category of CATEGORY_ORDER) {
-      const rows = snapshotLines.filter((l) => l.category === category);
-      if (rows.length === 0) continue;
-
-      const upfront = rows
-        .filter((l) => !l.deferred)
-        .reduce((sum, l) => sum + Number(l.total_price || 0), 0);
-      const deferred = rows
-        .filter((l) => l.deferred)
-        .reduce((sum, l) => sum + Number(l.total_price || 0), 0);
-
-      if (upfront !== 0 || deferred === 0) {
-        const count = rows.filter((l) => !l.deferred).length;
-        const label = `${CATEGORY_LABEL[category]} (${count} line item${count === 1 ? "" : "s"})`;
-        checkPage(20);
-        drawText(page, label, LEFT + 4, y, helvetica, 9, dark);
-        drawRightAt(money(upfront), helvetica, 9, dark);
+        drawRightAt(money(line.total_price), helveticaBold, 8.5, dark);
         y -= 14;
-        summaryTotal += upfront;
+        if (line.description) {
+          drawText(page, truncateTo(String(line.description), helvetica, 7.5, MAX_W - 20), COL_ITEM + 6, y, helvetica, 7.5, gray);
+          y -= 12;
+        }
+        if (line.deferred) {
+          drawText(page, "Invoiced on fulfillment — not included in the amount due prior to procurement", COL_ITEM + 6, y, helvetica, 7.5, gray);
+          y -= 12;
+        }
+        drawLine(y + 4);
+        y -= 6;
       }
-      if (deferred > 0) {
-        deferredRows.push({ label: CATEGORY_LABEL[category], amount: deferred });
-      }
-    }
-  } else {
-    // Pre-migration-176 fallback: total the scalar columns the same way
-    // the snapshot path totals lines — additively.
-    const depositOnly = ag.location_services_deposit_only === true;
-    const locMax = Number(ag.max_location_service_value) || 0;
-    const locDeposit = Math.min(Number(ag.location_services_deposit_amount) || 0, locMax);
-    const locUpfront = depositOnly ? locDeposit : locMax;
-    const locRemaining = depositOnly ? Math.max(0, locMax - locDeposit) : 0;
-
-    if (includeEquipment && Number(ag.equipment_subtotal) > 0) {
-      drawText(
-        page,
-        `Equipment (${ag.machine_quantity || 0}x ${ag.machine_model || "VendEra AI Machine"})`,
-        LEFT + 4, y, helvetica, 9, dark,
-      );
-      drawRightAt(money(ag.equipment_subtotal), helvetica, 9, dark);
-      y -= 14;
-      summaryTotal += Number(ag.equipment_subtotal) || 0;
-    }
-    if (includeLocationServices && locMax > 0) {
-      const label = depositOnly
-        ? `Location Services Deposit (${ag.locations_purchased || 0} location${(ag.locations_purchased || 0) === 1 ? "" : "s"})`
-        : `Location Services (${ag.locations_purchased || 0} location${(ag.locations_purchased || 0) === 1 ? "" : "s"})`;
-      drawText(page, label, LEFT + 4, y, helvetica, 9, dark);
-      drawRightAt(money(locUpfront), helvetica, 9, dark);
-      y -= 14;
-      summaryTotal += locUpfront;
-      if (locRemaining > 0) {
-        deferredRows.push({ label: "Location Services balance", amount: locRemaining });
-      }
-    }
-    if (includeShippingStorage && Number(ag.freight_total) > 0) {
-      drawText(
-        page,
-        `Shipping & Freight (${ag.machine_quantity || 0} machine${(ag.machine_quantity || 0) === 1 ? "" : "s"})`,
-        LEFT + 4, y, helvetica, 9, dark,
-      );
-      drawRightAt(money(ag.freight_total), helvetica, 9, dark);
-      y -= 14;
-      summaryTotal += Number(ag.freight_total) || 0;
+    } else {
+      // Pre-snapshot fallback — only equipment scalars are expressible.
+      labelValue("Machine Model", v.model);
+      labelValue("Quantity", String(v.qty));
+      labelValue("Unit Price", v.unitPrice);
+      labelValue("Equipment Subtotal", v.subtotal);
     }
   }
 
-  summaryTotal = Math.round((summaryTotal + Number.EPSILON) * 100) / 100;
-
-  y -= 2;
-  drawLine(y + 6);
-  checkPage(24);
-  drawText(page, "TOTAL DUE PRIOR TO PROCUREMENT", LEFT + 4, y, helveticaBold, 10, dark);
-  const totalStr = money(summaryTotal);
-  drawText(
-    page, totalStr,
-    RIGHT - 4 - helveticaBold.widthOfTextAtSize(totalStr, 12),
-    y, helveticaBold, 12, green,
-  );
-  y -= 16;
-
-  for (const row of deferredRows) {
-    checkPage(18);
-    drawText(
-      page,
-      `+ ${money(row.amount)} ${row.label} — invoiced on fulfillment`,
-      LEFT + 4, y, helvetica, 8, gray,
-    );
-    y -= 14;
+  function drawTable(key: ClauseTableKey) {
+    switch (key) {
+      case "equipment":
+        labelValue("Machine Model", v.model);
+        labelValue("Quantity", String(v.qty));
+        labelValue("Unit Price", v.unitPrice);
+        labelValue("Equipment Subtotal", v.subtotal);
+        break;
+      case "freight":
+        labelValue("Freight Rate", `${v.freightPerMachine} / machine`);
+        labelValue(`Total Freight (${v.qty} machine${v.qty !== 1 ? "s" : ""})`, v.freightTotal);
+        if (v.hasStorageFee) {
+          labelValue("Storage Fee", `${v.storageFee} / machine / month`);
+          labelValue("Free Storage Period", `${v.freeStorageMonths} month${v.freeStorageMonths !== 1 ? "s" : ""}`);
+        }
+        break;
+      case "location":
+        labelValue("Locations Purchased", String(v.locations));
+        labelValue("Fee Per Secured Location", v.locationFee);
+        labelValue("Maximum Service Value", v.maxLocationValue);
+        break;
+      case "storage":
+        labelValue("Storage Fee", `${v.storageFee} / machine / month`);
+        labelValue("Free Storage Period", `${v.freeStorageMonths} month${v.freeStorageMonths !== 1 ? "s" : ""}`);
+        break;
+      case "payment":
+        checkPage(30);
+        drawText(page, "Total Due Prior to Procurement", LEFT + 4, y, helveticaBold, 10, dark);
+        drawText(page, v.totalDue, RIGHT - 4 - helveticaBold.widthOfTextAtSize(v.totalDue, 12), y, helveticaBold, 12, green);
+        y -= 18;
+        if (v.depositOnly) {
+          drawWrapped(`+ ${v.locationBalance} Location Services balance due upon fulfillment of secured locations`, helvetica, 8, gray);
+        }
+        break;
+      case "line_items":
+        drawLineItemsTable();
+        break;
+    }
   }
 
-  if (includeCoffee) {
-    checkPage(30);
-    y -= 4;
-    drawWrapped(
-      "This order includes a coffee program. Operator's signature below also constitutes acceptance of the Equipment Loan & Beverage Supply Agreement attached to this contract, which governs the brewer loan and the beverage supply relationship.",
-      helvetica, 8.5, gray,
-    );
+  function renderClause(c: NumberedClause) {
+    if (c.isSchedule) {
+      scheduleHeader(c.title);
+      currentInitialsKey = c.requiresInitials ? (c.initialsKey ?? null) : null;
+    } else {
+      sectionHeaderNum(c.displayNumber, c.title);
+      currentInitialsKey = c.requiresInitials
+        ? (initialsKeyFor(c.sectionId as AgreementSectionId) ?? null)
+        : null;
+    }
+    for (const block of c.blocks) {
+      if (block.kind === "p") drawParagraph(block);
+      else drawTable(block.table);
+    }
+    if (c.requiresInitials) initialsPlaceholder();
   }
 
-  if (includeFinancing) {
-    checkPage(30);
-    y -= 4;
-    drawWrapped(
-      "Financed amounts shown above are subject to credit approval and to the separate financing schedule executed between Operator and the finance provider. Apex is not the lender and makes no representation as to approval, rate, or term.",
-      helvetica, 8.5, gray,
-    );
-  }
+  for (const clause of built.sections) renderClause(clause);
+  for (const schedule of built.schedules) renderClause(schedule);
 
-  /* ================================================================ */
-  /*  SCHEDULE C — Delivery & Addresses                               */
-  /* ================================================================ */
-  checkPage(60);
-  y -= 10;
-  drawLine(y);
-  y -= 20;
-  drawText(page, "SCHEDULE C: DELIVERY & ADDRESSES", LEFT, y, helveticaBold, 10, green);
-  y -= 20;
-  currentScheduleKey = "C";
-
-  labelValue("Billing Address", ag.operator_billing_address || "—");
-  labelValue("Delivery Address", ag.operator_delivery_address || "—");
-  if (includeShippingStorage && ag.shipping_notes) {
-    y -= 4;
-    drawWrapped(`Shipping Notes: ${ag.shipping_notes}`, helvetica, 8.5, gray);
+  // Billing / delivery addresses — an information block, NOT a Schedule,
+  // so it never conflicts with the canonical Schedule C (Shipping &
+  // Storage). Renders only when an address is present.
+  if (ag.operator_billing_address || ag.operator_delivery_address) {
+    scheduleHeader("Agreement Information");
+    labelValue("Billing Address", ag.operator_billing_address || "—");
+    labelValue("Delivery Address", ag.operator_delivery_address || "—");
   }
-  initialsPlaceholder();
 
   /* ================================================================ */
   /*  SIGNATURE BLOCKS                                                */

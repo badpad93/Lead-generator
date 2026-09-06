@@ -12,6 +12,7 @@ import {
   resolveAgreementSections,
   type AgreementSectionSource,
 } from "@/lib/agreements/sections";
+import AgreementBody from "@/app/components/AgreementBody";
 import {
   Loader2,
   ArrowLeft,
@@ -1853,41 +1854,19 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
   agreement: Agreement;
   onClose: () => void;
 }) {
+  // Only the preamble/parties and signature block are rendered here; the
+  // numbered agreement body (sections, schedules, clause language) comes
+  // from <AgreementBody> / clauses.ts, the shared canonical source.
   const companyName = form.operator_company_name || "[Operator Company Name]";
   const legalName = form.operator_legal_name || "[Operator Legal Name]";
   const email = form.operator_email || "[Operator Email]";
   const phone = form.operator_phone || "[Operator Phone]";
   const billingAddr = form.operator_billing_address || "[Billing Address]";
-  const deliveryAddr = form.operator_delivery_address || "[Delivery Address]";
   const title = form.operator_title || "[Title]";
-  const machineModel = form.machine_model || "VendEra AI Smart Vending Machine";
-  const qty = Number(form.machine_quantity) || 1;
-  const unitPrice = Number(form.machine_unit_price) || 0;
-  const locPurchased = Number(form.locations_purchased) || 0;
-  const locFee = Number(form.location_fee_per_secured) || 0;
-  const timelineDays = Number(form.location_service_timeline_days) || 180;
-  const rejectionAllowance = form.location_rejection_allowance || "Greater of 10 locations total or 1 per purchased machine";
-  const locPaymentTerms = form.location_payment_terms || "Due within 5 business days of invoice";
-  const freightPer = Number(form.freight_per_machine) || 0;
-  const storageFee = Number(form.storage_fee_per_machine_month) || 0;
-  const freeStorageMonths = Number(form.free_storage_months) || 0;
   const effectiveDate = form.effective_date ? new Date(form.effective_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "[Effective Date]";
-  const governingState = form.governing_state || "Texas";
-  const venueState = form.venue_state || "Texas";
-  const paymentDueDate = form.payment_due_date ? new Date(form.payment_due_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "[Payment Due Date]";
-  const expirationDate = form.contract_expiration_date ? new Date(form.contract_expiration_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "[Expiration Date]";
-  const customerNotes = form.customer_notes || "";
   const apexRepName = agreement.apex_representative_name || "[Apex Representative]";
   const apexRepTitle = agreement.apex_representative_title || "Representative";
   const apexRepEmail = agreement.apex_representative_email || "[Apex Email]";
-
-  // Contiguous clause numbering: cn() returns the next number and is
-  // called in document order, so a skipped schedule never leaves a gap
-  // (the preview previously used hardcoded literals 1..31). Reset each
-  // render. The preview has no in-text cross-references, so an in-order
-  // counter is sufficient here.
-  let clauseNo = 0;
-  const cn = () => ++clauseNo;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:p-8">
@@ -1913,129 +1892,23 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
           <p><strong>{companyName}</strong>, with its principal office at {billingAddr} (&ldquo;Operator&rdquo; or &ldquo;Buyer&rdquo;).</p>
           <p className="text-xs text-gray-500 italic">Operator Contact: {legalName}, {title} | Email: {email} | Phone: {phone}</p>
 
-          {form.include_equipment && (
-            <>
-              <hr className="my-4" />
-              <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SCHEDULE A &mdash; EQUIPMENT PURCHASE</h2>
-              <div className="rounded-lg border border-gray-200 overflow-hidden mb-4">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50"><tr><th className="text-left px-4 py-2 font-medium text-gray-600">Item</th><th className="text-center px-4 py-2 font-medium text-gray-600">Qty</th><th className="text-right px-4 py-2 font-medium text-gray-600">Unit Price</th><th className="text-right px-4 py-2 font-medium text-gray-600">Subtotal</th></tr></thead>
-                  <tbody><tr className="border-t border-gray-100"><td className="px-4 py-2">{machineModel}</td><td className="px-4 py-2 text-center">{qty}</td><td className="px-4 py-2 text-right">${currency(unitPrice)}</td><td className="px-4 py-2 text-right font-medium">${currency(computed.equipmentSubtotal)}</td></tr></tbody>
-                </table>
-              </div>
-
-              <p><strong>{cn()}. Equipment Purchase.</strong> Apex agrees to sell and Operator agrees to purchase {qty} {machineModel} machine{qty > 1 ? "s" : ""} (the &ldquo;Equipment&rdquo;) at a per-unit price of ${currency(unitPrice)}, for a total equipment cost of <strong>${currency(computed.equipmentSubtotal)}</strong>.</p>
-              <p><strong>{cn()}. Machine Specifications.</strong> Each VendEra AI Smart Vending Machine includes: AI-powered product recognition, touchscreen display, cashless payment system, remote monitoring capabilities, cloud-based inventory management, and temperature control system.</p>
-              <p><strong>{cn()}. Warranty.</strong> Each machine is covered by a standard manufacturer&rsquo;s warranty of twelve (12) months from the date of delivery.</p>
+          {/* Numbered sections & schedules from the single canonical
+              content source (clauses.ts) — identical language to the
+              customer signing page and the executed PDF. Preview uses the
+              current (possibly unsaved) form values. */}
+          <AgreementBody
+            source={{
+              ...(agreement as unknown as Record<string, unknown>),
+              ...(form as unknown as Record<string, unknown>),
+              equipment_subtotal: computed.equipmentSubtotal,
+              freight_total: computed.freightTotal,
+              max_location_service_value: computed.maxLocationServiceValue,
+              total_due_prior_to_procurement: computed.totalDue,
+            }}
+            renderInitials={() => (
               <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
-            </>
-          )}
-
-          {form.include_location_services && locPurchased > 0 && (
-            <>
-              <hr className="my-4" />
-              <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SCHEDULE B &mdash; LOCATION SERVICES</h2>
-              <div className="rounded-lg border border-gray-200 overflow-hidden mb-4">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50"><tr><th className="text-left px-4 py-2 font-medium text-gray-600">Service</th><th className="text-center px-4 py-2 font-medium text-gray-600">Locations</th><th className="text-right px-4 py-2 font-medium text-gray-600">Fee / Location</th><th className="text-right px-4 py-2 font-medium text-gray-600">Max Value</th></tr></thead>
-                  <tbody><tr className="border-t border-gray-100"><td className="px-4 py-2">Location Sourcing &amp; Placement</td><td className="px-4 py-2 text-center">{locPurchased}</td><td className="px-4 py-2 text-right">${currency(locFee)}</td><td className="px-4 py-2 text-right font-medium">${currency(computed.maxLocationServiceValue)}</td></tr></tbody>
-                </table>
-              </div>
-              <p><strong>{cn()}. Location Services.</strong> Apex will source and secure {locPurchased} vending location{locPurchased > 1 ? "s" : ""} at ${currency(locFee)} per secured location, max <strong>${currency(computed.maxLocationServiceValue)}</strong>.</p>
-              <p><strong>{cn()}. Service Timeline.</strong> Apex shall use commercially reasonable efforts to secure locations within {timelineDays} days.</p>
-              <p><strong>{cn()}. Rejection Allowance.</strong> {rejectionAllowance}.</p>
-              {form.location_services_deposit_only ? (
-                <p><strong>{cn()}. Location Service Payment.</strong> A non-refundable deposit of <strong>${currency(computed.locationUpfront)}</strong> is due prior to procurement. The remaining balance of <strong>${currency(computed.locationRemaining)}</strong> shall be invoiced upon fulfillment of secured locations and is due on receipt.</p>
-              ) : (
-                <p><strong>{cn()}. Location Service Payment.</strong> {locPaymentTerms}.</p>
-              )}
-              <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
-            </>
-          )}
-
-          {form.include_shipping_storage && (
-            <>
-              <hr className="my-4" />
-              <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SCHEDULE C &mdash; SHIPPING &amp; FREIGHT</h2>
-              <div className="rounded-lg border border-gray-200 overflow-hidden mb-4">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50"><tr><th className="text-left px-4 py-2 font-medium text-gray-600">Item</th><th className="text-right px-4 py-2 font-medium text-gray-600">Amount</th></tr></thead>
-                  <tbody>
-                    <tr className="border-t border-gray-100"><td className="px-4 py-2">Freight per Machine</td><td className="px-4 py-2 text-right">${currency(freightPer)}</td></tr>
-                    <tr className="border-t border-gray-100 font-medium"><td className="px-4 py-2">Freight Total ({qty} machine{qty > 1 ? "s" : ""})</td><td className="px-4 py-2 text-right">${currency(computed.freightTotal)}</td></tr>
-                    {storageFee > 0 && (
-                      <>
-                        <tr className="border-t border-gray-100"><td className="px-4 py-2">Storage Fee</td><td className="px-4 py-2 text-right">${currency(storageFee)} / machine / month</td></tr>
-                        <tr className="border-t border-gray-100"><td className="px-4 py-2">Free Storage Period</td><td className="px-4 py-2 text-right">{freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""}</td></tr>
-                      </>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <p><strong>{cn()}. Shipping.</strong> Freight is ${currency(freightPer)} per machine for a total of <strong>${currency(computed.freightTotal)}</strong>. Delivery: {deliveryAddr || "[Delivery Address]"}.</p>
-              {storageFee > 0 && (
-                <p><strong>{cn()}. Storage.</strong> {freeStorageMonths} month{freeStorageMonths !== 1 ? "s" : ""} free storage. After that, ${currency(storageFee)} per machine per month.</p>
-              )}
-              <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
-            </>
-          )}
-
-          <hr className="my-4" />
-          <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">PAYMENT SUMMARY</h2>
-          <div className="rounded-lg border-2 border-green-200 bg-green-50 p-4 mb-4">
-            <div className="space-y-2 text-sm">
-              {form.include_equipment && computed.equipmentSubtotal > 0 && (
-                <div className="flex justify-between"><span>Equipment ({qty}x {machineModel})</span><span className="font-medium">${currency(computed.equipmentSubtotal)}</span></div>
-              )}
-              {form.include_location_services && computed.locationUpfront > 0 && (
-                <div className="flex justify-between">
-                  <span>
-                    {form.location_services_deposit_only
-                      ? `Location Services Deposit (${locPurchased} location${locPurchased > 1 ? "s" : ""})`
-                      : `Location Services (${locPurchased} location${locPurchased > 1 ? "s" : ""})`}
-                  </span>
-                  <span className="font-medium">${currency(computed.locationUpfront)}</span>
-                </div>
-              )}
-              {form.include_shipping_storage && computed.freightTotal > 0 && (
-                <div className="flex justify-between"><span>Shipping &amp; Freight</span><span className="font-medium">${currency(computed.freightTotal)}</span></div>
-              )}
-              <div className="border-t border-green-200 pt-2 flex justify-between text-base font-bold text-green-800"><span>Total Due Prior to Procurement</span><span>${currency(computed.totalDue)}</span></div>
-              {form.location_services_deposit_only && computed.locationRemaining > 0 && (
-                <div className="text-xs text-gray-600 italic mt-1">
-                  + ${currency(computed.locationRemaining)} Location Services balance due upon fulfillment
-                </div>
-              )}
-            </div>
-          </div>
-          <p><strong>{cn()}. Payment Due Date.</strong> Full payment of <strong>${currency(computed.totalDue)}</strong> is due on or before <strong>{paymentDueDate}</strong>.</p>
-          <p><strong>{cn()}. Payment Method.</strong> {form.payment_method_notes || "Payment may be made via wire transfer, ACH, certified check, or other method approved by Apex."}</p>
-          <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
-
-          <hr className="my-4" />
-          <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">GENERAL TERMS &amp; CONDITIONS</h2>
-          <p><strong>{cn()}. Ownership &amp; Title.</strong> Title passes upon receipt of full payment. Risk of loss transfers upon delivery.</p>
-          <p><strong>{cn()}. Installation &amp; Setup.</strong> Operator is responsible for installation. Apex provides remote setup assistance.</p>
-          <p><strong>{cn()}. Returns &amp; Cancellations.</strong> Orders may be cancelled prior to procurement. After ordering, up to 15% restocking fee.</p>
-          <p><strong>{cn()}. Limitation of Liability.</strong> Apex&rsquo;s total liability shall not exceed total amount paid. No indirect/consequential damages.</p>
-          <p><strong>{cn()}. Indemnification.</strong> Operator indemnifies Apex from claims arising from use of Equipment.</p>
-          <p><strong>{cn()}. Force Majeure.</strong> Neither party liable for delays beyond reasonable control.</p>
-          <p><strong>{cn()}. Confidentiality.</strong> Both parties maintain confidentiality of pricing and business terms.</p>
-          <p><strong>{cn()}. Intellectual Property.</strong> All embedded IP remains Apex&rsquo;s property. Non-exclusive license granted to Operator.</p>
-          <p><strong>{cn()}. Compliance.</strong> Operator shall comply with all applicable laws.</p>
-          <p><strong>{cn()}. Non-Solicitation.</strong> 12-month non-solicitation of employees/contractors.</p>
-          <p><strong>{cn()}. Assignment.</strong> No assignment without prior written consent of Apex.</p>
-          <p><strong>{cn()}. Amendment.</strong> Written instrument signed by both parties required.</p>
-          <p><strong>{cn()}. Severability.</strong> Invalid provisions do not affect remaining provisions.</p>
-          <p><strong>{cn()}. Waiver.</strong> Failure to enforce does not constitute waiver.</p>
-          <p><strong>{cn()}. Notices.</strong> Written notices to specified addresses.</p>
-          <p><strong>{cn()}. Entire Agreement.</strong> This Agreement constitutes the entire agreement.</p>
-          <p><strong>{cn()}. Governing Law.</strong> Governed by laws of {governingState}.</p>
-          <p><strong>{cn()}. Dispute Resolution.</strong> Binding arbitration in {venueState}.</p>
-          <p><strong>{cn()}. Term &amp; Expiration.</strong> Effective as of {effectiveDate}, remains in effect until obligations fulfilled or {expirationDate}.</p>
-          <p><strong>{cn()}. Electronic Signatures.</strong> Electronic signatures deemed original.</p>
-          {customerNotes && (<><hr className="my-4" /><h2 className="text-base font-bold text-gray-900 mt-6 mb-2">ADDITIONAL NOTES</h2><p>{customerNotes}</p></>)}
-          <p className="text-center text-xs text-gray-500 italic my-4">[Operator Initials: ___]</p>
+            )}
+          />
 
           <hr className="my-4" />
           <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SIGNATURES</h2>
