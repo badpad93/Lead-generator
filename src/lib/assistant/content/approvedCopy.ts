@@ -11,7 +11,7 @@
  *
  * Bump PROMPT_VERSION in ../config.ts when this file changes materially.
  */
-export const APPROVED_COPY_VERSION = "2026-09-06.1";
+export const APPROVED_COPY_VERSION = "2026-09-06.2";
 
 export const APPROVED_COPY = `
 ## About Vending Connector
@@ -32,12 +32,12 @@ Vending Connector is a growth platform for modern vending operators, locators, a
 - Machine types used across the platform: Combo, AI, Water, Coffee, ATM.
 
 ## Financing (informational only)
-- Qualifying operators can finance vending equipment on long-term plans, including terms up to 10 years, for single machines or whole fleets.
+- Financing for vending equipment, for single machines or whole fleets, may be available through third-party lenders; terms up to 10 years may be available, subject to eligibility and lender approval.
 - Vending Connector connects applicants with vetted SBA-approved lenders; the financing page lets visitors check rates through a partner widget and, for applicants who prequalify, emails the lender's application PDF.
 - The assistant cannot take a financing application, cannot estimate a payment, and cannot say whether anyone will be approved. Direct interested customers to the financing page and the sales team.
 
 ## Coffee program (Apex AI Vending)
-- Operators can add coffee to their route: qualifying operators receive a commercial brewer at no charge after signing the equipment loan and beverage supply agreement, then order coffee, cups, and supplies at operator pricing from the marketplace.
+- Operators can add coffee to their route: under a qualifying equipment loan and beverage supply agreement, a commercial brewer is provided on loan (ownership does not transfer), and the operator orders coffee, cups, and supplies at operator pricing from the marketplace. Shipping, installation, service, and other terms are set by the agreement and may apply.
 - Coffee access is granted after applying on the coffee page; the supply agreement sets the program terms. The assistant can describe the program but cannot sign, apply, or order on a customer's behalf.
 - Product prices shown by the assistant come from the live catalog for the signed-in account (or the public list price for guests). Shipping for marketplace orders is estimated at checkout.
 
@@ -46,10 +46,10 @@ Vending Connector is a growth platform for modern vending operators, locators, a
 - Customers of a storefront see their operator's prices; those prices are what the assistant shows to an enrolled storefront customer.
 
 ## Location services (Apex AI Vending)
-- The location team sources qualified vending locations in the operator's service area. The operator describes the market, ZIP codes, and machine types; a locator reaches out within about 24 hours of a request.
-- Pricing is a transparent per-location tier ladder. Each secured location is assigned a tier (Basic, Premium, or Elite) based on its traffic (employees plus daily foot traffic), business hours, and the number of machines requested. The per-location fees for those tiers are the catalog prices the assistant can show.
-- A request starts with a deposit of $100 per location requested, credited toward the placement fee; the remaining placement fee is billed as locations are secured.
-- A prepaid "10/10/10" program replaces the tiered fee with one flat per-location price; the sales team confirms availability and terms.
+- The location team sources qualified vending locations in the operator's service area. The operator describes the market, ZIP codes, and machine types; a locator typically reaches out within one business day of a request; response times vary.
+- Pricing is a transparent per-location tier ladder. Each secured location is assigned a tier (Basic, Premium, or Elite) based on its traffic (employees plus daily foot traffic), business hours, and the number of machines requested. The per-location fees for those tiers are the catalog prices the assistant can show; the location team determines the applicable tier for each location.
+- A request starts with a deposit of $100 per location requested, credited toward the applicable placement fee; the remaining placement fee is billed as locations are secured.
+- A prepaid "10/10/10" program is qualifying bundled program pricing, not a standalone per-location rate: it replaces the tiered fee with one flat per-location price for operators who qualify, subject to availability and the governing agreements. The sales team confirms eligibility and terms.
 - The tier for any specific location is assessed by the location team; the assistant can explain the ladder but cannot pre-assign a tier or produce a customer-specific quote.
 
 ## Website services (informational only)
@@ -57,7 +57,7 @@ Vending Connector is a growth platform for modern vending operators, locators, a
 - The process is a guided intake (about ten minutes), then the team designs and builds the site and launches it. Pricing is discussed with the team; the assistant does not quote website services.
 
 ## Placement marketplace and routes
-- Placement providers can list vending placements on the marketplace, connect directly with active operators, and keep their full locator commission with no platform cut.
+- Placement providers can list vending placements on the marketplace and connect directly with active operators; provider compensation is disclosed before an assignment is accepted and is governed by the provider agreement.
 - Established vending routes with existing locations and cash flow can be browsed or listed for sale; buyers and sellers connect directly.
 
 ## How the platform works

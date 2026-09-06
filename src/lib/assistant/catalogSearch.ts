@@ -347,11 +347,11 @@ export const LOCATION_OFFERINGS: LocationOffering[] = [
   },
   {
     id: "location-ten-ten-ten",
-    name: "Location placement — 10/10/10 prepaid program",
+    name: "Location placement — 10/10/10 prepaid program (qualifying bundled pricing)",
     price: TEN_TEN_TEN_PRICE,
-    summary: "Flat per-location fee when the placement program is prepaid in full up front.",
+    summary: "Bundled program pricing for operators who qualify and prepay in full; not a standalone per-location rate.",
     detail:
-      "The prepaid program replaces the tiered fee with one flat per-location price and skips the per-location deposit. Availability and terms are confirmed by the sales team.",
+      "The prepaid program replaces the tiered fee with one flat per-location price for qualifying operators, subject to availability and the governing agreements. It is not offered as a standalone location rate. The sales team confirms eligibility and terms.",
   },
 ];
 
@@ -381,8 +381,8 @@ function locationDetail(o: LocationOffering): CatalogItemDetail {
     description: o.detail,
     attributes: [
       { label: "Fee basis", value: "Per secured location" },
-      { label: "Deposit", value: `$${LOCATION_DEPOSIT_PER_LOCATION} per location requested, credited toward the placement fee` },
-      { label: "Tier determined by", value: "Traffic, business hours, and machines requested (assessed by the location team)" },
+      { label: "Deposit", value: `$${LOCATION_DEPOSIT_PER_LOCATION} per location requested, credited toward the applicable placement fee` },
+      { label: "Tier determined by", value: "Traffic, business hours, and machines requested; the location team determines the applicable tier" },
       { label: "Machine types", value: "Combo, AI, Water, Coffee, ATM" },
     ],
     shipping_note: null,
