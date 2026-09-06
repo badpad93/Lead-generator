@@ -13,6 +13,7 @@ import {
   type AgreementSectionSource,
 } from "@/lib/agreements/sections";
 import AgreementBody from "@/app/components/AgreementBody";
+import OverflowMenu from "@/app/components/OverflowMenu";
 import {
   Loader2,
   ArrowLeft,
@@ -903,45 +904,10 @@ function StandaloneAgreementEditor() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {!isReadOnly && (
-            <button
-              onClick={handleSave}
-              disabled={saving || !dirty}
-              className="rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer inline-flex items-center gap-2"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save
-            </button>
-          )}
-          {!isReadOnly && (
-            <button
-              onClick={() => handleSend("location")}
-              disabled={sending || dirty}
-              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 cursor-pointer inline-flex items-center gap-2"
-              title={dirty ? "Save changes first" : ""}
-            >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Send
-            </button>
-          )}
-          <button
-            onClick={handleDownloadPdf}
-            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer inline-flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" /> PDF
-          </button>
-          {isDraft && (
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 cursor-pointer inline-flex items-center gap-2 disabled:opacity-50"
-            >
-              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Delete
-            </button>
-          )}
-        </div>
+        {/* Primary actions live in the single "Actions" card in the
+            right column. The duplicate header toolbar (Save / Send / PDF
+            / Delete) was removed in Phase 4 so those actions have one
+            home instead of two. */}
       </div>
 
       {isReadOnly && (
@@ -1378,23 +1344,32 @@ function StandaloneAgreementEditor() {
                     Apex placement invoice sent{agreement.apex_placement_invoice_sent_at ? ` on ${new Date(agreement.apex_placement_invoice_sent_at).toLocaleDateString()}` : ""}
                   </div>
                 )}
-              {!isCancelled && !isSigned && agreement.agreement_status !== "draft" && (
-                <button
-                  onClick={handleCancel}
-                  className="w-full rounded-lg border border-amber-200 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-50 cursor-pointer inline-flex items-center justify-center gap-2"
-                >
-                  <Ban className="h-4 w-4" /> Cancel Agreement
-                </button>
-              )}
-              {isDraft && (
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="w-full rounded-lg border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 cursor-pointer inline-flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  Delete Agreement
-                </button>
+              {/* Rare / destructive actions live behind a "More" menu so
+                  they don't compete with Send / Save / Create Order.
+                  Both already prompt for confirmation. Cancel (sent, not
+                  yet signed) and Delete (draft) are mutually exclusive by
+                  status, so at most one appears. */}
+              {((!isCancelled && !isSigned && agreement.agreement_status !== "draft") || isDraft) && (
+                <OverflowMenu label="More actions">
+                  {!isCancelled && !isSigned && agreement.agreement_status !== "draft" && (
+                    <button
+                      onClick={handleCancel}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-amber-700 hover:bg-amber-50 cursor-pointer inline-flex items-center gap-2"
+                    >
+                      <Ban className="h-4 w-4" /> Cancel Agreement
+                    </button>
+                  )}
+                  {isDraft && (
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 cursor-pointer inline-flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      Delete Agreement
+                    </button>
+                  )}
+                </OverflowMenu>
               )}
             </div>
           </div>
