@@ -273,7 +273,9 @@ export async function GET(req: NextRequest) {
     let paidQuery = supabaseAdmin
       .from("sales_orders")
       .select("id, deal_id, account_id, lead_id, recipient_email, created_at, document_type")
-      .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed");
+      // Closed/won keyed off canonical order_status (+ payment_status);
+      // legacy sales_orders.status no longer read here (Phase 5C-a1).
+      .or("payment_status.eq.paid,order_status.eq.paid,order_status.eq.completed");
     paidQuery = scopeByCreator(paidQuery);
     const { data: paidRowsAll } = await paidQuery;
     const paid = ((paidRowsAll ?? []) as Array<{

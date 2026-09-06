@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
     const [ordersRes, dealsRes, workflowsRes] = await Promise.all([
       supabaseAdmin
         .from("sales_orders")
-        .select("account_id, document_type, payment_status, status, order_status")
+        .select("account_id, document_type, payment_status, order_status")
         .in("account_id", idsInClusters),
       supabaseAdmin
         .from("sales_deals")
@@ -114,12 +114,14 @@ export async function GET(req: NextRequest) {
     const quoteByAcct = new Map<string, number>();
     const orderByAcct = new Map<string, number>();
     const paidByAcct = new Map<string, number>();
-    for (const r of (ordersRes.data ?? []) as Array<{ account_id: string; document_type: string | null; payment_status: string | null; status: string | null; order_status: string | null }>) {
+    for (const r of (ordersRes.data ?? []) as Array<{ account_id: string; document_type: string | null; payment_status: string | null; order_status: string | null }>) {
       if (r.document_type === "quote") {
         quoteByAcct.set(r.account_id, (quoteByAcct.get(r.account_id) ?? 0) + 1);
       } else {
         orderByAcct.set(r.account_id, (orderByAcct.get(r.account_id) ?? 0) + 1);
-        if (r.payment_status === "paid" || r.status === "completed" || r.order_status === "completed") {
+        // Canonical "won" = paid/completed via order_status (+ payment_status);
+        // legacy sales_orders.status no longer read (Phase 5C-a1).
+        if (r.payment_status === "paid" || r.order_status === "paid" || r.order_status === "completed") {
           paidByAcct.set(r.account_id, (paidByAcct.get(r.account_id) ?? 0) + 1);
         }
       }

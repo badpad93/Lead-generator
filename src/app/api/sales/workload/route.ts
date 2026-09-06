@@ -301,7 +301,10 @@ export async function GET(req: NextRequest) {
       .from("sales_orders")
       .select("deal_id, account_id, lead_id, recipient_email, created_at, created_by, document_type")
       .in("created_by", staffIds)
-      .or("payment_status.eq.paid,status.eq.completed,order_status.eq.completed");
+      // "Closed/won" = money received or workflow terminal, keyed off the
+      // canonical order_status (+ dedicated payment_status). The legacy
+      // sales_orders.status column is no longer read here (Phase 5C-a1).
+      .or("payment_status.eq.paid,order_status.eq.paid,order_status.eq.completed");
     const paid = ((paidRowsAll ?? []) as Array<{
       deal_id: string | null;
       account_id: string | null;
