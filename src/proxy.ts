@@ -9,6 +9,7 @@ import {
   storedCtxSlug,
   isCustomerShellRequest,
 } from "@/lib/storefrontCtxCookie";
+import { canonicalRedirectTarget } from "@/lib/canonicalHost";
 
 /**
  * Auth model: allowlist-based.
@@ -209,21 +210,10 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Enforce canonical domain — redirect Vercel preview URLs to vendingconnector.com
-  const host = req.headers.get("host") || "";
-  const canonicalDomain = "vendingconnector.com";
-  if (
-    process.env.NODE_ENV === "production" &&
-    host !== canonicalDomain &&
-    host !== `www.${canonicalDomain}` &&
-    !host.startsWith("localhost")
-  ) {
-    const url = new URL(req.url);
-    url.hostname = canonicalDomain;
-    url.port = "";
-    url.protocol = "https:";
-    return NextResponse.redirect(url, 301);
-  }
+  // Enforce the canonical domain on the PRODUCTION deployment only
+  // (VERCEL_ENV === "production"); previews stay on their own host.
+  const canonicalTarget = canonicalRedirectTarget(req.url, req.headers.get("host"));
+  if (canonicalTarget) return NextResponse.redirect(canonicalTarget, 301);
 
   // Redirect authenticated users away from auth pages
   const isAuthPage = pathname === "/login" || pathname === "/signup";
