@@ -3,8 +3,8 @@
  * subset of the PostgREST builder the assistant modules use:
  * select/eq/neq/in/is/gte/lt/ilike/or/order/limit, count+head,
  * maybeSingle/single/thenable, insert().select().single(),
- * update().eq()/.or()/.is()/.select(). Test-only; never imported by
- * application code.
+ * update().eq()/.or()/.is()/.select(), delete().eq()/.in(). Test-only;
+ * never imported by application code.
  */
 import { randomUUID } from "node:crypto";
 
@@ -46,6 +46,8 @@ let seq = 0;
  */
 export interface StubOptions {
   columns?: Record<string, readonly string[]>;
+  /** Column defaults applied on insert (the stub does not know the DDL). */
+  defaults?: Record<string, () => Row>;
 }
 
 /** Column names from a PostgREST select string, ignoring embedded resources and `*`. */
@@ -63,7 +65,7 @@ export function createSupabaseStub(store: StubStore, writes: StubWrite[] = [], o
   function from(table: string) {
     accessed.add(table);
     const filters: Filter[] = [];
-    let mode: "select" | "insert" | "update" = "select";
+    let mode: "select" | "insert" | "update" | "delete" = "select";
     let head = false;
     let wantCount = false;
     let payload: Row | Row[] | null = null;
@@ -90,9 +92,16 @@ export function createSupabaseStub(store: StubStore, writes: StubWrite[] = [], o
       return targets;
     };
 
+    const applyDelete = (): Row[] => {
+      const targets = rows();
+      store[table] = (store[table] ?? []).filter((r) => !targets.includes(r));
+      return targets;
+    };
+
     const resolve = (): { data: unknown; error: { message: string } | null; count?: number } => {
       if (missingColumn) return { data: null, error: { message: `column ${table}.${missingColumn} does not exist` } };
       if (mode === "insert") return { data: inserted, error: null };
+      if (mode === "delete") return { data: applyDelete(), error: null };
       if (mode === "update") return { data: applyUpdate(), error: null };
       const out = rows();
       if (head) return { data: null, error: null, count: out.length };
@@ -159,7 +168,7 @@ export function createSupabaseStub(store: StubStore, writes: StubWrite[] = [], o
       mode = "insert";
       payload = p;
       const arr = Array.isArray(p) ? p : [p];
-      inserted = arr.map((r) => ({ id: randomUUID(), created_at: new Date(Date.now() + ++seq).toISOString(), ...r }));
+      inserted = arr.map((r) => ({ id: randomUUID(), created_at: new Date(Date.now() + ++seq).toISOString(), ...(options.defaults?.[table]?.() ?? {}), ...r }));
       store[table] = [...(store[table] ?? []), ...inserted];
       writes.push({ table, op: "insert", payload: inserted[0] });
       return chain;
@@ -167,6 +176,10 @@ export function createSupabaseStub(store: StubStore, writes: StubWrite[] = [], o
     chain.update = (p: Row) => {
       mode = "update";
       payload = p;
+      return chain;
+    };
+    chain.delete = () => {
+      mode = "delete";
       return chain;
     };
     chain.maybeSingle = async () => {
