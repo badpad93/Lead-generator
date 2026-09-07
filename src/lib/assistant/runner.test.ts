@@ -16,7 +16,7 @@ import type { AssistantConfig } from "./config";
 import type { MessageRow } from "./threads";
 
 const config: AssistantConfig = { apiKey: "k", model: "configured-model", maxOutputTokens: 500, maxToolRounds: 2, rateLimitPerHour: 30, maxMessageLength: 2000 };
-const guestCtx = { threadId: "T", profile: null, storefront: null };
+const guestCtx = { threadId: "T", profile: null, storefront: null, writeToolsEnabled: false };
 const history: MessageRow[] = [{ id: "m1", thread_id: "T", role: "user", content: "show coffee", blocks: [], model: null, prompt_version: "v", input_tokens: null, output_tokens: null, interrupted: false, created_at: "2026-01-01" }];
 
 function collect() {
@@ -31,7 +31,7 @@ beforeEach(() => {
 });
 
 describe("runner — Responses API request shape", () => {
-  it("sends store:false, stream:true, exactly five strict tools, parallel_tool_calls:false, and the configured model", async () => {
+  it("sends store:false, stream:true, the six strict tools a read-only turn may use, parallel_tool_calls:false, and the configured model", async () => {
     const fake = createFakeOpenAI([textRound("Hello!")]);
     const { emit } = collect();
     await runAssistantTurn({ config, history, toolContext: guestCtx, emit, signal: new AbortController().signal, client: fake.client });
@@ -43,7 +43,8 @@ describe("runner — Responses API request shape", () => {
     expect(req.model).toBe("configured-model");
     expect(req.max_output_tokens).toBe(500);
     const tools = req.tools as Array<{ type: string; strict: boolean; name: string }>;
-    expect(tools).toHaveLength(5);
+    expect(tools).toHaveLength(6);
+    expect(tools.map((t) => t.name)).not.toContain("update_quote");
     expect(tools.every((t) => t.type === "function" && t.strict === true)).toBe(true);
     expect(req.previous_response_id).toBeUndefined();
     expect(typeof req.instructions).toBe("string");

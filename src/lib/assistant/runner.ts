@@ -78,7 +78,14 @@ const BLOCK_BUILDERS: Record<string, (out: Out) => UiBlock | null> = {
   compare_products: (out) => ({ type: "comparison", kind: String(out.kind), attribute_labels: (out.attribute_labels as string[]) ?? [], items: (out.items as Out[]) ?? [] }),
   get_customer_context: (out) => ({ type: "customer_context", context: out }),
   get_order_status: (out) => ({ type: "order_status", status: String(out.status), record: (out.record as Out | undefined) ?? null }),
+  get_quote: (out) => quoteBlock(out),
+  update_quote: (out) => quoteBlock(out),
 };
+
+function quoteBlock(out: Out): UiBlock {
+  const status = out.status === "quote" || out.status === "guest" ? out.status : "empty";
+  return { type: "quote", status, message: typeof out.message === "string" ? out.message : null, quote: (out.quote as Out | undefined) ?? null };
+}
 
 function blockFor(tool: string, result: ToolRunResult): UiBlock | null {
   if (!result.ok || !result.output || typeof result.output !== "object") return null;
@@ -230,7 +237,7 @@ function roundParams(input: RunTurnInput, instructions: string, items: ResponseI
     model: input.config.model,
     instructions,
     input: items,
-    tools: openAIToolDefinitions(),
+    tools: openAIToolDefinitions({ includeWriteTools: input.toolContext.writeToolsEnabled }),
     tool_choice: "auto",
     parallel_tool_calls: false,
     store: false,

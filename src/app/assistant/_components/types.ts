@@ -15,7 +15,8 @@ export type UiBlock =
   | { type: "comparison"; kind: string; attribute_labels: string[]; items: Array<Record<string, unknown>> }
   | { type: "customer_context"; context: Record<string, unknown> }
   | { type: "order_status"; status: string; record: Record<string, unknown> | null }
-  | { type: "notice"; text: string };
+  | { type: "notice"; text: string }
+  | { type: "quote"; status: "guest" | "empty" | "quote"; message: string | null; quote: Record<string, unknown> | null };
 
 export interface ChatMessage {
   id: string;
@@ -52,4 +53,45 @@ export type UiState =
 
 export interface ApiError {
   error?: { code?: string; message?: string; retry_after_seconds?: number };
+}
+
+/** Mirror of the server QuoteView (src/lib/commerce/quoteView.ts). */
+export interface QuoteLineView {
+  line_id: string;
+  ref: string;
+  source_type: "catalog_item" | "coffee_product";
+  description: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  pricing_basis: string;
+  is_auto_add_on: boolean;
+  parent_line_id: string | null;
+  validation_status: string;
+  staff_determined: boolean;
+}
+
+export interface QuoteView {
+  quote_id: string;
+  quote_number: string;
+  status: string;
+  version: number;
+  currency: "USD";
+  subtotal: number;
+  total: number;
+  tax_status: string;
+  tax_note: string;
+  expires_at: string | null;
+  confirmed_at: string | null;
+  financing: { program: "standard" | "ten_ten_ten" | null; status: string };
+  agreement_state: string;
+  lines: QuoteLineView[];
+  changes: Array<{ kind: string; description: string; previous: number | null; current: number | null }>;
+  notices: string[];
+  checkout: { available: boolean; blocked_reasons: Array<{ code: string; message: string; line_id?: string }>; location_intake_quantity: number };
+}
+
+export interface QuoteFlags {
+  write_tools_enabled: boolean;
+  checkout_enabled: boolean;
 }

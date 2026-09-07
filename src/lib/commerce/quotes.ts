@@ -248,7 +248,8 @@ export async function rebuildQuote(quote: QuoteRow, ops: QuoteOperation[], viewe
   const { lines: drafts, waived } = applyDepositWaiver(withAddOns(manual, inputs.catalog), inputs.catalog);
   assertLineCount(drafts);
   const changes = diffLines(existing, drafts, waived);
-  const lineSetChanged = drafts.length !== existing.length || drafts.some((d, i) => existing[i] && lineIdentity(existing[i]) !== d.identity);
+  const before = new Set(existing.map(lineIdentity));
+  const lineSetChanged = drafts.length !== before.size || drafts.some((d) => !before.has(d.identity));
   const lines = await persistLines(quote.id, drafts);
   const saved = await persistQuote(quote, drafts, ops.length > 0 || changes.length > 0 || lineSetChanged);
   return { quote: saved, lines, changes };

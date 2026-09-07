@@ -10,9 +10,9 @@ import { runGetCustomerContext, classifyRole } from "./getCustomerContext";
 import { findProhibitedKey } from "../publicShapes";
 import type { ToolContext } from "./context";
 
-const ME: ToolContext = { threadId: "t", profile: { id: "ME", full_name: "Jamie Q Public", role: "operator", coffee_access_enabled: true, storefront_tenant_id: null }, storefront: null };
-const OTHER: ToolContext = { threadId: "t", profile: { id: "OTHER", full_name: "Someone Else", role: "customer", coffee_access_enabled: false, storefront_tenant_id: "TEN" }, storefront: { tenantId: "TEN", customerProfileId: "OTHER", display_name: "Twelve28 Coffee", slug: "twelve28" } };
-const GUEST: ToolContext = { threadId: "t", profile: null, storefront: null };
+const ME: ToolContext = { writeToolsEnabled: false, threadId: "t", profile: { id: "ME", full_name: "Jamie Q Public", role: "operator", coffee_access_enabled: true, storefront_tenant_id: null }, storefront: null };
+const OTHER: ToolContext = { writeToolsEnabled: false, threadId: "t", profile: { id: "OTHER", full_name: "Someone Else", role: "customer", coffee_access_enabled: false, storefront_tenant_id: "TEN" }, storefront: { tenantId: "TEN", customerProfileId: "OTHER", display_name: "Twelve28 Coffee", slug: "twelve28" } };
+const GUEST: ToolContext = { writeToolsEnabled: false, threadId: "t", profile: null, storefront: null };
 
 beforeEach(() => {
   for (const k of Object.keys(store)) delete store[k];

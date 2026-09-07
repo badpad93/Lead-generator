@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
-import { isAssistantEnabled } from "@/lib/assistant/flags";
+import { isAssistantCheckoutEnabled, isAssistantEnabled, isAssistantWriteToolsEnabled } from "@/lib/assistant/flags";
 import { getAssistantLimits } from "@/lib/assistant/config";
 import { ASSISTANT_PAGE_TITLE } from "@/lib/assistant/identity";
 import AssistantClient from "./AssistantClient";
@@ -34,5 +34,6 @@ export const viewport: Viewport = {
 export default async function AssistantPage() {
   if (!(await isAssistantEnabled())) notFound();
   const { maxMessageLength } = getAssistantLimits();
-  return <AssistantClient maxMessageLength={maxMessageLength} />;
+  const [write_tools_enabled, checkout_enabled] = await Promise.all([isAssistantWriteToolsEnabled(), isAssistantCheckoutEnabled()]);
+  return <AssistantClient maxMessageLength={maxMessageLength} quoteFlags={{ write_tools_enabled, checkout_enabled }} />;
 }

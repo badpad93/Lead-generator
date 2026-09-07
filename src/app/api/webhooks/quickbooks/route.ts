@@ -182,6 +182,11 @@ async function handleQBBillPayment(billPaymentId: string, realmId: string) {
   }
 }
 
+async function markVinnieQuotePaid(invoiceId: string): Promise<boolean> {
+  const { markQuotePaidByInvoice } = await import("@/lib/commerce/checkout");
+  return markQuotePaidByInvoice(invoiceId);
+}
+
 async function handleQBPayment(paymentId: string, realmId: string) {
   // Fetch payment details from QB
   const { getConnection } = await import("@/lib/quickbooks");
@@ -226,6 +231,10 @@ async function handleQBPayment(paymentId: string, realmId: string) {
   }
 
   for (const invoiceId of invoiceIds) {
+    // Vinnie commerce quotes carry the QuickBooks invoice id directly. A
+    // failure here propagates so the event stays unprocessed for redelivery.
+    if (await markVinnieQuotePaid(invoiceId)) continue;
+
     // Look up the invoice in our metadata to determine what type of payment this is
     // We store the QB invoice ID in the relevant table when creating the invoice
 

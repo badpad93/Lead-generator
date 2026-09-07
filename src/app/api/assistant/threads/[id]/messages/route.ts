@@ -6,6 +6,7 @@ import { AssistantError, errorBody, isAssistantError } from "@/lib/assistant/err
 import { hashNetworkIdentifier, networkIdentifierFromHeaders } from "@/lib/assistant/guestToken";
 import { assertEnabled, toErrorResponse } from "@/lib/assistant/http";
 import { assertWithinRateLimit } from "@/lib/assistant/rateLimit";
+import { isAssistantWriteToolsEnabled } from "@/lib/assistant/flags";
 import { redactUserMessage } from "@/lib/assistant/redact";
 import { runAssistantTurn, type RunnerResult } from "@/lib/assistant/runner";
 import { encodeSseEvent, SSE_HEADERS, type SseEventInput, type UiBlock } from "@/lib/assistant/sse";
@@ -101,7 +102,8 @@ async function runStream({ p, userMessageId, runId, send, signal }: StreamJob): 
   if (p.notice) send({ type: "block", block: { type: "notice", text: p.notice } });
   let result: RunnerResult | null = null;
   try {
-    result = await runAssistantTurn({ config, history, toolContext: toolContextFor(p.actor, p.thread.id), emit: send, signal });
+    const writeTools = await isAssistantWriteToolsEnabled();
+    result = await runAssistantTurn({ config, history, toolContext: toolContextFor(p.actor, p.thread.id, writeTools), emit: send, signal });
     const saved = await persistOutcome(p, result, p.notice, signal.aborted);
     if (saved.interrupted) send({ type: "response_interrupted", message_id: saved.id, reason: result.interruptedReason ?? "client_disconnected" });
     else send({ type: "response_completed", message_id: saved.id, usage: { input_tokens: result.usage.inputTokens, output_tokens: result.usage.outputTokens } });

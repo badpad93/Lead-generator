@@ -48,7 +48,7 @@ export async function resolveActor(req: NextRequest): Promise<Actor> {
   return { kind: "anonymous" };
 }
 
-export function toolContextFor(actor: Actor, threadId: string): ToolContext {
-  if (actor.kind === "user") return { threadId, profile: actor.profile, storefront: actor.storefront };
-  return { threadId, profile: null, storefront: null };
+export function toolContextFor(actor: Actor, threadId: string, writeToolsEnabled = false): ToolContext {
+  if (actor.kind === "user") return { threadId, profile: actor.profile, storefront: actor.storefront, writeToolsEnabled };
+  return { threadId, profile: null, storefront: null, writeToolsEnabled };
 }
