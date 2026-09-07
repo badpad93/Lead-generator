@@ -12,38 +12,45 @@ interface Props {
   disabled: boolean;
 }
 
+const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black";
+
+function ThreadButton({ t, active, onSelect }: { t: ThreadSummary; active: boolean; onSelect: (id: string) => void }) {
+  const tone = active ? "bg-neutral-800 text-white" : "text-neutral-300 hover:bg-neutral-900 hover:text-white";
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(t.id)}
+      aria-current={active ? "true" : undefined}
+      className={`flex min-h-11 w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${tone} ${FOCUS}`}
+    >
+      <MessageSquare className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <span className="line-clamp-2">{t.title ?? "Untitled conversation"}</span>
+    </button>
+  );
+}
+
+/** Conversation history. Rendered inside the desktop sidebar and the mobile drawer. */
 export function ThreadSidebar({ viewer, threads, activeId, onSelect, onNew, disabled }: Props) {
   return (
-    <aside className="flex h-full flex-col gap-3" aria-label="Conversations">
+    <div className="flex h-full flex-col gap-3 p-3" data-testid="thread-sidebar">
       <button
         type="button"
         onClick={onNew}
         disabled={disabled}
-        className="flex items-center justify-center gap-2 rounded-xl bg-green-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-hover disabled:opacity-50"
+        className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border border-neutral-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS}`}
       >
         <Plus className="h-4 w-4" aria-hidden /> New conversation
       </button>
       {viewer === "user" ? (
-        <nav className="flex-1 space-y-1 overflow-y-auto">
-          {threads.length === 0 ? <p className="px-2 text-xs text-gray-500">No conversations yet.</p> : null}
+        <nav className="flex-1 space-y-1 overflow-y-auto" aria-label="Conversation history">
+          {threads.length === 0 ? <p className="px-3 text-sm text-neutral-400">No conversations yet.</p> : null}
           {threads.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onSelect(t.id)}
-              aria-current={t.id === activeId ? "true" : undefined}
-              className={`flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-xs transition-colors ${t.id === activeId ? "bg-green-50 text-green-dark" : "text-gray-700 hover:bg-light-warm"}`}
-            >
-              <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="line-clamp-2">{t.title ?? "Untitled conversation"}</span>
-            </button>
+            <ThreadButton key={t.id} t={t} active={t.id === activeId} onSelect={onSelect} />
           ))}
         </nav>
       ) : (
-        <p className="px-2 text-xs text-gray-500">
-          Guest conversations are kept on this device. Sign in to keep a history and check your orders.
-        </p>
+        <p className="px-3 text-sm text-neutral-400">Guest conversations are kept on this device. Sign in to keep a history and check your orders.</p>
       )}
-    </aside>
+    </div>
   );
 }

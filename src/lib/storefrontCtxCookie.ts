@@ -40,10 +40,10 @@ export function storedCtxSlug(req: NextRequest): string | null {
 }
 
 /**
- * Request header the middleware stamps for tenant customer routes so the
- * root layout can drop the global Vending Connector shell (nav/footer/FAB)
- * server-side — no client flash. Presence means "customer shell"; absence
- * means the normal VC shell.
+ * Request header the middleware stamps for tenant customer routes and
+ * full-screen app routes (/assistant) so the root layout can drop the
+ * global Vending Connector shell (nav/footer/FAB) server-side — no client
+ * flash. Presence means "minimal shell"; absence means the normal VC shell.
  */
 export const CUSTOMER_SHELL_HEADER = "x-vc-customer-shell";
 
@@ -91,10 +91,20 @@ function authRequestHasStorefrontContext(req: NextRequest): boolean {
   );
 }
 
+/** Full-screen application routes that render their own chrome. */
+const APP_SHELL_PATHS = new Set(["/assistant"]);
+
+/** Does this route own the whole viewport (no global nav/footer/FAB)? */
+export function isAppShellPath(pathname: string): boolean {
+  return APP_SHELL_PATHS.has(pathname) || [...APP_SHELL_PATHS].some((p) => pathname.startsWith(`${p}/`));
+}
+
 export function isCustomerShellRequest(req: NextRequest): boolean {
   const p = req.nextUrl.pathname;
   // Storefront, invitation, and public quote pages are always operator-shell.
   if (p.startsWith("/coffee/o/") || p.startsWith("/coffee/invite/") || p.startsWith("/coffee/quote/")) return true;
+  // Full-screen apps (the Vinnie assistant) drop the global shell too.
+  if (isAppShellPath(p)) return true;
   if (!isAuthShellPath(p)) return false;
   return authRequestHasStorefrontContext(req);
 }

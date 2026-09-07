@@ -19,7 +19,7 @@ export interface AssistantConfig {
 
 /** Version stamp stored with every assistant message. Bump when the
  *  system prompt or approved copy changes materially. */
-export const PROMPT_VERSION = "2026-09-06.2";
+export const PROMPT_VERSION = "2026-09-07.1";
 
 interface Bound {
   name: string;

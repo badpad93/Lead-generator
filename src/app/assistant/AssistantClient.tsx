@@ -1,211 +1,102 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Bot } from "lucide-react";
+import { useCallback, useState } from "react";
+import { PanelLeft, SquarePen } from "lucide-react";
+import { ASSISTANT_LABEL, ASSISTANT_NAME } from "@/lib/assistant/identity";
 import { Composer } from "./_components/Composer";
+import { ConversationDrawer } from "./_components/ConversationDrawer";
+import { Greeting } from "./_components/Greeting";
 import { MessageList } from "./_components/MessageList";
-import { StarterQuestions } from "./_components/StarterQuestions";
+import { StatusBanner } from "./_components/StatusBanner";
 import { ThreadSidebar } from "./_components/ThreadSidebar";
-import { readSseStream } from "./_components/sseClient";
-import type { ApiError, ChatMessage, SseEvent, ThreadSummary, UiState, Viewer } from "./_components/types";
+import { VinnieAvatar } from "./_components/VinnieAvatar";
+import { useAssistantChat, type AssistantChat } from "./_components/useAssistantChat";
 
-const API = "/api/assistant/threads";
+/**
+ * Full-screen, monochrome chat application. The root layout renders no
+ * nav/footer for /assistant (proxy-stamped minimal shell), and this
+ * component owns exactly one viewport: only the conversation scrolls.
+ */
+const ICON_BUTTON = "flex h-11 w-11 items-center justify-center rounded-lg text-white transition-colors hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:cursor-not-allowed disabled:opacity-40";
 
-type ErrorKind = "disabled" | "rate_limited" | "config_error" | "rejected" | "network_error";
-const STATE_BY_STATUS: Record<number, ErrorKind> = { 404: "disabled", 429: "rate_limited", 503: "config_error", 422: "rejected" };
-const STATE_BY_CODE: Record<string, ErrorKind> = {
-  assistant_disabled: "disabled",
-  rate_limited: "rate_limited",
-  configuration_error: "config_error",
-  sensitive_input_rejected: "rejected",
-};
+const DESKTOP_QUERY = "(min-width: 1024px)";
 
-function errorKind(status: number, code: string | undefined): ErrorKind {
-  if (code && code in STATE_BY_CODE) return STATE_BY_CODE[code];
-  return STATE_BY_STATUS[status] ?? "network_error";
+function useSidebarState() {
+  const [desktopOpen, setDesktopOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const toggle = useCallback(() => {
+    if (window.matchMedia(DESKTOP_QUERY).matches) setDesktopOpen((v) => !v);
+    else setDrawerOpen((v) => !v);
+  }, []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  return { desktopOpen, drawerOpen, toggle, closeDrawer };
 }
 
-function stateFromError(status: number, body: ApiError | null): UiState {
-  const message = body?.error?.message ?? "Something went wrong. Please try again.";
-  const kind = errorKind(status, body?.error?.code);
-  return kind === "disabled" ? { kind } : { kind, message };
-}
-
-async function readError(res: Response): Promise<UiState> {
-  const body = (await res.json().catch(() => null)) as ApiError | null;
-  return stateFromError(res.status, body);
-}
-
-function StatusBanner({ state }: { state: UiState }) {
-  if (state.kind === "disabled") return <Banner tone="gray" text="The assistant is not available right now." />;
-  if (state.kind === "rate_limited") return <Banner tone="amber" text={state.message} />;
-  if (state.kind === "config_error") return <Banner tone="amber" text="The assistant is temporarily unavailable. Please try again later." />;
-  if (state.kind === "network_error") return <Banner tone="red" text={state.message} />;
-  if (state.kind === "rejected") return <Banner tone="amber" text={state.message} />;
-  return null;
-}
-
-function Banner({ tone, text }: { tone: "gray" | "amber" | "red"; text: string }) {
-  const cls = { gray: "border-gray-200 bg-gray-50 text-gray-700", amber: "border-amber-200 bg-amber-50 text-amber-800", red: "border-red-200 bg-red-50 text-red-700" }[tone];
+function Header({ chat, onToggleSidebar, sidebarOpen }: { chat: AssistantChat; onToggleSidebar: () => void; sidebarOpen: boolean }) {
   return (
-    <div role="alert" className={`flex items-start gap-2 rounded-xl border p-3 text-sm ${cls}`}>
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> {text}
-    </div>
+    <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-neutral-800 px-2 pt-[env(safe-area-inset-top)] sm:px-3">
+      <button type="button" onClick={onToggleSidebar} aria-label="Toggle conversations" aria-expanded={sidebarOpen} className={ICON_BUTTON}>
+        <PanelLeft className="h-5 w-5" aria-hidden />
+      </button>
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <VinnieAvatar size="sm" />
+        <div className="min-w-0 leading-tight">
+          <h1 className="truncate text-sm font-semibold text-white">{ASSISTANT_NAME}</h1>
+          <p className="truncate text-xs text-neutral-400">{ASSISTANT_LABEL}</p>
+        </div>
+      </div>
+      <button type="button" onClick={() => void chat.newThread()} disabled={chat.busy || chat.disabled} aria-label="New conversation" className={ICON_BUTTON}>
+        <SquarePen className="h-5 w-5" aria-hidden />
+      </button>
+    </header>
   );
 }
 
-function applyEvent(prev: ChatMessage[], ev: SseEvent, draftId: string): ChatMessage[] {
-  return prev.map((m) => (m.id === draftId ? applyToDraft(m, ev) : m));
-}
-
-function applyProgress(m: ChatMessage, ev: SseEvent): ChatMessage | null {
-  if (ev.type === "text_delta") return { ...m, content: m.content + ev.delta };
-  if (ev.type === "tool_started") return { ...m, activity: ev.label };
-  if (ev.type === "tool_completed") return { ...m, activity: null };
-  if (ev.type === "block") return { ...m, blocks: [...m.blocks, ev.block] };
-  return null;
-}
-
-function applyTerminal(m: ChatMessage, ev: SseEvent): ChatMessage {
-  if (ev.type === "response_completed") return { ...m, id: ev.message_id, streaming: false, activity: null };
-  if (ev.type === "response_interrupted") return { ...m, id: ev.message_id ?? m.id, streaming: false, interrupted: true, activity: null };
-  if (ev.type === "error") return { ...m, streaming: false, activity: null, interrupted: true, content: m.content || ev.message };
-  return m;
-}
-
-function applyToDraft(m: ChatMessage, ev: SseEvent): ChatMessage {
-  return applyProgress(m, ev) ?? applyTerminal(m, ev);
+function Conversation({ chat }: { chat: AssistantChat }) {
+  if (chat.messages.length === 0) return <Greeting onPick={(q) => void chat.send(q)} disabled={chat.busy || chat.disabled} />;
+  return <MessageList messages={chat.messages} />;
 }
 
 export default function AssistantClient({ maxMessageLength }: { maxMessageLength: number }) {
-  const [viewer, setViewer] = useState<Viewer>("anonymous");
-  const [threads, setThreads] = useState<ThreadSummary[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [state, setState] = useState<UiState>({ kind: "loading" });
-  const abortRef = useRef<AbortController | null>(null);
-
-  const loadThread = useCallback(async (id: string) => {
-    const res = await fetch(`${API}/${id}`, { cache: "no-store" });
-    if (!res.ok) {
-      setState(await readError(res));
-      return;
-    }
-    const data = (await res.json()) as { messages: ChatMessage[] };
-    setActiveId(id);
-    setMessages(data.messages.map((m) => ({ ...m, blocks: m.blocks ?? [] })));
-    setState({ kind: "idle" });
-  }, []);
-
-  const refreshThreads = useCallback(async (): Promise<{ viewer: Viewer; threads: ThreadSummary[] } | null> => {
-    const res = await fetch(API, { cache: "no-store" });
-    if (!res.ok) {
-      setState(await readError(res));
-      return null;
-    }
-    const data = (await res.json()) as { viewer: Viewer; threads: ThreadSummary[] };
-    setViewer(data.viewer);
-    setThreads(data.threads);
-    return data;
-  }, []);
-
-  const ensureThread = useCallback(async (fresh: boolean): Promise<string | null> => {
-    const res = await fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ new_conversation: fresh }) });
-    if (!res.ok) {
-      setState(await readError(res));
-      return null;
-    }
-    const data = (await res.json()) as { thread: ThreadSummary };
-    await refreshThreads();
-    setActiveId(data.thread.id);
-    setMessages([]);
-    setState({ kind: "idle" });
-    return data.thread.id;
-  }, [refreshThreads]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const data = await refreshThreads();
-      if (cancelled || !data) return;
-      const first = data.threads.find((t) => t.status === "open");
-      if (first) await loadThread(first.id);
-      else setState({ kind: "idle" });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [refreshThreads, loadThread]);
-
-  const send = useCallback(async (text: string) => {
-    const threadId = activeId ?? (await ensureThread(false));
-    if (!threadId) return;
-    const tempUser: ChatMessage = { id: `u-${Date.now()}`, role: "user", content: text, blocks: [], interrupted: false, created_at: new Date().toISOString() };
-    const draftId = `a-${Date.now()}`;
-    const draft: ChatMessage = { id: draftId, role: "assistant", content: "", blocks: [], interrupted: false, created_at: new Date().toISOString(), streaming: true, activity: null };
-    setMessages((prev) => [...prev, tempUser, draft]);
-    setState({ kind: "streaming" });
-    const abort = new AbortController();
-    abortRef.current = abort;
-    try {
-      const res = await fetch(`${API}/${threadId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text }),
-        signal: abort.signal,
-      });
-      if (!res.ok || !res.body) {
-        const next = await readError(res);
-        setMessages((prev) => prev.filter((m) => m.id !== draftId && m.id !== tempUser.id));
-        setState(next);
-        return;
-      }
-      await readSseStream(res.body, (ev) => setMessages((prev) => applyEvent(prev, ev, draftId)), abort.signal);
-      setState({ kind: "idle" });
-      void refreshThreads();
-    } catch (e) {
-      const aborted = e instanceof DOMException && e.name === "AbortError";
-      setMessages((prev) => prev.map((m) => (m.id === draftId ? { ...m, streaming: false, activity: null, interrupted: true } : m)));
-      setState(aborted ? { kind: "idle" } : { kind: "network_error", message: "Connection lost. Please try again." });
-    } finally {
-      abortRef.current = null;
-    }
-  }, [activeId, ensureThread, refreshThreads]);
-
-  const stop = useCallback(() => abortRef.current?.abort(), []);
-  const busy = state.kind === "loading" || state.kind === "streaming";
-  const disabled = state.kind === "disabled" || state.kind === "config_error";
+  const chat = useAssistantChat();
+  const sidebar = useSidebarState();
+  const onSelect = (id: string) => {
+    sidebar.closeDrawer();
+    void chat.loadThread(id);
+  };
+  const onNew = () => {
+    sidebar.closeDrawer();
+    void chat.newThread();
+  };
+  const history = <ThreadSidebar viewer={chat.viewer} threads={chat.threads} activeId={chat.activeId} onSelect={onSelect} onNew={onNew} disabled={chat.busy || chat.disabled} />;
 
   return (
-    <div className="min-h-[calc(100vh-160px)] bg-light">
-      <div className="mx-auto grid max-w-6xl gap-4 px-4 py-6 sm:px-6 lg:grid-cols-[240px_1fr] lg:px-8">
-        <div className="lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]">
-          <ThreadSidebar viewer={viewer} threads={threads} activeId={activeId} onSelect={(id) => void loadThread(id)} onNew={() => void ensureThread(true)} disabled={busy || disabled} />
-        </div>
-        <section className="flex min-h-[70vh] flex-col gap-4" aria-label="Assistant">
-          <header className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 text-green-primary">
-              <Bot className="h-5 w-5" aria-hidden />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-black-primary">Vending Connector Assistant</h1>
-              <p className="text-xs text-gray-500">Machines, coffee, locations, and your orders. Read-only: it can look things up, not buy or change anything.</p>
-            </div>
-          </header>
-          <StatusBanner state={state} />
-          <div className="flex-1 rounded-2xl border border-gray-200 bg-light-warm p-4">
-            {messages.length === 0 ? (
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600">Ask anything about vending or the Vending Connector catalog. Try one of these:</p>
-                <StarterQuestions onPick={(q) => void send(q)} disabled={busy || disabled} />
-              </div>
-            ) : (
-              <MessageList messages={messages} />
-            )}
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-black text-white" data-testid="assistant-app">
+      {/* Full-screen app: the page must never scroll; only the conversation pane does. */}
+      <style>{"html,body{background:#000;overflow:hidden}"}</style>
+      {sidebar.desktopOpen ? (
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-neutral-800 bg-neutral-950 pt-[env(safe-area-inset-top)] lg:flex" aria-label="Conversations">
+          {history}
+        </aside>
+      ) : null}
+      <ConversationDrawer open={sidebar.drawerOpen} onClose={sidebar.closeDrawer}>
+        {history}
+      </ConversationDrawer>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Header chat={chat} onToggleSidebar={sidebar.toggle} sidebarOpen={sidebar.desktopOpen || sidebar.drawerOpen} />
+        <StatusBanner state={chat.state} />
+        {/* The root layout already provides <main>; this is the only scroll container. */}
+        <section className="min-h-0 flex-1 overflow-y-auto" aria-label="Conversation with Vinnie" data-testid="conversation-scroll">
+          <div className="mx-auto min-h-full w-full max-w-3xl px-4 py-6 sm:px-6">
+            <Conversation chat={chat} />
           </div>
-          <Composer disabled={disabled || state.kind === "loading"} streaming={state.kind === "streaming"} maxLength={maxMessageLength} onSend={(t) => void send(t)} onStop={stop} />
-          <p className="text-[11px] text-gray-400">Do not share card, bank, Social Security, credit, or income details here. Prices shown come from the live catalog for your account.</p>
         </section>
+        <footer className="shrink-0 border-t border-neutral-800 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
+          <div className="mx-auto w-full max-w-3xl space-y-2">
+            <Composer disabled={chat.disabled} loading={chat.state.kind === "loading"} streaming={chat.state.kind === "streaming"} maxLength={maxMessageLength} onSend={(t) => void chat.send(t)} onStop={chat.stop} />
+            <p className="text-center text-[11px] leading-snug text-neutral-400">Do not share card, bank, Social Security, credit, or income details here. Prices shown come from the live catalog for your account.</p>
+          </div>
+        </footer>
       </div>
     </div>
   );

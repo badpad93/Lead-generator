@@ -96,6 +96,16 @@ describe("existing gates are unchanged on a preview host", () => {
     expect(loc.searchParams.get("redirect")).toBe("/dashboard");
   });
 
+  it("/assistant passes through with the minimal-shell request header stamped (no site nav/footer)", async () => {
+    process.env.VERCEL_ENV = "preview";
+    const res = await proxy(req("/assistant"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-middleware-request-x-vc-customer-shell")).toBe("1");
+    // A client-supplied value is discarded on an ordinary route.
+    const plain = new NextRequest(`https://${PREVIEW_HOST}/marketplace`, { headers: { host: PREVIEW_HOST, "x-vc-customer-shell": "1" } });
+    expect((await proxy(plain)).headers.get("x-middleware-request-x-vc-customer-shell")).toBeNull();
+  });
+
   it("public pages pass through", async () => {
     for (const p of ["/", "/login", "/assistant", "/coffee/o/twelve28"]) {
       const res = await proxy(req(p));
