@@ -5,6 +5,7 @@ import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { sendFormConfirmationEmails } from "@/lib/confirmationEmail";
+import { linkQuoteToApplication } from "@/lib/commerce/financingLinkage";
 import {
   provisionAccountForGuestCheckout,
   generateGuestToken,
@@ -126,6 +127,10 @@ export async function POST(req: NextRequest) {
     console.error("[financing] Failed to save application:", insertErr.message);
     return NextResponse.json({ error: `Failed to save application: ${insertErr.message}` }, { status: 500 });
   }
+
+  // Vinnie quote linkage (metadata only, never a price change or an
+  // approval). Ownership of the referenced quote is re-checked inside.
+  await linkQuoteToApplication(body.quote_ref, application.id, userId);
 
   // Auto-create CRM account + lead for the financing applicant (skip if lead already exists)
   let crmAccountId: string | null = null;
