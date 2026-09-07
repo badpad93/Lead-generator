@@ -30,6 +30,10 @@
 import { supabaseAdmin } from "./supabaseAdmin";
 import { Resend } from "resend";
 import { buildOrderItemsFromAgreement } from "@/lib/agreements/toOrder";
+import { upsertInvoice } from "./paymentLedger";
+import { invoiceAlreadyExists } from "./invoiceIdempotency";
+
+export { invoiceAlreadyExists };
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 
@@ -129,16 +133,29 @@ export async function sendInvoiceForSignedAgreement(
   const { data: order } = await supabaseAdmin
     .from("sales_orders")
     .select(
-      "id, order_number, invoice_status, recipient_email, qb_invoice_id, sales_accounts:account_id(business_name, contact_name, email, phone)",
+      "id, order_number, invoice_status, recipient_email, financial_spine_invoice_id, sales_accounts:account_id(business_name, contact_name, email, phone)",
     )
     .eq("id", ag.order_id)
     .maybeSingle();
 
   if (!order) return { ok: false, reason: "order_not_found" };
 
-  if (order.invoice_status === "sent" || order.invoice_status === "paid") {
-    return { ok: true, reason: "invoice_already_sent" };
-  }
+  // Idempotency: never create a second invoice when one already exists,
+  // even if the order's local invoice_status is stale. Evidence hierarchy —
+  // canonical financial-spine link, then an existing invoices row, then
+  // local status (see invoiceAlreadyExists).
+  const { data: existingInvoice } = await supabaseAdmin
+    .from("invoices")
+    .select("id")
+    .eq("order_id", order.id)
+    .limit(1)
+    .maybeSingle();
+  const guard = invoiceAlreadyExists({
+    financialSpineInvoiceId: order.financial_spine_invoice_id,
+    hasCanonicalInvoiceRow: !!existingInvoice,
+    invoiceStatus: order.invoice_status,
+  });
+  if (guard.skip) return { ok: true, reason: guard.reason };
 
   const items = buildAgreementLineItems(ag);
   const upfront = items.filter((i) => i.status !== "pending_fulfillment");
@@ -256,10 +273,39 @@ export async function sendInvoiceForSignedAgreement(
     return { ok: false, reason: "no_channel_configured" };
   }
 
+  // Persist the invoice into the canonical financial spine (public.invoices)
+  // and link it from the order, so a retry — or a later signing on a stale
+  // status — detects it via invoiceAlreadyExists and never double-invoices.
+  // We deliberately do NOT write sales_orders.qb_invoice_id: that column does
+  // not exist on sales_orders (a long-standing phantom write, swallowed by
+  // try/catch); the QuickBooks identity lives on the invoices row
+  // (provider='quickbooks', provider_invoice_id). upsertInvoice is idempotent
+  // by (provider, provider_invoice_id).
+  let financialSpineInvoiceId: string | null = null;
+  try {
+    const inv = await upsertInvoice({
+      provider: channel === "quickbooks" ? "quickbooks" : "manual",
+      providerInvoiceId: qbInvoiceId ?? `manual-${order.id}`,
+      orderId: order.id,
+      agreementId: ag.id,
+      buyerEmail: recipientEmail,
+      buyerName: customerName,
+      totalCents: Math.round(amount * 100),
+      status: "open",
+      sentAt: new Date().toISOString(),
+      memo: `Order #${orderNumberDisplay} — signed agreement invoice`,
+    });
+    financialSpineInvoiceId = inv.id;
+  } catch (e) {
+    console.error("[agreementInvoicing] financial-spine persist failed (non-fatal):", e);
+  }
+
   await supabaseAdmin
     .from("sales_orders")
     .update({
-      qb_invoice_id: qbInvoiceId ?? order.qb_invoice_id,
+      ...(financialSpineInvoiceId
+        ? { financial_spine_invoice_id: financialSpineInvoiceId }
+        : {}),
       invoice_status: "sent",
       updated_at: new Date().toISOString(),
     })

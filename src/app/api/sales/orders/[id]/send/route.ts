@@ -181,9 +181,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ]);
         emailSent = true;
 
+        // Persist invoice_status only. sales_orders has NO qb_invoice_id
+        // column (it is a phantom write — the QB identity belongs on a
+        // public.invoices row), and including it here made the whole update
+        // error out and get swallowed, which is why invoice_status stayed
+        // 'not_sent' on orders sent this way (Order #108).
         await supabaseAdmin
           .from("sales_orders")
-          .update({ qb_invoice_id: qbInvoiceId, invoice_status: "sent" })
+          .update({ invoice_status: "sent" })
           .eq("id", orderId);
       } catch {
         // QB failed or timed out — fall through to Resend
@@ -247,19 +252,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (ccEmails.length > 0) logNote += ` (CC: ${ccEmails.join(", ")})`;
 
     // Persist invoice_status alongside order_status so the two never
-    // disagree. The QB block above sets invoice_status='sent' on the happy
-    // path, but if createInvoice returns an id and sendInvoiceEmail then
-    // throws/times out, that write is skipped while order_status still
-    // becomes 'invoice_sent' (it keys off qbInvoiceId). Reconcile here:
-    // whenever a QB invoice exists, invoice_status must read 'sent' too
-    // (Order #108 showed order_status=invoice_sent with invoice_status=not_sent).
+    // disagree. Whenever a QB invoice exists, invoice_status must read
+    // 'sent' too — reconciled here in case the mid-block update did not run
+    // (Order #108 showed order_status=invoice_sent with invoice_status=
+    // not_sent). NOTE: no qb_invoice_id — that column does not exist on
+    // sales_orders; including it previously made this whole update error.
     const statusUpdate: Record<string, unknown> = {
       status: "sent",
       order_status: newStatus,
       updated_at: new Date().toISOString(),
     };
     if (qbInvoiceId) {
-      statusUpdate.qb_invoice_id = qbInvoiceId;
       statusUpdate.invoice_status = "sent";
     }
     await supabaseAdmin.from("sales_orders").update(statusUpdate).eq("id", orderId);
