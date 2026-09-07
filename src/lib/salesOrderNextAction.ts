@@ -184,21 +184,49 @@ export function deriveFlowState(order: OrderForNextAction): FlowState {
   }
 
   // Draft. The only thing that needs doing is the line items.
+  if (!hasItems) {
+    return {
+      stage: "building",
+      headline: "Add line items",
+      detail:
+        "Add the line items this customer is buying. That is the only thing this flow needs from you.",
+      action: null,
+    };
+  }
+
+  // A contract-bearing order (document_type='order') goes STRAIGHT into the
+  // agreement flow. /process converts it, generates the agreement from the
+  // line items and emails it for signature; the invoice fires on signing.
+  // The agreement is only ever built on the process_order step, so sending
+  // an order as a plain invoice here (send_quote -> /send, which invoices a
+  // non-quote directly) would skip agreement creation entirely and land the
+  // order in invoice_sent with no contract behind it. That is exactly the
+  // Order #108 regression.
+  if (!isQuote) {
+    return {
+      stage: "building",
+      headline: "Ready to process",
+      detail:
+        "Convert to a live order and send the agreement for signature. The invoice follows automatically when the customer signs.",
+      action: {
+        verb: "process_order",
+        buttonLabel: "Process Order & Send Agreement",
+        copy: "Generate and send the agreement for signature",
+      },
+    };
+  }
+
+  // A quote is sent to the customer to accept; acceptance (quote_sent) then
+  // unlocks process_order.
   return {
     stage: "building",
-    headline: hasItems ? "Ready to send" : "Add line items",
-    detail: hasItems
-      ? "Send the quote to the customer. Everything after that is one more click."
-      : "Add the line items this customer is buying. That is the only thing this flow needs from you.",
-    action: hasItems
-      ? {
-          verb: "send_quote",
-          buttonLabel: "Next",
-          copy: isQuote
-            ? "Send the quote to the customer"
-            : "Send this order to the customer",
-        }
-      : null,
+    headline: "Ready to send",
+    detail: "Send the quote to the customer. Everything after that is one more click.",
+    action: {
+      verb: "send_quote",
+      buttonLabel: "Next",
+      copy: "Send the quote to the customer",
+    },
   };
 }
 

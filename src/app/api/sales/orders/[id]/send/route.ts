@@ -246,10 +246,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     if (ccEmails.length > 0) logNote += ` (CC: ${ccEmails.join(", ")})`;
 
-    await supabaseAdmin
-      .from("sales_orders")
-      .update({ status: "sent", order_status: newStatus, updated_at: new Date().toISOString() })
-      .eq("id", orderId);
+    // Persist invoice_status alongside order_status so the two never
+    // disagree. The QB block above sets invoice_status='sent' on the happy
+    // path, but if createInvoice returns an id and sendInvoiceEmail then
+    // throws/times out, that write is skipped while order_status still
+    // becomes 'invoice_sent' (it keys off qbInvoiceId). Reconcile here:
+    // whenever a QB invoice exists, invoice_status must read 'sent' too
+    // (Order #108 showed order_status=invoice_sent with invoice_status=not_sent).
+    const statusUpdate: Record<string, unknown> = {
+      status: "sent",
+      order_status: newStatus,
+      updated_at: new Date().toISOString(),
+    };
+    if (qbInvoiceId) {
+      statusUpdate.qb_invoice_id = qbInvoiceId;
+      statusUpdate.invoice_status = "sent";
+    }
+    await supabaseAdmin.from("sales_orders").update(statusUpdate).eq("id", orderId);
 
     await supabaseAdmin.from("order_activity_log").insert({
       order_id: orderId,

@@ -164,20 +164,34 @@ function NewOrderContent() {
 
     if (res.ok) {
       const order = await res.json();
-      // Send the email and wait for result
-      let sendData: { ok?: boolean; emailSent?: boolean; emailError?: string; recipient?: string } = {};
+      // Dispatch the correct follow-up. A QUOTE is emailed for the customer
+      // to accept (/send). A contract-bearing ORDER goes through /process,
+      // which generates the agreement from the line items and sends it for
+      // signature — the invoice fires automatically on signing. Calling
+      // /send for an order would invoice it directly and skip agreement
+      // creation entirely (Order #108 regression).
+      const followUp = documentType === "order" ? "process" : "send";
+      let sendData: {
+        ok?: boolean;
+        emailSent?: boolean;
+        emailError?: string;
+        error?: string;
+        recipient?: string;
+      } = {};
+      let sendOk = false;
       try {
-        const sendRes = await fetch(`/api/sales/orders/${order.id}/send`, {
+        const sendRes = await fetch(`/api/sales/orders/${order.id}/${followUp}`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
         });
         sendData = await sendRes.json().catch(() => ({}));
+        sendOk = sendRes.ok && sendData.ok !== false && sendData.emailSent !== false;
       } catch {
-        sendData = { ok: false, emailError: "Network error sending email" };
+        sendData = { ok: false, error: "Network error" };
       }
       setSendResult({
-        ok: sendData.emailSent || sendData.ok || false,
-        error: sendData.emailError || undefined,
+        ok: sendOk,
+        error: sendData.error || sendData.emailError || undefined,
         recipient: sendData.recipient || undefined,
       });
       setSubmitted(true);
