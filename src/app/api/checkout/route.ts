@@ -5,7 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { calculateFees, FEE_EXEMPT_ROLES } from "@/lib/checkoutFees";
 import { isQuickBooks } from "@/lib/paymentProvider";
-import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
+import { createInvoice, sendInvoiceEmail, getInvoiceWithLink } from "@/lib/quickbooks";
 
 /** POST /api/checkout — create a Stripe Checkout Session for a lead purchase */
 export async function POST(req: NextRequest) {
@@ -166,9 +166,9 @@ export async function POST(req: NextRequest) {
 
       await sendInvoiceEmail(invoice.Id, buyerEmail);
 
-      const fullInvoice = await getInvoice(invoice.Id);
-      if (fullInvoice.InvoiceLink) {
-        return NextResponse.json({ url: fullInvoice.InvoiceLink });
+      const fullInvoice = await getInvoiceWithLink(invoice.Id);
+      if (fullInvoice.payUrl) {
+        return NextResponse.json({ url: fullInvoice.payUrl });
       }
 
       return NextResponse.json({

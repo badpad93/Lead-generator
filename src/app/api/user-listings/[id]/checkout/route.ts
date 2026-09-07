@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
+import { createInvoice, sendInvoiceEmail, getInvoiceWithLink } from "@/lib/quickbooks";
 
 const PLATFORM_FEE_RATE = 0.15;
 
@@ -112,9 +112,9 @@ export async function POST(
 
     await sendInvoiceEmail(invoice.Id, user.email || undefined);
 
-    const fullInvoice = await getInvoice(invoice.Id);
-    if (fullInvoice.InvoiceLink) {
-      return NextResponse.json({ url: fullInvoice.InvoiceLink });
+    const fullInvoice = await getInvoiceWithLink(invoice.Id);
+    if (fullInvoice.payUrl) {
+      return NextResponse.json({ url: fullInvoice.payUrl });
     }
 
     return NextResponse.json({

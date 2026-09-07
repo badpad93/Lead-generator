@@ -61,6 +61,10 @@ export async function POST(req: NextRequest) {
         console.error("[qb-webhook] event log write failed (proceeding):", logErr);
       }
 
+      // A handler that throws leaves the ledger row UNprocessed so Intuit's
+      // redelivery (same event_id) gets a real retry. Only a completed
+      // handler marks the event processed.
+      let handled = false;
       try {
         if (entity.name === "Payment" && (entity.operation === "Create" || entity.operation === "Update")) {
           // Ledger ingest first (non-fatal), then existing downstream handler.
@@ -80,10 +84,12 @@ export async function POST(req: NextRequest) {
         if (entity.name === "CreditMemo" && (entity.operation === "Create" || entity.operation === "Update")) {
           await handleQBCreditMemo(entity.id, notification.realmId);
         }
-      } finally {
-        if (ledgerEventRowId) {
-          await markEventProcessed(ledgerEventRowId).catch(() => undefined);
-        }
+        handled = true;
+      } catch (handlerErr) {
+        console.error(`[qb-webhook] ${entity.name}.${entity.operation} ${entity.id} failed (left unprocessed for redelivery):`, handlerErr instanceof Error ? handlerErr.message : handlerErr);
+      }
+      if (handled && ledgerEventRowId) {
+        await markEventProcessed(ledgerEventRowId).catch(() => undefined);
       }
     }
   }

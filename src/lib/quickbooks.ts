@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 const QB_SANDBOX_BASE = "https://sandbox-quickbooks.api.intuit.com";
 const QB_PRODUCTION_BASE = "https://quickbooks.api.intuit.com";
@@ -339,7 +339,16 @@ export interface CreateInvoiceParams {
     description: string;
     amount: number; // in dollars
     quantity?: number;
+    /**
+     * QuickBooks Item id (ItemRef). When set the line posts to that
+     * Item's income account and inherits its tax category. When omitted
+     * the line is free-text and QBO applies its default item — the
+     * legacy behaviour every pre-Vinnie flow relies on.
+     */
+    qbItemId?: string;
   }[];
+  /** Customer billing address, used by QBO Automated Sales Tax. */
+  billAddr?: { line1: string; city: string; state: string; postalCode: string; country?: string };
   memo?: string;
   dueDate?: string;
   metadata?: Record<string, string>;
@@ -364,18 +373,30 @@ export async function createInvoice(params: CreateInvoiceParams): Promise<QBInvo
 
   const lines = params.lineItems.map((item, idx) => ({
     LineNum: idx + 1,
-    Amount: item.amount * (item.quantity || 1),
+    Amount: Math.round(item.amount * (item.quantity || 1) * 100) / 100,
     DetailType: "SalesItemLineDetail",
     Description: item.description,
     SalesItemLineDetail: {
       UnitPrice: item.amount,
       Qty: item.quantity || 1,
+      ...(item.qbItemId ? { ItemRef: { value: item.qbItemId } } : {}),
     },
   }));
 
   const invoiceBody: Record<string, unknown> = {
     CustomerRef: { value: customer.Id },
     Line: lines,
+    ...(params.billAddr
+      ? {
+          BillAddr: {
+            Line1: params.billAddr.line1,
+            City: params.billAddr.city,
+            CountrySubDivisionCode: params.billAddr.state,
+            PostalCode: params.billAddr.postalCode,
+            Country: params.billAddr.country ?? "US",
+          },
+        }
+      : {}),
     AllowOnlineCreditCardPayment: true,
     AllowOnlineACHPayment: true,
     DueDate: params.dueDate || new Date().toISOString().split("T")[0],
@@ -477,6 +498,36 @@ export async function getInvoice(
   }
   const data = await res.json();
   return data.Invoice;
+}
+
+/**
+ * Hosts Intuit serves hosted "review and pay" pages from. A link that
+ * resolves anywhere else is never handed to a customer.
+ */
+const TRUSTED_INVOICE_LINK_HOSTS = ["intuit.com", "quickbooks.com"];
+
+/** True only for an https URL on an Intuit-owned host. */
+export function isTrustedInvoiceLink(url: string | null | undefined): url is string {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    return TRUSTED_INVOICE_LINK_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The ONE way to obtain a customer-payable link. Always requests
+ * `include=invoiceLink` (without it QBO omits InvoiceLink and every
+ * caller silently fell through to an "invoice emailed" page) and
+ * returns the link only when it is an https Intuit URL.
+ */
+export async function getInvoiceWithLink(invoiceId: string): Promise<QBInvoice & { payUrl: string | null }> {
+  const invoice = await getInvoice(invoiceId, { includeLink: true });
+  return { ...invoice, payUrl: isTrustedInvoiceLink(invoice.InvoiceLink) ? invoice.InvoiceLink : null };
 }
 
 export async function voidInvoice(invoiceId: string): Promise<void> {
@@ -726,10 +777,11 @@ export function verifyWebhookSignature(payload: string, signature: string): bool
   if (!webhookVerifierToken) return false;
 
   try {
-    const hash = createHmac("sha256", webhookVerifierToken)
-      .update(payload)
-      .digest("base64");
-    return hash === signature;
+    const expected = createHmac("sha256", webhookVerifierToken).update(payload).digest();
+    const provided = Buffer.from(signature, "base64");
+    // Constant-time compare; a length mismatch is simply a mismatch.
+    if (provided.length !== expected.length) return false;
+    return timingSafeEqual(expected, provided);
   } catch {
     return false;
   }

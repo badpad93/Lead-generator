@@ -28,7 +28,7 @@ export async function GET(
 
   const { data: order, error } = await supabaseAdmin
     .from("coffee_orders")
-    .select("id, operator_id, qb_invoice_id, qb_invoice_number, status")
+    .select("id, operator_id, qb_invoice_id, status")
     .eq("id", id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -43,11 +43,13 @@ export async function GET(
   }
 
   try {
-    const { getInvoice } = await import("@/lib/quickbooks");
-    const invoice = await getInvoice(order.qb_invoice_id, { includeLink: true });
+    // coffee_orders stores only the QuickBooks invoice Id (migration 078);
+    // the human-readable number comes from QuickBooks itself.
+    const { getInvoiceWithLink } = await import("@/lib/quickbooks");
+    const invoice = await getInvoiceWithLink(order.qb_invoice_id);
     return NextResponse.json({
-      pay_url: invoice.InvoiceLink ?? null,
-      invoice_number: order.qb_invoice_number ?? invoice.DocNumber ?? null,
+      pay_url: invoice.payUrl,
+      invoice_number: invoice.DocNumber ?? null,
     });
   } catch (e) {
     console.error("[coffee/orders/invoice] getInvoice failed:", e);
