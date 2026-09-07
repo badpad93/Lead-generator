@@ -38,13 +38,18 @@ function sqlSnapshotTotal(snapshot: SnapshotLine[]): number {
   );
 }
 
-/** Mirror of agreement integrity_status classification. */
+/** Mirror of agreement integrity_status classification.
+ *  The SQL view guards every jsonb array function behind
+ *  `jsonb_typeof(line_items_snapshot) = 'array'`, so any non-array JSON
+ *  shape (NULL, {}, "string", 123, true) — as well as an empty array —
+ *  classifies as not_verifiable WITHOUT the query erroring. `snapshot`
+ *  is typed `unknown` here to exercise the same guard. */
 function sqlAgreementStatus(
   agreementTotal: number,
-  snapshot: SnapshotLine[] | null | undefined,
+  snapshot: unknown,
 ): "match" | "mismatch" | "not_verifiable" {
   if (!Array.isArray(snapshot) || snapshot.length === 0) return "not_verifiable";
-  const snap = sqlSnapshotTotal(snapshot);
+  const snap = sqlSnapshotTotal(snapshot as SnapshotLine[]);
   return Math.abs((agreementTotal ?? 0) - snap) <= 0.01 ? "match" : "mismatch";
 }
 
@@ -128,5 +133,15 @@ describe("agreement_total_integrity mirrors agreementTotals().totalDuePriorToPro
   it("legacy scalar-only agreement (no snapshot) is not_verifiable, not a false mismatch", () => {
     expect(sqlAgreementStatus(3700, null)).toBe("not_verifiable");
     expect(sqlAgreementStatus(3700, [])).toBe("not_verifiable");
+  });
+
+  it("every non-array JSON shape classifies not_verifiable (SQL guard parity)", () => {
+    // Mirrors migration 188's jsonb_typeof(...) = 'array' guard: the view
+    // must never call jsonb_array_length/jsonb_array_elements on a value
+    // that is not a JSON array, so each of these classifies not_verifiable
+    // instead of erroring.
+    for (const bad of [null, undefined, {}, "string", 123, true, []] as unknown[]) {
+      expect(sqlAgreementStatus(3700, bad)).toBe("not_verifiable");
+    }
   });
 });
