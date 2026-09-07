@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
 import { validateStageTransition } from "@/lib/dealValidation";
+import { computeLineTotal } from "@/lib/pricing/lineItems";
+import { resyncOrderTotals } from "@/lib/pricing/orderSync";
 import type { DealStage } from "@/lib/salesTypes";
 
 const DEFAULT_COMMISSION_RATE = 0.10;
@@ -131,13 +133,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         .single();
 
       if (order) {
+        // Route every line through the canonical calculator (Phase 5C-a4)
+        // so total_price is populated; deal_services.price is a per-service
+        // line total (quantity 1). The old insert set only the legacy
+        // `price` column, leaving total_price NULL/0 and the header drifting
+        // from its lines.
         const orderItems = services.map((s: { service_name: string; price: number }) => ({
           order_id: order.id,
           service_name: s.service_name,
-          price: s.price,
+          item_type: "other",
+          quantity: 1,
+          unit_price: Number(s.price),
+          discount_percent: 0,
+          total_price: computeLineTotal(1, Number(s.price), 0),
+          price: Number(s.price),
           notes: null,
         }));
         await supabaseAdmin.from("order_items").insert(orderItems);
+
+        // Reconcile the header to the persisted lines.
+        await resyncOrderTotals(order.id);
 
         // Create fulfillment checklist for the order
         const checklistItems = DEFAULT_FULFILLMENT_ITEMS.map((label, i) => ({

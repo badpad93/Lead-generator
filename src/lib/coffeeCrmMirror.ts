@@ -13,6 +13,8 @@
 import { supabaseAdmin } from "./supabaseAdmin";
 import { writeAuditLog } from "./paymentLedger";
 import { findOrCreateSalesAccount } from "./salesAccountResolver";
+import { computeLineTotal } from "./pricing/lineItems";
+import { resyncOrderTotals } from "./pricing/orderSync";
 
 export interface MirrorResult {
   status: "created" | "already_mirrored" | "skipped_not_paid" | "not_found";
@@ -128,7 +130,17 @@ export async function mirrorCoffeeOrderToCrm(coffeeOrderId: string): Promise<Mir
     return { status: "not_found", coffeeOrderId, error: soErr?.message || "sales_orders insert failed" };
   }
 
-  // Mirror line items
+  // Mirror line items.
+  //
+  // Shipping must appear EXACTLY ONCE across the CRM order (Phase 5C-a4).
+  // coffee_orders.total already = merchandise subtotal + shipping, and the
+  // per-item coffee_order_items.line_total = (unit_price + shipping_cost) *
+  // quantity — i.e. the source line total already BUNDLES shipping. The old
+  // mirror copied that shipping-inclusive line_total into total_price AND
+  // then added a separate Shipping line, double-counting shipping so the
+  // CRM lines summed to header + shipping. We now write product lines at
+  // their MERCHANDISE value only (unit_price * quantity, via the canonical
+  // calculator) and carry shipping solely on the standalone Shipping line.
   const items = (coffeeOrder.coffee_order_items || []) as Array<{
     product_name: string;
     product_sku: string | null;
@@ -137,24 +149,32 @@ export async function mirrorCoffeeOrderToCrm(coffeeOrderId: string): Promise<Mir
     line_total: number;
   }>;
   if (items.length > 0) {
-    const rows = items.map((i) => ({
-      order_id: salesOrder.id,
-      service_name: i.product_name,
-      item_type: "coffee",
-      description: i.product_sku || null,
-      quantity: Number(i.quantity),
-      unit_price: Number(i.unit_price),
-      total_price: Number(i.line_total),
-      price: Number(i.line_total),
-      status: "paid",
-    }));
-    // "price" is the old-column carryover (see migration 009). Newer rows
-    // use total_price; migration 082 kept "price" for compatibility. We fill
-    // both so old code paths continue to render.
+    const rows = items.map((i) => {
+      const quantity = Number(i.quantity);
+      const unitPrice = Number(i.unit_price);
+      const merchandiseTotal = computeLineTotal(quantity, unitPrice, 0);
+      return {
+        order_id: salesOrder.id,
+        service_name: i.product_name,
+        item_type: "coffee",
+        description: i.product_sku || null,
+        quantity,
+        unit_price: unitPrice,
+        discount_percent: 0,
+        // Merchandise only — shipping lives on the Shipping line below.
+        total_price: merchandiseTotal,
+        // "price" is the old-column carryover (migration 009): a UNIT price,
+        // not a line total. Keep it populated for legacy readers.
+        price: unitPrice,
+        status: "paid",
+      };
+    });
     await supabaseAdmin.from("order_items").insert(rows);
   }
 
-  // Add a shipping line if the coffee estimate is non-zero
+  // Add a shipping line if the coffee estimate is non-zero — the ONLY place
+  // shipping is represented on the CRM order now that product lines exclude
+  // it.
   if (Number(coffeeOrder.shipping_estimate || 0) > 0) {
     await supabaseAdmin.from("order_items").insert({
       order_id: salesOrder.id,
@@ -163,11 +183,24 @@ export async function mirrorCoffeeOrderToCrm(coffeeOrderId: string): Promise<Mir
       description: null,
       quantity: 1,
       unit_price: Number(coffeeOrder.shipping_estimate),
+      discount_percent: 0,
       total_price: Number(coffeeOrder.shipping_estimate),
       price: Number(coffeeOrder.shipping_estimate),
       status: "paid",
     });
   }
+
+  // Reconcile the header to the persisted lines through the canonical
+  // resync so total_value == sum(non-deferred order_items.total_price)
+  // (order_total_integrity = match). This order is paid in full via
+  // Stripe, so restore remaining_balance to 0 afterward — resyncOrderTotals
+  // assumes a deposit flow and would otherwise stamp the full total as an
+  // outstanding balance on an already-paid order.
+  await resyncOrderTotals(salesOrder.id);
+  await supabaseAdmin
+    .from("sales_orders")
+    .update({ remaining_balance: 0, updated_at: new Date().toISOString() })
+    .eq("id", salesOrder.id);
 
   // Link back so retries + future coffee-order edits don't re-mirror
   await supabaseAdmin

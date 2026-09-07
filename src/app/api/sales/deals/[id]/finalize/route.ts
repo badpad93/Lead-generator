@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
+import { computeLineTotal } from "@/lib/pricing/lineItems";
+import { resyncOrderTotals } from "@/lib/pricing/orderSync";
 
 /**
  * POST /api/sales/deals/[id]/finalize
@@ -49,15 +51,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (orderErr) return NextResponse.json({ error: orderErr.message }, { status: 500 });
 
-  // Create order items from deal services
+  // Create order items from deal services, routing every line through the
+  // canonical calculator (Phase 5C-a4). deal_services.price is a per-service
+  // line total (quantity 1), so total_price = computeLineTotal(1, price, 0).
+  // Previously only the legacy `price` column was set, leaving total_price
+  // NULL/0 so order_total_integrity flagged the whole header as drift.
   const orderItems = services.map((s: { service_name: string; price: number }) => ({
     order_id: order.id,
     service_name: s.service_name,
-    price: s.price,
+    item_type: "other",
+    quantity: 1,
+    unit_price: Number(s.price),
+    discount_percent: 0,
+    total_price: computeLineTotal(1, Number(s.price), 0),
+    price: Number(s.price),
     notes: null,
   }));
 
   await supabaseAdmin.from("order_items").insert(orderItems);
+
+  // Reconcile the header to the persisted lines (total_value == sum of
+  // non-deferred total_price).
+  await resyncOrderTotals(order.id);
 
   return NextResponse.json({ orderId: order.id }, { status: 201 });
 }

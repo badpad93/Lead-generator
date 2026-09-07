@@ -199,14 +199,43 @@ export async function PATCH(
   const { data: current } = await supabaseAdmin
     .from("purchase_agreements")
     .select(
-      "agreement_type, line_items_snapshot, machine_quantity, machine_unit_price, freight_per_machine, locations_purchased, location_fee_per_secured, include_equipment, include_location_services, include_shipping_storage, location_services_deposit_only, location_services_deposit_amount",
+      "agreement_status, agreement_type, line_items_snapshot, machine_quantity, machine_unit_price, freight_per_machine, locations_purchased, location_fee_per_secured, include_equipment, include_location_services, include_shipping_storage, location_services_deposit_only, location_services_deposit_amount",
     )
     .eq("id", id)
     .single();
 
-  // Location placement agreements have no machine/freight/location
-  // totals — skip the purchase-agreement recalc entirely for that type.
-  if (current?.agreement_type !== "location_placement") {
+  // Freeze guard (Phase 5C-a4). Only draft/generated agreements may have
+  // their commercial basis edited or repriced. Once an agreement is sent,
+  // viewed, partially/fully signed, cancelled or expired, its frozen
+  // commercial terms are what the customer saw — a stray PATCH (even one
+  // touching only internal_notes) must never re-snapshot it or recompute
+  // its total. Strip every commercial-basis field from the update and skip
+  // the recalc so the frozen totals/snapshot are preserved exactly. This
+  // mirrors the freeze behavior in src/lib/agreements/sync.ts + refresh.ts.
+  const EDITABLE_STATUSES = new Set(["draft", "generated"]);
+  const isFrozen = !EDITABLE_STATUSES.has(String(current?.agreement_status ?? ""));
+  const COMMERCIAL_FIELDS = [
+    "line_items_snapshot",
+    "machine_quantity",
+    "machine_unit_price",
+    "freight_per_machine",
+    "locations_purchased",
+    "location_fee_per_secured",
+    "standard_freight_rate",
+    "discounted_freight_rate",
+    "include_equipment",
+    "include_location_services",
+    "include_shipping_storage",
+    "location_services_deposit_only",
+    "location_services_deposit_amount",
+    "coffee_supply_snapshot",
+  ];
+
+  if (isFrozen) {
+    for (const field of COMMERCIAL_FIELDS) delete updates[field];
+  } else if (current?.agreement_type !== "location_placement") {
+    // Location placement agreements have no machine/freight/location
+    // totals — skip the purchase-agreement recalc entirely for that type.
     const snapshot = (updates.line_items_snapshot ??
       current?.line_items_snapshot) as SnapshotLine[] | null | undefined;
 

@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendLocationRequestConfirmation } from "@/lib/intakeEmail";
 import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
+import { computeLineTotal } from "@/lib/pricing/lineItems";
 
 import { APEX_ADMIN_NOTIFY } from "@/lib/adminNotifyRecipients";
 
@@ -333,12 +334,24 @@ export async function POST(req: Request) {
         console.error("[request-location] sales_orders insert failed:", orderErr);
       } else if (order) {
         orderId = order.id;
+        // Deposit line, canonical commercial spine (Phase 5C-a4). Header
+        // total_value is the DEPOSIT ONLY ($100/location), so the line must
+        // match that basis with total_price populated (was `price`-only,
+        // which read as $0 drift in order_total_integrity). status 'pending'
+        // = due now (non-deferred), NOT 'pending_fulfillment'.
+        const perLocationDeposit = DEPOSIT_CENTS_PER_LOCATION / 100;
         const { error: itemErr } = await supabaseAdmin
           .from("order_items")
           .insert({
             order_id: order.id,
             service_name: `Location Services Deposit — ${machine_count} ${machine_type} location${machine_count > 1 ? "s" : ""}`,
-            price: totalValueDollars,
+            item_type: "location_services",
+            quantity: machine_count,
+            unit_price: perLocationDeposit,
+            discount_percent: 0,
+            total_price: computeLineTotal(machine_count, perLocationDeposit, 0),
+            price: perLocationDeposit,
+            status: "pending",
             notes: `Deposit only — $100 per location × ${machine_count}. Placement fees are billed separately per placement, not on this order.`,
           });
         if (itemErr) {

@@ -1611,6 +1611,9 @@
     "max-depth": {
       "count": 1
     },
+    "max-lines": {
+      "count": 1
+    },
     "no-console": {
       "count": 1
     },
@@ -1832,11 +1835,6 @@
     }
   },
   "src/app/api/sales/orders/[id]/send-receipt/route.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
-  "src/app/api/sales/orders/[id]/send-remaining-balance/route.ts": {
     "complexity": {
       "count": 1
     }
