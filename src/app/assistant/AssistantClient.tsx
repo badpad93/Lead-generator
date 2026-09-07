@@ -33,13 +33,14 @@ function useSidebarState() {
 }
 
 function Header({ chat, onToggleSidebar, sidebarOpen }: { chat: AssistantChat; onToggleSidebar: () => void; sidebarOpen: boolean }) {
+  const online = chat.state.kind !== "loading" && !chat.disabled;
   return (
     <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-neutral-800 px-2 pt-[env(safe-area-inset-top)] sm:px-3">
       <button type="button" onClick={onToggleSidebar} aria-label="Toggle conversations" aria-expanded={sidebarOpen} className={ICON_BUTTON}>
         <PanelLeft className="h-5 w-5" aria-hidden />
       </button>
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <VinnieAvatar size="sm" />
+        <VinnieAvatar size="md" online={online} />
         <div className="min-w-0 leading-tight">
           <h1 className="truncate text-sm font-semibold text-white">{ASSISTANT_NAME}</h1>
           <p className="truncate text-xs text-neutral-400">{ASSISTANT_LABEL}</p>

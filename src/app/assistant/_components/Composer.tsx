@@ -59,7 +59,7 @@ export function Composer({ disabled, loading = false, streaming, maxLength, onSe
           <Square className="h-4 w-4" aria-hidden /> Stop
         </button>
       ) : (
-        <button type="submit" disabled={!canSend} className={`flex h-11 w-11 items-center justify-center rounded-xl bg-white text-black transition-colors hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-30 ${FOCUS}`} aria-label="Send message">
+        <button type="submit" disabled={!canSend} className={`flex h-11 w-11 items-center justify-center rounded-xl border border-vinnie-green bg-black text-vinnie-green transition-colors hover:bg-neutral-900 disabled:cursor-not-allowed disabled:border-neutral-700 disabled:text-neutral-500 ${FOCUS}`} aria-label="Send message">
           <ArrowUp className="h-5 w-5" aria-hidden />
         </button>
       )}

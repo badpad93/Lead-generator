@@ -12,6 +12,8 @@
   --color-black-800: #171717;
   --color-light: #FAFAFA;
   --color-light-warm: #F5F5F5;
+  /* Vinnie brand accent: sampled from the approved VC badge (public/assistant/vinnie-vc-badge.png). */
+  --color-vinnie-green: #01B744;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 

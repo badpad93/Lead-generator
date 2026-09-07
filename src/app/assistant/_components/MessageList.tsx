@@ -42,7 +42,7 @@ function Activity({ label }: { label: string | null | undefined }) {
   if (!label) return null;
   return (
     <div className="flex items-center gap-2 text-xs text-neutral-400" role="status">
-      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> {label}…
+      <Loader2 className="h-3.5 w-3.5 animate-spin text-vinnie-green" aria-hidden /> {label}…
     </div>
   );
 }

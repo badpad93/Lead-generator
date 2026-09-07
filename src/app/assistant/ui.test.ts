@@ -7,15 +7,20 @@ import { ConversationDrawer } from "./_components/ConversationDrawer";
 import { MessageList } from "./_components/MessageList";
 import { StatusBanner } from "./_components/StatusBanner";
 import { ThreadSidebar } from "./_components/ThreadSidebar";
+import { VinnieAvatar, VINNIE_BADGE_SRC } from "./_components/VinnieAvatar";
 import { BlockView } from "./_components/Blocks";
 import type { ChatMessage, UiBlock, UiState } from "./_components/types";
 
 /**
  * Static render of the client UI (server-side, no effects). Guards the
- * locked identity, the full-screen shell, and the monochrome rule: no
- * green, amber, red, blue, or yellow utility anywhere in the markup.
+ * locked identity, the full-screen shell, and the palette rule: the only
+ * accent is the centralized `vinnie-green` token; the site's green-* scale
+ * and every other hue stay out of the assistant markup.
  */
 const COLOR = /\b(?:bg|text|border|ring|from|to|via)-(?:green|amber|red|blue|yellow|emerald|orange|purple|pink|light)(?:-|\b)/;
+/** The badge is served as a committed public asset through next/image (never base64, never remote). */
+const BADGE = /\/assistant\/vinnie-vc-badge\.png|%2Fassistant%2Fvinnie-vc-badge\.png/;
+const MONOGRAM = /border border-white font-semibold[^>]*>V</;
 const render = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticMarkup(el);
 const noop = () => undefined;
 
@@ -48,12 +53,20 @@ describe("full-screen Vinnie shell", () => {
     expect(html).not.toContain("<nav");
   });
 
-  it("shows the locked identity: name, label, greeting, title-free header, outlined V avatar", () => {
+  it("shows the locked identity: name, label, greeting, and the approved VC badge (not the old monogram)", () => {
     expect(html).toContain("<h1 class=\"truncate text-sm font-semibold text-white\">Vinnie</h1>");
     expect(html).toContain("Vending Connector AI");
     expect(html).toContain("Hi, I&#x27;m Vinnie. What can I help you build today?");
     expect(html).toContain('data-testid="vinnie-avatar"');
+    expect(html).toMatch(BADGE);
+    expect(html).not.toMatch(MONOGRAM);
+    expect(html).not.toContain("data:image");
     expect(html).not.toContain("Vending Connector Assistant");
+  });
+
+  it("header badge is ~40px, message badge ~28px; no availability dot before the first fetch resolves", () => {
+    expect(html).toContain('data-size="md"');
+    expect(html).not.toContain('data-testid="vinnie-online"');
   });
 
   it("anchors the composer with safe-area padding and 44px touch targets", () => {
@@ -65,8 +78,11 @@ describe("full-screen Vinnie shell", () => {
     expect(html).toContain('aria-label="New conversation"');
   });
 
-  it("is monochrome and keeps the desktop sidebar hidden below lg", () => {
+  it("uses only the vinnie-green accent (no other hues) and keeps the desktop sidebar hidden below lg", () => {
     expect(html).not.toMatch(COLOR);
+    expect(html).toContain("vinnie-green");
+    // Restraint: the accent never paints a surface, only borders/icons/dots.
+    expect(html).not.toContain("bg-vinnie-green");
     expect(html).toContain("hidden w-64 shrink-0 flex-col border-r border-neutral-800 bg-neutral-950 pt-[env(safe-area-inset-top)] lg:flex");
     expect(html).not.toContain('data-testid="conversation-drawer"');
   });
@@ -76,6 +92,38 @@ describe("full-screen Vinnie shell", () => {
     expect(html).toContain("Connecting to Vinnie…");
     expect(html).not.toContain("Vinnie is unavailable right now");
     expect(html).toContain("Do not share card, bank, Social Security, credit, or income details here.");
+  });
+});
+
+describe("VinnieAvatar badge", () => {
+  it("renders the approved asset through next/image inside a round, clipped, black-ringed wrapper", () => {
+    const html = render(createElement(VinnieAvatar, { size: "md" }));
+    expect(VINNIE_BADGE_SRC).toBe("/assistant/vinnie-vc-badge.png");
+    expect(html).toMatch(BADGE);
+    expect(html).toContain("overflow-hidden rounded-full bg-white ring-2 ring-black");
+    expect(html).toContain("scale-[1.04] rounded-full object-cover");
+    expect(html).toContain('width="40"');
+    expect(html).not.toMatch(MONOGRAM);
+    expect(html).not.toContain("data:image");
+    expect(html).not.toContain("http");
+  });
+
+  it("is decorative by default (beside visible Vinnie text) and labelled when alt text is given", () => {
+    const decorative = render(createElement(VinnieAvatar, { size: "sm" }));
+    expect(decorative).toContain('aria-hidden="true"');
+    expect(decorative).toContain('alt=""');
+    expect(decorative).toContain('width="28"');
+    const labelled = render(createElement(VinnieAvatar, { alt: "Vinnie, the Vending Connector AI" }));
+    expect(labelled).toContain('alt="Vinnie, the Vending Connector AI"');
+    expect(labelled).not.toContain('aria-hidden="true"');
+  });
+
+  it("shows the green availability dot only when online", () => {
+    const online = render(createElement(VinnieAvatar, { size: "md", online: true }));
+    expect(online).toContain('data-testid="vinnie-online"');
+    expect(online).toContain("bg-vinnie-green");
+    expect(online).toContain('aria-label="Vinnie is available"');
+    expect(render(createElement(VinnieAvatar, { size: "md" }))).not.toContain('data-testid="vinnie-online"');
   });
 });
 
@@ -106,7 +154,11 @@ describe("existing components under the monochrome theme", () => {
     expect(html).toContain('role="log"');
     expect(html).toContain('<div class="text-xs font-medium text-neutral-400">Vinnie</div>');
     expect(html).toContain('data-testid="vinnie-avatar"');
+    expect(html).toContain('data-size="sm"');
+    expect(html).toMatch(BADGE);
+    expect(html).not.toMatch(MONOGRAM);
     expect(html).toContain("Searching the catalog…");
+    expect(html).toContain("animate-spin text-vinnie-green");
     expect(html).toContain("This response was interrupted.");
     expect(html).toContain("Office Brewer");
     expect(html).toContain("Tiers are assessed by the location team.");
@@ -127,6 +179,7 @@ describe("existing components under the monochrome theme", () => {
     const idle = render(createElement(Composer, { disabled: false, streaming: false, maxLength: 10, onSend: noop, onStop: noop }));
     expect(idle).toContain("Message Vinnie");
     expect(idle).toContain('aria-label="Send message"');
+    expect(idle).toContain("border-vinnie-green bg-black text-vinnie-green");
     expect(idle).toContain("!text-white");
     expect(idle).not.toMatch(COLOR);
     const streaming = render(createElement(Composer, { disabled: false, streaming: true, maxLength: 10, onSend: noop, onStop: noop }));
@@ -146,6 +199,7 @@ describe("existing components under the monochrome theme", () => {
     const threads = [{ id: "t1", title: "Coffee", status: "open", last_activity_at: "", created_at: "" }, { id: "t2", title: null, status: "open", last_activity_at: "", created_at: "" }];
     const user = render(createElement(ThreadSidebar, { ...base, viewer: "user", threads }));
     expect(user).toContain('aria-current="true"');
+    expect(user).toContain("shrink-0 text-vinnie-green");
     expect(user).toContain("Untitled conversation");
     expect(user).toContain('aria-label="Conversation history"');
   });

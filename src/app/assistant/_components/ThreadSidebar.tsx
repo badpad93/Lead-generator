@@ -23,7 +23,7 @@ function ThreadButton({ t, active, onSelect }: { t: ThreadSummary; active: boole
       aria-current={active ? "true" : undefined}
       className={`flex min-h-11 w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${tone} ${FOCUS}`}
     >
-      <MessageSquare className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <MessageSquare className={`mt-0.5 h-4 w-4 shrink-0 ${active ? "text-vinnie-green" : ""}`} aria-hidden />
       <span className="line-clamp-2">{t.title ?? "Untitled conversation"}</span>
     </button>
   );

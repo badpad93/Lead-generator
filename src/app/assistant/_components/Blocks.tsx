@@ -24,7 +24,7 @@ function availabilityBadge(item: Item): { label: string; cls: string } {
   if (a === "out_of_stock" || a === "unavailable") return { label: "Unavailable", cls: "border-neutral-700 text-neutral-400" };
   if (a === "low_stock") return { label: "Low stock", cls: "border-neutral-500 text-neutral-200" };
   if (a === "informational") return { label: "Info", cls: "border-neutral-500 text-white" };
-  return { label: "Available", cls: "border-white text-white" };
+  return { label: "Available", cls: "border-vinnie-green text-vinnie-green" };
 }
 
 function ItemImage({ item }: { item: Item }) {
@@ -140,7 +140,7 @@ export function CustomerContext({ context }: { context: Item }) {
   if (context.authenticated !== true) {
     return (
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-neutral-300">
-        <User className="h-4 w-4 text-neutral-400" aria-hidden /> You are browsing as a guest. <Link href="/login?redirect=/assistant" className={`text-white underline ${FOCUS}`}>Sign in</Link> to see your account.
+        <User className="h-4 w-4 text-neutral-400" aria-hidden /> You are browsing as a guest. <Link href="/login?redirect=/assistant" className={`text-vinnie-green underline ${FOCUS}`}>Sign in</Link> to see your account.
       </div>
     );
   }
@@ -163,7 +163,7 @@ export function CustomerContext({ context }: { context: Item }) {
 }
 
 function StageIcon({ status }: { status: string }) {
-  if (status === "completed") return <CheckCircle2 className="h-4 w-4 text-white" aria-hidden />;
+  if (status === "completed") return <CheckCircle2 className="h-4 w-4 text-vinnie-green" aria-hidden />;
   if (status === "in_progress") return <Clock className="h-4 w-4 text-neutral-300" aria-hidden />;
   return <Circle className="h-4 w-4 text-neutral-600" aria-hidden />;
 }
@@ -209,7 +209,7 @@ function OrderLines({ record }: { record: Item }) {
 
 export function OrderStatus({ status, record }: { status: string; record: Item | null }) {
   if (status === "authentication_required") {
-    return <p className="rounded-xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-neutral-300">Please <Link href="/login?redirect=/assistant" className={`text-white underline ${FOCUS}`}>sign in</Link> to check an order.</p>;
+    return <p className="rounded-xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-neutral-300">Please <Link href="/login?redirect=/assistant" className={`text-vinnie-green underline ${FOCUS}`}>sign in</Link> to check an order.</p>;
   }
   if (status !== "found" || !record) {
     return <p className="rounded-xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-neutral-300">No matching order was found on your account.</p>;
@@ -226,7 +226,7 @@ export function OrderStatus({ status, record }: { status: string; record: Item |
       </div>
       <OrderFacts record={record} />
       <OrderLines record={record} />
-      {href ? <Link href={href} className={`mt-3 inline-block text-xs text-white underline ${FOCUS}`}>View details</Link> : null}
+      {href ? <Link href={href} className={`mt-3 inline-block text-xs text-vinnie-green underline ${FOCUS}`}>View details</Link> : null}
     </div>
   );
 }

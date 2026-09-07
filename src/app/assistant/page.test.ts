@@ -46,5 +46,6 @@ describe("/assistant page", () => {
     expect(html).toContain('data-testid="assistant-app"');
     expect(html).toContain("Hi, I&#x27;m Vinnie. What can I help you build today?");
     expect(html).toContain("Vending Connector AI");
+    expect(html).toMatch(/vinnie-vc-badge\.png/);
   });
 });

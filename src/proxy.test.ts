@@ -106,6 +106,15 @@ describe("existing gates are unchanged on a preview host", () => {
     expect((await proxy(plain)).headers.get("x-middleware-request-x-vc-customer-shell")).toBeNull();
   });
 
+  it("the Vinnie badge asset is public so the image optimizer can fetch it while signed out", async () => {
+    process.env.VERCEL_ENV = "preview";
+    const res = await proxy(req("/assistant/vinnie-vc-badge.png"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+    // Other paths under /assistant/ are still gated.
+    expect((await proxy(req("/assistant/anything-else"))).status).toBe(307);
+  });
+
   it("public pages pass through", async () => {
     for (const p of ["/", "/login", "/assistant", "/coffee/o/twelve28"]) {
       const res = await proxy(req(p));
