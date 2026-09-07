@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { upsertInvoice } from "@/lib/paymentLedger";
 import { Resend } from "resend";
 import { pdfSafeInline, pdfSafeMultiline } from "./pdfSafeText";
 import {
@@ -1201,9 +1202,28 @@ async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
       ]);
       qbSent = true;
 
+      // Persist canonically to public.invoices + link financial_spine_invoice_id.
+      // sales_orders has no qb_invoice_id column; the QB identity lives on the
+      // invoices row (idempotent by provider+provider_invoice_id).
+      const inv = await upsertInvoice({
+        provider: "quickbooks",
+        providerInvoiceId: qbInvoiceId,
+        orderId: order.id,
+        agreementId: ag.id,
+        buyerEmail: ag.operator_email,
+        buyerName: ag.operator_company_name || ag.operator_legal_name || "Customer",
+        totalCents: Math.round(Number(totalValue) * 100),
+        status: "open",
+        sentAt: new Date().toISOString(),
+        memo: `Order #${order.order_number || order.id.slice(0, 8).toUpperCase()} (from agreement)`,
+      }).catch(() => null);
       await supabaseAdmin
         .from("sales_orders")
-        .update({ qb_invoice_id: qbInvoiceId, invoice_status: "sent" })
+        .update({
+          ...(inv ? { financial_spine_invoice_id: inv.id } : {}),
+          invoice_status: "sent",
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", order.id);
     } catch {
       // Fall through to Resend

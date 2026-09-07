@@ -170,7 +170,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         id: string;
         total_value?: number | string | null;
         deposit_amount?: number | string | null;
-        qb_invoice_id?: string | null;
         assigned_rep_id?: string | null;
         created_by?: string | null;
         account_id?: string | null;
@@ -201,7 +200,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           metadata: {
             source: "sales_orders.status",
             action,
-            qb_invoice_id: orderRow.qb_invoice_id || null,
+            // NOTE: no qb_invoice_id — sales_orders has no such column; the
+            // canonical invoice link is sales_orders.financial_spine_invoice_id
+            // (-> public.invoices). Payments are linked to the order via
+            // orderId above, so no invoice id is needed in metadata here.
           },
           createdBy: user.id,
         });

@@ -636,15 +636,19 @@ export async function backfillCommissions(args: BackfillArgs): Promise<BackfillS
       if (p.invoice_id) {
         const { data: inv } = await supabaseAdmin
           .from("invoices")
-          .select("id, provider_invoice_id")
+          .select("id, provider_invoice_id, order_id")
           .eq("id", p.invoice_id)
           .maybeSingle();
+        // Canonical: the invoices row already carries order_id for the primary
+        // order invoice. sales_orders has no qb_invoice_id column, so fall back
+        // only to the live location_remaining_qb_invoice_id / apex columns.
+        orderId = inv?.order_id ?? null;
         const qbInvoiceId = inv?.provider_invoice_id || null;
-        if (qbInvoiceId) {
+        if (!orderId && qbInvoiceId) {
           const { data: so } = await supabaseAdmin
             .from("sales_orders")
             .select("id")
-            .or(`qb_invoice_id.eq.${qbInvoiceId},location_remaining_qb_invoice_id.eq.${qbInvoiceId}`)
+            .eq("location_remaining_qb_invoice_id", qbInvoiceId)
             .maybeSingle();
           if (so) orderId = so.id;
           if (!orderId) {

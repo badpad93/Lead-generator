@@ -225,15 +225,44 @@ async function handleQBPayment(paymentId: string, realmId: string) {
 
     // Check sales_orders (CRM main invoice, remaining-balance invoice, and
     // apex placement fee invoice all live on this table).
-    const { data: salesOrder } = await supabaseAdmin
-      .from("sales_orders")
-      .select("id, qb_invoice_id, location_remaining_qb_invoice_id, order_status, payment_status")
-      .or(`qb_invoice_id.eq.${invoiceId},location_remaining_qb_invoice_id.eq.${invoiceId}`)
+    // Match the CRM order canonically: the primary invoice is linked through
+    // public.invoices (provider_invoice_id -> order_id); the remaining-balance
+    // invoice still lives on the dedicated location_remaining_qb_invoice_id
+    // column. sales_orders has NO qb_invoice_id column, so the old
+    // .eq('qb_invoice_id') filter matched nothing.
+    let salesOrder:
+      | { id: string; order_status: string | null; payment_status: string | null }
+      | null = null;
+    let isRemaining = false;
+    const { data: spineInvoice } = await supabaseAdmin
+      .from("invoices")
+      .select("order_id")
+      .eq("provider", "quickbooks")
+      .eq("provider_invoice_id", invoiceId)
+      .not("order_id", "is", null)
       .maybeSingle();
+    if (spineInvoice?.order_id) {
+      const { data } = await supabaseAdmin
+        .from("sales_orders")
+        .select("id, order_status, payment_status")
+        .eq("id", spineInvoice.order_id)
+        .maybeSingle();
+      salesOrder = data;
+    }
+    if (!salesOrder) {
+      const { data } = await supabaseAdmin
+        .from("sales_orders")
+        .select("id, order_status, payment_status")
+        .eq("location_remaining_qb_invoice_id", invoiceId)
+        .maybeSingle();
+      if (data) {
+        salesOrder = data;
+        isRemaining = true;
+      }
+    }
 
     if (salesOrder) {
       console.log(`[qb-webhook] Processing sales_orders payment for invoice ${invoiceId}`);
-      const isRemaining = salesOrder.location_remaining_qb_invoice_id === invoiceId;
       const patch: Record<string, unknown> = {
         payment_status: "paid",
         updated_at: new Date().toISOString(),

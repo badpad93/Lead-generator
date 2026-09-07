@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendLocationRequestConfirmation } from "@/lib/intakeEmail";
 import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 import { computeLineTotal } from "@/lib/pricing/lineItems";
+import { upsertInvoice } from "@/lib/paymentLedger";
 
 import { APEX_ADMIN_NOTIFY } from "@/lib/adminNotifyRecipients";
 
@@ -398,12 +399,30 @@ export async function POST(req: Request) {
     // order and roll payment status through to the workflow.
     if (orderId) {
       try {
+        // Persist the deposit invoice canonically (public.invoices) and link
+        // it from the order. sales_orders has no qb_invoice_id column; the QB
+        // identity lives on the invoices row. This is the PRIMARY invoice for
+        // this order — the later location remaining-balance invoice is tracked
+        // separately on location_remaining_qb_invoice_id (a legitimate second
+        // invoice per order).
+        const inv = await upsertInvoice({
+          provider: "quickbooks",
+          providerInvoiceId: invoice.Id,
+          orderId,
+          accountId: accountId ?? undefined,
+          buyerEmail: email,
+          buyerName: business_name,
+          totalCents: Math.round(depositDollars * 100),
+          status: "open",
+          sentAt: new Date().toISOString(),
+          memo: `Location services deposit — ${business_name}`,
+        });
         await supabaseAdmin
           .from("sales_orders")
-          .update({ qb_invoice_id: invoice.Id })
+          .update({ financial_spine_invoice_id: inv.id, updated_at: new Date().toISOString() })
           .eq("id", orderId);
       } catch (invLinkErr) {
-        console.error("[request-location] sales_orders qb_invoice_id link failed:", invLinkErr);
+        console.error("[request-location] financial-spine link failed:", invLinkErr);
       }
     }
 

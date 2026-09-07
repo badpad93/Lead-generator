@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser } from "@/lib/salesAuth";
 import { Resend } from "resend";
 import { createInvoice, sendInvoiceEmail } from "@/lib/quickbooks";
+import { upsertInvoice } from "@/lib/paymentLedger";
 
 import { APEX_ADMIN_NOTIFY } from "@/lib/adminNotifyRecipients";
 
@@ -181,14 +182,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ]);
         emailSent = true;
 
-        // Persist invoice_status only. sales_orders has NO qb_invoice_id
-        // column (it is a phantom write — the QB identity belongs on a
-        // public.invoices row), and including it here made the whole update
-        // error out and get swallowed, which is why invoice_status stayed
-        // 'not_sent' on orders sent this way (Order #108).
+        // Canonical persistence: record the QB invoice in public.invoices
+        // (idempotent by provider+provider_invoice_id) and link it from the
+        // order via financial_spine_invoice_id. sales_orders has NO
+        // qb_invoice_id column — writing it errored and got swallowed, which
+        // left invoice_status stuck at 'not_sent' (Order #108).
+        const inv = await upsertInvoice({
+          provider: "quickbooks",
+          providerInvoiceId: qbInvoiceId,
+          orderId,
+          accountId: order.account_id || undefined,
+          buyerEmail: recipientEmail,
+          buyerName: businessName,
+          totalCents: Math.round((Number(order.total_value) || 0) * 100),
+          status: "open",
+          sentAt: new Date().toISOString(),
+          memo: `Order #${order.order_number || orderId.slice(0, 8).toUpperCase()}`,
+        }).catch(() => null);
         await supabaseAdmin
           .from("sales_orders")
-          .update({ invoice_status: "sent" })
+          .update({
+            ...(inv ? { financial_spine_invoice_id: inv.id } : {}),
+            invoice_status: "sent",
+          })
           .eq("id", orderId);
       } catch {
         // QB failed or timed out — fall through to Resend

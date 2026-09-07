@@ -66,6 +66,19 @@ export async function sendOrderReceipt(params: SendReceiptParams): Promise<{
   const account = order.sales_accounts;
   const items = order.order_items || [];
   const totalValue = Number(order.total_value) || 0;
+
+  // Real invoice number from the canonical financial spine (public.invoices),
+  // if the order is linked. sales_orders has no qb_invoice_id column — the QB
+  // identity is invoices.provider_invoice_id.
+  let invoiceNumber: string | null = null;
+  if (order.financial_spine_invoice_id) {
+    const { data: inv } = await supabaseAdmin
+      .from("invoices")
+      .select("provider_invoice_id")
+      .eq("id", order.financial_spine_invoice_id)
+      .maybeSingle();
+    invoiceNumber = inv?.provider_invoice_id ?? null;
+  }
   const depositAmount = Number(order.deposit_amount) || 0;
 
   const defaultAmountPaid = paymentType === "deposit" ? depositAmount : totalValue;
@@ -98,7 +111,7 @@ export async function sendOrderReceipt(params: SendReceiptParams): Promise<{
 
   const receiptData: ReceiptData = {
     order_number: order.order_number || order.id.slice(0, 8).toUpperCase(),
-    invoice_number: order.qb_invoice_id || null,
+    invoice_number: invoiceNumber,
     paid_at: custom?.paid_at || new Date().toISOString(),
     payment_type: paymentType,
     stamp_label: custom?.stamp_label || null,
