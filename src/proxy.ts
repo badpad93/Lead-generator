@@ -54,6 +54,7 @@ const PUBLIC_EXACT = new Set<string>([
   "/logo.png",
   "/logo-vc.svg",
   "/og-image.png",
+  "/assistant/vinnie-vc-badge.png", // Vinnie badge — fetched by the image optimizer, must never bounce to /login
 ]);
 
 const PUBLIC_PREFIXES = [

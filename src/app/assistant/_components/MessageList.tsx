@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Bot, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { ASSISTANT_NAME } from "@/lib/assistant/identity";
+import { AssistantMarkdown } from "./AssistantMarkdown";
 import { BlockView } from "./Blocks";
+import { VinnieAvatar } from "./VinnieAvatar";
 import type { ChatMessage } from "./types";
 
 function Paragraphs({ content }: { content: string }) {
@@ -19,19 +22,20 @@ function Paragraphs({ content }: { content: string }) {
 function UserBubble({ m }: { m: ChatMessage }) {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[92%] rounded-2xl rounded-br-md bg-green-primary px-4 py-3 text-sm leading-relaxed text-white shadow-sm">
+      <div className="max-w-[85%] space-y-2 rounded-2xl rounded-br-md bg-neutral-800 px-4 py-3 text-[15px] leading-relaxed text-white">
         <Paragraphs content={m.content} />
       </div>
     </div>
   );
 }
 
+/** Assistant text is Markdown (safe subset); user text above stays plain. */
 function AssistantText({ m }: { m: ChatMessage }) {
   if (!m.content && !m.streaming) return null;
   return (
-    <div className="rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-sm leading-relaxed text-black-primary shadow-sm" aria-live={m.streaming ? "polite" : undefined}>
-      <Paragraphs content={m.content} />
-      {m.streaming && !m.content ? <span className="inline-block h-4 w-2 animate-pulse rounded bg-gray-300" aria-hidden /> : null}
+    <div aria-live={m.streaming ? "polite" : undefined}>
+      {m.content ? <AssistantMarkdown text={m.content} /> : null}
+      {m.streaming && !m.content ? <span className="inline-block h-4 w-2 animate-pulse rounded-sm bg-neutral-400" aria-hidden /> : null}
     </div>
   );
 }
@@ -39,25 +43,24 @@ function AssistantText({ m }: { m: ChatMessage }) {
 function Activity({ label }: { label: string | null | undefined }) {
   if (!label) return null;
   return (
-    <div className="flex items-center gap-2 text-xs text-gray-500" role="status">
-      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> {label}…
+    <div className="flex items-center gap-2 text-xs text-neutral-400" role="status">
+      <Loader2 className="h-3.5 w-3.5 animate-spin text-vinnie-green" aria-hidden /> {label}…
     </div>
   );
 }
 
 function AssistantBubble({ m }: { m: ChatMessage }) {
   return (
-    <div className="flex justify-start">
-      <div className="w-full max-w-[92%] space-y-3">
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-500">
-          <Bot className="h-3.5 w-3.5 text-green-primary" aria-hidden /> Vending Connector Assistant
-        </div>
+    <div className="flex gap-3">
+      <VinnieAvatar size="sm" />
+      <div className="min-w-0 flex-1 space-y-3">
+        <div className="text-xs font-medium text-neutral-400">{ASSISTANT_NAME}</div>
         <AssistantText m={m} />
         <Activity label={m.activity} />
         {m.blocks.map((b, i) => (
           <BlockView key={`${m.id}-b${i}`} block={b} />
         ))}
-        {m.interrupted && !m.streaming ? <p className="text-[11px] italic text-gray-400">This response was interrupted.</p> : null}
+        {m.interrupted && !m.streaming ? <p className="text-xs italic text-neutral-400">This response was interrupted.</p> : null}
       </div>
     </div>
   );
@@ -74,7 +77,7 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [lastKey]);
   return (
-    <div className="space-y-5" role="log" aria-label="Conversation">
+    <div className="space-y-6" role="log" aria-label="Conversation">
       {messages.map((m) => (
         <Bubble key={m.id} m={m} />
       ))}

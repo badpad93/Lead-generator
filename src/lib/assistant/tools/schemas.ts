@@ -95,8 +95,8 @@ export const JSON_SCHEMAS: Record<ToolName, JsonSchemaObject> = {
     type: "object",
     properties: {
       kind: KIND_PROP,
-      query: { type: ["string", "null"], description: "Free-text search terms, or null to browse." },
-      category_slug: { type: ["string", "null"], description: "Category slug filter, or null." },
+      query: { type: ["string", "null"], description: "Free-text search words, or null to browse. Words are matched against item names, descriptions, and categories; if nothing matches, the catalog is browsed instead." },
+      category_slug: { type: ["string", "null"], description: "Optional category hint (coffee category slug such as coffee-beans, or a machine type such as combo). Prefer null and put category words in query; an unrecognised hint is ignored." },
       limit: { type: "integer", minimum: 1, maximum: SEARCH_LIMIT_MAX, description: "Maximum items to return." },
     },
     required: ["kind", "query", "category_slug", "limit"],

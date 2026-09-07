@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { NextRequest } from "next/server";
-import { isCustomerShellRequest } from "@/lib/storefrontCtxCookie";
+import { isAppShellPath, isCustomerShellRequest } from "@/lib/storefrontCtxCookie";
 
 /**
  * Shell predicate tests — decides whether a request drops the global
@@ -60,6 +60,17 @@ describe("isCustomerShellRequest", () => {
   it("an invalid/forged ?storefront= slug does not trigger the customer shell", () => {
     expect(isCustomerShellRequest(req("/login?storefront=../evil"))).toBe(false);
     expect(isCustomerShellRequest(req("/login", "vc_sf_ctx=Not A Slug!"))).toBe(false);
+  });
+
+  it("the full-screen assistant app drops the global shell (no nav/footer/FAB on /assistant)", () => {
+    expect(isCustomerShellRequest(req("/assistant"))).toBe(true);
+    expect(isCustomerShellRequest(req("/assistant?x=1"))).toBe(true);
+    expect(isCustomerShellRequest(req("/assistant/"))).toBe(true);
+    expect(isAppShellPath("/assistant")).toBe(true);
+    // Only the app route itself: its API and look-alike paths keep normal behavior.
+    expect(isAppShellPath("/assistants")).toBe(false);
+    expect(isAppShellPath("/api/assistant/threads")).toBe(false);
+    expect(isCustomerShellRequest(req("/assistants"))).toBe(false);
   });
 
   it("normal VC routes keep the global shell", () => {

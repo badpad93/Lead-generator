@@ -38,7 +38,26 @@ function clauseFilter(clause: string): Filter {
 
 let seq = 0;
 
-export function createSupabaseStub(store: StubStore, writes: StubWrite[] = []) {
+/**
+ * Optional per-table column sets. When present for a table, an explicit
+ * `.select("a, b, c")` naming a column outside the set resolves to the
+ * same error PostgREST returns for a nonexistent column, so a schema
+ * mismatch cannot pass silently in tests.
+ */
+export interface StubOptions {
+  columns?: Record<string, readonly string[]>;
+}
+
+/** Column names from a PostgREST select string, ignoring embedded resources and `*`. */
+export function selectedColumns(cols: string): string[] {
+  const flat = cols.replace(/\([^)]*\)/g, "");
+  return flat
+    .split(",")
+    .map((c) => c.trim())
+    .filter((c) => c && c !== "*" && !c.includes("!") && !c.includes(":"));
+}
+
+export function createSupabaseStub(store: StubStore, writes: StubWrite[] = [], options: StubOptions = {}) {
   const accessed = new Set<string>();
 
   function from(table: string) {
@@ -71,7 +90,8 @@ export function createSupabaseStub(store: StubStore, writes: StubWrite[] = []) {
       return targets;
     };
 
-    const resolve = (): { data: unknown; error: null; count?: number } => {
+    const resolve = (): { data: unknown; error: { message: string } | null; count?: number } => {
+      if (missingColumn) return { data: null, error: { message: `column ${table}.${missingColumn} does not exist` } };
       if (mode === "insert") return { data: inserted, error: null };
       if (mode === "update") return { data: applyUpdate(), error: null };
       const out = rows();
@@ -79,10 +99,14 @@ export function createSupabaseStub(store: StubStore, writes: StubWrite[] = []) {
       return { data: out, error: null, count: wantCount ? out.length : undefined };
     };
 
+    let missingColumn: string | null = null;
+
     const chain: Record<string, unknown> = {};
-    chain.select = (_cols?: string, opts?: { count?: string; head?: boolean }) => {
+    chain.select = (cols?: string, opts?: { count?: string; head?: boolean }) => {
       head = !!opts?.head;
       wantCount = !!opts?.count;
+      const known = options.columns?.[table];
+      if (known && cols) missingColumn = selectedColumns(cols).find((c) => !known.includes(c)) ?? null;
       return chain;
     };
     chain.eq = (col: string, v: unknown) => {

@@ -1,8 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveCoffeeProductsPricing, type ResolvedPricing, type StorefrontContext } from "@/lib/coffeePricing";
 import { getHiddenProductIds } from "@/lib/storefront/visibility";
-import { pickPublicMachineListing, PUBLIC_MACHINE_LISTING_COLUMNS } from "@/lib/machineListings/publicShape";
+import { pickPublicMachineListing } from "@/lib/machineListings/publicShape";
 import { TIER_PRICES, TEN_TEN_TEN_PRICE } from "@/lib/pricing/locationPricing";
+import { categoryMatches, KIND_GENERIC_WORDS, rankByTokens, searchTokens } from "./catalogMatch";
+import { ASSISTANT_MACHINE_SELECT } from "./machineColumns";
 import {
   assertPublicShape,
   type Availability,
@@ -16,6 +18,12 @@ import {
  * Catalog reads for the assistant. Every price comes from the same
  * server resolvers the storefront uses; every row is reduced to an
  * explicit public shape before it leaves this module.
+ *
+ * Visibility filters (active flag, listing status, tenant-hidden
+ * products) are applied exactly as the storefront applies them. Free
+ * text and category hints from the model are matched in-app and never
+ * narrow results to nothing: when they match no row the search falls
+ * back to browsing and reports which hint was ignored.
  */
 export interface CatalogViewer {
   userId: string | null;
@@ -29,7 +37,31 @@ export interface CatalogQuery {
   limit: number;
 }
 
+/** Which model-supplied hint, if any, matched nothing and was ignored. */
+export type SearchFallback = "none" | "query_unmatched" | "category_unknown";
+
+export interface CatalogSearchResult {
+  items: CatalogItemSummary[];
+  fallback: SearchFallback;
+}
+
 export const LOCATION_DEPOSIT_PER_LOCATION = 100;
+/** Upper bound on rows scanned before in-app ranking. */
+const SCAN_LIMIT = 200;
+
+/** Shared "hint matched nothing → browse instead" step for both catalogs. */
+function narrow<T>(rows: T[], q: CatalogQuery & { kind: CatalogKind }, text: (r: T) => string, categoryKeep: ((r: T) => boolean) | null): { rows: T[]; fallback: SearchFallback } {
+  let out = rows;
+  let fallback: SearchFallback = "none";
+  if (categoryKeep) {
+    const scoped = out.filter(categoryKeep);
+    if (scoped.length > 0) out = scoped;
+    else fallback = "category_unknown";
+  }
+  const ranked = rankByTokens(out, text, searchTokens(q.query, KIND_GENERIC_WORDS[q.kind]));
+  if (ranked.length > 0) return { rows: ranked, fallback };
+  return { rows: out, fallback: fallback === "none" ? "query_unmatched" : fallback };
+}
 
 // ─── Coffee ────────────────────────────────────────────────────────
 
@@ -51,12 +83,6 @@ interface CoffeeRow {
   coffee_categories: { name: string; slug: string } | { name: string; slug: string }[] | null;
 }
 
-function sanitizeSearch(q: string | null): string | null {
-  if (!q) return null;
-  const cleaned = q.replace(/[%,.*()]/g, "").trim().slice(0, 80);
-  return cleaned || null;
-}
-
 function coffeeAvailability(stock: string | null): Availability {
   if (stock === "out_of_stock") return "out_of_stock";
   if (stock === "low_stock") return "low_stock";
@@ -68,30 +94,31 @@ function categoryName(row: CoffeeRow): string | null {
   return c?.name ?? null;
 }
 
-async function categoryProductIds(slug: string): Promise<string[] | null> {
-  const { data: cat } = await supabaseAdmin.from("coffee_categories").select("id").eq("slug", slug).maybeSingle();
-  if (!cat) return [];
-  const { data: links, error } = await supabaseAdmin
-    .from("coffee_product_categories")
-    .select("product_id")
-    .eq("category_id", cat.id);
-  if (error || !links || links.length === 0) return null; // fall back to primary category filter
-  return (links as Array<{ product_id: string }>).map((l) => l.product_id);
+function coffeeText(row: CoffeeRow): string {
+  return [row.name, row.description, row.sku, categoryName(row)].filter(Boolean).join(" ");
 }
 
-type CategoryScope = { kind: "none" } | { kind: "ids"; ids: string[] } | { kind: "primary"; categoryId: string };
-
-/** Resolve a category slug to a product-id scope, falling back to the legacy primary category. */
-async function categoryScope(slug: string): Promise<CategoryScope> {
-  const { data: cat } = await supabaseAdmin.from("coffee_categories").select("id").eq("slug", slug).maybeSingle();
-  if (!cat) return { kind: "none" };
-  const linked = await categoryProductIds(slug);
-  if (linked && linked.length === 0) return { kind: "none" };
-  if (linked) return { kind: "ids", ids: linked };
-  return { kind: "primary", categoryId: cat.id as string };
+interface CategoryScope {
+  /** Category ids matching the slug (exact first, then loose). */
+  categoryIds: string[];
+  /** Product ids linked through coffee_product_categories (m2m). */
+  linkedProductIds: Set<string>;
 }
 
-async function fetchCoffeeRows(q: CatalogQuery, ids?: string[]): Promise<CoffeeRow[]> {
+/** Resolve a slug to category ids + m2m product ids. Never throws; empty scope means "unknown". */
+async function coffeeCategoryScope(slug: string): Promise<CategoryScope> {
+  const { data: cats } = await supabaseAdmin.from("coffee_categories").select("id, slug, name");
+  const all = ((cats ?? []) as Array<{ id: string; slug: string; name: string }>);
+  const exact = all.filter((c) => c.slug.toLowerCase() === slug.toLowerCase());
+  const matched = exact.length > 0 ? exact : all.filter((c) => categoryMatches(slug, c));
+  const categoryIds = matched.map((c) => c.id);
+  if (categoryIds.length === 0) return { categoryIds, linkedProductIds: new Set() };
+  const { data: links } = await supabaseAdmin.from("coffee_product_categories").select("product_id").in("category_id", categoryIds);
+  return { categoryIds, linkedProductIds: new Set(((links ?? []) as Array<{ product_id: string }>).map((l) => l.product_id)) };
+}
+
+/** Active rows in storefront order. Text/category hints are applied in-app afterwards. */
+async function fetchCoffeeRows(limit: number, ids?: string[]): Promise<CoffeeRow[]> {
   let query = supabaseAdmin
     .from("coffee_products")
     .select(COFFEE_COLUMNS)
@@ -99,14 +126,7 @@ async function fetchCoffeeRows(q: CatalogQuery, ids?: string[]): Promise<CoffeeR
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
   if (ids) query = query.in("id", ids);
-  if (q.categorySlug) {
-    const scope = await categoryScope(q.categorySlug);
-    if (scope.kind === "none") return [];
-    query = scope.kind === "ids" ? query.in("id", scope.ids) : query.eq("category_id", scope.categoryId);
-  }
-  const s = sanitizeSearch(q.query);
-  if (s) query = query.or(`name.ilike.%${s}%,description.ilike.%${s}%,sku.ilike.%${s}%`);
-  const { data, error } = await query.limit(Math.max(q.limit * 2, 10));
+  const { data, error } = await query.limit(limit);
   if (error) throw new Error(`coffee catalog read failed: ${error.message}`);
   return (data ?? []) as unknown as CoffeeRow[];
 }
@@ -175,14 +195,27 @@ async function priceCoffee(rows: CoffeeRow[], viewer: CatalogViewer): Promise<Ma
   });
 }
 
+async function coffeeCategoryKeep(slug: string | null): Promise<((r: CoffeeRow) => boolean) | null> {
+  if (!slug) return null;
+  const scope = await coffeeCategoryScope(slug);
+  if (scope.categoryIds.length === 0) return () => false;
+  return (r) => scope.linkedProductIds.has(r.id) || (r.category_id !== null && scope.categoryIds.includes(r.category_id));
+}
+
+export async function searchCoffeeDetailed(q: CatalogQuery, viewer: CatalogViewer): Promise<CatalogSearchResult> {
+  const visible = await filterHidden(await fetchCoffeeRows(SCAN_LIMIT), viewer);
+  const { rows, fallback } = narrow(visible, { ...q, kind: "coffee" }, coffeeText, await coffeeCategoryKeep(q.categorySlug));
+  const page = rows.slice(0, q.limit);
+  const priced = await priceCoffee(page, viewer);
+  return { items: page.map((r) => assertPublicShape(coffeeSummary(r, priced.get(r.id), viewer))), fallback };
+}
+
 export async function searchCoffee(q: CatalogQuery, viewer: CatalogViewer): Promise<CatalogItemSummary[]> {
-  const rows = (await filterHidden(await fetchCoffeeRows(q), viewer)).slice(0, q.limit);
-  const priced = await priceCoffee(rows, viewer);
-  return rows.map((r) => assertPublicShape(coffeeSummary(r, priced.get(r.id), viewer)));
+  return (await searchCoffeeDetailed(q, viewer)).items;
 }
 
 export async function coffeeDetails(ids: string[], viewer: CatalogViewer): Promise<CatalogItemDetail[]> {
-  const rows = await filterHidden(await fetchCoffeeRows({ query: null, categorySlug: null, limit: ids.length }, ids), viewer);
+  const rows = await filterHidden(await fetchCoffeeRows(ids.length, ids), viewer);
   const priced = await priceCoffee(rows, viewer);
   return rows.map((r) => assertPublicShape(coffeeDetail(r, priced.get(r.id), viewer)));
 }
@@ -226,7 +259,9 @@ function machineSummary(raw: MachineRow): CatalogItemSummary {
     kind: "machine",
     product_id: String(pub.id),
     name: machineName(pub),
-    sku: str(pub.sku),
+    // machine_listings has no SKU column in the deployed schema; never
+    // synthesized from the model, id, or any other field.
+    sku: null,
     category: str(pub.machine_type),
     short_description: str(pub.description)?.slice(0, 200) ?? null,
     image_url: machineImage(pub),
@@ -241,6 +276,7 @@ function machineSummary(raw: MachineRow): CatalogItemSummary {
   };
 }
 
+/** Attributes come only from columns in ASSISTANT_MACHINE_SELECT_COLUMNS. */
 const MACHINE_ATTRS: Array<[string, string]> = [
   ["machine_make", "Make"],
   ["machine_model", "Model"],
@@ -250,15 +286,6 @@ const MACHINE_ATTRS: Array<[string, string]> = [
   ["quantity", "Quantity available"],
   ["city", "City"],
   ["state", "State"],
-  ["lead_time_days", "Lead time (days)"],
-  ["dimensions_text", "Dimensions"],
-  ["weight_lbs", "Weight (lbs)"],
-  ["electrical_requirements", "Electrical"],
-  ["temperature_zone", "Temperature zone"],
-  ["payment_system_compatibility", "Payment systems"],
-  ["listing_warranty_summary", "Warranty"],
-  ["certifications", "Certifications"],
-  ["manufacturer_display_name", "Sold by"],
 ];
 
 function attrText(v: unknown): string {
@@ -279,35 +306,40 @@ function machineDetail(raw: MachineRow): CatalogItemDetail {
   }
   const fee = num(pub.delivery_fee_cents);
   if (fee && fee > 0) attributes.push({ label: "Delivery fee", value: `$${(fee / 100).toFixed(2)}` });
-  const msrp = num(pub.msrp_cents);
-  if (msrp && msrp > 0) attributes.push({ label: "MSRP", value: `$${(msrp / 100).toFixed(2)}` });
   return { ...summary, description: str(pub.description), attributes, shipping_note: null };
 }
 
-const MACHINE_SELECT = PUBLIC_MACHINE_LISTING_COLUMNS.filter((c) => c !== "manufacturer_display_name").join(", ");
+function machineText(row: MachineRow): string {
+  return ["title", "description", "machine_make", "machine_model", "machine_type", "condition"].map((k) => str(row[k]) ?? "").join(" ");
+}
 
-async function fetchMachineRows(q: CatalogQuery, ids?: string[]): Promise<MachineRow[]> {
+/** Active listings, newest first. Text/type hints are applied in-app afterwards. */
+async function fetchMachineRows(limit: number, ids?: string[]): Promise<MachineRow[]> {
   let query = supabaseAdmin
     .from("machine_listings")
-    .select(MACHINE_SELECT)
+    .select(ASSISTANT_MACHINE_SELECT)
     .eq("status", "active")
     .order("created_at", { ascending: false });
   if (ids) query = query.in("id", ids);
-  if (q.categorySlug) query = query.ilike("machine_type", q.categorySlug);
-  const s = sanitizeSearch(q.query);
-  if (s) query = query.or(`title.ilike.%${s}%,description.ilike.%${s}%,machine_make.ilike.%${s}%,machine_model.ilike.%${s}%`);
-  const { data, error } = await query.limit(q.limit);
+  const { data, error } = await query.limit(limit);
   if (error) throw new Error(`machine catalog read failed: ${error.message}`);
   return (data ?? []) as unknown as MachineRow[];
 }
 
+export async function searchMachinesDetailed(q: CatalogQuery): Promise<CatalogSearchResult> {
+  const all = await fetchMachineRows(SCAN_LIMIT);
+  const slug = q.categorySlug?.toLowerCase().replace(/-/g, " ") ?? null;
+  const keep = slug ? (r: MachineRow) => (str(r.machine_type) ?? "").toLowerCase().includes(slug) : null;
+  const { rows, fallback } = narrow(all, { ...q, kind: "machine" }, machineText, keep);
+  return { items: rows.slice(0, q.limit).map((r) => assertPublicShape(machineSummary(r))), fallback };
+}
+
 export async function searchMachines(q: CatalogQuery): Promise<CatalogItemSummary[]> {
-  const rows = await fetchMachineRows(q);
-  return rows.map((r) => assertPublicShape(machineSummary(r)));
+  return (await searchMachinesDetailed(q)).items;
 }
 
 export async function machineDetails(ids: string[]): Promise<CatalogItemDetail[]> {
-  const rows = await fetchMachineRows({ query: null, categorySlug: null, limit: ids.length }, ids);
+  const rows = await fetchMachineRows(ids.length, ids);
   return rows.map((r) => assertPublicShape(machineDetail(r)));
 }
 
@@ -407,10 +439,14 @@ export function locationDetails(ids: string[]): CatalogItemDetail[] {
 
 // ─── Dispatch by kind ──────────────────────────────────────────────
 
+export async function searchCatalogDetailed(kind: CatalogKind, q: CatalogQuery, viewer: CatalogViewer): Promise<CatalogSearchResult> {
+  if (kind === "coffee") return searchCoffeeDetailed(q, viewer);
+  if (kind === "machine") return searchMachinesDetailed(q);
+  return { items: searchLocationServices(q), fallback: "none" };
+}
+
 export async function searchCatalog(kind: CatalogKind, q: CatalogQuery, viewer: CatalogViewer): Promise<CatalogItemSummary[]> {
-  if (kind === "coffee") return searchCoffee(q, viewer);
-  if (kind === "machine") return searchMachines(q);
-  return searchLocationServices(q);
+  return (await searchCatalogDetailed(kind, q, viewer)).items;
 }
 
 export async function catalogDetails(kind: CatalogKind, ids: string[], viewer: CatalogViewer): Promise<CatalogItemDetail[]> {
