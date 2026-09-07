@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useParams } from "next/navigation";
 import { getRequiredInitialKeys } from "@/lib/agreementInitials";
 import { resolveAgreementSections } from "@/lib/agreements/sections";
+import { formatContractDate } from "@/lib/agreements/formatDate";
 import AgreementBody from "@/app/components/AgreementBody";
 import {
   Loader2,
@@ -130,13 +131,9 @@ function currency(val: number | null | undefined): string {
 }
 
 function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return "_______________";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  // Anchor date-only strings to local midnight so the calendar date does not
+  // shift back a day in negative-UTC-offset locales (see formatContractDate).
+  return formatContractDate(dateStr, "_______________");
 }
 
 function todayFormatted(): string {
@@ -1062,7 +1059,7 @@ function LocationPlacementSignView(props: LocationPlacementSignViewProps) {
   const termMonths = ag.placement_term_months || 24;
   const machineCount = ag.placement_machine_count || 1;
   const machineType = ag.placement_machine_type || "VendEra AI Machine";
-  const effectiveDate = ag.effective_date ? new Date(ag.effective_date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "—";
+  const effectiveDate = formatContractDate(ag.effective_date, "—");
 
   const fmtMoney = (n: number) => `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
 

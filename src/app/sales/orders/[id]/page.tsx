@@ -878,8 +878,8 @@ export default function OrderDetailPage() {
             {agreements.length === 0 ? (
               <p className="text-xs text-gray-500 mt-2">
                 Generated automatically from these line items when you
-                process the order, and sent to the customer for signature
-                along with the invoice.
+                process the order, and sent to the customer for signature.
+                The invoice is sent automatically once the customer signs.
               </p>
             ) : (
               <div className="space-y-3 mt-3">

@@ -187,6 +187,23 @@ const p = (label: string, text: string, caps = false): ClauseBlock => ({
 const plain = (text: string, caps = false): ClauseBlock => ({ kind: "p", text, caps });
 const table = (t: ClauseTableKey): ClauseBlock => ({ kind: "table", table: t });
 
+/**
+ * Rewrite the section component of any "N.M" subsection label to the
+ * section's resolved display number, keeping the authored subsection ordinal
+ * (M). e.g. a "9.1 Warranty Coverage." block in a section resolved to number
+ * 8 becomes "8.1 Warranty Coverage.". Labels without a leading "N.M" prefix
+ * (defined terms like `"Equipment"`, or unlabeled paragraphs) are untouched.
+ */
+function renumberSubsections(blocks: ClauseBlock[], sectionNumber: number): ClauseBlock[] {
+  return blocks.map((b) => {
+    if (b.kind === "p" && b.label) {
+      const relabeled = b.label.replace(/^(\d+)\.(\d+)/, `${sectionNumber}.$2`);
+      return { ...b, label: relabeled };
+    }
+    return b;
+  });
+}
+
 /** "Sections 3, 4, and 5" from stable ids, resolved to display numbers. */
 function sectionList(ctx: ClauseCtx, ids: string[]): string {
   const nums = ids
@@ -261,10 +278,18 @@ const CLAUSES: ClauseDef[] = [
         );
       }
       if (sec.shipping) {
+        // The standalone Storage section only exists when a storage fee is
+        // set (sec.shipping && hasStorageFee). When it is absent, referencing
+        // "Section ${sectionNo(...)}" would resolve to "Section 0" — there is
+        // never a Section 0. Reference the section only when it exists;
+        // otherwise point at Schedule C alone.
+        const storageNo = sectionNo("storage_program");
+        const storageRef =
+          storageNo > 0 ? `Section ${storageNo} and Schedule C` : "Schedule C";
         blocks.push(
           p(
             '"Storage Program"',
-            `means Seller's optional warehousing and storage services for Equipment prior to deployment, as further described in Section ${sectionNo("storage_program")} and Schedule C.`,
+            `means Seller's optional warehousing and storage services for Equipment prior to deployment, as further described in ${storageRef}.`,
           ),
         );
       }
@@ -401,11 +426,17 @@ const CLAUSES: ClauseDef[] = [
     requiresInitials: true,
     applies: ({ sec }) => sec.location,
     blocks: ({ v, sectionNo }) => {
-      const blocks: ClauseBlock[] = [
-        p("7.1 Invoicing.", "Seller shall invoice Buyer for Location Services upon delivery of each Secured Location. Invoices shall include the location details and the applicable fee."),
-      ];
+      const rejectionRef = `Section ${sectionNo("location_services")}.4`;
+      const refund = (n: string) =>
+        p(
+          `${n} Refund Policy.`,
+          `Location Services fees are non-refundable once a location has been secured and delivered to Buyer, unless the location is rejected within the allowance specified in ${rejectionRef} and no replacement is provided.`,
+        );
       if (v.depositOnly) {
-        blocks.push(
+        // Deferred model: a deposit is due up front (and appears in the
+        // Total Due), and the balance is invoiced as each location secures.
+        return [
+          p("7.1 Invoicing.", "Seller shall invoice Buyer for Location Services upon delivery of each Secured Location. Invoices shall include the location details and the applicable fee."),
           p(
             "7.2 Deposit Payment.",
             `A non-refundable deposit of ${v.locationDeposit} is due prior to procurement of Location Services. Procurement will not begin until the deposit is received and cleared.`,
@@ -414,23 +445,26 @@ const CLAUSES: ClauseDef[] = [
             "7.3 Remaining Balance.",
             `The remaining balance of ${v.locationBalance} shall be invoiced upon fulfillment of secured locations and is due on receipt of the invoice. The total amount invoiced for Location Services shall not exceed the Maximum Service Value of ${v.maxLocationValue}.`,
           ),
-        );
-      } else {
-        blocks.push(
-          p("7.2 Payment Terms.", `Payment for Location Services is ${v.locationPayTerms}.`),
-          p(
-            "7.3 Maximum Value.",
-            `The total amount invoiced for Location Services shall not exceed the Maximum Service Value of ${v.maxLocationValue} without Buyer's prior written consent.`,
-          ),
-        );
+          refund("7.4"),
+        ];
       }
-      blocks.push(
+      // Prepaid model: the full Location Services fee is part of the Total
+      // Amount Due Prior to Procurement (Section 6) and is NOT separately
+      // invoiced on delivery — otherwise Section 6 and Section 7 would bill
+      // the same amount twice.
+      const payNo = sectionNo("payment_terms");
+      const payRef = payNo > 0 ? `Section ${payNo}` : "the Total Amount Due Prior to Procurement";
+      return [
         p(
-          "7.4 Refund Policy.",
-          `Location Services fees are non-refundable once a location has been secured and delivered to Buyer, unless the location is rejected within the allowance specified in Section ${sectionNo("location_services")}.4 and no replacement is provided.`,
+          "7.1 Payment Included in Total Amount Due.",
+          `The full fee for Location Services (Maximum Service Value ${v.maxLocationValue}) is included in the Total Amount Due Prior to Procurement under ${payRef} and is payable in accordance with that Section. Seller shall not separately invoice Buyer for Location Services upon delivery.`,
         ),
-      );
-      return blocks;
+        p(
+          "7.2 Maximum Value.",
+          `The total amount charged for Location Services shall not exceed the Maximum Service Value of ${v.maxLocationValue} without Buyer's prior written consent.`,
+        ),
+        refund("7.3"),
+      ];
     },
   },
   {
@@ -817,15 +851,24 @@ export function buildAgreement(ag: Record<string, unknown>): BuiltAgreement {
 
   const ctx: ClauseCtx = { v: values, sec, sectionNo };
 
-  const sections: NumberedClause[] = numberedDefs.map((def) => ({
-    id: def.id,
-    sectionId: def.sectionId ?? null,
-    title: def.title,
-    displayNumber: sectionNo(def.id),
-    requiresInitials: def.requiresInitials === true,
-    isSchedule: false,
-    blocks: def.blocks(ctx),
-  }));
+  const sections: NumberedClause[] = numberedDefs.map((def) => {
+    const displayNumber = sectionNo(def.id);
+    return {
+      id: def.id,
+      sectionId: def.sectionId ?? null,
+      title: def.title,
+      displayNumber,
+      requiresInitials: def.requiresInitials === true,
+      isSchedule: false,
+      // Subsection prefixes are authored as literals ("9.1 …") assuming
+      // full-inclusion ordering. When a conditional section is excluded the
+      // heading number (from the resolver) shifts but the literals do not,
+      // so a "Section 8 — Warranty" heading would own "9.1" clauses. Rewrite
+      // the section component of every "N.M" label prefix to the section's
+      // actual resolved number, preserving the authored subsection ordinal.
+      blocks: renumberSubsections(def.blocks(ctx), displayNumber),
+    };
+  });
 
   const schedules: NumberedClause[] = CLAUSES.filter(
     (c) => c.isSchedule && c.applies(ctx),

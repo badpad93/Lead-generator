@@ -406,7 +406,20 @@ export function agreementTotals(snapshot: SnapshotLine[]): AgreementTotals {
   // commitment, deferred balance included.
   const maxLocationServiceValue = byCategory.location_services;
 
-  const freightTotal = byCategory.freight;
+  // Vending-machine freight ONLY, for the per-machine freight rate. A
+  // coffee-machine freight line is categorized as freight (categorize()
+  // routes coffee-named-freight into the freight bucket) but its normalized
+  // item_type stays coffee_program, so we exclude it here. Otherwise
+  // (5000 vending + 99.99 coffee) / 10 machines = $510/machine — folding an
+  // unrelated coffee freight line into the vending unit rate. The coffee
+  // freight line still appears itemized in Schedule A and still counts in
+  // totalDuePriorToProcurement; it just must not inflate the per-vending-
+  // machine rate. byCategory.freight keeps the full freight bucket.
+  const machineFreightTotal = round2(
+    billable
+      .filter((l) => l.category === "freight" && l.item_type === "freight")
+      .reduce((s, l) => s + l.total_price, 0),
+  );
 
   return {
     byCategory,
@@ -420,9 +433,11 @@ export function agreementTotals(snapshot: SnapshotLine[]): AgreementTotals {
     locationsPurchased,
     locationFeePerSecured,
     maxLocationServiceValue,
-    freightTotal,
+    freightTotal: machineFreightTotal,
     freightPerMachine:
-      machineQuantity > 0 ? round2(freightTotal / machineQuantity) : round2(freightTotal),
+      machineQuantity > 0
+        ? round2(machineFreightTotal / machineQuantity)
+        : round2(machineFreightTotal),
   };
 }
 

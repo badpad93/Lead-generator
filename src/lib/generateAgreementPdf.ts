@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { upsertInvoice } from "@/lib/paymentLedger";
+import { formatContractDate } from "@/lib/agreements/formatDate";
 import { Resend } from "resend";
 import { pdfSafeInline, pdfSafeMultiline } from "./pdfSafeText";
 import {
@@ -181,13 +182,7 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     return `$${num.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
   }
 
-  const effectiveDate = ag.effective_date
-    ? new Date(ag.effective_date).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
-    : "________________";
+  const effectiveDate = formatContractDate(ag.effective_date as string | null | undefined);
 
   /* ================================================================ */
   /*  PAGE 1 — HEADER                                                 */

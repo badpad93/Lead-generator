@@ -137,7 +137,13 @@ describe("agreementTotals", () => {
     // "Coffee Machine Freight" is shipping, not a brewer — see the
     // coffee-freight rule in categorize().
     expect(totals.byCategory.coffee).toBe(0);
-    expect(totals.freightTotal).toBe(5199.98);
+    // freightTotal is the VENDING-machine freight only (the freight line typed
+    // 'shipping'); the coffee-machine freight line is categorized as freight
+    // but excluded from the per-machine freight scalar so it can't inflate the
+    // $/machine rate. It still counts in totalDuePriorToProcurement above and
+    // in byCategory.freight below.
+    expect(totals.freightTotal).toBe(5099.99);
+    expect(totals.byCategory.freight).toBe(5199.98);
   });
 
   it("is exactly the sum of its category buckets", () => {
