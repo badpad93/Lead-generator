@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createSupabaseStub, type StubStore } from "./__testutils__/supabaseStub";
 
+import { MACHINE_LISTING_DEPLOYED_COLUMNS } from "./machineColumns";
+
 const store: StubStore = {};
-const stub = createSupabaseStub(store);
+// machine_listings is column-checked against the DEPLOYED schema: any
+// explicit select naming a column that does not exist fails the read,
+// exactly as PostgREST does in the preview database.
+const stub = createSupabaseStub(store, [], { columns: { machine_listings: MACHINE_LISTING_DEPLOYED_COLUMNS } });
 vi.mock("@/lib/supabaseAdmin", () => ({ supabaseAdmin: { from: (t: string) => stub.from(t) } }));
 
 const pricingCalls: unknown[] = [];
@@ -22,7 +27,7 @@ vi.mock("@/lib/coffeePricing", () => ({
 
 import { resolveCoffeeProductsPricing } from "@/lib/coffeePricing";
 import { findProhibitedKey } from "./publicShapes";
-import { catalogDetails, searchCatalog, searchLocationServices, LOCATION_OFFERINGS } from "./catalogSearch";
+import { catalogDetails, searchCatalog, searchCatalogDetailed, searchLocationServices, LOCATION_OFFERINGS } from "./catalogSearch";
 
 beforeEach(() => {
   for (const k of Object.keys(store)) delete store[k];
@@ -33,9 +38,14 @@ beforeEach(() => {
     { id: "P3", name: "Inactive", sku: "SKU-3", description: "", image_url: null, unit: "case", min_order_qty: 1, pack_quantity: 6, stock_status: "in_stock", active: false, category_id: "C1", sort_order: 3, coffee_categories: null, price: 1 },
   ];
   store.storefront_tenant_hidden_products = [{ tenant_id: "TEN", product_id: "P2" }];
+  store.coffee_categories = [{ id: "C1", slug: "coffee", name: "Coffee" }, { id: "C2", slug: "cups", name: "Cups" }];
+  store.coffee_product_categories = [{ product_id: "P1", category_id: "C1" }];
+  // Rows carry every DEPLOYED column (migrations 025/027/055/057/149) and
+  // nothing from migration 150 — the shape the preview database returns.
   store.machine_listings = [
-    { id: "M1", status: "active", title: "AI Cooler", description: "Smart cooler", machine_make: "Vendera", machine_model: "X1", machine_type: "AI", condition: "new", quantity: 3, city: "Denver", state: "CO", asking_price: 4999, buy_now_enabled: true, buy_now_price: 479900, delivery_fee_cents: 25000, photos: [], created_at: "2026-01-01", wholesale_price_cents: 300000, admin_notes: "secret", contact_email: "seller@example.com", created_by: "U9" },
+    { id: "M1", created_by: "U9", title: "AI Cooler", description: "Smart cooler", city: "Denver", state: "CO", machine_make: "Vendera", machine_model: "X1", machine_year: 2025, machine_type: "AI", condition: "new", quantity: 3, asking_price: 4999, includes_card_reader: true, includes_install: false, includes_delivery: true, photos: [], contact_email: "seller@example.com", contact_phone: "555", status: "active", admin_notes: "secret", created_at: "2026-01-01", updated_at: "2026-01-01", image_thumb_url: null, image_medium_url: null, image_main_url: null, buy_now_enabled: true, buy_now_price: 479900, delivery_fee_cents: 25000, manufacturer_partner_id: "MP1", wholesale_price_cents: 300000 },
     { id: "M2", status: "pending", title: "Not live", machine_type: "Combo", created_at: "2026-01-02" },
+    { id: "M3", status: "active", title: "Snack Combo 3000", description: "Refurbished combo machine", machine_make: "Seaga", machine_model: "SC3000", machine_type: "Combo", condition: "good", quantity: 1, city: "Austin", state: "TX", asking_price: 2500, buy_now_enabled: false, buy_now_price: null, delivery_fee_cents: null, photos: ["https://cdn.example/snack.jpg"], created_at: "2025-12-01" },
   ];
 });
 
@@ -74,9 +84,62 @@ describe("catalog service — coffee", () => {
   });
 });
 
+describe("catalog service — coffee search hints", () => {
+  const guest = { userId: null, storefront: null };
+  it("matches the customer's words against name, description, and category instead of a strict ilike", async () => {
+    // "coffee options" used to become ilike '%coffee options%' and return nothing.
+    const items = await searchCatalog("coffee", { query: "Show me three coffee options", categorySlug: null, limit: 3 }, guest);
+    expect(items.map((i) => i.product_id)).toEqual(["P1", "P2"]);
+    const roast = await searchCatalog("coffee", { query: "medium roast", categorySlug: null, limit: 3 }, guest);
+    expect(roast[0].product_id).toBe("P1");
+  });
+
+  it("falls back to browsing when no word matches, and says so", async () => {
+    const { items, fallback } = await searchCatalogDetailed("coffee", { query: "zebra sprockets", categorySlug: null, limit: 3 }, guest);
+    expect(items.map((i) => i.product_id)).toEqual(["P1", "P2"]);
+    expect(fallback).toBe("query_unmatched");
+  });
+
+  it("resolves a category slug through the m2m links and primary category; an unknown slug is ignored rather than emptying the catalog", async () => {
+    const exact = await searchCatalogDetailed("coffee", { query: null, categorySlug: "coffee", limit: 5 }, guest);
+    expect(exact.items.map((i) => i.product_id)).toEqual(["P1", "P2"]);
+    expect(exact.fallback).toBe("none");
+    const empty = await searchCatalogDetailed("coffee", { query: null, categorySlug: "cups", limit: 5 }, guest);
+    expect(empty.fallback).toBe("category_unknown");
+    expect(empty.items.length).toBe(2);
+    const unknown = await searchCatalogDetailed("coffee", { query: null, categorySlug: "does-not-exist", limit: 5 }, guest);
+    expect(unknown.fallback).toBe("category_unknown");
+    expect(unknown.items.length).toBe(2);
+  });
+
+  it("still applies every visibility rule under the new matching (inactive, tenant-hidden)", async () => {
+    const items = await searchCatalog("coffee", { query: "coffee", categorySlug: null, limit: 10 }, { userId: "CUST", storefront: { tenantId: "TEN", customerProfileId: "CUST" } });
+    expect(items.map((i) => i.product_id)).toEqual(["P1"]);
+  });
+});
+
 describe("catalog service — machines", () => {
-  it("passes rows through the public machine shape and drops private fields", async () => {
+  it("selects only deployed columns: search, details, and comparison all read cleanly against the real column set", async () => {
     const items = await searchCatalog("machine", { query: null, categorySlug: null, limit: 10 }, { userId: null, storefront: null });
+    expect(items.map((i) => i.product_id)).toEqual(["M1", "M3"]);
+    expect(items[0].sku).toBeNull();
+    const details = await catalogDetails("machine", ["M1", "M3"], { userId: null, storefront: null });
+    expect(details.map((d) => d.product_id).sort()).toEqual(["M1", "M3"]);
+    expect(details.find((d) => d.product_id === "M3")?.image_url).toBe("https://cdn.example/snack.jpg");
+    expect(details.find((d) => d.product_id === "M3")?.attributes.map((a) => a.label)).toEqual(["Make", "Model", "Type", "Condition", "Quantity available", "City", "State"]);
+  });
+
+  it("matches machine words in-app and treats a machine type hint loosely", async () => {
+    const machines = await searchCatalog("machine", { query: "What vending machines are for sale right now?", categorySlug: null, limit: 10 }, { userId: null, storefront: null });
+    expect(machines.map((i) => i.product_id)).toEqual(["M1", "M3"]);
+    const combo = await searchCatalogDetailed("machine", { query: null, categorySlug: "combo", limit: 10 }, { userId: null, storefront: null });
+    expect(combo.items.map((i) => i.product_id)).toEqual(["M3"]);
+    const cooler = await searchCatalog("machine", { query: "smart cooler", categorySlug: null, limit: 10 }, { userId: null, storefront: null });
+    expect(cooler[0].product_id).toBe("M1");
+  });
+
+  it("passes rows through the public machine shape and drops private fields", async () => {
+    const items = await searchCatalog("machine", { query: "cooler", categorySlug: null, limit: 10 }, { userId: null, storefront: null });
     expect(items.map((i) => i.product_id)).toEqual(["M1"]);
     const json = JSON.stringify(items);
     for (const bad of ["wholesale", "admin_notes", "contact_email", "created_by", "300000", "secret", "seller@example.com"]) expect(json).not.toContain(bad);

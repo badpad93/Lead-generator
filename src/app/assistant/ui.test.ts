@@ -7,7 +7,7 @@ import { ConversationDrawer } from "./_components/ConversationDrawer";
 import { MessageList } from "./_components/MessageList";
 import { StatusBanner } from "./_components/StatusBanner";
 import { ThreadSidebar } from "./_components/ThreadSidebar";
-import { VinnieAvatar, VINNIE_BADGE_SRC } from "./_components/VinnieAvatar";
+import { BadgeFallback, VinnieAvatar, VINNIE_BADGE_SRC } from "./_components/VinnieAvatar";
 import { BlockView } from "./_components/Blocks";
 import type { ChatMessage, UiBlock, UiState } from "./_components/types";
 
@@ -64,8 +64,10 @@ describe("full-screen Vinnie shell", () => {
     expect(html).not.toContain("Vending Connector Assistant");
   });
 
-  it("header badge is ~40px, message badge ~28px; no availability dot before the first fetch resolves", () => {
+  it("header badge is ~40px, eager/high-priority, no availability dot before the first fetch resolves", () => {
     expect(html).toContain('data-size="md"');
+    expect(html).toMatch(/<img[^>]*fetchpriority="high"/i);
+    expect(html).not.toContain("bg-white");
     expect(html).not.toContain('data-testid="vinnie-online"');
   });
 
@@ -96,11 +98,12 @@ describe("full-screen Vinnie shell", () => {
 });
 
 describe("VinnieAvatar badge", () => {
-  it("renders the approved asset through next/image inside a round, clipped, black-ringed wrapper", () => {
+  it("renders the approved asset through next/image inside a round, clipped, black-ringed, dark wrapper", () => {
     const html = render(createElement(VinnieAvatar, { size: "md" }));
     expect(VINNIE_BADGE_SRC).toBe("/assistant/vinnie-vc-badge.png");
     expect(html).toMatch(BADGE);
-    expect(html).toContain("overflow-hidden rounded-full bg-white ring-2 ring-black");
+    expect(html).toContain("overflow-hidden rounded-full bg-neutral-900 ring-2 ring-black");
+    expect(html).not.toContain("bg-white");
     expect(html).toContain("scale-[1.04] rounded-full object-cover");
     expect(html).toContain('width="40"');
     expect(html).not.toMatch(MONOGRAM);
@@ -116,6 +119,28 @@ describe("VinnieAvatar badge", () => {
     const labelled = render(createElement(VinnieAvatar, { alt: "Vinnie, the Vending Connector AI" }));
     expect(labelled).toContain('alt="Vinnie, the Vending Connector AI"');
     expect(labelled).not.toContain('aria-hidden="true"');
+  });
+
+  it("header badge is preloaded with high fetch priority (Next 16 preload); message badges stay lazy", () => {
+    const header = render(createElement(VinnieAvatar, { size: "md" }));
+    expect(header).toContain('<link rel="preload" as="image"');
+    expect(header).toMatch(/<img[^>]*fetchpriority="high"/i);
+    expect(header).not.toContain('loading="lazy"');
+    const message = render(createElement(VinnieAvatar, { size: "sm" }));
+    expect(message).toContain('loading="lazy"');
+    expect(message).not.toMatch(/fetchpriority="high"/i);
+    expect(message).not.toContain('rel="preload"');
+  });
+
+  it("has a restrained local fallback with no image, network, or base64", () => {
+    const html = render(createElement(BadgeFallback));
+    expect(html).toContain('data-testid="vinnie-badge-fallback"');
+    expect(html).toContain("<svg");
+    expect(html).toContain(">VC</text>");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("http");
+    expect(html).not.toContain("data:");
+    expect(html).not.toMatch(COLOR);
   });
 
   it("shows the green availability dot only when online", () => {

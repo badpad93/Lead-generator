@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { ASSISTANT_NAME } from "@/lib/assistant/identity";
+import { AssistantMarkdown } from "./AssistantMarkdown";
 import { BlockView } from "./Blocks";
 import { VinnieAvatar } from "./VinnieAvatar";
 import type { ChatMessage } from "./types";
@@ -28,11 +29,12 @@ function UserBubble({ m }: { m: ChatMessage }) {
   );
 }
 
+/** Assistant text is Markdown (safe subset); user text above stays plain. */
 function AssistantText({ m }: { m: ChatMessage }) {
   if (!m.content && !m.streaming) return null;
   return (
-    <div className="space-y-2 text-[15px] leading-relaxed text-white" aria-live={m.streaming ? "polite" : undefined}>
-      <Paragraphs content={m.content} />
+    <div aria-live={m.streaming ? "polite" : undefined}>
+      {m.content ? <AssistantMarkdown text={m.content} /> : null}
       {m.streaming && !m.content ? <span className="inline-block h-4 w-2 animate-pulse rounded-sm bg-neutral-400" aria-hidden /> : null}
     </div>
   );
