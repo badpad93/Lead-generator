@@ -152,6 +152,47 @@ describe("catalog service — machines", () => {
   });
 });
 
+describe("catalog service — commerce catalog", () => {
+  const guest = { userId: null, storefront: null };
+  beforeEach(() => {
+    store.catalog_items = [
+      { id: "c0000000-0000-4000-8000-000000000001", catalog_key: "vendera-ai-cooler", name: "VendEra AI Cooler", description: "AI-powered smart cooler", item_type: "vendera_ai_cooler", unit_price: "3700.00", sku: "V000111", active: true, commerce_kind: "agreement_required", pricing_basis: "fixed_unit", tax_treatment: "unset", required_agreement: "machine_purchase", qualification_program: null, financing_program: null, add_on_parent_key: null, equipment_ownership: "sold", qb_item_id: "SECRET-QBO" },
+      { id: "c0000000-0000-4000-8000-000000000002", catalog_key: "financing-standard", name: "Financing", description: "Apply for financing", item_type: "financing", unit_price: "0.00", sku: null, active: true, commerce_kind: "application_required", pricing_basis: "no_charge", tax_treatment: "exempt", required_agreement: null, qualification_program: null, financing_program: "standard", add_on_parent_key: null, equipment_ownership: null, qb_item_id: null },
+      { id: "c0000000-0000-4000-8000-000000000003", catalog_key: "website-creation", name: "Website Creation", description: "Operator website build", item_type: "other", unit_price: "500.00", sku: "WS0001", active: true, commerce_kind: "direct_checkout", pricing_basis: "fixed_unit", tax_treatment: "unset", required_agreement: null, qualification_program: null, financing_program: null, add_on_parent_key: null, equipment_ownership: null, qb_item_id: null },
+      { id: "c0000000-0000-4000-8000-000000000004", catalog_key: "retired-thing", name: "Retired", description: null, item_type: "other", unit_price: "1.00", sku: null, active: false, commerce_kind: "direct_checkout", pricing_basis: "fixed_unit", tax_treatment: "unset", required_agreement: null, qualification_program: null, financing_program: null, add_on_parent_key: null, equipment_ownership: null, qb_item_id: null },
+      { id: "c0000000-0000-4000-8000-000000000005", catalog_key: null, name: "Admin-only price book row", description: null, item_type: "other", unit_price: "9.00", sku: null, active: true, commerce_kind: "informational_only", pricing_basis: "fixed_unit", tax_treatment: "unset", required_agreement: null, qualification_program: null, financing_program: null, add_on_parent_key: null, equipment_ownership: null, qb_item_id: null },
+    ];
+  });
+
+  it("searches active keyed rows, ranks by words, and never leaks qb_item_id", async () => {
+    const all = await searchCatalog("commerce", { query: null, categorySlug: null, limit: 10 }, guest);
+    expect(all.map((i) => i.catalog_key)).toEqual(["financing-standard", "vendera-ai-cooler", "website-creation"]);
+    expect(JSON.stringify(all)).not.toContain("SECRET-QBO");
+    for (const i of all) expect(findProhibitedKey(i)).toBeNull();
+    const cooler = await searchCatalog("commerce", { query: "smart cooler", categorySlug: null, limit: 10 }, guest);
+    expect(cooler[0].catalog_key).toBe("vendera-ai-cooler");
+    expect(cooler[0].display_price).toBe(3700);
+    expect(cooler[0].action).toBe("add_to_quote");
+    expect(cooler[0].requires_agreement).toBe("machine_purchase");
+  });
+
+  it("inactive rows and rows without a catalog_key are invisible to search and details", async () => {
+    const all = await searchCatalog("commerce", { query: null, categorySlug: null, limit: 10 }, guest);
+    expect(all.some((i) => i.name === "Retired" || i.name.startsWith("Admin-only"))).toBe(false);
+    expect(await catalogDetails("commerce", ["retired-thing"], guest)).toEqual([]);
+  });
+
+  it("details resolve by catalog_key or id and carry the checkout rules as attributes; financing is never a $0 checkout", async () => {
+    const byKey = await catalogDetails("commerce", ["vendera-ai-cooler"], guest);
+    expect(byKey[0].attributes.find((a) => a.label === "Agreement required")?.value).toBe("machine purchase");
+    const byId = await catalogDetails("commerce", ["c0000000-0000-4000-8000-000000000002"], guest);
+    expect(byId[0].catalog_key).toBe("financing-standard");
+    expect(byId[0].action).toBe("start_financing_application");
+    expect(byId[0].display_price).toBeNull();
+    expect(byId[0].pricing_mode).toBe("informational");
+  });
+});
+
 describe("catalog service — location services stay informational", () => {
   it("describes the tier ladder with pricing_mode=requires_qualification and no customer quote", () => {
     const items = searchLocationServices({ query: null, categorySlug: null, limit: 10 });

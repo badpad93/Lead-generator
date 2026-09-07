@@ -113,6 +113,11 @@ export function createSupabaseStub(store: StubStore, writes: StubWrite[] = [], o
       filters.push((r) => r[col] === v);
       return chain;
     };
+    chain.not = (col: string, op: string, v: unknown) => {
+      if (op === "is" && v === null) filters.push((r) => r[col] !== null && r[col] !== undefined);
+      else filters.push((r) => r[col] !== v);
+      return chain;
+    };
     chain.neq = (col: string, v: unknown) => {
       filters.push((r) => r[col] !== v);
       return chain;

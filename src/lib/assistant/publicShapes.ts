@@ -7,7 +7,7 @@
  * economics or provider identifiers, even if a future refactor forgets
  * the allowlist.
  */
-export type CatalogKind = "coffee" | "machine" | "location_service";
+export type CatalogKind = "coffee" | "machine" | "location_service" | "commerce";
 
 export type PriceBasis =
   | "list"          // coffee_products list price (Tier 1 / public feed)
@@ -16,6 +16,7 @@ export type PriceBasis =
   | "asking"        // machine seller asking price
   | "buy_now"       // machine buy-now price
   | "tier_ladder"   // location service fee ladder (informational)
+  | "catalog"       // commerce catalog_items unit price (server-read)
   | "none";
 
 export type Availability = "in_stock" | "low_stock" | "out_of_stock" | "available" | "unavailable" | "informational";
@@ -39,6 +40,16 @@ export interface CatalogItemSummary {
   currency: "USD";
   /** Relative path on vendingconnector.com the UI may link to. */
   href: string | null;
+  // ── Commerce catalog rows only (kind === "commerce") ──
+  /** Stable key; the only identifier besides product_id that code may use. */
+  catalog_key?: string;
+  commerce_kind?: string;
+  /** What the customer may do with this row, decided server-side. */
+  action?: "add_to_quote" | "start_financing_application" | "request_qualification" | "auto_add_on" | "explain_only";
+  notices?: string[];
+  requires_agreement?: string | null;
+  qualification_program?: string | null;
+  add_on_parent_key?: string | null;
 }
 
 export interface CatalogItemDetail extends CatalogItemSummary {

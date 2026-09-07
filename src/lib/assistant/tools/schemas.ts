@@ -25,7 +25,7 @@ export const TOOL_NAMES = [
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
-export const CATALOG_KINDS = ["coffee", "machine", "location_service"] as const;
+export const CATALOG_KINDS = ["coffee", "machine", "location_service", "commerce"] as const;
 export const SEARCH_LIMIT_MAX = 12;
 const UUID_OR_SLUG = /^([0-9a-f-]{36}|[a-z][a-z0-9-]{2,63})$/i;
 
@@ -88,7 +88,7 @@ export type JsonSchemaObject = {
   additionalProperties: false;
 };
 
-const KIND_PROP = { type: "string", enum: [...CATALOG_KINDS], description: "Catalog to search." };
+const KIND_PROP = { type: "string", enum: [...CATALOG_KINDS], description: "Catalog to search: coffee (supplies and brewers with the visitor's price), machine (marketplace listings), location_service (informational fee ladder), commerce (equipment, services, deposits, and financing options with their checkout rules)." };
 
 export const JSON_SCHEMAS: Record<ToolName, JsonSchemaObject> = {
   search_catalog: {
@@ -145,7 +145,7 @@ export const JSON_SCHEMAS: Record<ToolName, JsonSchemaObject> = {
 
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   search_catalog:
-    "Search the Vending Connector catalog (coffee products, machines for sale, or location-service offerings). Returns public items with the final price the current visitor would see, or null when pricing requires qualification.",
+    "Search the Vending Connector catalog (coffee products, machines for sale, location-service offerings, or the commerce catalog of equipment, services, deposits, and financing options). Returns public items with the final price the current visitor would see, or null when there is no catalog charge or pricing requires qualification. Each commerce item carries an `action` and `notices` that state what the customer may do; never promise anything the notices rule out.",
   get_product_details:
     "Get the full public details for one catalog item by product_id and kind.",
   compare_products:

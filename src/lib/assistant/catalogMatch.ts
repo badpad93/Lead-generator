@@ -21,6 +21,7 @@ export const KIND_GENERIC_WORDS: Record<string, readonly string[]> = {
   coffee: ["supplies", "supply"],
   machine: ["vending", "machine", "machines", "equipment", "listing", "listings", "used"],
   location_service: ["location", "locations", "service", "services", "placement"],
+  commerce: ["catalog", "offering", "offerings", "service", "services"],
 };
 
 function usable(word: string, generic: readonly string[]): boolean {
