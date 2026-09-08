@@ -12,6 +12,7 @@ import {
   type SnapshotLine,
 } from "@/lib/pricing/lineItems";
 import { buildOrderItemsFromAgreement } from "@/lib/agreements/sync";
+import { shouldAutoCreateOrderOnSign } from "@/lib/agreements/autoInvoiceGuard";
 import { initialsKeyFor, type AgreementSectionId } from "@/lib/agreements/sections";
 import { wrapText, measureWrappedHeight, ellipsize } from "@/lib/pdf/layout";
 import {
@@ -835,7 +836,25 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
 
   // Auto-create order + invoice for purchase agreements that don't
   // have a linked order yet (this is the e-sign-from-scratch path).
-  if (!isLocationPlacement && ag.auto_send_invoice_on_signing && !ag.order_id) {
+  //
+  // Defense in depth against orphaned-by-deletion agreements: a
+  // REPLACEMENT agreement (created via the supersession/reissue path)
+  // supersedes a prior — typically already-invoiced — deal. If its order
+  // was deleted (FK ON DELETE SET NULL leaves order_id NULL), it must NOT
+  // reach this no-order branch and mint a duplicate order + invoice.
+  // shouldAutoCreateOrderOnSign() blocks that; relink the replacement to
+  // its restored order before signing instead.
+  const isReplacement = !isLocationPlacement && !ag.order_id
+    ? await agreementIsReplacement(ag.id)
+    : false;
+  if (
+    shouldAutoCreateOrderOnSign({
+      isLocationPlacement,
+      autoSendInvoiceOnSigning: !!ag.auto_send_invoice_on_signing,
+      hasLinkedOrder: !!ag.order_id,
+      isReplacement,
+    })
+  ) {
     try {
       await autoCreateOrderAndSendInvoice(ag);
     } catch (e) {
@@ -846,6 +865,15 @@ export async function handleFullySignedAgreement(agreementId: string): Promise<v
         description: `Auto-invoice failed: ${msg}`,
       });
     }
+  } else if (isReplacement && ag.auto_send_invoice_on_signing) {
+    // A replacement with no linked order reached signing — record why no
+    // order/invoice was auto-created so the orphaned state is visible.
+    await supabaseAdmin.from("agreement_activity_log").insert({
+      agreement_id: agreementId,
+      activity_type: "auto_invoice_skipped",
+      description:
+        "Auto-create/invoice skipped: replacement agreement has no linked order (likely orphaned by order deletion). Relink it to its restored order before signing.",
+    });
   }
 
   // For agreements that WERE generated from an existing order
@@ -1098,6 +1126,21 @@ async function sendApexPlacementFeeInvoice(ag: any): Promise<void> {
 /*  a separate email so the operator can pay (mirrors create-order +  */
 /*  orders/[id]/send routes).                                         */
 /* ================================================================== */
+/** True when the agreement was created via the supersession/reissue path
+ *  (logged as 'created_as_replacement'). Such an agreement supersedes an
+ *  existing deal, so signing it must never auto-mint a fresh order+invoice
+ *  from the no-order path — that would duplicate the original. */
+async function agreementIsReplacement(agreementId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("agreement_activity_log")
+    .select("id")
+    .eq("agreement_id", agreementId)
+    .eq("activity_type", "created_as_replacement")
+    .limit(1)
+    .maybeSingle();
+  return !!data;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function autoCreateOrderAndSendInvoice(ag: any): Promise<void> {
   // Rebuild the order from the agreement's line-item snapshot so every

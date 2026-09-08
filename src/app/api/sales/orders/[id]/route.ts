@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSalesUser, isElevatedRole } from "@/lib/salesAuth";
+import { assessOrderDeletable, deleteBlockMessage } from "@/lib/orders/deleteGuard";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSalesUser(req);
@@ -135,6 +136,45 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   if (!isElevatedRole(user.role)) {
     return NextResponse.json({ error: "Only admins can delete orders" }, { status: 403 });
+  }
+
+  // Gather commercial-history evidence BEFORE deleting anything. Hard
+  // deleting a sales_order cascades order_items + order_activity_log away
+  // and orphans its purchase_agreements (order_id -> NULL). An order that
+  // has been invoiced, paid, or whose agreement the customer has seen must
+  // never be silently destroyed this way (this is how Order #108 was lost).
+  const { data: order } = await supabaseAdmin
+    .from("sales_orders")
+    .select("order_status, invoice_status, payment_status, financial_spine_invoice_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+  const { data: agreements } = await supabaseAdmin
+    .from("purchase_agreements")
+    .select("agreement_status")
+    .eq("order_id", id);
+
+  const { data: invoiceRow } = await supabaseAdmin
+    .from("invoices")
+    .select("id")
+    .eq("order_id", id)
+    .limit(1)
+    .maybeSingle();
+
+  const assessment = assessOrderDeletable({
+    orderStatus: order.order_status,
+    invoiceStatus: order.invoice_status,
+    paymentStatus: order.payment_status,
+    financialSpineInvoiceId: order.financial_spine_invoice_id,
+    hasCanonicalInvoiceRow: !!invoiceRow,
+    agreementStatuses: (agreements ?? []).map((a) => a.agreement_status as string | null),
+  });
+  if (!assessment.deletable) {
+    return NextResponse.json(
+      { error: deleteBlockMessage(assessment.reason as string), reason: assessment.reason },
+      { status: 409 },
+    );
   }
 
   await supabaseAdmin.from("sales_documents").delete().eq("order_id", id);
