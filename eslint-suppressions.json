@@ -1095,7 +1095,7 @@
   },
   "src/app/api/coffee/orders/[id]/invoice/route.ts": {
     "complexity": {
-      "count": 1
+      "count": 2
     }
   },
   "src/app/api/coffee/orders/[id]/reorder/route.ts": {

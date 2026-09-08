@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { isAssistantCheckoutEnabled } from "@/lib/assistant/flags";
 import { readinessFor } from "@/lib/commerce/checkout";
-import { quoteRoute, readJson, requireCustomer, requireWriteTools } from "@/lib/commerce/quoteHttp";
+import { checkoutAccessFor, quoteRoute, readJson, requireCustomer, requireWriteTools } from "@/lib/commerce/quoteHttp";
 import { confirmQuote, getOwnedQuote } from "@/lib/commerce/quotes";
 import { toQuoteView } from "@/lib/commerce/quoteView";
 
@@ -22,7 +21,7 @@ export async function POST(req: NextRequest) {
     const body = await readJson(req, (v) => bodySchema.parse(v));
     const quote = await getOwnedQuote(body.quote_id, viewer.userId);
     const result = await confirmQuote(quote, body.version, viewer);
-    const readiness = await readinessFor(result.bundle.quote, viewer, await isAssistantCheckoutEnabled());
+    const readiness = await readinessFor(result.bundle.quote, viewer, await checkoutAccessFor(viewer.userId));
     return NextResponse.json({ outcome: result.outcome, quote: toQuoteView(result.bundle.quote, result.bundle.lines, result.bundle.changes, readiness) });
   });
 }

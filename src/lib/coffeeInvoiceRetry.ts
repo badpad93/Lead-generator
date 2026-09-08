@@ -40,7 +40,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   createInvoice,
   findInvoiceByDocNumber,
-  getInvoiceWithLink,
+  getInvoice,
   sendInvoiceEmail,
   QbTimeoutError,
 } from "@/lib/quickbooks";
@@ -274,8 +274,8 @@ export async function attemptInvoiceForOrder(
 
 async function tryFetchInvoiceLink(invoiceId: string): Promise<string | null> {
   try {
-    const full = await getInvoiceWithLink(invoiceId);
-    return full.payUrl;
+    const full = await getInvoice(invoiceId);
+    return full.InvoiceLink ?? null;
   } catch {
     return null;
   }

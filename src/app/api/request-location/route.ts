@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendLocationRequestConfirmation } from "@/lib/intakeEmail";
-import { createInvoice, sendInvoiceEmail, getInvoiceWithLink } from "@/lib/quickbooks";
+import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 import { computeLineTotal } from "@/lib/pricing/lineItems";
 import { upsertInvoice } from "@/lib/paymentLedger";
 
@@ -428,7 +428,7 @@ export async function POST(req: Request) {
 
     await sendInvoiceEmail(invoice.Id, email);
 
-    const fullInvoice = await getInvoiceWithLink(invoice.Id);
+    const fullInvoice = await getInvoice(invoice.Id);
 
     // Send admin notification email
     sendAdminNotification({
@@ -452,8 +452,8 @@ export async function POST(req: Request) {
     // queue clean of speculative requests where the deposit was
     // never paid.
 
-    if (fullInvoice.payUrl) {
-      return NextResponse.json({ url: fullInvoice.payUrl });
+    if (fullInvoice.InvoiceLink) {
+      return NextResponse.json({ url: fullInvoice.InvoiceLink });
     }
 
     return NextResponse.json({

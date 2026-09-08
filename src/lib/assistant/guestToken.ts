@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { assistantHashSecret } from "./secrets";
 
 /**
  * Guest conversation ownership.
@@ -49,16 +50,15 @@ export function guestCookieOptions(): {
 
 /**
  * Keyed hash of a network identifier for rate limiting. Raw IPs are
- * never stored. The key is a dedicated secret when configured and falls
- * back to the service-role key (already a server secret) so the hash is
- * always keyed. Returns null when no identifier is available.
+ * never stored. The key is the dedicated assistant secret (see
+ * secrets.ts); a missing secret fails closed by throwing rather than
+ * silently disabling the network limit. Returns null when no identifier
+ * is available.
  */
 export function hashNetworkIdentifier(identifier: string | null | undefined, env: Record<string, string | undefined> = process.env): string | null {
   const id = (identifier ?? "").trim();
   if (!id) return null;
-  const key = env.ASSISTANT_HASH_SECRET || env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) return null;
-  return createHmac("sha256", key).update(id).digest("hex").slice(0, 32);
+  return createHmac("sha256", assistantHashSecret(env)).update(id).digest("hex").slice(0, 32);
 }
 
 /** First public address from the forwarded header chain, if any. */

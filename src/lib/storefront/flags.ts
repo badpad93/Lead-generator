@@ -48,7 +48,8 @@ export type PlatformFlagKey =
   | "storefront.checkout_enabled"
   | "assistant.enabled"
   | "assistant.write_tools_enabled"
-  | "assistant.checkout_enabled";
+  | "assistant.checkout_enabled"
+  | "assistant.checkout_public_enabled";
 
 /** Back-compat alias — existing storefront callers keep compiling. */
 export type StorefrontFlagKey = PlatformFlagKey;

@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { generateTrackingNumber } from "@/lib/orderTracking";
 import { isQuickBooks } from "@/lib/paymentProvider";
-import { createInvoice, sendInvoiceEmail, getInvoiceWithLink } from "@/lib/quickbooks";
+import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 import { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } from "@/lib/coffeeEmail";
 import { resolveCoffeeProductsPricing } from "@/lib/coffeePricing";
 import { getCoffeeSettings } from "@/lib/coffeeSettings";
@@ -377,12 +377,12 @@ export async function POST(req: NextRequest) {
 
       await sendInvoiceEmail(invoice.Id, billingEmail);
 
-      const fullInvoice = await getInvoiceWithLink(invoice.Id);
+      const fullInvoice = await getInvoice(invoice.Id);
       const trackingUrl = `${siteUrl}/coffee/track/${trackingToken}`;
 
-      if (fullInvoice.payUrl) {
+      if (fullInvoice.InvoiceLink) {
         return NextResponse.json({
-          url: fullInvoice.payUrl,
+          url: fullInvoice.InvoiceLink,
           tracking_url: trackingUrl,
           order_id: order.id,
         });

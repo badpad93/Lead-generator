@@ -1,17 +1,14 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { assistantHashSecret } from "@/lib/assistant/secrets";
 
 /**
  * Opaque quote reference passed to the existing /financing flow and
- * verified when the application is submitted. Signed with
- * ASSISTANT_HASH_SECRET (falling back to the service-role key, like the
- * assistant's network hash) so a forged reference cannot link a stranger's
- * quote. Ownership is still re-checked server-side on link.
+ * verified when the application is submitted. Signed with the dedicated
+ * assistant secret (never the service-role key) so a forged reference
+ * cannot link a stranger's quote. Ownership is still re-checked
+ * server-side on link.
  */
-function secret(env: Record<string, string | undefined>): string {
-  const s = env.ASSISTANT_HASH_SECRET || env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!s) throw new Error("ASSISTANT_HASH_SECRET or SUPABASE_SERVICE_ROLE_KEY required");
-  return s;
-}
+const secret = assistantHashSecret;
 
 export function signQuoteRef(quoteId: string, env: Record<string, string | undefined> = process.env): string {
   const sig = createHmac("sha256", secret(env)).update(`quote:${quoteId}`).digest("base64url").slice(0, 32);

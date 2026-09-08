@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "./supabaseAdmin";
-import { createInvoice, getInvoiceWithLink, sendInvoiceEmail } from "./quickbooks";
+import { createInvoice, getInvoice, sendInvoiceEmail } from "./quickbooks";
 import { LEAD_GENERATOR_MONTHLY_PRICE_USD } from "./leadGeneratorAccess";
 
 /**
@@ -129,8 +129,8 @@ export async function subscribe(userId: string): Promise<SubscribeResult | Subsc
 
   let invoiceLink: string | undefined;
   try {
-    const fullInvoice = await getInvoiceWithLink(invoice.Id);
-    invoiceLink = fullInvoice.payUrl ?? undefined;
+    const fullInvoice = await getInvoice(invoice.Id);
+    invoiceLink = fullInvoice.InvoiceLink || undefined;
   } catch {
     // Ignore — the invoice will still be paid from QB email.
   }

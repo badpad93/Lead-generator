@@ -45,6 +45,8 @@ export interface QuoteRow {
   checkout_idempotency_key: string | null;
   checkout_started_at: string | null;
   checkout_completed_at: string | null;
+  /** Last owner-initiated read-only status reconciliation (migration 20260908001754). */
+  status_reconciled_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -82,7 +84,8 @@ export type QuoteErrorCode =
   | "version_mismatch"
   | "quote_expired"
   | "checkout_blocked"
-  | "upstream_error";
+  | "upstream_error"
+  | "rate_limited";
 
 const STATUS_BY_CODE: Record<QuoteErrorCode, number> = {
   authentication_required: 401,
@@ -97,6 +100,7 @@ const STATUS_BY_CODE: Record<QuoteErrorCode, number> = {
   quote_expired: 409,
   checkout_blocked: 409,
   upstream_error: 502,
+  rate_limited: 429,
 };
 
 export class QuoteError extends Error {

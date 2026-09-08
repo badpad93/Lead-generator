@@ -1,7 +1,7 @@
 import { readinessFor } from "@/lib/commerce/checkout";
+import { checkoutAccessFor } from "@/lib/commerce/checkoutAccess";
 import { getCurrentQuote, listLines, revalidateQuote } from "@/lib/commerce/quotes";
 import { toQuoteView, type QuoteView } from "@/lib/commerce/quoteView";
-import { isAssistantCheckoutEnabled } from "../flags";
 import { assertPublicShape } from "../publicShapes";
 import type { ToolContext } from "./context";
 
@@ -23,6 +23,6 @@ export async function runGetQuote(ctx: ToolContext): Promise<GetQuoteOutput> {
   if (!current) return { status: "empty", message: "The customer has no quote yet." };
   const editable = current.status === "draft" || current.status === "confirmed";
   const bundle = editable ? await revalidateQuote(current, viewer) : { quote: current, lines: await listLines(current.id), changes: [] };
-  const readiness = await readinessFor(bundle.quote, viewer, await isAssistantCheckoutEnabled());
+  const readiness = await readinessFor(bundle.quote, viewer, await checkoutAccessFor(viewer.userId));
   return assertPublicShape({ status: "quote", quote: toQuoteView(bundle.quote, bundle.lines, bundle.changes, readiness) });
 }
