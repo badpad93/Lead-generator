@@ -147,7 +147,8 @@ export interface VinnieQuickBooks {
 
 // ─── Implementation ────────────────────────────────────────────────────
 
-const escapeQuery = (s: string) => s.replace(/'/g, "\\'");
+/** QuickBooks query-language string literal escaping: backslashes first, then single quotes. */
+export const escapeQuery = (s: string) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 async function failText(res: Response, what: string): Promise<never> {

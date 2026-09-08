@@ -16,7 +16,7 @@ vi.mock("@/lib/quickbooks", () => ({
   isQbProduction: () => guard.production,
 }));
 
-import { assertVinnieQuickBooksAllowed, createVinnieQuickBooks, validateHostedInvoiceLink, vinnieQuickBooksGate, VINNIE_QBO_ENV_VARS } from "./quickbooksAdapter";
+import { assertVinnieQuickBooksAllowed, createVinnieQuickBooks, escapeQuery, validateHostedInvoiceLink, vinnieQuickBooksGate, VINNIE_QBO_ENV_VARS } from "./quickbooksAdapter";
 
 const PROD = { VERCEL_ENV: "production" };
 const YES = () => true;
@@ -131,6 +131,22 @@ describe("invoice creation", () => {
     const pending = client.createInvoice(raced);
     qbo.invoices.push({ Id: "INV-RACED", DocNumber: "VQ-RACE-V1", TotalAmt: 500, Balance: 500, Line: [] });
     expect((await pending).Id).toBe("INV-RACED");
+  });
+});
+
+describe("query escaping", () => {
+  it("escapes backslashes before single quotes so a crafted email or name cannot break out of the string literal", () => {
+    expect(escapeQuery("O'Brien")).toBe("O\\'Brien");
+    expect(escapeQuery("a\\b")).toBe("a\\\\b");
+    expect(escapeQuery("x\\' OR 1=1 --")).toBe("x\\\\\\' OR 1=1 --");
+    expect(escapeQuery("plain@example.com")).toBe("plain@example.com");
+  });
+  it("applies the escaping to customer lookups", async () => {
+    const client = createVinnieQuickBooks(PROD, lowLevel, YES);
+    await client.findOrCreateCustomer({ displayName: "O'Brien \\ Co", email: "o'brien@example.com" });
+    const queries = qbo.requests.filter((r) => r.path.startsWith("/query?")).map((r) => decodeURIComponent(r.path.split("query=")[1]));
+    expect(queries[0]).toContain("PrimaryEmailAddr = 'o\\'brien@example.com'");
+    expect(queries[1]).toContain("DisplayName = 'O\\'Brien \\\\ Co'");
   });
 });
 
