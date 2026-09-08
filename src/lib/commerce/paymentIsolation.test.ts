@@ -35,6 +35,9 @@ export const EXISTING_PAYMENT_FILES = [
   "src/app/api/account/workflows/[id]/pay-balance/route.ts",
   "src/app/api/checkout/route.ts",
   "src/app/api/request-location/route.ts",
+  "src/app/api/admin/storefronts/payouts/release/route.ts",
+  "src/app/api/sales/orders/[id]/send/route.ts",
+  "src/lib/storefront/quickbooksStorefront.ts",
 ];
 const ADAPTER_IMPORTERS_ALLOWED = new Set([
   "src/lib/commerce/checkout.ts",
@@ -80,6 +83,15 @@ describe("existing payment routes are isolated from Vinnie", () => {
       .filter((p) => p !== "src/lib/commerce/quickbooksAdapter.ts");
     for (const p of importers) expect(ADAPTER_IMPORTERS_ALLOWED.has(p), `unexpected adapter importer: ${p}`).toBe(true);
     expect(importers.length).toBeGreaterThan(0);
+  });
+
+  it("every module that imports the shared QuickBooks client is either the Vinnie adapter or a covered existing payment path", () => {
+    const importers = walk(join(ROOT, "src"))
+      .filter((p) => /from ["']@\/lib\/quickbooks["']/.test(readFileSync(p, "utf8")))
+      .map((p) => p.slice(ROOT.length + 1))
+      .filter((p) => p !== "src/lib/commerce/quickbooksAdapter.ts");
+    const covered = new Set(EXISTING_PAYMENT_FILES);
+    for (const p of importers) expect(covered.has(p), `QuickBooks importer not covered by the isolation proof: ${p}`).toBe(true);
   });
 
   it("the shared QuickBooks module carries no Vinnie-specific code", () => {
