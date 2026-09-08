@@ -29,6 +29,8 @@ export async function requireCheckout(): Promise<void> {
   if (!(await isAssistantCheckoutEnabled())) throw new QuoteError("checkout_disabled", "Checkout is not available yet.");
 }
 
+export { assertCheckoutAccess, checkoutAccessFor } from "./checkoutAccess";
+
 export function toQuoteErrorResponse(e: unknown): NextResponse {
   if (isQuoteError(e)) return NextResponse.json({ error: { code: e.code, message: e.message, ...e.details } }, { status: e.status });
   console.error("[commerce/http] unexpected error:", e instanceof Error ? e.message : String(e));

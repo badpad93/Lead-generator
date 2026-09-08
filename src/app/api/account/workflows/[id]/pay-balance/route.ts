@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
-import { createInvoice, sendInvoiceEmail, getInvoiceWithLink } from "@/lib/quickbooks";
+import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 import { recordEvent } from "@/lib/workflows/service";
 
 /**
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     await sendInvoiceEmail(invoice.Id, profile.email);
-    const full = await getInvoiceWithLink(invoice.Id);
+    const full = await getInvoice(invoice.Id);
 
     // Stash the invoice id on the workflow metadata so we can reconcile
     // on the QB payment webhook.
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({
       ok: true,
       invoiceId: invoice.Id,
-      invoiceLink: full.payUrl,
+      invoiceLink: full.InvoiceLink ?? null,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Invoice creation failed";

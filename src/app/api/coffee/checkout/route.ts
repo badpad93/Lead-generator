@@ -5,7 +5,7 @@ import { generateTrackingNumber } from "@/lib/orderTracking";
 import { getCoffeeUser, hasCoffeePurchaseAccess, forbiddenResponse } from "@/lib/coffeeAuth";
 import { resolveTenantById, type StorefrontTenant } from "@/lib/storefront/tenants";
 import { isQuickBooks } from "@/lib/paymentProvider";
-import { createInvoice, sendInvoiceEmail, getInvoiceWithLink, QbTimeoutError } from "@/lib/quickbooks";
+import { createInvoice, sendInvoiceEmail, getInvoice, QbTimeoutError } from "@/lib/quickbooks";
 import { sendCoffeeOrderNotification, sendCoffeeOrderConfirmation } from "@/lib/coffeeEmail";
 import { requireExecutedCoffeeSupplyAgreement } from "@/lib/placementAgreements";
 import { resolveCoffeeProductsPricing, round2 } from "@/lib/coffeePricing";
@@ -614,8 +614,8 @@ export async function POST(req: NextRequest) {
         // hosted "review and pay" URL — without it InvoiceLink is
         // absent and every customer fell through to the
         // invoice_sent page with no way to pay at checkout.
-        const fullInvoice = await getInvoiceWithLink(invoice.Id);
-        if (fullInvoice.payUrl) invoiceUrl = fullInvoice.payUrl;
+        const fullInvoice = await getInvoice(invoice.Id, { includeLink: true });
+        if (fullInvoice.InvoiceLink) invoiceUrl = fullInvoice.InvoiceLink;
       } catch (getErr) {
         console.warn("[coffee-checkout] QB getInvoice failed (non-fatal):", getErr);
       }

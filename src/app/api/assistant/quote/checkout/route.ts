@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkoutQuote, readinessFor } from "@/lib/commerce/checkout";
-import { quoteRoute, readJson, requireCheckout, requireCustomer } from "@/lib/commerce/quoteHttp";
+import { assertCheckoutAccess, checkoutAccessFor, quoteRoute, readJson, requireCheckout, requireCustomer } from "@/lib/commerce/quoteHttp";
 import { getOwnedQuote, listLines } from "@/lib/commerce/quotes";
 import { toQuoteView } from "@/lib/commerce/quoteView";
 
@@ -11,23 +11,27 @@ const bodySchema = z.object({ quote_id: z.string().uuid(), version: z.number().i
 
 /**
  * POST /api/assistant/quote/checkout — called only by the Checkout button
- * after a physical click (`confirm: true`). Requires
- * assistant.checkout_enabled and a confirmed, owned, unexpired quote.
- * Returns the verified QuickBooks hosted pay URL or a structured reason.
+ * after a physical click (`confirm: true`). Requires, in order:
+ * assistant.enabled, assistant.checkout_enabled, a signed-in owner, a
+ * verified administrator unless assistant.checkout_public_enabled, the
+ * production deployment, and a confirmed, current, fully-ready quote.
+ * Returns the validated QuickBooks hosted pay URL or a structured reason.
  */
 export async function POST(req: NextRequest) {
   return quoteRoute(async () => {
     await requireCheckout();
     const { viewer } = await requireCustomer(req);
     const body = await readJson(req, (v) => bodySchema.parse(v));
-    const result = await checkoutQuote(body.quote_id, viewer, body.version);
+    const access = await checkoutAccessFor(viewer.userId);
+    assertCheckoutAccess(access);
+    const result = await checkoutQuote(body.quote_id, viewer, body.version, access);
     if (result.outcome === "changed") {
-      const readiness = await readinessFor(result.bundle.quote, viewer, true);
+      const readiness = await readinessFor(result.bundle.quote, viewer, access);
       return NextResponse.json({ outcome: "changed", quote: toQuoteView(result.bundle.quote, result.bundle.lines, result.bundle.changes, readiness) });
     }
     if (result.outcome === "blocked") return NextResponse.json({ outcome: "blocked", checkout: result.readiness }, { status: 409 });
     const lines = await listLines(result.quote.id);
-    const readiness = await readinessFor(result.quote, viewer, true);
+    const readiness = await readinessFor(result.quote, viewer, access);
     return NextResponse.json({ outcome: "invoiced", pay_url: result.pay_url, quote: toQuoteView(result.quote, lines, [], readiness) });
   });
 }

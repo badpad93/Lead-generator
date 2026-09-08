@@ -32,6 +32,8 @@ export interface QuoteApi {
   financing: (program: "standard" | "ten_ten_ten") => Promise<string | null>;
   requestInfo: (listingId: string) => Promise<string | null>;
   emailQuote: () => Promise<string | null>;
+  /** Owner-initiated, read-only payment status check for an invoiced quote. */
+  checkStatus: () => Promise<string | null>;
   refresh: () => Promise<void>;
 }
 
@@ -187,10 +189,17 @@ export function QuoteProvider({ viewer, flags: initialFlags = DEFAULT_FLAGS, chi
     return r.data.sent_to;
   }, [server.view, setError]);
 
+  const checkStatus = useCallback(async () => {
+    if (!server.view) return null;
+    const r = await run(`${API}/status`, { quote_id: server.view.quote_id });
+    if (!r.ok) return null;
+    return typeof r.data.outcome === "string" ? r.data.outcome : null;
+  }, [run, server.view]);
+
   const lineCount = viewer === "user" ? (server.view?.lines.length ?? 0) : guestLines.length;
   const value = useMemo<QuoteApi>(
-    () => ({ viewer, view: server.view, payUrl: server.payUrl, flags: server.flags, guestLines, busy: server.busy, error: server.error, open, lineCount, setOpen, addItem, setQuantity, removeItem, confirm, checkout, financing, requestInfo, emailQuote, refresh }),
-    [viewer, server.view, server.payUrl, server.flags, guestLines, server.busy, server.error, open, lineCount, addItem, setQuantity, removeItem, confirm, checkout, financing, requestInfo, emailQuote, refresh],
+    () => ({ viewer, view: server.view, payUrl: server.payUrl, flags: server.flags, guestLines, busy: server.busy, error: server.error, open, lineCount, setOpen, addItem, setQuantity, removeItem, confirm, checkout, financing, requestInfo, emailQuote, checkStatus, refresh }),
+    [viewer, server.view, server.payUrl, server.flags, guestLines, server.busy, server.error, open, lineCount, addItem, setQuantity, removeItem, confirm, checkout, financing, requestInfo, emailQuote, checkStatus, refresh],
   );
   return <QuoteContext.Provider value={value}>{children}</QuoteContext.Provider>;
 }

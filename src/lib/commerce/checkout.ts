@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { createInvoice, findOrCreateCustomer, getInvoiceWithLink, sendInvoiceEmail } from "@/lib/quickbooks";
 import { CATALOG_COLUMNS, isCheckoutReady, type CommerceCatalogItem, type RequiredAgreement } from "./catalog";
 import { gateFor, type AgreementGateResult } from "./agreements";
+import { createVinnieQuickBooks, vinnieQuickBooksGate, type VinnieQuickBooks } from "./quickbooksAdapter";
 import { getOwnedQuote, listLines, revalidateQuote, type QuoteBundle, type QuoteViewer } from "./quotes";
 import { QuoteError, type QuoteLineRow, type QuoteRow } from "./quoteTypes";
 import type { CheckoutReadiness } from "./quoteView";
@@ -11,12 +11,13 @@ import type { CheckoutReadiness } from "./quoteView";
  *
  * Runs after an explicit customer click on an authenticated route, never
  * from the model. Order of operations: re-read and reprice → assess every
- * gate → lock the confirmed version → create customer and invoice with
- * real Item references and a deterministic DocNumber → store identifiers
- * → return the verified hosted pay URL. Any gate failure returns a
- * structured explanation and creates nothing; any QuickBooks failure
- * leaves the quote confirmed with checkout_status=failed and no partial
- * invoice (a single create call is the only write).
+ * gate (environment, flags, administrator rollout, lines, mappings, tax,
+ * agreements, billing address) → construct the production-only adapter →
+ * lock the confirmed version → create customer and invoice with real Item
+ * references and a deterministic DocNumber → store identifiers → return
+ * the validated hosted pay URL. Any gate failure returns a structured
+ * explanation and creates nothing; any QuickBooks failure leaves the
+ * quote confirmed with checkout_status=failed and no partial invoice.
  */
 export interface CustomerProfile {
   id: string;
@@ -35,6 +36,22 @@ export interface CheckoutContext {
   coffeeQbItems: Map<string, string | null>;
   agreements: AgreementGateResult[];
 }
+
+/**
+ * Who may check out right now. Every field is resolved server-side by the
+ * route (flags from the database, administrator status from authoritative
+ * profile/auth data, environment from the deployment) and never from the
+ * request.
+ */
+export interface CheckoutAccess {
+  checkoutEnabled: boolean;
+  publicEnabled: boolean;
+  isAdmin: boolean;
+  /** Production deployment with the live QuickBooks environment. */
+  environmentAllowed: boolean;
+}
+
+export const NO_CHECKOUT_ACCESS: CheckoutAccess = { checkoutEnabled: false, publicEnabled: false, isAdmin: false, environmentAllowed: false };
 
 const INVOICE_SKIP = new Set(["location_intake"]);
 const BLOCKING_LINE_STATUS: Record<string, string> = {
@@ -97,12 +114,24 @@ function lineReasons(line: QuoteLineRow, ctx: CheckoutContext): Reason[] {
   return INVOICE_SKIP.has(line.validation_status) ? out : [...out, ...mappingReasons(line, ctx)];
 }
 
-function statusReasons(quote: QuoteRow, checkoutEnabled: boolean): Reason[] {
+function accessReasons(access: CheckoutAccess): Reason[] {
   const out: Reason[] = [];
-  if (!checkoutEnabled) out.push({ code: "checkout_disabled", message: "Checkout is not available yet. Your quote is saved." });
-  if (quote.status === "expired") out.push({ code: "expired", message: "This quote expired. Rebuild it to get current prices." });
-  else if (!["confirmed", "invoiced"].includes(quote.status)) out.push({ code: "not_confirmed", message: "Confirm the quote before checking out." });
+  if (!access.checkoutEnabled) out.push({ code: "checkout_disabled", message: "Checkout is not available yet. Your quote is saved." });
+  else if (!access.publicEnabled && !access.isAdmin) out.push({ code: "checkout_admin_only", message: "Checkout is currently limited to administrators. Your quote is saved." });
+  if (!access.environmentAllowed) out.push({ code: "checkout_unavailable_here", message: "Checkout is only available on the production site." });
   return out;
+}
+
+function statusReasons(quote: QuoteRow): Reason[] {
+  if (quote.status === "expired") return [{ code: "expired", message: "This quote expired. Rebuild it to get current prices." }];
+  if (!["confirmed", "invoiced"].includes(quote.status)) return [{ code: "not_confirmed", message: "Confirm the quote before checking out." }];
+  return [];
+}
+
+function agreementReasons(ctx: CheckoutContext): Reason[] {
+  return ctx.agreements
+    .filter((a) => !a.satisfied)
+    .map((g) => ({ code: g.needs_staff_review ? "agreement_unverified" : "agreement_missing", message: g.message ?? "A required agreement is missing." }));
 }
 
 interface BillingProfile {
@@ -119,10 +148,10 @@ function billingProfile(p: CustomerProfile): BillingProfile | null {
 }
 
 /** Pure assessment of every checkout gate. Never calls QuickBooks. */
-export function assessCheckout(quote: QuoteRow, lines: QuoteLineRow[], ctx: CheckoutContext, checkoutEnabled: boolean): CheckoutReadiness {
-  const reasons: Reason[] = statusReasons(quote, checkoutEnabled);
+export function assessCheckout(quote: QuoteRow, lines: QuoteLineRow[], ctx: CheckoutContext, access: CheckoutAccess): CheckoutReadiness {
+  const reasons: Reason[] = [...accessReasons(access), ...statusReasons(quote)];
   for (const l of lines) reasons.push(...lineReasons(l, ctx));
-  for (const g of ctx.agreements.filter((a) => !a.satisfied)) reasons.push({ code: "agreement_missing", message: g.message ?? "A required agreement is missing." });
+  reasons.push(...agreementReasons(ctx));
   if (!billingProfile(ctx.profile)) reasons.push({ code: "billing_address_missing", message: "Add your billing address to your profile so tax can be calculated on the invoice." });
   if (!lines.some((l) => !INVOICE_SKIP.has(l.validation_status))) reasons.push({ code: "nothing_to_invoice", message: "There is nothing to invoice on this quote." });
   const intakeQty = lines.filter((l) => l.validation_status === "location_intake").reduce((n, l) => n + l.quantity, 0);
@@ -134,10 +163,14 @@ export type CheckoutOutcome =
   | { outcome: "blocked"; readiness: CheckoutReadiness }
   | { outcome: "invoiced"; quote: QuoteRow; pay_url: string | null };
 
-async function lockForCheckout(quote: QuoteRow, key: string): Promise<QuoteRow> {
+/** Deterministic per quote version: the same click twice yields the same key and DocNumber. */
+export const idempotencyKeyFor = (quote: QuoteRow) => `vq:${quote.id}:v${quote.version}`;
+export const docNumberFor = (quote: QuoteRow) => `${quote.quote_number}-V${quote.version}`;
+
+async function lockForCheckout(quote: QuoteRow): Promise<QuoteRow> {
   const { data, error } = await supabaseAdmin
     .from("commerce_quotes")
-    .update({ status: "checkout_pending", checkout_status: "none", checkout_idempotency_key: key, checkout_started_at: new Date().toISOString() })
+    .update({ status: "checkout_pending", checkout_status: "none", checkout_idempotency_key: idempotencyKeyFor(quote), checkout_started_at: new Date().toISOString() })
     .eq("id", quote.id)
     .eq("status", "confirmed")
     .eq("version", quote.version)
@@ -152,14 +185,18 @@ function invoiceLines(lines: QuoteLineRow[], ctx: CheckoutContext) {
     .filter((l) => !INVOICE_SKIP.has(l.validation_status))
     .map((l) => ({
       description: l.description,
-      amount: l.unit_price,
+      unitPrice: l.unit_price,
       quantity: l.quantity,
-      qbItemId: l.catalog_item_id ? (ctx.catalog.get(l.catalog_item_id)?.qb_item_id ?? undefined) : (ctx.coffeeQbItems.get(l.coffee_product_id ?? "") ?? undefined),
+      qbItemId: (l.catalog_item_id ? ctx.catalog.get(l.catalog_item_id)?.qb_item_id : ctx.coffeeQbItems.get(l.coffee_product_id ?? "")) ?? "",
     }));
 }
 
 async function revertToConfirmed(quoteId: string): Promise<void> {
   await supabaseAdmin.from("commerce_quotes").update({ status: "confirmed", checkout_status: "failed" }).eq("id", quoteId);
+}
+
+function normalizeQuote(data: Record<string, unknown>): QuoteRow {
+  return { ...(data as unknown as QuoteRow), subtotal: Number(data.subtotal), total: Number(data.total) };
 }
 
 async function recordInvoice(quoteId: string, ids: { customerId: string; invoiceId: string; docNumber: string | null; payUrl: string | null }): Promise<QuoteRow> {
@@ -170,35 +207,34 @@ async function recordInvoice(quoteId: string, ids: { customerId: string; invoice
     .select("*")
     .single();
   if (error || !data) throw new QuoteError("upstream_error", "The invoice was created but could not be recorded. Please contact support with your quote number.");
-  return { ...(data as unknown as QuoteRow), subtotal: Number(data.subtotal), total: Number(data.total) };
+  return normalizeQuote(data as Record<string, unknown>);
 }
 
-async function createQuoteInvoice(quote: QuoteRow, lines: QuoteLineRow[], ctx: CheckoutContext): Promise<QuoteRow> {
+async function createQuoteInvoice(qbo: VinnieQuickBooks, quote: QuoteRow, lines: QuoteLineRow[], ctx: CheckoutContext): Promise<QuoteRow> {
   const billing = billingProfile(ctx.profile);
   if (!billing) throw new QuoteError("checkout_blocked", "Add your billing address to your profile before checking out.");
-  const customer = await findOrCreateCustomer({ displayName: billing.name, email: billing.email, phone: billing.phone });
-  const invoice = await createInvoice({
+  const customer = await qbo.findOrCreateCustomer({ displayName: billing.name, email: billing.email, phone: billing.phone });
+  const invoice = await qbo.createInvoice({
+    customerId: customer.Id,
     customerEmail: billing.email,
-    customerName: billing.name,
-    customerPhone: billing.phone,
     billAddr: billing.billAddr,
-    lineItems: invoiceLines(lines, ctx),
+    lines: invoiceLines(lines, ctx),
+    docNumber: docNumberFor(quote),
     memo: `Vending Connector quote ${quote.quote_number}`,
-    metadata: { type: "vinnie_quote", quote_id: quote.id, quote_version: String(quote.version) },
-    docNumber: `${quote.quote_number}-V${quote.version}`,
+    privateNote: { type: "vinnie_quote", quote_id: quote.id, quote_version: String(quote.version) },
   });
-  await sendInvoiceEmail(invoice.Id, billing.email).catch((e) => console.warn("[commerce/checkout] invoice email failed (non-fatal):", e instanceof Error ? e.message : e));
-  const withLink = await getInvoiceWithLink(invoice.Id).catch(() => null);
-  return recordInvoice(quote.id, { customerId: customer.Id, invoiceId: invoice.Id, docNumber: invoice.DocNumber ?? null, payUrl: withLink?.payUrl ?? null });
+  await qbo.sendInvoiceEmail(invoice.Id, billing.email).catch((e) => console.warn("[commerce/checkout] invoice email failed (non-fatal):", e instanceof Error ? e.message : e));
+  const payUrl = await qbo.getHostedInvoiceLink(invoice.Id).catch(() => null);
+  return recordInvoice(quote.id, { customerId: customer.Id, invoiceId: invoice.Id, docNumber: invoice.DocNumber, payUrl });
 }
 
 /** Idempotent re-entry: an already-invoiced version returns its stored link. */
-async function existingInvoiceOutcome(quote: QuoteRow): Promise<CheckoutOutcome | null> {
+async function existingInvoiceOutcome(quote: QuoteRow, access: CheckoutAccess): Promise<CheckoutOutcome | null> {
   if (quote.status !== "invoiced" || !quote.qb_invoice_id) return null;
-  if (quote.checkout_url) return { outcome: "invoiced", quote, pay_url: quote.checkout_url };
-  const fresh = await getInvoiceWithLink(quote.qb_invoice_id).catch(() => null);
-  if (fresh?.payUrl) await supabaseAdmin.from("commerce_quotes").update({ checkout_url: fresh.payUrl, checkout_status: "link_issued" }).eq("id", quote.id);
-  return { outcome: "invoiced", quote, pay_url: fresh?.payUrl ?? null };
+  if (quote.checkout_url || !access.environmentAllowed) return { outcome: "invoiced", quote, pay_url: quote.checkout_url };
+  const fresh = await createVinnieQuickBooks().getHostedInvoiceLink(quote.qb_invoice_id).catch(() => null);
+  if (fresh) await supabaseAdmin.from("commerce_quotes").update({ checkout_url: fresh, checkout_status: "link_issued" }).eq("id", quote.id);
+  return { outcome: "invoiced", quote, pay_url: fresh };
 }
 
 function assertCheckoutable(quote: QuoteRow, expectedVersion: number): void {
@@ -208,9 +244,12 @@ function assertCheckoutable(quote: QuoteRow, expectedVersion: number): void {
 }
 
 async function convertLocked(quote: QuoteRow, bundle: QuoteBundle, ctx: CheckoutContext): Promise<CheckoutOutcome> {
-  await lockForCheckout(bundle.quote, `vq:${quote.id}:v${bundle.quote.version}`);
+  // The adapter constructor is the hard environment gate: it throws before
+  // any lock or any request when this is not the production deployment.
+  const qbo = createVinnieQuickBooks();
+  await lockForCheckout(bundle.quote);
   try {
-    const invoiced = await createQuoteInvoice(bundle.quote, bundle.lines, ctx);
+    const invoiced = await createQuoteInvoice(qbo, bundle.quote, bundle.lines, ctx);
     return { outcome: "invoiced", quote: invoiced, pay_url: invoiced.checkout_url };
   } catch (e) {
     await revertToConfirmed(quote.id);
@@ -222,17 +261,19 @@ async function convertLocked(quote: QuoteRow, bundle: QuoteBundle, ctx: Checkout
 
 /**
  * Convert a confirmed quote into exactly one QuickBooks invoice for its
- * version. `expectedVersion` is the version the customer clicked on.
+ * version. `expectedVersion` is the version the customer clicked on;
+ * `access` is resolved by the route from flags, verified administrator
+ * status, and the deployment environment.
  */
-export async function checkoutQuote(quoteId: string, viewer: QuoteViewer, expectedVersion: number): Promise<CheckoutOutcome> {
+export async function checkoutQuote(quoteId: string, viewer: QuoteViewer, expectedVersion: number, access: CheckoutAccess): Promise<CheckoutOutcome> {
   const quote = await getOwnedQuote(quoteId, viewer.userId);
-  const existing = await existingInvoiceOutcome(quote);
+  const existing = await existingInvoiceOutcome(quote, access);
   if (existing) return existing;
   assertCheckoutable(quote, expectedVersion);
   const bundle = await revalidateQuote(quote, viewer);
   if (bundle.changes.length > 0 || bundle.quote.status !== "confirmed") return { outcome: "changed", bundle };
   const ctx = await loadCheckoutContext(viewer.userId, bundle.lines);
-  const readiness = assessCheckout(bundle.quote, bundle.lines, ctx, true);
+  const readiness = assessCheckout(bundle.quote, bundle.lines, ctx, access);
   if (!readiness.available) {
     await supabaseAdmin.from("commerce_quotes").update({ checkout_status: "blocked" }).eq("id", quote.id);
     return { outcome: "blocked", readiness };
@@ -241,20 +282,64 @@ export async function checkoutQuote(quoteId: string, viewer: QuoteViewer, expect
 }
 
 /** Readiness for display (no lock, no QuickBooks). */
-export async function readinessFor(quote: QuoteRow, viewer: QuoteViewer, checkoutEnabled: boolean): Promise<CheckoutReadiness> {
+export async function readinessFor(quote: QuoteRow, viewer: QuoteViewer, access: CheckoutAccess): Promise<CheckoutReadiness> {
   const lines = await listLines(quote.id);
   const ctx = await loadCheckoutContext(viewer.userId, lines);
-  return assessCheckout(quote, lines, ctx, checkoutEnabled);
+  return assessCheckout(quote, lines, ctx, access);
 }
 
-/** Webhook hook: a QuickBooks payment against a Vinnie invoice marks the quote paid. Returns true when a quote matched. */
-export async function markQuotePaidByInvoice(qbInvoiceId: string): Promise<boolean> {
+// ─── Status reconciliation (owner-initiated, read-only lookup) ─────────
+
+export const STATUS_RECONCILE_MIN_INTERVAL_MS = 60_000;
+const RECONCILABLE = new Set(["invoiced", "checkout_pending"]);
+
+export type ReconcileOutcome =
+  | { outcome: "paid"; quote: QuoteRow }
+  | { outcome: "unpaid"; quote: QuoteRow; balance: number }
+  | { outcome: "not_applicable"; quote: QuoteRow }
+  | { outcome: "unavailable"; quote: QuoteRow; reason: string }
+  | { outcome: "throttled"; quote: QuoteRow; retry_after_seconds: number };
+
+async function stampReconciled(quoteId: string, userId: string, extra: Record<string, unknown> = {}): Promise<QuoteRow> {
   const { data, error } = await supabaseAdmin
     .from("commerce_quotes")
-    .update({ status: "paid", checkout_status: "paid", qb_invoice_status: "paid", checkout_completed_at: new Date().toISOString() })
-    .eq("qb_invoice_id", qbInvoiceId)
-    .in("status", ["invoiced", "checkout_pending", "confirmed"])
-    .select("id");
-  if (error) throw new Error(`commerce_quotes paid update failed: ${error.message}`);
-  return ((data ?? []) as unknown[]).length > 0;
+    .update({ status_reconciled_at: new Date().toISOString(), ...extra })
+    .eq("id", quoteId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+  if (error || !data) throw new QuoteError("upstream_error", "The quote status could not be updated.");
+  return normalizeQuote(data as Record<string, unknown>);
+}
+
+/**
+ * Looks up the quote's stored invoice through the production-only
+ * adapter and marks only this owned quote paid when QuickBooks reports a
+ * zero balance. Never touches the global webhook, other quotes, or any
+ * other table. Throttled per quote through status_reconciled_at.
+ */
+function throttleFor(quote: QuoteRow, now: Date): number | null {
+  const last = quote.status_reconciled_at;
+  const elapsed = last ? now.getTime() - new Date(last).getTime() : Number.POSITIVE_INFINITY;
+  return elapsed < STATUS_RECONCILE_MIN_INTERVAL_MS ? Math.ceil((STATUS_RECONCILE_MIN_INTERVAL_MS - elapsed) / 1000) : null;
+}
+
+async function applyInvoiceStatus(quote: QuoteRow, viewer: QuoteViewer, invoiceId: string, now: Date): Promise<ReconcileOutcome> {
+  const invoice = await createVinnieQuickBooks().getInvoiceStatus(invoiceId);
+  if (invoice.TotalAmt > 0 && invoice.Balance <= 0) {
+    const paid = await stampReconciled(quote.id, viewer.userId, { status: "paid", checkout_status: "paid", qb_invoice_status: "paid", checkout_completed_at: now.toISOString() });
+    return { outcome: "paid", quote: paid };
+  }
+  const refreshed = await stampReconciled(quote.id, viewer.userId);
+  return { outcome: "unpaid", quote: refreshed, balance: invoice.Balance };
+}
+
+export async function reconcileQuoteStatus(quoteId: string, viewer: QuoteViewer, now: Date = new Date()): Promise<ReconcileOutcome> {
+  const quote = await getOwnedQuote(quoteId, viewer.userId);
+  if (!RECONCILABLE.has(quote.status) || !quote.qb_invoice_id) return { outcome: "not_applicable", quote };
+  const retry = throttleFor(quote, now);
+  if (retry !== null) return { outcome: "throttled", quote, retry_after_seconds: retry };
+  const gate = vinnieQuickBooksGate();
+  if (!gate.allowed) return { outcome: "unavailable", quote, reason: gate.reason ?? "unavailable" };
+  return applyInvoiceStatus(quote, viewer, quote.qb_invoice_id, now);
 }

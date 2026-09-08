@@ -32,6 +32,7 @@ describe("guest tokens", () => {
     expect(h).toMatch(/^[a-f0-9]{32}$/);
     expect(hashNetworkIdentifier("203.0.113.9", { ASSISTANT_HASH_SECRET: "other" })).not.toBe(h);
     expect(hashNetworkIdentifier(null, env)).toBeNull();
-    expect(hashNetworkIdentifier("1.2.3.4", {})).toBeNull();
+    expect(() => hashNetworkIdentifier("1.2.3.4", { NODE_ENV: "production" })).toThrow(/ASSISTANT_HASH_SECRET/);
+    expect(() => hashNetworkIdentifier("1.2.3.4", { NODE_ENV: "production", SUPABASE_SERVICE_ROLE_KEY: "svc" })).toThrow(/ASSISTANT_HASH_SECRET/);
   });
 });

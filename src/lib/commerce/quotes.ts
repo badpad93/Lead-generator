@@ -40,7 +40,7 @@ export interface QuoteBundle {
 }
 
 const QUOTE_COLUMNS =
-  "id, user_id, thread_id, quote_number, status, currency, version, confirmed_version, confirmed_at, expires_at, financing_program, financing_status, financing_application_id, financing_interest_at, agreement_state, subtotal, tax_status, total, qb_customer_id, qb_invoice_id, qb_invoice_doc_number, qb_invoice_status, checkout_status, checkout_url, checkout_idempotency_key, checkout_started_at, checkout_completed_at, created_at, updated_at";
+  "id, user_id, thread_id, quote_number, status, currency, version, confirmed_version, confirmed_at, expires_at, financing_program, financing_status, financing_application_id, financing_interest_at, agreement_state, subtotal, tax_status, total, qb_customer_id, qb_invoice_id, qb_invoice_doc_number, qb_invoice_status, checkout_status, checkout_url, checkout_idempotency_key, checkout_started_at, checkout_completed_at, status_reconciled_at, created_at, updated_at";
 const LINE_COLUMNS =
   "id, quote_id, source_type, catalog_item_id, coffee_product_id, catalog_key, description, quantity, unit_price, line_total, pricing_basis, parent_line_id, is_auto_add_on, validation_status, staff_determination_by, staff_determination_at, staff_determination_note, sort_order";
 

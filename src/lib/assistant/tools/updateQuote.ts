@@ -1,8 +1,8 @@
 import { readinessFor } from "@/lib/commerce/checkout";
+import { checkoutAccessFor } from "@/lib/commerce/checkoutAccess";
 import { getOrCreateDraft, rebuildQuote } from "@/lib/commerce/quotes";
 import { QuoteError } from "@/lib/commerce/quoteTypes";
 import { toQuoteView, type QuoteView } from "@/lib/commerce/quoteView";
-import { isAssistantCheckoutEnabled } from "../flags";
 import { assertPublicShape } from "../publicShapes";
 import type { ToolContext } from "./context";
 import type { UpdateQuoteInput } from "./schemas";
@@ -23,6 +23,6 @@ export async function runUpdateQuote(input: UpdateQuoteInput, ctx: ToolContext):
   const viewer = { userId: ctx.profile.id, storefront: ctx.storefront };
   const draft = await getOrCreateDraft(viewer, ctx.threadId);
   const bundle = await rebuildQuote(draft, input.operations, viewer);
-  const readiness = await readinessFor(bundle.quote, viewer, await isAssistantCheckoutEnabled());
+  const readiness = await readinessFor(bundle.quote, viewer, await checkoutAccessFor(viewer.userId));
   return assertPublicShape({ status: "quote", quote: toQuoteView(bundle.quote, bundle.lines, bundle.changes, readiness) });
 }

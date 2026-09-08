@@ -124,6 +124,28 @@ function PayLink() {
   );
 }
 
+const PAYMENT_STATUS_TEXT: Record<string, string> = {
+  paid: "Payment received. Thank you.",
+  unpaid: "Not paid yet. The QuickBooks link above stays open.",
+  throttled: "Checked a moment ago. Try again in a minute.",
+  unavailable: "Status checks are only available on the production site.",
+  not_applicable: "Nothing to check yet.",
+};
+
+function StatusCheck({ view }: { view: QuoteView }) {
+  const api = useQuoteApi();
+  const [note, setNote] = useState<string | null>(null);
+  if (view.status !== "invoiced") return null;
+  return (
+    <>
+      <button type="button" className={`${SECONDARY} w-full`} disabled={api.busy} onClick={async () => setNote(PAYMENT_STATUS_TEXT[(await api.checkStatus()) ?? ""] ?? null)} data-testid="check-payment-status">
+        <FileText className="h-4 w-4" aria-hidden /> Check payment status
+      </button>
+      {note ? <p className="text-xs text-neutral-300">{note}</p> : null}
+    </>
+  );
+}
+
 function PrimaryActions({ view }: { view: QuoteView }) {
   const api = useQuoteApi();
   const canConfirm = api.flags.write_tools_enabled && view.status === "draft" && view.lines.length > 0 && view.changes.length === 0;
@@ -178,6 +200,7 @@ function CheckoutSection({ view }: { view: QuoteView }) {
   return (
     <div className="space-y-2" data-testid="quote-actions">
       <PayLink />
+      <StatusCheck view={view} />
       <PrimaryActions view={view} />
       <LocationIntake quantity={view.checkout.location_intake_quantity} />
       <EmailButton view={view} />

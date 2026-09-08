@@ -23,6 +23,7 @@ vi.mock("@/lib/assistant/flags", () => ({
   isAssistantEnabled: async () => flags.enabled,
   isAssistantWriteToolsEnabled: async () => flags.write,
   isAssistantCheckoutEnabled: async () => flags.checkout,
+  isAssistantCheckoutPublicEnabled: async () => false,
 }));
 const actor: { kind: "user" | "guest"; id: string } = { kind: "user", id: "" };
 vi.mock("@/lib/assistant/actor", () => ({
