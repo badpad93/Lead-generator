@@ -406,18 +406,25 @@ export function agreementTotals(snapshot: SnapshotLine[]): AgreementTotals {
   // commitment, deferred balance included.
   const maxLocationServiceValue = byCategory.location_services;
 
-  // Vending-machine freight ONLY, for the per-machine freight rate. A
-  // coffee-machine freight line is categorized as freight (categorize()
-  // routes coffee-named-freight into the freight bucket) but its normalized
-  // item_type stays coffee_program, so we exclude it here. Otherwise
-  // (5000 vending + 99.99 coffee) / 10 machines = $510/machine — folding an
-  // unrelated coffee freight line into the vending unit rate. The coffee
-  // freight line still appears itemized in Schedule A and still counts in
-  // totalDuePriorToProcurement; it just must not inflate the per-vending-
-  // machine rate. byCategory.freight keeps the full freight bucket.
+  // Vending-machine freight ONLY, for the per-machine freight rate.
+  //
+  // A vending-freight line is identified by CATEGORY (categorize() routes it
+  // to `freight` whether its item_type is `freight`, `shipping`/`delivery`,
+  // or `other` with a "…Freight" name — the real production shape is
+  // item_type='other', service_name='Vending Machine Freight'). The ONLY
+  // freight-category line we must exclude is coffee-machine freight, whose
+  // normalized item_type is coffee_program (categorize() reroutes a
+  // coffee-named-freight line into the freight bucket by name). Excluding it
+  // keeps (5000 vending + 99.99 coffee) / 10 from producing a $510/machine
+  // rate. An earlier version keyed on item_type==='freight', which wrongly
+  // yielded $0 for the item_type='other' production shape.
+  //
+  // The coffee freight line still appears itemized in Schedule A and still
+  // counts in totalDuePriorToProcurement; byCategory.freight keeps the full
+  // freight bucket.
   const machineFreightTotal = round2(
     billable
-      .filter((l) => l.category === "freight" && l.item_type === "freight")
+      .filter((l) => l.category === "freight" && l.item_type !== "coffee_program")
       .reduce((s, l) => s + l.total_price, 0),
   );
 

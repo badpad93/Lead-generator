@@ -15,14 +15,20 @@
  *      findLiveAgreement excludes cancelled rows.
  *
  * The replacement is NOT sent. It starts as `draft` for human review; the
- * normal send flow mails it afterward. Order/invoice/payment state is left
- * untouched (no invoice is created, Invoice 779 and invoice_status/
- * payment_status are not touched).
+ * normal send flow mails it afterward. No invoice is created; invoice_status,
+ * payment_status, total_value and any existing invoice (e.g. Invoice 779) are
+ * preserved. The order's DERIVED state IS corrected, though: it no longer
+ * claims a signature is pending on the cancelled agreement (see
+ * resetOrderStateForReplacement). And when the order is already invoiced, the
+ * replacement is created with auto_send_invoice_on_signing=false so signing it
+ * won't request a second invoice (the signing-time idempotency guard is kept
+ * as defense in depth).
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { upsertAgreementForOrder } from "@/lib/agreements/sync";
 import { canSupersede } from "@/lib/agreements/supersedeGuard";
+import { invoiceAlreadyExists } from "@/lib/invoiceIdempotency";
 
 export { canSupersede, SUPERSEDABLE_STATUSES } from "@/lib/agreements/supersedeGuard";
 
@@ -80,6 +86,69 @@ async function cancelSupersededAgreement(
   return null;
 }
 
+/** Durable evidence that the order has already been invoiced (financial-spine
+ *  link, a public.invoices row, or invoice_status sent/paid). */
+async function orderAlreadyInvoiced(orderId: string): Promise<boolean> {
+  const { data: order } = await supabaseAdmin
+    .from("sales_orders")
+    .select("invoice_status, financial_spine_invoice_id")
+    .eq("id", orderId)
+    .maybeSingle();
+  const { data: inv } = await supabaseAdmin
+    .from("invoices")
+    .select("id")
+    .eq("order_id", orderId)
+    .limit(1)
+    .maybeSingle();
+  return invoiceAlreadyExists({
+    financialSpineInvoiceId: order?.financial_spine_invoice_id,
+    hasCanonicalInvoiceRow: !!inv,
+    invoiceStatus: order?.invoice_status,
+  }).skip;
+}
+
+/** Correct the order's DERIVED state after supersession: the cancelled
+ *  agreement is no longer out, so the CRM must not show "awaiting signature".
+ *  Only the derived fields are touched — invoice_status, payment_status and
+ *  total_value are deliberately preserved. deriveFlowState then surfaces
+ *  "Process Order & Send Agreement" (review → send the replacement). */
+async function resetOrderStateForReplacement(orderId: string, userId: string): Promise<void> {
+  await supabaseAdmin
+    .from("sales_orders")
+    .update({
+      order_status: "draft",
+      agreement_status: "not_sent",
+      next_required_action: "Review and send replacement agreement",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", orderId);
+  await supabaseAdmin.from("order_activity_log").insert({
+    order_id: orderId,
+    user_id: userId,
+    activity_type: "agreement_superseded",
+    description:
+      "Prior agreement cancelled; replacement draft created — awaiting review before send.",
+  });
+}
+
+/** After the fresh draft exists: (1) if the order is already invoiced, clear
+ *  its auto-invoice-on-signing flag; (2) fix the order's stale derived state. */
+async function finalizeReplacement(
+  orderId: string,
+  newAgreement: Record<string, unknown>,
+  userId: string,
+): Promise<void> {
+  if (await orderAlreadyInvoiced(orderId)) {
+    const newId = String(newAgreement.id);
+    await supabaseAdmin
+      .from("purchase_agreements")
+      .update({ auto_send_invoice_on_signing: false, updated_at: new Date().toISOString() })
+      .eq("id", newId);
+    newAgreement.auto_send_invoice_on_signing = false;
+  }
+  await resetOrderStateForReplacement(orderId, userId);
+}
+
 /**
  * Cancel `supersededAgreementId` and create a fresh draft replacement for
  * `orderId`. Idempotent: once the old row is cancelled, a repeat call fails
@@ -121,12 +190,17 @@ export async function createReplacementAgreementForOrder(
     return { ok: false, reason: "replacement_not_created_live_agreement_exists" };
   }
 
+  const newAgreement = result.agreement as Record<string, unknown>;
   await logAgreementActivity(
-    String((result.agreement as { id: string }).id),
+    String(newAgreement.id),
     userId,
     "created_as_replacement",
     `Replacement agreement created (draft, unsent) superseding ${supersededAgreementId}`,
   );
 
-  return { ok: true, supersededAgreementId, newAgreement: result.agreement };
+  // Clear auto-invoice-on-signing if already invoiced, and correct the order's
+  // stale "awaiting signature" derived state.
+  await finalizeReplacement(orderId, newAgreement, userId);
+
+  return { ok: true, supersededAgreementId, newAgreement };
 }

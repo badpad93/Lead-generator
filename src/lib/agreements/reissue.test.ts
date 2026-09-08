@@ -80,18 +80,31 @@ describe("reissue helper — old preserved, new is a fresh draft, no money side-
     expect(src).toContain('"created_as_replacement"');
   });
 
-  it("only writes purchase_agreements + agreement_activity_log — never sales_orders or invoices", () => {
-    // The only tables the helper touches directly. It never reads/writes the
-    // orders or invoices tables, so invoice_status, payment_status, the
-    // financial spine and Invoice 779 are all structurally out of reach.
-    // (upsertAgreementForOrder, which it calls, also only writes
-    // purchase_agreements + its activity log.)
-    expect(src).not.toContain('from("invoices")');
-    expect(src).not.toContain('from("sales_orders")');
-    expect(src).not.toContain('from("payments")');
-    // No property-write of invoice/payment status columns.
+  it("corrects the order's DERIVED state only — never invoice_status/payment_status/total_value (Defect 2)", () => {
+    // The order update sets exactly these four derived fields.
+    expect(src).toContain('order_status: "draft"');
+    expect(src).toContain('agreement_status: "not_sent"');
+    expect(src).toContain("next_required_action:");
+    // Money/invoice columns are preserved — never written.
     expect(src).not.toContain("invoice_status:");
     expect(src).not.toContain("payment_status:");
+    expect(src).not.toContain("total_value:");
+  });
+
+  it("never mutates order_items, invoices, or payments (Defects 4 + no-invoice)", () => {
+    // Reissue only READS sales_orders/invoices (evidence) and WRITES
+    // purchase_agreements + sales_orders derived state + activity logs. It
+    // never inserts/updates order_items (so it cannot have added the Website
+    // Creation line) and never writes invoices/payments.
+    expect(src).not.toContain('from("order_items")');
+    expect(src).not.toMatch(/from\("invoices"\)[\s\S]{0,80}\.(insert|update|upsert|delete)/);
+    expect(src).not.toContain('from("payments")');
+  });
+
+  it("clears auto_send_invoice_on_signing when the order is already invoiced (Defect 3), keeping the guard", () => {
+    expect(src).toContain("orderAlreadyInvoiced");
+    expect(src).toContain("invoiceAlreadyExists");
+    expect(src).toContain("auto_send_invoice_on_signing: false");
   });
 
   it("the new draft's sign_token comes from the DB default (helper never sets it)", () => {
@@ -145,5 +158,42 @@ describe("replacement commercial basis — same $46,099.99 canonical snapshot", 
     expect(totals.totalDuePriorToProcurement).toBe(46099.99);
     // and the reissued freight is corrected too ($500/machine, not $510)
     expect(totals.freightPerMachine).toBe(500);
+  });
+});
+
+describe("Defect 1 — production-shaped freight (item_type='other') resolves correctly", () => {
+  it("vending freight item_type='other' → $5,000 / $500-per-machine; coffee $99.99 separate; total $46,599.99", () => {
+    // EXACT current live Order #108 shape (incl. the added Website Creation line).
+    const items: LineItemLike[] = [
+      { item_type: "vendera_ai_cooler", service_name: "VendEra AI Cooler", quantity: 10, unit_price: 3700, total_price: 37000 },
+      { item_type: "location_services", service_name: "Location Services 10/10/10", quantity: 10, unit_price: 400, total_price: 4000 },
+      // Vending freight: category resolves to freight BY NAME, item_type is "other".
+      { item_type: "other", service_name: "Vending Machine Freight", description: "Freight for machine shipping", quantity: 10, unit_price: 500, total_price: 5000 },
+      { item_type: "coffee_program", service_name: "Flavia C600 Brewer", quantity: 1, unit_price: 0, total_price: 0 },
+      { item_type: "coffee_program", service_name: "Coffee Machine Freight", quantity: 1, unit_price: 99.99, total_price: 99.99 },
+      { item_type: "financing", service_name: "10/10/10 Financing", quantity: 1, unit_price: 0, total_price: 0 },
+      { item_type: "other", service_name: "Website Creation", quantity: 1, unit_price: 500, total_price: 500 },
+    ];
+    const snapshot = buildLineItemsSnapshot(items);
+    const totals = agreementTotals(snapshot);
+
+    const vf = snapshot.find((l) => l.service_name === "Vending Machine Freight");
+    expect(vf?.category).toBe("freight");
+    expect(vf?.item_type).toBe("other"); // the shape that used to yield $0
+
+    expect(totals.freightTotal).toBe(5000);
+    expect(totals.freightPerMachine).toBe(500);
+    expect(totals.freightPerMachine).not.toBe(510);
+    expect(totals.freightPerMachine).not.toBe(0);
+
+    const cf = snapshot.find((l) => l.service_name === "Coffee Machine Freight");
+    expect(cf?.category).toBe("freight");
+    expect(cf?.total_price).toBe(99.99); // separate, excluded from vending rate
+
+    const web = snapshot.find((l) => l.service_name === "Website Creation");
+    expect(web?.category).toBe("other"); // not freight
+
+    // grand total includes both freight lines + the website line
+    expect(totals.totalDuePriorToProcurement).toBe(46599.99);
   });
 });
