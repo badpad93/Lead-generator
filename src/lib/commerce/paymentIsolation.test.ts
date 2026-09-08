@@ -8,11 +8,17 @@ import { join } from "node:path";
  *  1. Structural: no existing QuickBooks payment file imports anything
  *     under src/lib/commerce or src/lib/assistant, and the Vinnie adapter
  *     is imported only by its allowlisted callers.
- *  2. Byte equality with origin/main for every existing payment file,
- *     when that ref is available locally (it is in CI and review
- *     environments; the structural proofs run everywhere).
+ *  2. Byte equality with the pre-Phase-2 baseline commit (the last main
+ *     commit before any Vinnie work, 78ebc7e) for every existing payment
+ *     file, when that commit is available locally (full clones and review
+ *     environments; shallow CI checkouts run the structural proofs only).
+ *     A fixed baseline is used deliberately: main itself briefly carried
+ *     the pre-correction Phase 2 changes, so "equal to main" is not the
+ *     property that matters; "equal to what customers were paying through
+ *     before Phase 2" is.
  */
 const ROOT = process.cwd();
+export const PRE_PHASE2_BASELINE = "78ebc7e7657a675d5f4fcf2de80b9a01cc7b1ede";
 export const EXISTING_PAYMENT_FILES = [
   "src/lib/quickbooks.ts",
   "src/lib/coffeeInvoiceRetry.ts",
@@ -48,9 +54,9 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-function mainRefAvailable(): boolean {
+function baselineAvailable(): boolean {
   try {
-    execFileSync("git", ["rev-parse", "--verify", "origin/main"], { cwd: ROOT, stdio: "pipe" });
+    execFileSync("git", ["cat-file", "-e", `${PRE_PHASE2_BASELINE}^{commit}`], { cwd: ROOT, stdio: "pipe" });
     return true;
   } catch {
     return false;
@@ -81,14 +87,14 @@ describe("existing payment routes are isolated from Vinnie", () => {
     expect(src).not.toMatch(/vinnie|commerce_quotes|ItemRef|getInvoiceWithLink|isTrustedInvoiceLink|timingSafeEqual/i);
   });
 
-  it("every existing payment file is byte-identical to origin/main", () => {
-    if (!mainRefAvailable()) {
-      console.warn("origin/main is not available locally; byte-equality proof skipped (structural proofs above still ran).");
+  it("every existing payment file is byte-identical to the pre-Phase-2 baseline", () => {
+    if (!baselineAvailable()) {
+      console.warn("pre-Phase-2 baseline commit is not available locally (shallow clone); byte-equality proof skipped, structural proofs above still ran.");
       return;
     }
     for (const f of EXISTING_PAYMENT_FILES) {
-      const diff = execFileSync("git", ["diff", "--stat", "origin/main", "--", f], { cwd: ROOT, encoding: "utf8" });
-      expect(diff, `${f} differs from origin/main`).toBe("");
+      const diff = execFileSync("git", ["diff", "--stat", PRE_PHASE2_BASELINE, "--", f], { cwd: ROOT, encoding: "utf8" });
+      expect(diff, `${f} differs from the pre-Phase-2 baseline`).toBe("");
     }
     for (const removed of ["src/lib/quickbooksOAuthState.ts", "src/app/api/quickbooks/oauthCallback.test.ts"]) {
       expect(() => statSync(join(ROOT, removed)), `${removed} should not exist`).toThrow();
