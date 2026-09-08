@@ -18,4 +18,6 @@ export interface ToolContext {
   profile: ToolActorProfile | null;
   /** Set only when the profile is enrolled with an APPROVED tenant. */
   storefront: (StorefrontContext & { display_name: string; slug: string }) | null;
+  /** assistant.write_tools_enabled at the start of this turn (server-read). */
+  writeToolsEnabled: boolean;
 }

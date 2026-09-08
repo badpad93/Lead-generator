@@ -17,6 +17,7 @@ export const uiBlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("customer_context"), context: z.record(z.string(), z.unknown()) }),
   z.object({ type: z.literal("order_status"), status: z.string(), record: z.record(z.string(), z.unknown()).nullable() }),
   z.object({ type: z.literal("notice"), text: z.string() }),
+  z.object({ type: z.literal("quote"), status: z.enum(["guest", "empty", "quote"]), message: z.string().nullable(), quote: z.record(z.string(), z.unknown()).nullable() }),
 ]);
 export type UiBlock = z.infer<typeof uiBlockSchema>;
 
@@ -47,6 +48,8 @@ export const TOOL_LABELS: Record<string, string> = {
   compare_products: "Comparing products",
   get_customer_context: "Checking your account",
   get_order_status: "Checking order status",
+  get_quote: "Loading your quote",
+  update_quote: "Updating your quote",
 };
 
 export const SSE_HEADERS: Record<string, string> = {

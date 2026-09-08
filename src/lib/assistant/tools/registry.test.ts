@@ -18,14 +18,15 @@ function walkSchemaObjects(node: unknown, visit: (obj: Record<string, unknown>) 
   }
 }
 
-const guestCtx: ToolContext = { threadId: "t1", profile: null, storefront: null };
+const guestCtx: ToolContext = { writeToolsEnabled: false, threadId: "t1", profile: null, storefront: null };
 
-describe("tool registry — exactly five strict read-only tools", () => {
-  it("registers exactly the five allowed tools", () => {
-    expect(TOOL_NAMES).toEqual(["search_catalog", "get_product_details", "compare_products", "get_customer_context", "get_order_status"]);
-    expect(TOOL_DEFINITIONS).toHaveLength(5);
-    expect(openAIToolDefinitions()).toHaveLength(5);
-    expect(Object.keys(ZOD_SCHEMAS)).toHaveLength(5);
+describe("tool registry — five strict read-only tools plus two quote tools", () => {
+  it("preserves the five read-only tools and adds get_quote/update_quote; update_quote is offered only with write tools on", () => {
+    expect(TOOL_NAMES).toEqual(["search_catalog", "get_product_details", "compare_products", "get_customer_context", "get_order_status", "get_quote", "update_quote"]);
+    expect(TOOL_DEFINITIONS).toHaveLength(7);
+    expect(openAIToolDefinitions().map((t) => t.name)).toEqual(["search_catalog", "get_product_details", "compare_products", "get_customer_context", "get_order_status", "get_quote"]);
+    expect(openAIToolDefinitions({ includeWriteTools: true })).toHaveLength(7);
+    expect(Object.keys(ZOD_SCHEMAS)).toHaveLength(7);
   });
 
   it("every tool is a strict function tool", () => {

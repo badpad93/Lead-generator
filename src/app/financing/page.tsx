@@ -118,6 +118,10 @@ function YesNoField({
 
 export default function FinancingPage() {
   const [submitting, setSubmitting] = useState(false);
+  // Opaque Vinnie quote reference from /financing?quote=... — forwarded
+  // untouched to the API, which verifies it and re-checks ownership.
+  // Read once on the client; it is never rendered.
+  const [quoteRef] = useState<string | null>(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("quote")));
   const [submitted, setSubmitted] = useState(false);
   const [qualified, setQualified] = useState(false);
   const [applicationId, setApplicationId] = useState<string | null>(null);
@@ -210,6 +214,7 @@ export default function FinancingPage() {
           has_federal_debt: federalDebt === "yes",
           agreed_provide_docs: agreedDocs,
           agreed_accurate_info: agreedAccurate,
+          ...(quoteRef ? { quote_ref: quoteRef } : {}),
         }),
       });
 

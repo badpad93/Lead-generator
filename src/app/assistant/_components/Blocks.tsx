@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { ShoppingCart } from "lucide-react";
+import { useQuoteApi } from "./useQuote";
 import { CheckCircle2, Circle, Clock, Info, Package, User } from "lucide-react";
 import type { UiBlock } from "./types";
 import { shortDate, text, titleCase, usd } from "./format";
@@ -13,6 +15,7 @@ const FOCUS = "rounded focus-visible:outline-none focus-visible:ring-2 focus-vis
 const TABLE = "[&_th]:!border-neutral-700 [&_th]:!bg-neutral-900 [&_th]:!text-neutral-400 [&_td]:!border-neutral-800 [&_td]:!text-white [&_tr:hover_td]:!bg-neutral-800";
 
 function priceLabel(item: Item): string {
+  if (item.kind === "commerce" && item.display_price === null) return "No catalog charge";
   const price = usd(item.display_price);
   if (!price) return item.pricing_mode === "requires_qualification" ? "Tier pricing" : "Price on request";
   const unit = item.unit ? ` / ${text(item.unit)}` : "";
@@ -40,6 +43,39 @@ function ItemImage({ item }: { item: Item }) {
   return <img src={src} alt="" className="h-28 w-full rounded-lg object-cover grayscale" loading="lazy" />;
 }
 
+const ACTION_BTN = `mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors ${FOCUS}`;
+
+function MachineAction({ item }: { item: Item }) {
+  const api = useQuoteApi();
+  if (item.price_basis === "buy_now") return <Link href={String(item.href)} className={`${ACTION_BTN} border-vinnie-green text-vinnie-green hover:bg-neutral-800`}>Buy now on the listing page</Link>;
+  return <button type="button" className={`${ACTION_BTN} border-neutral-600 text-white hover:bg-neutral-800`} onClick={() => void api.requestInfo(String(item.product_id))}>Request information</button>;
+}
+
+function AddToQuote({ item }: { item: Item }) {
+  const api = useQuoteApi();
+  const price = typeof item.display_price === "number" ? item.display_price : null;
+  return (
+    <button type="button" className={`${ACTION_BTN} border-vinnie-green text-vinnie-green hover:bg-neutral-800`} onClick={() => void api.addItem({ ref: String(item.catalog_key ?? item.product_id), name: text(item.name), quantity: 1, unit_price: price })}>
+      <ShoppingCart className="h-3.5 w-3.5" aria-hidden /> Add to quote
+    </button>
+  );
+}
+
+const STATIC_ACTION: Record<string, () => React.JSX.Element> = {
+  start_financing_application: () => <Link href="/financing" className={`${ACTION_BTN} border-neutral-600 text-white hover:bg-neutral-800`}>Start financing application</Link>,
+  request_qualification: () => <span className={`${ACTION_BTN} border-neutral-800 text-neutral-400`}>Determined by the location team</span>,
+};
+
+/** The one action a card may offer, decided by server metadata on the item. */
+function CardAction({ item }: { item: Item }) {
+  const kind = String(item.kind ?? "");
+  if (kind === "machine") return <MachineAction item={item} />;
+  const action = kind === "coffee" ? "add_to_quote" : String(item.action ?? "explain_only");
+  if (action === "add_to_quote") return <AddToQuote item={item} />;
+  const Static = STATIC_ACTION[action];
+  return Static ? <Static /> : null;
+}
+
 function ProductCard({ item }: { item: Item }) {
   const badge = availabilityBadge(item);
   const href = typeof item.href === "string" ? item.href : null;
@@ -54,6 +90,7 @@ function ProductCard({ item }: { item: Item }) {
       {item.category ? <p className="text-xs text-neutral-400">{text(item.category)}</p> : null}
       {item.short_description ? <p className="line-clamp-3 text-xs text-neutral-300">{text(item.short_description)}</p> : null}
       <p className="mt-auto text-sm font-semibold text-white">{priceLabel(item)}</p>
+      <CardAction item={item} />
     </article>
   );
 }
@@ -239,6 +276,42 @@ export function Notice({ text: body }: { text: string }) {
   );
 }
 
+type QuoteBlockLine = { description: string; quantity: number; line_total: number };
+
+function QuoteBlockLines({ lines }: { lines: QuoteBlockLine[] }) {
+  if (lines.length === 0) return null;
+  return (
+    <ul className="mt-2 space-y-1 text-xs text-neutral-200">
+      {lines.map((l, i) => <li key={i} className="flex justify-between gap-2"><span>{l.description} × {l.quantity}</span><span>{usd(l.line_total) ?? "$0.00"}</span></li>)}
+    </ul>
+  );
+}
+
+function QuoteBlockHeader({ isQuote, quote }: { isQuote: boolean; quote: Record<string, unknown> | null }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <p className="text-sm font-semibold text-white">{isQuote ? `Quote ${text(quote?.quote_number)}` : "Your quote"}</p>
+      {isQuote ? <span className="text-sm font-semibold text-white">{usd(quote?.total) ?? "$0.00"} pre-tax</span> : null}
+    </div>
+  );
+}
+
+export function QuoteBlock({ status, message, quote }: { status: string; message: string | null; quote: Record<string, unknown> | null }) {
+  const api = useQuoteApi();
+  const lines = Array.isArray(quote?.lines) ? (quote.lines as QuoteBlockLine[]) : [];
+  const isQuote = status === "quote";
+  const taxNote = isQuote ? text(quote?.tax_note) : null;
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4" data-testid="quote-block">
+      <QuoteBlockHeader isQuote={isQuote} quote={quote} />
+      {message ? <p className="mt-1 text-xs text-neutral-300">{message}</p> : null}
+      <QuoteBlockLines lines={lines} />
+      {taxNote ? <p className="mt-2 text-[11px] text-neutral-400">{taxNote}</p> : null}
+      <button type="button" className={`${ACTION_BTN} border-vinnie-green text-vinnie-green hover:bg-neutral-800`} onClick={() => api.setOpen(true)}>Open quote</button>
+    </div>
+  );
+}
+
 export function BlockView({ block }: { block: UiBlock }) {
   switch (block.type) {
     case "product_cards":
@@ -251,6 +324,8 @@ export function BlockView({ block }: { block: UiBlock }) {
       return <CustomerContext context={block.context} />;
     case "order_status":
       return <OrderStatus status={block.status} record={block.record} />;
+    case "quote":
+      return <QuoteBlock status={block.status} message={block.message} quote={block.quote} />;
     case "notice":
       return <Notice text={block.text} />;
     default:

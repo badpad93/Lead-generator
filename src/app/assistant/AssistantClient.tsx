@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { PanelLeft, SquarePen } from "lucide-react";
+import { PanelLeft, ShoppingCart, SquarePen } from "lucide-react";
 import { ASSISTANT_LABEL, ASSISTANT_NAME } from "@/lib/assistant/identity";
 import { Composer } from "./_components/Composer";
 import { ConversationDrawer } from "./_components/ConversationDrawer";
@@ -10,6 +10,9 @@ import { MessageList } from "./_components/MessageList";
 import { StatusBanner } from "./_components/StatusBanner";
 import { ThreadSidebar } from "./_components/ThreadSidebar";
 import { VinnieAvatar } from "./_components/VinnieAvatar";
+import { QuoteDrawer } from "./_components/QuoteDrawer";
+import { QuoteProvider, useQuoteApi } from "./_components/useQuote";
+import type { QuoteFlags } from "./_components/types";
 import { useAssistantChat, type AssistantChat } from "./_components/useAssistantChat";
 
 /**
@@ -46,10 +49,21 @@ function Header({ chat, onToggleSidebar, sidebarOpen }: { chat: AssistantChat; o
           <p className="truncate text-xs text-neutral-400">{ASSISTANT_LABEL}</p>
         </div>
       </div>
+      <QuoteButton />
       <button type="button" onClick={() => void chat.newThread()} disabled={chat.busy || chat.disabled} aria-label="New conversation" className={ICON_BUTTON}>
         <SquarePen className="h-5 w-5" aria-hidden />
       </button>
     </header>
+  );
+}
+
+function QuoteButton() {
+  const quote = useQuoteApi();
+  return (
+    <button type="button" onClick={() => quote.setOpen(true)} aria-label={`Open quote (${quote.lineCount} items)`} className={`relative ${ICON_BUTTON}`} data-testid="quote-button">
+      <ShoppingCart className="h-5 w-5" aria-hidden />
+      {quote.lineCount > 0 ? <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-vinnie-green px-1 text-[10px] font-bold text-black">{quote.lineCount}</span> : null}
+    </button>
   );
 }
 
@@ -58,7 +72,7 @@ function Conversation({ chat }: { chat: AssistantChat }) {
   return <MessageList messages={chat.messages} />;
 }
 
-export default function AssistantClient({ maxMessageLength }: { maxMessageLength: number }) {
+export default function AssistantClient({ maxMessageLength, quoteFlags }: { maxMessageLength: number; quoteFlags?: QuoteFlags }) {
   const chat = useAssistantChat();
   const sidebar = useSidebarState();
   const onSelect = (id: string) => {
@@ -72,6 +86,7 @@ export default function AssistantClient({ maxMessageLength }: { maxMessageLength
   const history = <ThreadSidebar viewer={chat.viewer} threads={chat.threads} activeId={chat.activeId} onSelect={onSelect} onNew={onNew} disabled={chat.busy || chat.disabled} />;
 
   return (
+    <QuoteProvider viewer={chat.viewer} flags={quoteFlags}>
     <div className="flex h-[100dvh] w-full overflow-hidden bg-black text-white" data-testid="assistant-app">
       {/* Full-screen app: the page must never scroll; only the conversation pane does. */}
       <style>{"html,body{background:#000;overflow:hidden}"}</style>
@@ -83,6 +98,7 @@ export default function AssistantClient({ maxMessageLength }: { maxMessageLength
       <ConversationDrawer open={sidebar.drawerOpen} onClose={sidebar.closeDrawer}>
         {history}
       </ConversationDrawer>
+      <QuoteDrawer />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header chat={chat} onToggleSidebar={sidebar.toggle} sidebarOpen={sidebar.desktopOpen || sidebar.drawerOpen} />
         <StatusBanner state={chat.state} />
@@ -100,5 +116,6 @@ export default function AssistantClient({ maxMessageLength }: { maxMessageLength
         </footer>
       </div>
     </div>
+    </QuoteProvider>
   );
 }

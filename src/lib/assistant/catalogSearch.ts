@@ -5,6 +5,7 @@ import { pickPublicMachineListing } from "@/lib/machineListings/publicShape";
 import { TIER_PRICES, TEN_TEN_TEN_PRICE } from "@/lib/pricing/locationPricing";
 import { categoryMatches, KIND_GENERIC_WORDS, rankByTokens, searchTokens } from "./catalogMatch";
 import { ASSISTANT_MACHINE_SELECT } from "./machineColumns";
+import { getCatalogItem, loadActiveCatalog, toPublicCatalogItem, type CommerceCatalogItem, type PublicCatalogItem } from "@/lib/commerce/catalog";
 import {
   assertPublicShape,
   type Availability,
@@ -437,11 +438,49 @@ export function locationDetails(ids: string[]): CatalogItemDetail[] {
   return LOCATION_OFFERINGS.filter((o) => ids.includes(o.id)).map((o) => assertPublicShape(locationDetail(o)));
 }
 
+// ─── Commerce catalog (catalog_items) ──────────────────────────────
+
+function commerceText(item: CommerceCatalogItem): string {
+  return [item.name, item.description, item.sku, item.catalog_key.replace(/-/g, " "), item.item_type?.replace(/_/g, " ")].filter(Boolean).join(" ");
+}
+
+function commerceDetail(item: CommerceCatalogItem): CatalogItemDetail {
+  const pub = toPublicCatalogItem(item);
+  const attributes: Array<{ label: string; value: string }> = [
+    { label: "Catalog key", value: item.catalog_key },
+    { label: "Category", value: pub.category ?? "Services" },
+    { label: "How it works", value: pub.action.replace(/_/g, " ") },
+  ];
+  if (item.required_agreement) attributes.push({ label: "Agreement required", value: item.required_agreement.replace(/_/g, " ") });
+  if (item.qualification_program) attributes.push({ label: "Qualification", value: item.qualification_program === "ten_ten_ten" ? "10/10/10 program approval" : "Location team tier determination" });
+  if (item.equipment_ownership === "company_owned_loan") attributes.push({ label: "Ownership", value: "Company-owned equipment on loan; ownership does not transfer" });
+  if (item.add_on_parent_key) attributes.push({ label: "Applies per unit of", value: item.add_on_parent_key.replace(/-/g, " ") });
+  return { ...pub, description: item.description, attributes, shipping_note: null };
+}
+
+export async function searchCommerceDetailed(q: CatalogQuery): Promise<CatalogSearchResult> {
+  const all = await loadActiveCatalog();
+  const slug = q.categorySlug?.toLowerCase() ?? null;
+  const keep = slug ? (c: CommerceCatalogItem) => (c.item_type ?? "").toLowerCase().includes(slug.replace(/-/g, "_")) || c.commerce_kind.includes(slug.replace(/-/g, "_")) : null;
+  const { rows, fallback } = narrow(all, { ...q, kind: "commerce" }, commerceText, keep);
+  return { items: rows.slice(0, q.limit).map((c) => assertPublicShape(toPublicCatalogItem(c) as PublicCatalogItem)), fallback };
+}
+
+export async function commerceDetails(refs: string[]): Promise<CatalogItemDetail[]> {
+  const out: CatalogItemDetail[] = [];
+  for (const ref of refs) {
+    const item = await getCatalogItem(ref);
+    if (item && item.active) out.push(assertPublicShape(commerceDetail(item)));
+  }
+  return out;
+}
+
 // ─── Dispatch by kind ──────────────────────────────────────────────
 
 export async function searchCatalogDetailed(kind: CatalogKind, q: CatalogQuery, viewer: CatalogViewer): Promise<CatalogSearchResult> {
   if (kind === "coffee") return searchCoffeeDetailed(q, viewer);
   if (kind === "machine") return searchMachinesDetailed(q);
+  if (kind === "commerce") return searchCommerceDetailed(q);
   return { items: searchLocationServices(q), fallback: "none" };
 }
 
@@ -452,5 +491,6 @@ export async function searchCatalog(kind: CatalogKind, q: CatalogQuery, viewer: 
 export async function catalogDetails(kind: CatalogKind, ids: string[], viewer: CatalogViewer): Promise<CatalogItemDetail[]> {
   if (kind === "coffee") return coffeeDetails(ids, viewer);
   if (kind === "machine") return machineDetails(ids);
+  if (kind === "commerce") return commerceDetails(ids);
   return locationDetails(ids);
 }

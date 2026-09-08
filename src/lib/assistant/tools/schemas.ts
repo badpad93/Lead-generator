@@ -16,16 +16,21 @@ import { z } from "zod";
  * commission, eligibility, payment-status, role, tenant, or ownership
  * value. Identity comes from the session, never from the model.
  */
-export const TOOL_NAMES = [
+export const READ_ONLY_TOOL_NAMES = [
   "search_catalog",
   "get_product_details",
   "compare_products",
   "get_customer_context",
   "get_order_status",
 ] as const;
+/** Quote tools: get_quote is read-only; update_quote mutates the customer's own draft. */
+export const QUOTE_TOOL_NAMES = ["get_quote", "update_quote"] as const;
+export const TOOL_NAMES = [...READ_ONLY_TOOL_NAMES, ...QUOTE_TOOL_NAMES] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
+/** Tools that write; offered to the model only while assistant.write_tools_enabled is on. */
+export const WRITE_TOOL_NAMES: ReadonlySet<ToolName> = new Set<ToolName>(["update_quote"]);
 
-export const CATALOG_KINDS = ["coffee", "machine", "location_service"] as const;
+export const CATALOG_KINDS = ["coffee", "machine", "location_service", "commerce"] as const;
 export const SEARCH_LIMIT_MAX = 12;
 const UUID_OR_SLUG = /^([0-9a-f-]{36}|[a-z][a-z0-9-]{2,63})$/i;
 
@@ -67,18 +72,48 @@ export const getOrderStatusInput = z
     message: "Provide exactly one of order_id or order_number",
   });
 
+export const QUOTE_OPERATIONS = ["add", "remove", "set_quantity"] as const;
+const CATALOG_REF = /^([0-9a-f-]{36}|[a-z0-9]+(-[a-z0-9]+)*)$/i;
+
+export const getQuoteInput = z.object({}).strict();
+
+/**
+ * update_quote accepts ONLY catalog refs, an operation, and a quantity.
+ * There is no field for a price, total, customer, email, QuickBooks id,
+ * agreement status, eligibility, or URL — `strict()` rejects any extra key.
+ */
+export const updateQuoteInput = z
+  .object({
+    operations: z
+      .array(
+        z
+          .object({
+            op: z.enum(QUOTE_OPERATIONS),
+            ref: z.string().min(3).max(64).regex(CATALOG_REF, "ref must be a catalog key, catalog id, or coffee product id"),
+            quantity: z.number().int().min(1).max(999).nullable(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(10),
+  })
+  .strict();
+
 export const ZOD_SCHEMAS = {
   search_catalog: searchCatalogInput,
   get_product_details: getProductDetailsInput,
   compare_products: compareProductsInput,
   get_customer_context: getCustomerContextInput,
   get_order_status: getOrderStatusInput,
+  get_quote: getQuoteInput,
+  update_quote: updateQuoteInput,
 } as const;
 
 export type SearchCatalogInput = z.infer<typeof searchCatalogInput>;
 export type GetProductDetailsInput = z.infer<typeof getProductDetailsInput>;
 export type CompareProductsInput = z.infer<typeof compareProductsInput>;
 export type GetOrderStatusInput = z.infer<typeof getOrderStatusInput>;
+export type UpdateQuoteInput = z.infer<typeof updateQuoteInput>;
 
 /** JSON Schema object as accepted by the Responses API `parameters`. */
 export type JsonSchemaObject = {
@@ -88,7 +123,7 @@ export type JsonSchemaObject = {
   additionalProperties: false;
 };
 
-const KIND_PROP = { type: "string", enum: [...CATALOG_KINDS], description: "Catalog to search." };
+const KIND_PROP = { type: "string", enum: [...CATALOG_KINDS], description: "Catalog to search: coffee (supplies and brewers with the visitor's price), machine (marketplace listings), location_service (informational fee ladder), commerce (equipment, services, deposits, and financing options with their checkout rules)." };
 
 export const JSON_SCHEMAS: Record<ToolName, JsonSchemaObject> = {
   search_catalog: {
@@ -141,11 +176,40 @@ export const JSON_SCHEMAS: Record<ToolName, JsonSchemaObject> = {
     required: ["order_id", "order_number"],
     additionalProperties: false,
   },
+  get_quote: {
+    type: "object",
+    properties: {},
+    required: [],
+    additionalProperties: false,
+  },
+  update_quote: {
+    type: "object",
+    properties: {
+      operations: {
+        type: "array",
+        minItems: 1,
+        maxItems: 10,
+        description: "Ordered edits to the customer's draft quote. Refs are catalog keys (e.g. vendera-ai-cooler), catalog ids, or coffee product ids from search_catalog.",
+        items: {
+          type: "object",
+          properties: {
+            op: { type: "string", enum: [...QUOTE_OPERATIONS], description: "add increments (or creates) a line; set_quantity replaces the quantity; remove deletes the line." },
+            ref: { type: "string", description: "catalog_key, catalog product_id, or coffee product_id." },
+            quantity: { type: ["integer", "null"], minimum: 1, maximum: 999, description: "Whole units (1-999); null for remove." },
+          },
+          required: ["op", "ref", "quantity"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["operations"],
+    additionalProperties: false,
+  },
 };
 
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   search_catalog:
-    "Search the Vending Connector catalog (coffee products, machines for sale, or location-service offerings). Returns public items with the final price the current visitor would see, or null when pricing requires qualification.",
+    "Search the Vending Connector catalog (coffee products, machines for sale, location-service offerings, or the commerce catalog of equipment, services, deposits, and financing options). Returns public items with the final price the current visitor would see, or null when there is no catalog charge or pricing requires qualification. Each commerce item carries an `action` and `notices` that state what the customer may do; never promise anything the notices rule out.",
   get_product_details:
     "Get the full public details for one catalog item by product_id and kind.",
   compare_products:
@@ -154,4 +218,8 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     "Get a minimal, privacy-safe summary of the signed-in customer (or authenticated:false for guests). Contains no contact, payment, or internal data.",
   get_order_status:
     "Look up the status of the signed-in customer's own coffee order, fulfillment workflow, or storefront quote by id or public number. Returns not_found for anything the customer does not own.",
+  get_quote:
+    "Show the signed-in customer's current Vinnie quote: lines, quantities, server-priced unit prices and totals (pre-tax), required freight, notices, expiry, financing interest, and whether checkout is currently available and why not. Guests get a sign-in notice.",
+  update_quote:
+    "Add, remove, or change the quantity of items on the signed-in customer's draft quote using catalog refs only. Prices, freight, and totals are computed by the server and returned; you cannot set them. Financing options cannot be added as lines — tell the customer to use the Start financing application button instead.",
 };

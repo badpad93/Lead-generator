@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
  * must be indistinguishable from a missing route).
  */
 const flag = { enabled: false };
-vi.mock("@/lib/assistant/flags", () => ({ isAssistantEnabled: async () => flag.enabled }));
+vi.mock("@/lib/assistant/flags", () => ({ isAssistantEnabled: async () => flag.enabled, isAssistantWriteToolsEnabled: async () => false, isAssistantCheckoutEnabled: async () => false }));
 vi.mock("@/lib/supabaseAdmin", () => ({ supabaseAdmin: { from: () => { throw new Error("unused"); } } }));
 
 class NotFoundSignal extends Error {}
