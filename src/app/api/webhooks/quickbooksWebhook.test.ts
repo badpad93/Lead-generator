@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { NextRequest } from "next/server";
 
 /**
- * A webhook event whose handler throws must stay unprocessed in the
- * ledger so Intuit's redelivery gets a real retry; a handled event is
- * marked processed exactly once. No network, no database.
+ * Hotfix guard for the restored pre-Phase-2 QuickBooks webhook: the route
+ * must not reach into Vinnie commerce tables (which do not exist where the
+ * Phase 2 migrations have not been applied), and a handled event is still
+ * marked processed exactly once. Error semantics are the pre-Phase-2 ones
+ * and are deliberately not re-specified here. No network, no database.
  */
 vi.mock("@/lib/supabaseAdmin", () => ({ supabaseAdmin: { from: () => { throw new Error("unused"); } } }));
 vi.mock("@/lib/paymentHandlers", () => ({
@@ -38,18 +42,16 @@ beforeEach(() => {
   connection.shouldThrow = false;
 });
 
-describe("QuickBooks webhook ledger settlement", () => {
+describe("QuickBooks webhook (restored pre-Phase-2 route)", () => {
+  it("never imports or calls Vinnie commerce code", () => {
+    const src = readFileSync(join(process.cwd(), "src/app/api/webhooks/quickbooks/route.ts"), "utf8");
+    expect(src).not.toMatch(/markQuotePaidByInvoice|markVinnieQuotePaid|commerce_quotes|@\/lib\/commerce/);
+  });
+
   it("marks a handled event processed once", async () => {
-    // Realm mismatch makes handleQBPayment return early without throwing — a completed handler.
+    // Realm mismatch makes handleQBPayment return early — a completed handler.
     const res = await post(payload());
     expect(res.status).toBe(200);
     expect(marked).toEqual(["EV1"]);
-  });
-
-  it("does NOT mark an event processed when its handler throws", async () => {
-    connection.shouldThrow = true;
-    const res = await post(payload());
-    expect(res.status).toBe(200);
-    expect(marked).toEqual([]);
   });
 });

@@ -61,10 +61,6 @@ export async function POST(req: NextRequest) {
         console.error("[qb-webhook] event log write failed (proceeding):", logErr);
       }
 
-      // A handler that throws leaves the ledger row UNprocessed so Intuit's
-      // redelivery (same event_id) gets a real retry. Only a completed
-      // handler marks the event processed.
-      let handled = false;
       try {
         if (entity.name === "Payment" && (entity.operation === "Create" || entity.operation === "Update")) {
           // Ledger ingest first (non-fatal), then existing downstream handler.
@@ -84,12 +80,10 @@ export async function POST(req: NextRequest) {
         if (entity.name === "CreditMemo" && (entity.operation === "Create" || entity.operation === "Update")) {
           await handleQBCreditMemo(entity.id, notification.realmId);
         }
-        handled = true;
-      } catch (handlerErr) {
-        console.error(`[qb-webhook] ${entity.name}.${entity.operation} ${entity.id} failed (left unprocessed for redelivery):`, handlerErr instanceof Error ? handlerErr.message : handlerErr);
-      }
-      if (handled && ledgerEventRowId) {
-        await markEventProcessed(ledgerEventRowId).catch(() => undefined);
+      } finally {
+        if (ledgerEventRowId) {
+          await markEventProcessed(ledgerEventRowId).catch(() => undefined);
+        }
       }
     }
   }
@@ -182,11 +176,6 @@ async function handleQBBillPayment(billPaymentId: string, realmId: string) {
   }
 }
 
-async function markVinnieQuotePaid(invoiceId: string): Promise<boolean> {
-  const { markQuotePaidByInvoice } = await import("@/lib/commerce/checkout");
-  return markQuotePaidByInvoice(invoiceId);
-}
-
 async function handleQBPayment(paymentId: string, realmId: string) {
   // Fetch payment details from QB
   const { getConnection } = await import("@/lib/quickbooks");
@@ -231,10 +220,6 @@ async function handleQBPayment(paymentId: string, realmId: string) {
   }
 
   for (const invoiceId of invoiceIds) {
-    // Vinnie commerce quotes carry the QuickBooks invoice id directly. A
-    // failure here propagates so the event stays unprocessed for redelivery.
-    if (await markVinnieQuotePaid(invoiceId)) continue;
-
     // Look up the invoice in our metadata to determine what type of payment this is
     // We store the QB invoice ID in the relevant table when creating the invoice
 
