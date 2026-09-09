@@ -29,6 +29,10 @@ describe("Navbar mode switch", () => {
     expect(html).not.toContain('href="/assistant"');
   });
 
+  it("lets only the wordmark yield on very narrow screens so mark, switch, and menu button always fit", () => {
+    expect(html).toMatch(/<span class="hidden whitespace-nowrap text-lg font-bold text-gray-900 min-\[420px\]:inline">Vending Connector<\/span>/);
+  });
+
   it("keeps every pre-existing top-level element", () => {
     expect(html).toContain('alt="Vending Connector"');
     expect(html).toContain('aria-label="Open menu"');

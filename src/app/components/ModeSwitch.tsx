@@ -39,7 +39,7 @@ export function dashboardHref(authenticated: boolean): string {
   return authenticated ? DASHBOARD_HREF : GUEST_DASHBOARD_HREF;
 }
 
-const SLOT = "inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-full border text-xs font-semibold transition-colors sm:h-8 sm:w-24 sm:text-sm";
+const SLOT = "inline-flex h-10 w-10 shrink-0 items-center justify-center gap-1.5 rounded-full border text-xs font-semibold transition-colors sm:h-8 sm:w-24 sm:text-sm";
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vinnie-green focus-visible:ring-offset-2";
 /**
  * Active state is always the Vinnie green. On the light site chrome it is

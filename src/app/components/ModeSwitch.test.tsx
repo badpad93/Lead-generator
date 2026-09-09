@@ -40,7 +40,7 @@ describe("ModeSwitch flag behaviour", () => {
     const slot = html.match(/<span [^>]*data-testid="mode-switch-vinnie-slot"[^>]*>/)?.[0] ?? "";
     expect(slot).toContain('aria-hidden="true"');
     expect(slot).toContain("invisible");
-    for (const size of ["h-9", "w-9", "sm:h-8", "sm:w-24"]) {
+    for (const size of ["h-10", "w-10", "sm:h-8", "sm:w-24"]) {
       expect(slot).toContain(size);
       expect(link(html, "mode-switch-dashboard")).toContain(size);
     }
@@ -118,7 +118,7 @@ describe("ModeSwitch mobile and accessibility", () => {
     expect(html.match(/<svg/g)?.length).toBe(2);
     expect(html.match(/<span class="hidden sm:inline">Dashboard<\/span>/)).not.toBeNull();
     expect(html.match(/<span class="hidden sm:inline">Vinnie AI<\/span>/)).not.toBeNull();
-    expect(link(html, "mode-switch-dashboard")).toMatch(/\bh-9 w-9\b.*\bsm:h-8 sm:w-24\b/);
+    expect(link(html, "mode-switch-dashboard")).toMatch(/\bh-10 w-10\b.*\bsm:h-8 sm:w-24\b/);
   });
 
   it("is a labelled group of real links (not a second nav landmark) with accessible names and visible focus rings", () => {
