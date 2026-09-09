@@ -6,6 +6,9 @@ import { getRequiredInitialKeys } from "@/lib/agreementInitials";
 import { resolveAgreementSections } from "@/lib/agreements/sections";
 import { formatContractDate } from "@/lib/agreements/formatDate";
 import AgreementBody from "@/app/components/AgreementBody";
+import CoffeeSupplyAgreementSection from "@/app/components/CoffeeSupplyAgreementSection";
+import { displayTitle } from "@/lib/agreements/titleDisplay";
+import type { CoffeeSupplySnapshotLike } from "@/lib/agreements/coffeeSupplyPackage";
 import {
   Loader2,
   CheckCircle2,
@@ -59,6 +62,9 @@ interface PurchaseAgreement {
   apex_representative_name: string | null;
   apex_representative_title: string | null;
   apex_representative_email: string | null;
+
+  coffee_supply_required: boolean | null;
+  coffee_supply_snapshot: CoffeeSupplySnapshotLike | null;
 
   machine_model: string | null;
   machine_quantity: number;
@@ -622,7 +628,8 @@ function SigningContent() {
   const v = {
     operator: agreement.operator_company_name || "_______________",
     operatorLegal: agreement.operator_legal_name || "_______________",
-    operatorTitle: agreement.operator_title || "Authorized Representative",
+    // Optional — never fabricate a legal title; omit cleanly when blank.
+    operatorTitle: displayTitle(agreement.operator_title) ?? "",
     apex: agreement.apex_company_name || "Apex AI Vending LLC",
     apexRep: agreement.apex_representative_name || "_______________",
     apexRepTitle:
@@ -770,6 +777,12 @@ function SigningContent() {
                 />
               )}
             />
+
+            {/* Model A parity: the FROZEN captured Equipment Loan & Beverage
+                Supply Agreement the single signature also covers, so the
+                customer actually sees those terms before signing (identical
+                to the admin preview and the executed PDF). */}
+            <CoffeeSupplyAgreementSection snapshot={agreement.coffee_supply_snapshot} />
           </div>
 
           {/* ============================================================ */}
@@ -782,7 +795,11 @@ function SigningContent() {
             </h2>
             <p className="text-sm text-gray-500 mb-6">
               By signing below, you acknowledge that you have read, understand,
-              and agree to all terms and conditions of this Agreement.
+              and agree to all terms and conditions of this Agreement
+              {agreement.coffee_supply_required
+                ? ", including the Equipment Loan & Beverage Supply Agreement set out above"
+                : ""}
+              .
             </p>
 
             {!allInitialsComplete && (

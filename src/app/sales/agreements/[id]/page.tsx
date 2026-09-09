@@ -13,7 +13,10 @@ import {
   type AgreementSectionSource,
 } from "@/lib/agreements/sections";
 import AgreementBody from "@/app/components/AgreementBody";
+import CoffeeSupplyAgreementSection from "@/app/components/CoffeeSupplyAgreementSection";
 import OverflowMenu from "@/app/components/OverflowMenu";
+import { agreementTotals, type SnapshotLine as PricingSnapshotLine } from "@/lib/pricing/lineItems";
+import { displayTitle, nameWithTitle } from "@/lib/agreements/titleDisplay";
 import {
   Loader2,
   ArrowLeft,
@@ -431,6 +434,35 @@ function StandaloneAgreementEditor() {
     const locFee = Number(form.location_fee_per_secured) || 0;
     const depositAmount = Number(form.location_services_deposit_amount) || 0;
 
+    // CANONICAL SOURCE: when a usable line-item snapshot exists, every
+    // derived figure — including the grand total — comes from
+    // agreementTotals(snapshot), the single shared pricing helper the
+    // server, signing page and PDF all use. The scalar reconstruction
+    // below is ONLY a fallback for pre-snapshot legacy agreements; it
+    // sums equipment + freight + location and would silently drop any
+    // snapshot-only line (e.g. coffee-machine freight, $99.99), which is
+    // exactly how the form showed $46,000.00 instead of $46,099.99. Never
+    // maintain a second arithmetic implementation for a snapshot-backed row.
+    const snapshot = agreement?.line_items_snapshot;
+    if (Array.isArray(snapshot) && snapshot.length > 0) {
+      const t = agreementTotals(snapshot as unknown as PricingSnapshotLine[]);
+      const maxLoc = t.maxLocationServiceValue;
+      const locationUpfront = form.location_services_deposit_only
+        ? Math.min(depositAmount, maxLoc)
+        : maxLoc;
+      const locationRemaining = form.location_services_deposit_only
+        ? Math.max(0, maxLoc - depositAmount)
+        : 0;
+      return {
+        equipmentSubtotal: t.equipmentSubtotal,
+        freightTotal: t.freightTotal,
+        maxLocationServiceValue: maxLoc,
+        locationUpfront,
+        locationRemaining,
+        totalDue: t.totalDuePriorToProcurement,
+      };
+    }
+
     const equipmentSubtotal = form.include_equipment ? qty * unitPrice : 0;
     const freightTotal = form.include_shipping_storage ? qty * freightPerMachine : 0;
     const maxLocationServiceValue = form.include_location_services ? locPurchased * locFee : 0;
@@ -446,7 +478,7 @@ function StandaloneAgreementEditor() {
     const totalDue = equipmentSubtotal + freightTotal + locationUpfront;
 
     return { equipmentSubtotal, freightTotal, maxLocationServiceValue, locationUpfront, locationRemaining, totalDue };
-  }, [form]);
+  }, [form, agreement]);
 
   async function handleSave() {
     if (!agreement || !form) return;
@@ -1837,7 +1869,8 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
   const email = form.operator_email || "[Operator Email]";
   const phone = form.operator_phone || "[Operator Phone]";
   const billingAddr = form.operator_billing_address || "[Billing Address]";
-  const title = form.operator_title || "[Title]";
+  // Optional title — omit cleanly when blank; never render "[Title]".
+  const operatorTitle = displayTitle(form.operator_title);
   const effectiveDate = form.effective_date ? new Date(form.effective_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "[Effective Date]";
   const apexRepName = agreement.apex_representative_name || "[Apex Representative]";
   const apexRepTitle = agreement.apex_representative_title || "Representative";
@@ -1865,7 +1898,7 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
           <p>This Purchase Agreement (this &ldquo;Agreement&rdquo;) is entered into as of <strong>{effectiveDate}</strong> (the &ldquo;Effective Date&rdquo;), by and between:</p>
           <p><strong>Apex AI Vending LLC</strong>, a Texas limited liability company (&ldquo;Apex&rdquo; or &ldquo;Company&rdquo;), and</p>
           <p><strong>{companyName}</strong>, with its principal office at {billingAddr} (&ldquo;Operator&rdquo; or &ldquo;Buyer&rdquo;).</p>
-          <p className="text-xs text-gray-500 italic">Operator Contact: {legalName}, {title} | Email: {email} | Phone: {phone}</p>
+          <p className="text-xs text-gray-500 italic">Operator Contact: {nameWithTitle(legalName, form.operator_title)} | Email: {email} | Phone: {phone}</p>
 
           {/* Numbered sections & schedules from the single canonical
               content source (clauses.ts) — identical language to the
@@ -1885,6 +1918,11 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
             )}
           />
 
+          {/* Model A parity: the captured Equipment Loan & Beverage Supply
+              Agreement the single signature also covers — same frozen
+              snapshot the customer signing page and PDF render. */}
+          <CoffeeSupplyAgreementSection snapshot={agreement.coffee_supply_snapshot} />
+
           <hr className="my-4" />
           <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SIGNATURES</h2>
           <p>IN WITNESS WHEREOF, the parties have executed this Agreement as of the Effective Date.</p>
@@ -1901,7 +1939,7 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
               <p className="text-xs font-medium text-gray-500 uppercase mb-4">Operator / Buyer</p>
               <div className="border-b border-gray-300 mb-2 h-10" />
               <p className="text-sm">Name: {legalName}</p>
-              <p className="text-sm">Title: {title}</p>
+              {operatorTitle ? <p className="text-sm">Title: {operatorTitle}</p> : null}
               <p className="text-sm">Company: {companyName}</p>
               <p className="text-sm">Email: {email}</p>
               <p className="text-sm mt-2">Date: _______________</p>

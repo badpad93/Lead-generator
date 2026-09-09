@@ -4,6 +4,7 @@ import { getSalesUser } from "@/lib/salesAuth";
 import { Resend } from "resend";
 
 import { APEX_ADMIN_NOTIFY } from "@/lib/adminNotifyRecipients";
+import { coffeePackageState } from "@/lib/agreements/coffeeSupplyPackage";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 const ALWAYS_CC = [...APEX_ADMIN_NOTIFY];
@@ -99,6 +100,26 @@ export async function POST(
         error: `Missing required fields: ${missing.map((m) => m.label).join(", ")}`,
       },
       { status: 400 },
+    );
+  }
+
+  // Coffee-package fail-safe (Model A): when the agreement requires the
+  // Equipment Loan & Beverage Supply Agreement, block sending unless a
+  // usable captured snapshot exists — the customer's single signature is
+  // said to cover it, so its terms must actually be in the package. Never
+  // send with the coffee terms silently omitted.
+  const coffee = coffeePackageState({
+    coffeeSupplyRequired: agreement.coffee_supply_required,
+    coffeeSupplySnapshot: agreement.coffee_supply_snapshot,
+  });
+  if (coffee.block) {
+    return NextResponse.json(
+      {
+        error:
+          "This agreement requires the Equipment Loan & Beverage Supply Agreement, but no usable captured copy is stored. Regenerate the agreement so the coffee terms are captured before sending.",
+        reason: coffee.reason,
+      },
+      { status: 409 },
     );
   }
 

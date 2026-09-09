@@ -13,6 +13,8 @@ import {
 } from "@/lib/pricing/lineItems";
 import { buildOrderItemsFromAgreement } from "@/lib/agreements/sync";
 import { shouldAutoCreateOrderOnSign } from "@/lib/agreements/autoInvoiceGuard";
+import { htmlToBlocks } from "@/lib/pdf/coffeeAgreementPdf";
+import { isUsableCoffeeSnapshot } from "@/lib/agreements/coffeeSupplyPackage";
 import { initialsKeyFor, type AgreementSectionId } from "@/lib/agreements/sections";
 import { wrapText, measureWrappedHeight, ellipsize } from "@/lib/pdf/layout";
 import {
@@ -484,6 +486,39 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
     scheduleHeader("Agreement Information");
     labelValue("Billing Address", ag.operator_billing_address || "—");
     labelValue("Delivery Address", ag.operator_delivery_address || "—");
+  }
+
+  /* ================================================================ */
+  /*  COFFEE SUPPLY AGREEMENT (Model A — one signature covers both)   */
+  /*  The FROZEN captured snapshot, so the executed PDF contains the  */
+  /*  exact beverage-supply terms the customer saw and signed — never */
+  /*  the latest template. Mirrors the sign page + admin preview.     */
+  /* ================================================================ */
+  const coffeeSnap = ag.coffee_supply_snapshot;
+  if (ag.coffee_supply_required && isUsableCoffeeSnapshot(coffeeSnap)) {
+    scheduleHeader(coffeeSnap.title || "Equipment Loan & Beverage Supply Agreement");
+    const ctx: string[] = [];
+    if (coffeeSnap.version != null) ctx.push(`Version ${coffeeSnap.version}`);
+    if (coffeeSnap.effective_date) ctx.push(`effective ${coffeeSnap.effective_date}`);
+    if (ctx.length > 0) { drawWrapped(ctx.join("  ·  "), helvetica, 8, gray); y -= 2; }
+    drawWrapped(
+      "The Operator's signature on this Agreement also covers the Equipment Loan & Beverage Supply Agreement set out below.",
+      helvetica,
+      8.5,
+      dark,
+    );
+    y -= 4;
+    for (const block of htmlToBlocks(String(coffeeSnap.content_html))) {
+      if (block.kind === "h1" || block.kind === "h2") {
+        y -= 4;
+        drawWrapped(block.text, helveticaBold, block.kind === "h1" ? 11 : 9.5, dark);
+      } else if (block.kind === "li") {
+        drawWrapped(`•  ${block.text}`, helvetica, 8.5, gray, 10);
+      } else {
+        drawWrapped(block.text, helvetica, 8.5, gray);
+      }
+      y -= 2;
+    }
   }
 
   /* ================================================================ */
