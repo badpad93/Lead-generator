@@ -5,6 +5,7 @@ import { handleFullySignedAgreement } from "@/lib/generateAgreementPdf";
 
 import { getRequiredInitialKeys } from "@/lib/agreementInitials";
 import { APEX_ADMIN_NOTIFY } from "@/lib/adminNotifyRecipients";
+import { coffeeAcksSatisfied } from "@/lib/agreements/coffeeSupplyPackage";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 const ALWAYS_CC = [...APEX_ADMIN_NOTIFY];
@@ -64,7 +65,16 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { signer_name, signer_company, signer_title, signature_data, signature_type } = body;
+  const {
+    signer_name,
+    signer_company,
+    signer_title,
+    signature_data,
+    signature_type,
+    coffee_ack_exclusive_supply,
+    coffee_ack_minimum_purchase,
+    coffee_ack_shipping_service_return,
+  } = body;
 
   // Validate required fields
   if (!signer_name || typeof signer_name !== "string" || signer_name.trim() === "") {
@@ -74,46 +84,71 @@ export async function POST(
     return NextResponse.json({ error: "signature_data is required" }, { status: 400 });
   }
 
+  // Coffee acknowledgments (Phase 5C-a10.1). When this agreement requires
+  // the Equipment Loan & Beverage Supply Agreement, the customer must have
+  // checked all three acknowledgments. Enforced HERE — before any signature
+  // is written — so a rejected attempt persists nothing (never a partial).
+  // Server-side enforcement; the disabled-button UI is defense in depth only.
+  const acks = {
+    coffee_ack_exclusive_supply: coffee_ack_exclusive_supply === true,
+    coffee_ack_minimum_purchase: coffee_ack_minimum_purchase === true,
+    coffee_ack_shipping_service_return: coffee_ack_shipping_service_return === true,
+  };
+  const coffeeRequired = agreement.coffee_supply_required === true;
+  if (!coffeeAcksSatisfied({ coffeeSupplyRequired: coffeeRequired, acks })) {
+    return NextResponse.json(
+      {
+        error:
+          "You must accept all three Equipment Loan & Beverage Supply Agreement acknowledgments before signing.",
+        reason: "coffee_acknowledgments_required",
+      },
+      { status: 400 },
+    );
+  }
+
   // Get IP address
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     req.headers.get("x-real-ip") ||
     null;
 
-  // Insert signature record
-  const { data: signature, error: sigErr } = await supabaseAdmin
-    .from("agreement_signatures")
-    .insert({
-      agreement_id: agreement.id,
-      signer_type: "operator",
-      signer_name: signer_name.trim(),
-      signer_company: signer_company?.trim() || agreement.operator_company_name || null,
-      signer_title: signer_title?.trim() || agreement.operator_title || null,
-      signer_email: agreement.operator_email || null,
-      signature_data: signature_data.trim(),
-      signature_type: signature_type || "typed",
-      ip_address: ip,
-    })
-    .select("*")
-    .single();
+  // Record the signature AND the agreement status/acknowledgment update in
+  // ONE transaction (a plpgsql function body — atomic by Postgres
+  // semantics). This replaces the previous two-write sequence: the
+  // signature can no longer persist unless the status + coffee
+  // acknowledgments persist with it. Coffee acks (validated all-true above)
+  // are set inside the transaction only when coffee_supply_required.
+  const { data: rpc, error: rpcErr } = await supabaseAdmin.rpc(
+    "record_operator_signature",
+    {
+      p_agreement_id: agreement.id,
+      p_signer_name: signer_name.trim(),
+      p_signer_company: signer_company?.trim() || "",
+      p_signer_title: signer_title?.trim() || "",
+      p_signature_data: signature_data.trim(),
+      p_signature_type: signature_type || "typed",
+      p_ip_address: ip,
+      p_ack_exclusive_supply: acks.coffee_ack_exclusive_supply,
+      p_ack_minimum_purchase: acks.coffee_ack_minimum_purchase,
+      p_ack_shipping_service_return: acks.coffee_ack_shipping_service_return,
+    },
+  );
 
-  if (sigErr) {
-    return NextResponse.json({ error: sigErr.message }, { status: 500 });
+  if (rpcErr || !rpc) {
+    return NextResponse.json(
+      { error: rpcErr?.message || "Failed to record signature" },
+      { status: 500 },
+    );
   }
 
-  // Determine new status
-  const isFullySigned = !!agreement.apex_signed_at;
-  const newStatus = isFullySigned ? "signed" : "partially_signed";
-
-  // Update agreement
-  await supabaseAdmin
-    .from("purchase_agreements")
-    .update({
-      agreement_status: newStatus,
-      operator_signed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", agreement.id);
+  const result = rpc as {
+    signature: Record<string, unknown>;
+    agreement_status: string;
+    fully_executed: boolean;
+  };
+  const signature = result.signature;
+  const newStatus = result.agreement_status;
+  const isFullySigned = result.fully_executed;
 
   // Sync status back to the sales order if linked
   if (agreement.order_id) {

@@ -14,7 +14,7 @@ import {
 import { buildOrderItemsFromAgreement } from "@/lib/agreements/sync";
 import { shouldAutoCreateOrderOnSign } from "@/lib/agreements/autoInvoiceGuard";
 import { htmlToBlocks } from "@/lib/pdf/coffeeAgreementPdf";
-import { isUsableCoffeeSnapshot } from "@/lib/agreements/coffeeSupplyPackage";
+import { isUsableCoffeeSnapshot, COFFEE_ACK_LABELS } from "@/lib/agreements/coffeeSupplyPackage";
 import { initialsKeyFor, type AgreementSectionId } from "@/lib/agreements/sections";
 import { wrapText, measureWrappedHeight, ellipsize } from "@/lib/pdf/layout";
 import {
@@ -518,6 +518,29 @@ export async function generatePurchaseAgreementPdf(ag: any, signatures: any[], i
         drawWrapped(block.text, helvetica, 8.5, gray);
       }
       y -= 2;
+    }
+
+    // Required acknowledgments. Shown as ACCEPTED ([X], green) only when the
+    // corresponding column is persisted true (captured at signing); on an
+    // unsigned/preview PDF they render as unchecked requirements ([ ]) — the
+    // PDF never claims acceptance that isn't in the database.
+    y -= 6;
+    const anyAck =
+      ag.coffee_ack_exclusive_supply === true ||
+      ag.coffee_ack_minimum_purchase === true ||
+      ag.coffee_ack_shipping_service_return === true;
+    drawWrapped(
+      anyAck ? "Customer acknowledgments (accepted):" : "Required customer acknowledgments (to be accepted at signing):",
+      helveticaBold,
+      9,
+      dark,
+    );
+    for (const { key, label } of COFFEE_ACK_LABELS) {
+      const accepted = ag[key] === true;
+      drawWrapped(`${accepted ? "[X]" : "[ ]"}  ${label}`, helvetica, 8.5, accepted ? green : gray);
+    }
+    if (ag.coffee_acknowledged_at) {
+      drawWrapped(`Acknowledged ${new Date(ag.coffee_acknowledged_at).toLocaleString()}`, helvetica, 7.5, gray);
     }
   }
 

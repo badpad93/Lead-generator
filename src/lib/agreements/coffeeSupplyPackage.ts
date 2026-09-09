@@ -62,3 +62,53 @@ export function coffeePackageState(input: {
     reason: "coffee_supply_required_but_snapshot_missing",
   };
 }
+
+/* ------------------------------------------------------------------ */
+/*  Acknowledgments (Phase 5C-a10.1)                                   */
+/* ------------------------------------------------------------------ */
+
+/** The three acknowledgments the captured coffee agreement requires the
+ *  customer to check on the signing page. Ordered; shared by the sign page
+ *  (checkboxes), the server validation, and the PDF (accepted list) so all
+ *  three surfaces list identical items. */
+export const COFFEE_ACK_FIELDS = [
+  "coffee_ack_exclusive_supply",
+  "coffee_ack_minimum_purchase",
+  "coffee_ack_shipping_service_return",
+] as const;
+
+export type CoffeeAckField = (typeof COFFEE_ACK_FIELDS)[number];
+
+export const COFFEE_ACK_LABELS: ReadonlyArray<{ key: CoffeeAckField; label: string }> = [
+  { key: "coffee_ack_exclusive_supply", label: "Exclusive supply requirement acknowledged" },
+  {
+    key: "coffee_ack_minimum_purchase",
+    label: "$1,000 per machine per month minimum purchase acknowledged",
+  },
+  {
+    key: "coffee_ack_shipping_service_return",
+    label: "Shipping / installation / service / return obligations acknowledged",
+  },
+];
+
+export type CoffeeAcknowledgments = Partial<Record<CoffeeAckField, boolean | null | undefined>>;
+
+/** True only when ALL THREE acknowledgments are explicitly true. */
+export function allCoffeeAcksChecked(acks: CoffeeAcknowledgments | null | undefined): boolean {
+  if (!acks) return false;
+  return COFFEE_ACK_FIELDS.every((f) => acks[f] === true);
+}
+
+/**
+ * Whether a signing attempt may proceed given the coffee requirement and the
+ * submitted acknowledgments. When coffee is not required, no acks are needed;
+ * when required, all three must be checked. Pure — used by both the client
+ * (disable submit) and the server (reject the request).
+ */
+export function coffeeAcksSatisfied(input: {
+  coffeeSupplyRequired: boolean | null | undefined;
+  acks: CoffeeAcknowledgments | null | undefined;
+}): boolean {
+  if (input.coffeeSupplyRequired !== true) return true;
+  return allCoffeeAcksChecked(input.acks);
+}
