@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isQuickBooks } from "@/lib/paymentProvider";
-import { createInvoice, sendInvoiceEmail, getInvoiceWithLink } from "@/lib/quickbooks";
+import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 
 function getSiteUrl(): string {
   return process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
@@ -86,9 +86,9 @@ export async function POST(
 
       await sendInvoiceEmail(invoice.Id, agreement.recipient_email);
 
-      const fullInvoice = await getInvoiceWithLink(invoice.Id);
-      if (fullInvoice.payUrl) {
-        return NextResponse.json({ url: fullInvoice.payUrl });
+      const fullInvoice = await getInvoice(invoice.Id);
+      if (fullInvoice.InvoiceLink) {
+        return NextResponse.json({ url: fullInvoice.InvoiceLink });
       }
 
       return NextResponse.json({

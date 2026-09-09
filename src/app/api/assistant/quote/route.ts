@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAssistantCheckoutEnabled, isAssistantWriteToolsEnabled } from "@/lib/assistant/flags";
 import { readinessFor } from "@/lib/commerce/checkout";
-import { quoteRoute, requireCustomer } from "@/lib/commerce/quoteHttp";
+import { checkoutAccessFor, quoteRoute, requireCustomer } from "@/lib/commerce/quoteHttp";
 import { cancelQuote, getCurrentQuote, listLines, revalidateQuote } from "@/lib/commerce/quotes";
 import { toQuoteView } from "@/lib/commerce/quoteView";
 
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     if (!current) return NextResponse.json({ quote: null, flags: { write_tools_enabled: writeToolsEnabled, checkout_enabled: checkoutEnabled } });
     const editable = current.status === "draft" || current.status === "confirmed";
     const bundle = editable ? await revalidateQuote(current, viewer) : { quote: current, lines: await listLines(current.id), changes: [] };
-    const readiness = await readinessFor(bundle.quote, viewer, checkoutEnabled);
+    const readiness = await readinessFor(bundle.quote, viewer, await checkoutAccessFor(viewer.userId));
     return NextResponse.json({
       quote: toQuoteView(bundle.quote, bundle.lines, bundle.changes, readiness),
       pay_url: bundle.quote.checkout_status === "link_issued" ? bundle.quote.checkout_url : null,

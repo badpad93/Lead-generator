@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { isAssistantCheckoutEnabled } from "@/lib/assistant/flags";
 import { readinessFor } from "@/lib/commerce/checkout";
 import { financingReturnUrl } from "@/lib/commerce/financingLink";
-import { quoteRoute, readJson, requireCustomer, requireWriteTools } from "@/lib/commerce/quoteHttp";
+import { checkoutAccessFor, quoteRoute, readJson, requireCustomer, requireWriteTools } from "@/lib/commerce/quoteHttp";
 import { sendQuoteEmail } from "@/lib/commerce/quoteEmail";
 import { getOwnedQuote, listLines, revalidateQuote, type QuoteViewer } from "@/lib/commerce/quotes";
 import { QuoteError, type QuoteRow } from "@/lib/commerce/quoteTypes";
@@ -43,7 +42,7 @@ export async function POST(req: NextRequest) {
     const body = await readJson(req, (v) => bodySchema.parse(v));
     const quote = await getOwnedQuote(body.quote_id, viewer.userId);
     const [to, bundle] = await Promise.all([recipientFor(viewer.userId), emailableBundle(quote, viewer)]);
-    const readiness = await readinessFor(bundle.quote, viewer, await isAssistantCheckoutEnabled());
+    const readiness = await readinessFor(bundle.quote, viewer, await checkoutAccessFor(viewer.userId));
     const view = toQuoteView(bundle.quote, bundle.lines, bundle.changes, readiness);
     await sendQuoteEmail({
       to,
