@@ -112,51 +112,40 @@ export async function POST(
     req.headers.get("x-real-ip") ||
     null;
 
-  // Insert signature record
-  const { data: signature, error: sigErr } = await supabaseAdmin
-    .from("agreement_signatures")
-    .insert({
-      agreement_id: agreement.id,
-      signer_type: "operator",
-      signer_name: signer_name.trim(),
-      signer_company: signer_company?.trim() || agreement.operator_company_name || null,
-      signer_title: signer_title?.trim() || agreement.operator_title || null,
-      signer_email: agreement.operator_email || null,
-      signature_data: signature_data.trim(),
-      signature_type: signature_type || "typed",
-      ip_address: ip,
-    })
-    .select("*")
-    .single();
+  // Record the signature AND the agreement status/acknowledgment update in
+  // ONE transaction (a plpgsql function body — atomic by Postgres
+  // semantics). This replaces the previous two-write sequence: the
+  // signature can no longer persist unless the status + coffee
+  // acknowledgments persist with it. Coffee acks (validated all-true above)
+  // are set inside the transaction only when coffee_supply_required.
+  const { data: rpc, error: rpcErr } = await supabaseAdmin.rpc(
+    "record_operator_signature",
+    {
+      p_agreement_id: agreement.id,
+      p_signer_name: signer_name.trim(),
+      p_signer_company: signer_company?.trim() || "",
+      p_signer_title: signer_title?.trim() || "",
+      p_signature_data: signature_data.trim(),
+      p_signature_type: signature_type || "typed",
+      p_ip_address: ip,
+    },
+  );
 
-  if (sigErr) {
-    return NextResponse.json({ error: sigErr.message }, { status: 500 });
+  if (rpcErr || !rpc) {
+    return NextResponse.json(
+      { error: rpcErr?.message || "Failed to record signature" },
+      { status: 500 },
+    );
   }
 
-  // Determine new status
-  const isFullySigned = !!agreement.apex_signed_at;
-  const newStatus = isFullySigned ? "signed" : "partially_signed";
-
-  // Update agreement. When coffee is required, persist the three
-  // acknowledgments + timestamp in the SAME update as the signature status
-  // (all-or-nothing; validated true above, so never a partial write). When
-  // coffee is not required, no ack columns are touched.
-  const now = new Date().toISOString();
-  const agreementUpdate: Record<string, unknown> = {
-    agreement_status: newStatus,
-    operator_signed_at: now,
-    updated_at: now,
+  const result = rpc as {
+    signature: Record<string, unknown>;
+    agreement_status: string;
+    fully_executed: boolean;
   };
-  if (coffeeRequired) {
-    agreementUpdate.coffee_ack_exclusive_supply = true;
-    agreementUpdate.coffee_ack_minimum_purchase = true;
-    agreementUpdate.coffee_ack_shipping_service_return = true;
-    agreementUpdate.coffee_acknowledged_at = now;
-  }
-  await supabaseAdmin
-    .from("purchase_agreements")
-    .update(agreementUpdate)
-    .eq("id", agreement.id);
+  const signature = result.signature;
+  const newStatus = result.agreement_status;
+  const isFullySigned = result.fully_executed;
 
   // Sync status back to the sales order if linked
   if (agreement.order_id) {

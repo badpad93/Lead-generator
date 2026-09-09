@@ -54,22 +54,32 @@ const COMPONENT = "src/app/components/CoffeeSupplyAgreementSection.tsx";
 
 describe("server enforcement + all-or-nothing persistence (tests 6-8)", () => {
   const src = read(SIGN_ROUTE);
-  it("rejects before writing anything when acks are incomplete", () => {
+  it("rejects before the atomic write when acks are incomplete", () => {
     expect(src).toContain("coffeeAcksSatisfied");
     expect(src).toContain("coffee_acknowledgments_required");
-    // the ack check sits before the signature INSERT
+    // the ack check sits before the transactional RPC call
     const checkIdx = src.indexOf("coffeeAcksSatisfied");
-    const insertIdx = src.indexOf('.from("agreement_signatures")');
+    const rpcIdx = src.indexOf('record_operator_signature');
     expect(checkIdx).toBeGreaterThan(-1);
-    expect(insertIdx).toBeGreaterThan(-1);
-    expect(checkIdx).toBeLessThan(insertIdx);
+    expect(rpcIdx).toBeGreaterThan(-1);
+    expect(checkIdx).toBeLessThan(rpcIdx);
   });
-  it("persists all three + timestamp together, only when coffee required", () => {
-    expect(src).toContain("if (coffeeRequired)");
-    expect(src).toContain("coffee_ack_exclusive_supply = true");
-    expect(src).toContain("coffee_ack_minimum_purchase = true");
-    expect(src).toContain("coffee_ack_shipping_service_return = true");
-    expect(src).toContain("coffee_acknowledged_at = now");
+  it("persists signature + acks via ONE atomic RPC (not a two-write sequence)", () => {
+    expect(src).toContain('supabaseAdmin.rpc(');
+    expect(src).toContain('"record_operator_signature"');
+    // No separate signature INSERT / status UPDATE left in the route.
+    expect(src).not.toContain('.from("agreement_signatures")');
+    expect(src).not.toContain('agreementUpdate');
+  });
+  it("the atomic function sets all three acks + timestamp only when required", () => {
+    const fn = read("supabase/migrations/20260909010000_record_operator_signature_txn.sql");
+    expect(fn).toContain("v_coffee_required := v_ag.coffee_supply_required IS TRUE");
+    expect(fn).toContain("coffee_ack_exclusive_supply =");
+    expect(fn).toContain("coffee_ack_minimum_purchase =");
+    expect(fn).toContain("coffee_ack_shipping_service_return =");
+    expect(fn).toContain("coffee_acknowledged_at =");
+    // acks are conditional on coffee being required
+    expect(fn).toContain("CASE WHEN v_coffee_required THEN true");
   });
   it("does not touch invoices/payments from the sign route (idempotency unchanged, test 15)", () => {
     expect(src).not.toContain('from("invoices").insert');
