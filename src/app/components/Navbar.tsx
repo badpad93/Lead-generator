@@ -9,6 +9,8 @@ import { createBrowserClient } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 import Tooltip from "@/app/components/Tooltip";
 import { TOOLTIP_COPY } from "@/lib/tooltipCopy";
+import { ModeSwitch } from "@/app/components/ModeSwitch";
+import { useVinnieEnabled } from "@/app/components/useVinnieEnabled";
 
 /**
  * `label` is the canonical name — it keys into TOOLTIP_COPY and is shown in
@@ -101,6 +103,9 @@ export default function Navbar() {
   // the CSS classes below, so pointer users see no behavior change.
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const navGroupsRef = useRef<HTMLUListElement | null>(null);
+  // Dashboard / Vinnie switch: the Vinnie option shows only while
+  // assistant.enabled is on. Discoverability only — never a gate.
+  const vinnieEnabled = useVinnieEnabled();
   const [storefrontNav, setStorefrontNav] = useState<{
     owner_tenant: { slug: string; display_name: string; status: string } | null;
     can_own_storefront?: boolean;
@@ -369,17 +374,20 @@ export default function Navbar() {
         <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Logo — circular VC mark. Replace /public/logo-vc.png (or
               .svg) to swap. */}
-          <Link href="/" className="flex shrink-0 items-center gap-2">
-            <Image
-              src="/logo-vc.svg"
-              alt="Vending Connector"
-              width={40}
-              height={40}
-              priority
-              className="h-9 w-9"
-            />
-            <span className="whitespace-nowrap text-lg font-bold text-gray-900">Vending Connector</span>
-          </Link>
+          <div className="flex shrink-0 items-center gap-3">
+            <Link href="/" className="flex shrink-0 items-center gap-2">
+              <Image
+                src="/logo-vc.svg"
+                alt="Vending Connector"
+                width={40}
+                height={40}
+                priority
+                className="h-9 w-9"
+              />
+              <span className="whitespace-nowrap text-lg font-bold text-gray-900">Vending Connector</span>
+            </Link>
+            <ModeSwitch authenticated={isLoggedIn} vinnieEnabled={vinnieEnabled} />
+          </div>
 
           {/* Desktop Navigation — grouped dropdowns.
               Two triggers for the dropdown so it works for every input mode:

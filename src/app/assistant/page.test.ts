@@ -15,6 +15,7 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new NotFoundSignal("NEXT_NOT_FOUND");
   },
+  usePathname: () => "/assistant",
 }));
 
 import AssistantPage, { metadata, viewport } from "./page";

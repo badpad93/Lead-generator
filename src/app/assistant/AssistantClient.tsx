@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { PanelLeft, ShoppingCart, SquarePen } from "lucide-react";
 import { ASSISTANT_LABEL, ASSISTANT_NAME } from "@/lib/assistant/identity";
+import { ModeSwitch } from "@/app/components/ModeSwitch";
 import { Composer } from "./_components/Composer";
 import { ConversationDrawer } from "./_components/ConversationDrawer";
 import { Greeting } from "./_components/Greeting";
@@ -49,6 +50,8 @@ function Header({ chat, onToggleSidebar, sidebarOpen }: { chat: AssistantChat; o
           <p className="truncate text-xs text-neutral-400">{ASSISTANT_LABEL}</p>
         </div>
       </div>
+      {/* This page renders only while assistant.enabled is on, so Vinnie is always offered here. */}
+      <ModeSwitch authenticated={chat.viewer === "user"} vinnieEnabled tone="dark" />
       <QuoteButton />
       <button type="button" onClick={() => void chat.newThread()} disabled={chat.busy || chat.disabled} aria-label="New conversation" className={ICON_BUTTON}>
         <SquarePen className="h-5 w-5" aria-hidden />

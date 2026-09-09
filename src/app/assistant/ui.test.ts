@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import AssistantClient from "./AssistantClient";
@@ -10,6 +10,9 @@ import { ThreadSidebar } from "./_components/ThreadSidebar";
 import { BadgeFallback, VinnieAvatar, VINNIE_BADGE_SRC } from "./_components/VinnieAvatar";
 import { BlockView } from "./_components/Blocks";
 import type { ChatMessage, UiBlock, UiState } from "./_components/types";
+
+// The header's mode switch reads the route; the assistant is always at /assistant.
+vi.mock("next/navigation", () => ({ usePathname: () => "/assistant" }));
 
 /**
  * Static render of the client UI (server-side, no effects). Guards the
@@ -51,6 +54,18 @@ describe("full-screen Vinnie shell", () => {
     expect(html).toContain('data-testid="conversation-scroll"');
     expect(html).not.toContain("<main");
     expect(html).not.toContain("<nav");
+  });
+
+  it("carries the Dashboard / Vinnie switch in its own header with Vinnie active, without adding a nav landmark", () => {
+    const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
+    expect(header).toContain('data-testid="mode-switch"');
+    expect(header).toContain('data-vinnie="on"');
+    expect(header).toMatch(/<a [^>]*aria-current="page"[^>]*href="\/assistant"/);
+    // Vinnie's restraint rule holds: the active state is an outline, never a green surface.
+    expect(header).toContain("border-vinnie-green bg-black text-vinnie-green");
+    // Static render has no session yet, so the Dashboard side goes through login.
+    expect(header).toContain('href="/login?redirect=/dashboard"');
+    expect(header).not.toContain("<nav");
   });
 
   it("shows the locked identity: name, label, greeting, and the approved VC badge (not the old monogram)", () => {
