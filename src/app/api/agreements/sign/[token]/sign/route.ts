@@ -128,6 +128,9 @@ export async function POST(
       p_signature_data: signature_data.trim(),
       p_signature_type: signature_type || "typed",
       p_ip_address: ip,
+      p_ack_exclusive_supply: acks.coffee_ack_exclusive_supply,
+      p_ack_minimum_purchase: acks.coffee_ack_minimum_purchase,
+      p_ack_shipping_service_return: acks.coffee_ack_shipping_service_return,
     },
   );
 

@@ -54,6 +54,40 @@ describe("both writes are inside one transactional function", () => {
   });
 });
 
+describe("SECURITY DEFINER hardening", () => {
+  const fn = read(FN);
+  const SIG = /public\.record_operator_signature\(\s*uuid, text, text, text, text, text, text, boolean, boolean, boolean\s*\)/;
+  it("has a fixed, safe search_path (not the caller's)", () => {
+    expect(fn).toContain("SET search_path = public, pg_catalog");
+  });
+  it("schema-qualifies every sensitive table reference", () => {
+    expect(fn).toContain("public.agreement_signatures");
+    expect(fn).toContain("public.purchase_agreements");
+  });
+  it("revokes EXECUTE from PUBLIC, anon and authenticated", () => {
+    expect(fn).toMatch(/REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC/);
+    expect(fn).toMatch(/REVOKE ALL ON FUNCTION[\s\S]*FROM anon/);
+    expect(fn).toMatch(/REVOKE ALL ON FUNCTION[\s\S]*FROM authenticated/);
+  });
+  it("grants EXECUTE only to service_role, on the exact signature", () => {
+    expect(fn).toMatch(/GRANT EXECUTE ON FUNCTION[\s\S]*TO service_role/);
+    expect(fn).toMatch(SIG);
+  });
+  it("determines status + timestamps itself — caller cannot pass them", () => {
+    // No status/timestamp/table-identifier parameters; only signer + acks.
+    expect(fn).not.toMatch(/p_agreement_status/);
+    expect(fn).not.toMatch(/p_status\b/);
+    expect(fn).not.toMatch(/p_acknowledged_at/);
+    expect(fn).not.toMatch(/p_operator_signed_at/);
+  });
+  it("independently re-validates signability + acks under the row lock", () => {
+    expect(fn).toContain("FOR UPDATE");
+    expect(fn).toContain("agreement_not_found");
+    expect(fn).toContain("agreement_not_signable");
+    expect(fn).toContain("coffee_acknowledgments_incomplete");
+  });
+});
+
 describe("the route uses the atomic RPC, not a two-write sequence", () => {
   const src = read(ROUTE);
   it("calls the RPC once and has no independent signature/agreement writes", () => {

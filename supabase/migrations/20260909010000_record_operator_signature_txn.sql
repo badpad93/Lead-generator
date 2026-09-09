@@ -11,10 +11,16 @@
 -- performing both writes here makes them atomic — the signature never
 -- persists unless the status + acknowledgments persist with it.
 --
--- Idempotent: if the operator has already signed, it returns the existing
--- state without inserting a duplicate. Coffee acknowledgments are set true
--- only when coffee_supply_required (the route validates all three were
--- checked before calling); acknowledged_at is the single in-transaction now().
+-- SECURITY hardening (privileged SECURITY DEFINER function):
+--   * Fixed search_path (public, pg_catalog) — never trusts the caller's.
+--   * Every table reference is schema-qualified (public.*).
+--   * EXECUTE revoked from PUBLIC/anon/authenticated; granted ONLY to
+--     service_role (the Next.js route calls it via the service-role client).
+--   * The function determines status and all timestamps itself; the caller
+--     cannot pass an agreement status, an acknowledged_at, or any table
+--     identifier. It re-validates existence, signability and — when coffee
+--     is required — that all three acknowledgments are present, under a row
+--     lock, independently of the route.
 
 CREATE OR REPLACE FUNCTION public.record_operator_signature(
   p_agreement_id   uuid,
@@ -23,11 +29,14 @@ CREATE OR REPLACE FUNCTION public.record_operator_signature(
   p_signer_title   text,
   p_signature_data text,
   p_signature_type text,
-  p_ip_address     text
+  p_ip_address     text,
+  p_ack_exclusive_supply        boolean,
+  p_ack_minimum_purchase        boolean,
+  p_ack_shipping_service_return boolean
 ) RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_catalog
 AS $$
 DECLARE
   v_ag              public.purchase_agreements%ROWTYPE;
@@ -49,6 +58,16 @@ BEGIN
   END IF;
 
   v_coffee_required := v_ag.coffee_supply_required IS TRUE;
+
+  -- Independently enforce the coffee acknowledgments (defense in depth —
+  -- the route validates too, but the privileged writer does not trust it).
+  IF v_coffee_required AND NOT (
+       p_ack_exclusive_supply IS TRUE
+       AND p_ack_minimum_purchase IS TRUE
+       AND p_ack_shipping_service_return IS TRUE
+     ) THEN
+    RAISE EXCEPTION 'coffee_acknowledgments_incomplete';
+  END IF;
 
   -- Idempotent retry: operator already signed → return existing, no dup.
   IF v_ag.operator_signed_at IS NOT NULL THEN
@@ -105,6 +124,18 @@ BEGIN
 END;
 $$;
 
+-- Least privilege: this SECURITY DEFINER function must be callable ONLY by
+-- the service role the Next.js server uses — never by PostgREST's anon or
+-- authenticated roles, and never by PUBLIC (which is the default grant).
+REVOKE ALL ON FUNCTION public.record_operator_signature(
+  uuid, text, text, text, text, text, text, boolean, boolean, boolean
+) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.record_operator_signature(
+  uuid, text, text, text, text, text, text, boolean, boolean, boolean
+) FROM anon;
+REVOKE ALL ON FUNCTION public.record_operator_signature(
+  uuid, text, text, text, text, text, text, boolean, boolean, boolean
+) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.record_operator_signature(
-  uuid, text, text, text, text, text, text
+  uuid, text, text, text, text, text, text, boolean, boolean, boolean
 ) TO service_role;
