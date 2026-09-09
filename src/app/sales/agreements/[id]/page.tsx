@@ -152,6 +152,10 @@ interface Agreement {
   line_items_snapshot: SnapshotLine[] | null;
   coffee_supply_required: boolean | null;
   coffee_supply_snapshot: CoffeeSupplySnapshot | null;
+  coffee_ack_exclusive_supply: boolean | null;
+  coffee_ack_minimum_purchase: boolean | null;
+  coffee_ack_shipping_service_return: boolean | null;
+  coffee_acknowledged_at: string | null;
   pdf_url: string | null;
   signed_pdf_url: string | null;
   sent_at: string | null;
@@ -1920,8 +1924,17 @@ function AgreementPreviewModal({ form, computed, agreement, onClose }: {
 
           {/* Model A parity: the captured Equipment Loan & Beverage Supply
               Agreement the single signature also covers — same frozen
-              snapshot the customer signing page and PDF render. */}
-          <CoffeeSupplyAgreementSection snapshot={agreement.coffee_supply_snapshot} />
+              snapshot the customer signing page and PDF render. Acknowledgment
+              boxes reflect the PERSISTED state (unchecked on an unsigned
+              draft — never falsely accepted). */}
+          <CoffeeSupplyAgreementSection
+            snapshot={agreement.coffee_supply_snapshot}
+            acknowledgments={{
+              coffee_ack_exclusive_supply: agreement.coffee_ack_exclusive_supply,
+              coffee_ack_minimum_purchase: agreement.coffee_ack_minimum_purchase,
+              coffee_ack_shipping_service_return: agreement.coffee_ack_shipping_service_return,
+            }}
+          />
 
           <hr className="my-4" />
           <h2 className="text-base font-bold text-gray-900 mt-6 mb-2">SIGNATURES</h2>

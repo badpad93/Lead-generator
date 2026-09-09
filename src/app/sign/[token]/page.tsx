@@ -8,7 +8,12 @@ import { formatContractDate } from "@/lib/agreements/formatDate";
 import AgreementBody from "@/app/components/AgreementBody";
 import CoffeeSupplyAgreementSection from "@/app/components/CoffeeSupplyAgreementSection";
 import { displayTitle } from "@/lib/agreements/titleDisplay";
-import type { CoffeeSupplySnapshotLike } from "@/lib/agreements/coffeeSupplyPackage";
+import {
+  COFFEE_ACK_LABELS,
+  coffeeAcksSatisfied,
+  coffeePackageState,
+  type CoffeeSupplySnapshotLike,
+} from "@/lib/agreements/coffeeSupplyPackage";
 import {
   Loader2,
   CheckCircle2,
@@ -398,6 +403,11 @@ function SigningContent() {
   const [signerName, setSignerName] = useState("");
   const [signerCompany, setSignerCompany] = useState("");
   const [signerTitle, setSignerTitle] = useState("");
+  const [coffeeAcks, setCoffeeAcks] = useState<Record<string, boolean>>({
+    coffee_ack_exclusive_supply: false,
+    coffee_ack_minimum_purchase: false,
+    coffee_ack_shipping_service_return: false,
+  });
   const [signing, setSigning] = useState(false);
   const [signError, setSignError] = useState<string | null>(null);
   const [signSuccess, setSignSuccess] = useState(false);
@@ -464,6 +474,12 @@ function SigningContent() {
       );
       return;
     }
+    // Coffee acknowledgments must all be checked when the package includes
+    // the beverage-supply agreement (server enforces this too).
+    if (!coffeeAcksSatisfied({ coffeeSupplyRequired: agreement?.coffee_supply_required, acks: coffeeAcks })) {
+      setSignError("Please accept all Equipment Loan & Beverage Supply Agreement acknowledgments before signing.");
+      return;
+    }
     setSigning(true);
     setSignError(null);
     try {
@@ -476,6 +492,9 @@ function SigningContent() {
           signer_title: signerTitle.trim(),
           signature_data: sigData,
           signature_type: signatureMode === "type" ? "typed" : "drawn",
+          coffee_ack_exclusive_supply: coffeeAcks.coffee_ack_exclusive_supply === true,
+          coffee_ack_minimum_purchase: coffeeAcks.coffee_ack_minimum_purchase === true,
+          coffee_ack_shipping_service_return: coffeeAcks.coffee_ack_shipping_service_return === true,
         }),
       });
       if (res.ok) {
@@ -503,6 +522,17 @@ function SigningContent() {
   const allInitialsComplete = requiredInitials.every(
     (key) => initialsMap[key],
   );
+
+  // Coffee package: whether the beverage-supply acknowledgments must be
+  // shown/enforced on this signing page, and whether they're all checked.
+  const coffeePkg = coffeePackageState({
+    coffeeSupplyRequired: agreement?.coffee_supply_required,
+    coffeeSupplySnapshot: agreement?.coffee_supply_snapshot,
+  });
+  const coffeeAcksComplete = coffeeAcksSatisfied({
+    coffeeSupplyRequired: agreement?.coffee_supply_required,
+    acks: coffeeAcks,
+  });
 
   const isSigned =
     signSuccess ||
@@ -957,6 +987,32 @@ function SigningContent() {
                 />
               </div>
 
+              {/* Coffee (Beverage Supply) acknowledgments — required before
+                  signing when the package includes the captured Equipment
+                  Loan & Beverage Supply Agreement (rendered in full above). */}
+              {coffeePkg.include && (
+                <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4">
+                  <p className="text-sm font-semibold text-amber-900 mb-3">
+                    Equipment Loan &amp; Beverage Supply Agreement — required acknowledgments
+                  </p>
+                  <div className="space-y-2">
+                    {COFFEE_ACK_LABELS.map(({ key, label }) => (
+                      <label key={key} className="flex items-start gap-2 text-sm text-amber-900 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={coffeeAcks[key] === true}
+                          onChange={(e) =>
+                            setCoffeeAcks((prev) => ({ ...prev, [key]: e.target.checked }))
+                          }
+                          className="mt-0.5 h-4 w-4 rounded border-amber-400 text-green-600 focus:ring-green-500"
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Error */}
               {signError && (
                 <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
@@ -970,6 +1026,7 @@ function SigningContent() {
                 disabled={
                   signing ||
                   !allInitialsComplete ||
+                  !coffeeAcksComplete ||
                   !signerName.trim() ||
                   (signatureMode === "type"
                     ? !typedSignature.trim()

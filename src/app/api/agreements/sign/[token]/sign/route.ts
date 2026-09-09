@@ -5,6 +5,7 @@ import { handleFullySignedAgreement } from "@/lib/generateAgreementPdf";
 
 import { getRequiredInitialKeys } from "@/lib/agreementInitials";
 import { APEX_ADMIN_NOTIFY } from "@/lib/adminNotifyRecipients";
+import { coffeeAcksSatisfied } from "@/lib/agreements/coffeeSupplyPackage";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "receipts@bytebitevending.com";
 const ALWAYS_CC = [...APEX_ADMIN_NOTIFY];
@@ -64,7 +65,16 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { signer_name, signer_company, signer_title, signature_data, signature_type } = body;
+  const {
+    signer_name,
+    signer_company,
+    signer_title,
+    signature_data,
+    signature_type,
+    coffee_ack_exclusive_supply,
+    coffee_ack_minimum_purchase,
+    coffee_ack_shipping_service_return,
+  } = body;
 
   // Validate required fields
   if (!signer_name || typeof signer_name !== "string" || signer_name.trim() === "") {
@@ -72,6 +82,28 @@ export async function POST(
   }
   if (!signature_data || typeof signature_data !== "string" || signature_data.trim() === "") {
     return NextResponse.json({ error: "signature_data is required" }, { status: 400 });
+  }
+
+  // Coffee acknowledgments (Phase 5C-a10.1). When this agreement requires
+  // the Equipment Loan & Beverage Supply Agreement, the customer must have
+  // checked all three acknowledgments. Enforced HERE — before any signature
+  // is written — so a rejected attempt persists nothing (never a partial).
+  // Server-side enforcement; the disabled-button UI is defense in depth only.
+  const acks = {
+    coffee_ack_exclusive_supply: coffee_ack_exclusive_supply === true,
+    coffee_ack_minimum_purchase: coffee_ack_minimum_purchase === true,
+    coffee_ack_shipping_service_return: coffee_ack_shipping_service_return === true,
+  };
+  const coffeeRequired = agreement.coffee_supply_required === true;
+  if (!coffeeAcksSatisfied({ coffeeSupplyRequired: coffeeRequired, acks })) {
+    return NextResponse.json(
+      {
+        error:
+          "You must accept all three Equipment Loan & Beverage Supply Agreement acknowledgments before signing.",
+        reason: "coffee_acknowledgments_required",
+      },
+      { status: 400 },
+    );
   }
 
   // Get IP address
@@ -105,14 +137,25 @@ export async function POST(
   const isFullySigned = !!agreement.apex_signed_at;
   const newStatus = isFullySigned ? "signed" : "partially_signed";
 
-  // Update agreement
+  // Update agreement. When coffee is required, persist the three
+  // acknowledgments + timestamp in the SAME update as the signature status
+  // (all-or-nothing; validated true above, so never a partial write). When
+  // coffee is not required, no ack columns are touched.
+  const now = new Date().toISOString();
+  const agreementUpdate: Record<string, unknown> = {
+    agreement_status: newStatus,
+    operator_signed_at: now,
+    updated_at: now,
+  };
+  if (coffeeRequired) {
+    agreementUpdate.coffee_ack_exclusive_supply = true;
+    agreementUpdate.coffee_ack_minimum_purchase = true;
+    agreementUpdate.coffee_ack_shipping_service_return = true;
+    agreementUpdate.coffee_acknowledged_at = now;
+  }
   await supabaseAdmin
     .from("purchase_agreements")
-    .update({
-      agreement_status: newStatus,
-      operator_signed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .update(agreementUpdate)
     .eq("id", agreement.id);
 
   // Sync status back to the sales order if linked
