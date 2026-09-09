@@ -13,7 +13,8 @@ import type { CheckoutReadiness } from "./quoteView";
  * from the model. Order of operations: re-read and reprice → assess every
  * gate (environment, flags, administrator rollout, lines, mappings, tax,
  * agreements, billing address) → construct the production-only adapter →
- * lock the confirmed version → create customer and invoice with real Item
+ * lock the confirmed version → re-read every required agreement → create
+ * customer and invoice with real Item
  * references and a deterministic DocNumber → store identifiers → return
  * the validated hosted pay URL. Any gate failure returns a structured
  * explanation and creates nothing; any QuickBooks failure leaves the
@@ -154,8 +155,7 @@ export function assessCheckout(quote: QuoteRow, lines: QuoteLineRow[], ctx: Chec
   reasons.push(...agreementReasons(ctx));
   if (!billingProfile(ctx.profile)) reasons.push({ code: "billing_address_missing", message: "Add your billing address to your profile so tax can be calculated on the invoice." });
   if (!lines.some((l) => !INVOICE_SKIP.has(l.validation_status))) reasons.push({ code: "nothing_to_invoice", message: "There is nothing to invoice on this quote." });
-  const intakeQty = lines.filter((l) => l.validation_status === "location_intake").reduce((n, l) => n + l.quantity, 0);
-  return { available: reasons.length === 0, blocked_reasons: reasons, location_intake_quantity: intakeQty };
+  return { available: reasons.length === 0, blocked_reasons: reasons, location_intake_quantity: intakeQuantity(lines) };
 }
 
 export type CheckoutOutcome =
@@ -191,9 +191,23 @@ function invoiceLines(lines: QuoteLineRow[], ctx: CheckoutContext) {
     }));
 }
 
-async function revertToConfirmed(quoteId: string): Promise<void> {
-  await supabaseAdmin.from("commerce_quotes").update({ status: "confirmed", checkout_status: "failed" }).eq("id", quoteId);
+async function revertToConfirmed(quoteId: string, checkoutStatus: "failed" | "blocked" = "failed"): Promise<void> {
+  await supabaseAdmin.from("commerce_quotes").update({ status: "confirmed", checkout_status: checkoutStatus }).eq("id", quoteId);
 }
+
+/**
+ * The last word before any QuickBooks request: every required agreement
+ * is read again, fresh, after the quote is locked. A revocation, expiry,
+ * or cancellation that lands between the readiness assessment and the
+ * lock therefore still stops the invoice. Same gates, same trusted user
+ * id, same customer-safe messages.
+ */
+async function recheckAgreementReasons(userId: string, ctx: CheckoutContext): Promise<Reason[]> {
+  const fresh = await Promise.all(ctx.agreements.map((a) => gateFor(a.agreement, userId, ctx.profile.email)));
+  return agreementReasons({ ...ctx, agreements: fresh });
+}
+
+const intakeQuantity = (lines: QuoteLineRow[]) => lines.filter((l) => l.validation_status === "location_intake").reduce((n, l) => n + l.quantity, 0);
 
 function normalizeQuote(data: Record<string, unknown>): QuoteRow {
   return { ...(data as unknown as QuoteRow), subtotal: Number(data.subtotal), total: Number(data.total) };
@@ -243,12 +257,18 @@ function assertCheckoutable(quote: QuoteRow, expectedVersion: number): void {
   if (quote.status !== "confirmed") throw new QuoteError("checkout_blocked", "Confirm the quote before checking out.", { status: quote.status });
 }
 
-async function convertLocked(quote: QuoteRow, bundle: QuoteBundle, ctx: CheckoutContext): Promise<CheckoutOutcome> {
+async function convertLocked(quote: QuoteRow, bundle: QuoteBundle, ctx: CheckoutContext, userId: string): Promise<CheckoutOutcome> {
   // The adapter constructor is the hard environment gate: it throws before
   // any lock or any request when this is not the production deployment.
   const qbo = createVinnieQuickBooks();
   await lockForCheckout(bundle.quote);
   try {
+    // Locked, but nothing sent yet: re-read the agreements before the first request.
+    const reasons = await recheckAgreementReasons(userId, ctx);
+    if (reasons.length > 0) {
+      await revertToConfirmed(quote.id, "blocked");
+      return { outcome: "blocked", readiness: { available: false, blocked_reasons: reasons, location_intake_quantity: intakeQuantity(bundle.lines) } };
+    }
     const invoiced = await createQuoteInvoice(qbo, bundle.quote, bundle.lines, ctx);
     return { outcome: "invoiced", quote: invoiced, pay_url: invoiced.checkout_url };
   } catch (e) {
@@ -278,7 +298,7 @@ export async function checkoutQuote(quoteId: string, viewer: QuoteViewer, expect
     await supabaseAdmin.from("commerce_quotes").update({ checkout_status: "blocked" }).eq("id", quote.id);
     return { outcome: "blocked", readiness };
   }
-  return convertLocked(quote, bundle, ctx);
+  return convertLocked(quote, bundle, ctx, viewer.userId);
 }
 
 /** Readiness for display (no lock, no QuickBooks). */
