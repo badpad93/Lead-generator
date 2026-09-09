@@ -13,6 +13,18 @@ updates:
         dependency-type: production
       development-dependencies:
         dependency-type: development
+    ignore:
+      # typescript-eslint 8.x rejects TypeScript 7 ("does not support TS 7.0"),
+      # which makes `pnpm lint:strict` unable to start. Lift when
+      # typescript-eslint publishes TypeScript 7 support.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # eslint-plugin-react (via eslint-config-next) declares eslint peer
+      # support up to ^9.7 and calls context.getFilename, which ESLint 10
+      # removed. Lift when eslint-config-next ships an ESLint 10-ready
+      # eslint-plugin-react.
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
