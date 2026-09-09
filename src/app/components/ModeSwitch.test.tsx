@@ -29,33 +29,40 @@ describe("ModeSwitch flag behaviour", () => {
     const html = render({ vinnieEnabled: true });
     expect(link(html, "mode-switch-dashboard")).toContain(`href="${DASHBOARD_HREF}"`);
     expect(link(html, "mode-switch-vinnie")).toContain(`href="${VINNIE_HREF}"`);
-    expect(html).toContain('data-vinnie="on"');
-    expect(html).not.toContain("mode-switch-vinnie-slot");
+    expect(html).toContain('data-testid="mode-switch"');
+    expect(html).not.toContain("mode-switch-placeholder");
   });
 
-  it("hides Vinnie when the flag is false and keeps an inert slot of the same size so nothing shifts", () => {
+  it("renders no switch at all when the flag is false: an invisible, inert spacer of the same size holds the place", () => {
     const html = render({ vinnieEnabled: false });
-    expect(html).not.toContain(`href="${VINNIE_HREF}"`);
-    expect(html).toContain('data-vinnie="off"');
-    const slot = html.match(/<span [^>]*data-testid="mode-switch-vinnie-slot"[^>]*>/)?.[0] ?? "";
-    expect(slot).toContain('aria-hidden="true"');
-    expect(slot).toContain("invisible");
-    for (const size of ["h-10", "w-10", "sm:h-8", "sm:w-24"]) {
-      expect(slot).toContain(size);
-      expect(link(html, "mode-switch-dashboard")).toContain(size);
-    }
+    expect(html).not.toContain("<a ");
+    expect(html).not.toContain(`href=`);
+    expect(html).not.toContain('data-testid="mode-switch"');
+    const spacer = html.match(/<div [^>]*data-testid="mode-switch-placeholder"[^>]*>/)?.[0] ?? "";
+    expect(spacer).toContain('aria-hidden="true"');
+    expect(spacer).toContain("invisible");
+    expect(spacer).not.toContain("role=");
+    // Two slots with exactly the option dimensions, so the visible switch drops in without a shift.
+    const slots = html.match(/<span class="[^"]*"><\/span>/g) ?? [];
+    expect(slots).toHaveLength(2);
+    for (const size of ["h-10", "w-10", "sm:h-8", "sm:w-24", "border"]) for (const slot of slots) expect(slot).toContain(size);
   });
 
   it("treats an unknown status (still loading) exactly like off", () => {
     const html = render({ vinnieEnabled: null });
-    expect(html).not.toContain(`href="${VINNIE_HREF}"`);
-    expect(html).toContain("mode-switch-vinnie-slot");
-    expect(html).toContain('data-vinnie="off"');
+    expect(html).not.toContain("<a ");
+    expect(html).toContain("mode-switch-placeholder");
   });
 
-  it("uses a transparent border while Vinnie is hidden and the real track only when both options show", () => {
-    expect(render({ vinnieEnabled: true })).toContain("border border-gray-200");
-    expect(render({ vinnieEnabled: false })).toContain("border border-transparent");
+  it("uses the same track box for the spacer and the real switch", () => {
+    const on = render({ vinnieEnabled: true }).match(/<div [^>]*data-testid="mode-switch"[^>]*>/)?.[0] ?? "";
+    const off = render({ vinnieEnabled: false }).match(/<div [^>]*data-testid="mode-switch-placeholder"[^>]*>/)?.[0] ?? "";
+    for (const cls of ["flex items-center gap-0.5 rounded-full border p-0.5"]) {
+      expect(on).toContain(cls);
+      expect(off).toContain(cls);
+    }
+    expect(on).toContain("border-gray-200");
+    expect(off).toContain("border-transparent");
   });
 });
 

@@ -16,17 +16,17 @@ import Navbar from "./Navbar";
 describe("Navbar mode switch", () => {
   const html = renderToStaticMarkup(createElement(Navbar));
 
-  it("renders the switch in the bar before the desktop nav groups and the mobile hamburger", () => {
-    const switchAt = html.indexOf('data-testid="mode-switch"');
-    expect(switchAt).toBeGreaterThan(html.indexOf("Vending Connector"));
-    expect(switchAt).toBeLessThan(html.indexOf('aria-label="Open menu"'));
+  it("reserves the switch's place in the bar between the wordmark and the mobile hamburger", () => {
+    const at = html.indexOf('data-testid="mode-switch-placeholder"');
+    expect(at).toBeGreaterThan(html.indexOf("Vending Connector"));
+    expect(at).toBeLessThan(html.indexOf('aria-label="Open menu"'));
   });
 
-  it("offers Dashboard through login on first paint (session unknown) and reserves the Vinnie slot without a link", () => {
-    expect(html).toContain('href="/login?redirect=/dashboard"');
-    expect(html).toContain('data-testid="mode-switch-vinnie-slot"');
-    expect(html).toContain('data-vinnie="off"');
+  it("shows no switch on first paint (flag unknown): no Dashboard pill, no /assistant link, only the invisible spacer", () => {
+    expect(html).not.toContain('data-testid="mode-switch"');
+    expect(html).not.toContain('href="/login?redirect=/dashboard"');
     expect(html).not.toContain('href="/assistant"');
+    expect(html).toContain('data-testid="mode-switch-placeholder"');
   });
 
   it("lets only the wordmark yield on very narrow screens so mark, switch, and menu button always fit", () => {
