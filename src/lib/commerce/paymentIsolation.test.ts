@@ -16,6 +16,10 @@ import { join } from "node:path";
  *     the pre-correction Phase 2 changes, so "equal to main" is not the
  *     property that matters; "equal to what customers were paying through
  *     before Phase 2" is.
+ *     One deliberate exception: the OAuth callback route was hardened after
+ *     the baseline (realm id validation, CodeQL SSRF finding). It is pinned
+ *     to the exact hardened blob instead, so any further change to it still
+ *     fails this proof until reviewed here.
  */
 const ROOT = process.cwd();
 export const PRE_PHASE2_BASELINE = "78ebc7e7657a675d5f4fcf2de80b9a01cc7b1ede";
@@ -39,6 +43,10 @@ export const EXISTING_PAYMENT_FILES = [
   "src/app/api/sales/orders/[id]/send/route.ts",
   "src/lib/storefront/quickbooksStorefront.ts",
 ];
+/** Files changed on purpose after the baseline: git blob id of the reviewed content. */
+export const HARDENED_AFTER_BASELINE: Record<string, string> = {
+  "src/app/api/quickbooks/oauth/callback/route.ts": "4f95ca5ba7a475ac0038553bd8f4cf7607841604",
+};
 const ADAPTER_IMPORTERS_ALLOWED = new Set([
   "src/lib/commerce/checkout.ts",
   "src/lib/commerce/checkoutAccess.ts",
@@ -99,12 +107,19 @@ describe("existing payment routes are isolated from Vinnie", () => {
     expect(src).not.toMatch(/vinnie|commerce_quotes|ItemRef|getInvoiceWithLink|isTrustedInvoiceLink|timingSafeEqual/i);
   });
 
-  it("every existing payment file is byte-identical to the pre-Phase-2 baseline", () => {
+  it("every deliberately hardened payment file is byte-identical to its reviewed content", () => {
+    for (const [f, blob] of Object.entries(HARDENED_AFTER_BASELINE)) {
+      const actual = execFileSync("git", ["hash-object", f], { cwd: ROOT, encoding: "utf8" }).trim();
+      expect(actual, `${f} changed since its hardening was reviewed; update HARDENED_AFTER_BASELINE only with that review`).toBe(blob);
+    }
+  });
+
+  it("every other existing payment file is byte-identical to the pre-Phase-2 baseline", () => {
     if (!baselineAvailable()) {
       console.warn("pre-Phase-2 baseline commit is not available locally (shallow clone); byte-equality proof skipped, structural proofs above still ran.");
       return;
     }
-    for (const f of EXISTING_PAYMENT_FILES) {
+    for (const f of EXISTING_PAYMENT_FILES.filter((p) => !(p in HARDENED_AFTER_BASELINE))) {
       const diff = execFileSync("git", ["diff", "--stat", PRE_PHASE2_BASELINE, "--", f], { cwd: ROOT, encoding: "utf8" });
       expect(diff, `${f} differs from the pre-Phase-2 baseline`).toBe("");
     }
