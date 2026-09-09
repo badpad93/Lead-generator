@@ -384,10 +384,10 @@ export default function Navbar() {
                 priority
                 className="h-9 w-9"
               />
-              {/* Below 420px the mark, the mode switch, and the menu button
+              {/* Below 520px the mark, the mode selector, and the menu button
                   no longer fit beside the wordmark, so the wordmark alone
                   yields; the mark stays as the brand and home link. */}
-              <span className="hidden whitespace-nowrap text-lg font-bold text-gray-900 min-[420px]:inline">Vending Connector</span>
+              <span className="hidden whitespace-nowrap text-lg font-bold text-gray-900 min-[520px]:inline">Vending Connector</span>
             </Link>
             <ModeSwitch authenticated={isLoggedIn} vinnieEnabled={vinnieEnabled} />
           </div>
