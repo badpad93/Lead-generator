@@ -3,12 +3,14 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { DollarSign } from "lucide-react";
+import { isAppShellPath } from "@/lib/storefrontCtxCookie";
 
 export default function FinancingFab() {
   const pathname = usePathname();
 
-  // Hide on the financing page itself and in CRM/admin areas
-  if (pathname === "/financing" || pathname.startsWith("/sales") || pathname.startsWith("/admin")) {
+  // Hide on the financing page itself, in CRM/admin areas, and on the
+  // full-screen Vinnie app (which owns the whole viewport).
+  if (pathname === "/financing" || pathname.startsWith("/sales") || pathname.startsWith("/admin") || isAppShellPath(pathname)) {
     return null;
   }
 

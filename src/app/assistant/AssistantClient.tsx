@@ -18,10 +18,14 @@ import { useAssistantChat, type AssistantChat } from "./_components/useAssistant
 
 /**
  * Full-screen, monochrome chat application. The root layout renders no
- * nav/footer for /assistant (proxy-stamped minimal shell), and this
- * component owns exactly one viewport: only the conversation scrolls.
+ * nav/footer for /assistant (proxy-stamped minimal shell plus the
+ * pathname guard in SiteChrome), and this component owns exactly one
+ * viewport: the shell is anchored to the viewport edges (fixed inset-0),
+ * the main column is a bounded grid (header / status / conversation /
+ * composer) whose conversation row is minmax(0, 1fr) and the only scroll
+ * container, so the composer can never be pushed below the fold.
  */
-const ICON_BUTTON = "flex h-11 w-11 items-center justify-center rounded-lg text-white transition-colors hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:cursor-not-allowed disabled:opacity-40";
+const ICON_BUTTON = "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white transition-colors hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:cursor-not-allowed disabled:opacity-40";
 
 const DESKTOP_QUERY = "(min-width: 1024px)";
 
@@ -39,13 +43,14 @@ function useSidebarState() {
 function Header({ chat, onToggleSidebar, sidebarOpen }: { chat: AssistantChat; onToggleSidebar: () => void; sidebarOpen: boolean }) {
   const online = chat.state.kind !== "loading" && !chat.disabled;
   return (
-    <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-neutral-800 px-2 pt-[env(safe-area-inset-top)] sm:px-3">
+    <header className="flex min-h-14 shrink-0 items-center gap-1 border-b border-neutral-800 px-1.5 pt-[env(safe-area-inset-top)] sm:gap-2 sm:px-3">
       <button type="button" onClick={onToggleSidebar} aria-label="Toggle conversations" aria-expanded={sidebarOpen} className={ICON_BUTTON}>
         <PanelLeft className="h-5 w-5" aria-hidden />
       </button>
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+      {/* The badge always stays; the name text yields first on very narrow phones so the tools and the mode selector keep their full size. */}
+      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
         <VinnieAvatar size="md" online={online} />
-        <div className="min-w-0 leading-tight">
+        <div className="hidden min-w-0 leading-tight min-[400px]:block">
           <h1 className="truncate text-sm font-semibold text-white">{ASSISTANT_NAME}</h1>
           <p className="truncate text-xs text-neutral-400">{ASSISTANT_LABEL}</p>
         </div>
@@ -90,7 +95,7 @@ export default function AssistantClient({ maxMessageLength, quoteFlags }: { maxM
 
   return (
     <QuoteProvider viewer={chat.viewer} flags={quoteFlags}>
-    <div className="flex h-[100dvh] w-full overflow-hidden bg-black text-white" data-testid="assistant-app">
+    <div className="fixed inset-0 z-[60] flex h-[100dvh] w-full overflow-hidden bg-black text-white" data-testid="assistant-app">
       {/* Full-screen app: the page must never scroll; only the conversation pane does. */}
       <style>{"html,body{background:#000;overflow:hidden}"}</style>
       {sidebar.desktopOpen ? (
@@ -102,11 +107,14 @@ export default function AssistantClient({ maxMessageLength, quoteFlags }: { maxM
         {history}
       </ConversationDrawer>
       <QuoteDrawer />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden" data-testid="assistant-main">
         <Header chat={chat} onToggleSidebar={sidebar.toggle} sidebarOpen={sidebar.desktopOpen || sidebar.drawerOpen} />
-        <StatusBanner state={chat.state} />
+        {/* Always present so the grid rows stay aligned when the banner is empty. */}
+        <div data-testid="assistant-status-row">
+          <StatusBanner state={chat.state} />
+        </div>
         {/* The root layout already provides <main>; this is the only scroll container. */}
-        <section className="min-h-0 flex-1 overflow-y-auto" aria-label="Conversation with Vinnie" data-testid="conversation-scroll">
+        <section className="min-h-0 overflow-y-auto" aria-label="Conversation with Vinnie" data-testid="conversation-scroll">
           <div className="mx-auto min-h-full w-full max-w-3xl px-4 py-6 sm:px-6">
             <Conversation chat={chat} />
           </div>

@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
-import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
-import FinancingFab from "./components/FinancingFab";
 import MagicLinkHashCatcher from "./components/MagicLinkHashCatcher";
+import SiteChrome from "./components/SiteChrome";
 import { CUSTOMER_SHELL_HEADER } from "@/lib/storefrontCtxCookie";
 
 export const metadata: Metadata = {
@@ -50,11 +49,14 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Tenant customer routes (storefront + storefront-context auth) drop the
-  // global Vending Connector shell so the OPERATOR is the primary brand.
-  // The signal is a request header stamped server-side by the middleware,
-  // so the decision happens before first paint — no VC nav/footer flash.
-  // MagicLinkHashCatcher (an invisible provider) stays mounted either way.
+  // Tenant customer routes (storefront + storefront-context auth) and the
+  // full-screen Vinnie app drop the global Vending Connector shell. The
+  // signal is a request header stamped server-side by the proxy, so the
+  // decision happens before first paint — no VC nav/footer flash. For the
+  // full-screen app routes SiteChrome applies the same rule from the
+  // pathname as well, so the chrome never renders there even if the header
+  // is missing. MagicLinkHashCatcher (an invisible provider) stays mounted
+  // either way.
   const customerShell = (await headers()).get(CUSTOMER_SHELL_HEADER) === "1";
 
   return (
@@ -64,12 +66,9 @@ export default async function RootLayout({
         {customerShell ? (
           <main className="flex-1">{children}</main>
         ) : (
-          <>
-            <Navbar />
+          <SiteChrome footer={<Footer />}>
             <main className="flex-1">{children}</main>
-            <Footer />
-            <FinancingFab />
-          </>
+          </SiteChrome>
         )}
       </body>
     </html>

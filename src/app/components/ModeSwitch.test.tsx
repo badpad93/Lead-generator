@@ -5,23 +5,62 @@ import { readFileSync } from "node:fs";
 import { isAppShellPath } from "@/lib/storefrontCtxCookie";
 
 /**
- * The Dashboard / Vinnie switch is discoverability only. These tests pin:
- * the flag on/off/unknown rendering (reserved slot, no layout shift), the
- * authenticated and guest Dashboard destinations, both active states from
- * the route alone, the compact mobile form, the accessible markup, and
+ * The Legacy Mode / AI Mode selector is discoverability only. These tests
+ * pin: the exact labels, the text-only treatment (no icons, no capsules,
+ * no green surfaces), the flag on/off/unknown rendering (reserved place,
+ * no layout shift), the authenticated and guest destinations, both active
+ * states from the route alone with accessible markup, the focus ring, and
  * that /assistant keeps its no-global-nav shell.
  */
 const nav = { pathname: "/" as string | null };
 vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
 
-import { ModeSwitch, activeMode, dashboardHref, DASHBOARD_HREF, GUEST_DASHBOARD_HREF, VINNIE_HREF } from "./ModeSwitch";
+import { ModeSwitch, activeMode, dashboardHref, DASHBOARD_HREF, DASHBOARD_LABEL, GUEST_DASHBOARD_HREF, VINNIE_HREF, VINNIE_LABEL } from "./ModeSwitch";
 
 type Props = Parameters<typeof ModeSwitch>[0];
 const render = (props: Partial<Props> = {}) => renderToStaticMarkup(createElement(ModeSwitch, { authenticated: true, vinnieEnabled: true, ...props }));
-const link = (html: string, testId: string) => html.match(new RegExp(`<a [^>]*data-testid="${testId}"[^>]*>`))?.[0] ?? null;
+const link = (html: string, testId: string) => html.match(new RegExp(`<a [^>]*data-testid="${testId}"[^>]*>[^<]*</a>`))?.[0] ?? "";
+const CAPSULE = /rounded-full|rounded-\[(?:[7-9]|\d{2,})px\]|rounded-(?:lg|xl|2xl|3xl)\b|shadow|bg-vinnie-green|bg-green/;
 
 beforeEach(() => {
   nav.pathname = "/";
+});
+
+describe("ModeSwitch labels and treatment", () => {
+  it("displays exactly “Legacy Mode” and “AI Mode”", () => {
+    expect(DASHBOARD_LABEL).toBe("Legacy Mode");
+    expect(VINNIE_LABEL).toBe("AI Mode");
+    const html = render();
+    expect(link(html, "mode-switch-dashboard")).toMatch(/>Legacy Mode<\/a>$/);
+    expect(link(html, "mode-switch-vinnie")).toMatch(/>AI Mode<\/a>$/);
+    expect(html).not.toMatch(/Dashboard<|Vinnie AI</);
+  });
+
+  it("contains no img, svg, or icon markup, in either state", () => {
+    for (const html of [render({ vinnieEnabled: true }), render({ vinnieEnabled: false })]) {
+      expect(html).not.toMatch(/<svg|<img|<picture|lucide|data:image/);
+    }
+    const src = readFileSync(new URL("./ModeSwitch.tsx", import.meta.url), "utf8");
+    expect(src).not.toMatch(/lucide-react|next\/image|<svg|<img/);
+  });
+
+  it("has no capsule, pill, shadow, or green-filled styling; only a 2px underline marks the active tab", () => {
+    for (const html of [render(), render({ tone: "dark" }), render({ vinnieEnabled: false })]) {
+      expect(html).not.toMatch(CAPSULE);
+      expect(html).toContain("border-b-2");
+      expect(html).toContain("rounded-[6px]");
+    }
+    expect(link(render(), "mode-switch-dashboard")).toContain("border-vinnie-green");
+    expect(link(render(), "mode-switch-vinnie")).toContain("border-transparent");
+  });
+
+  it("is transparent with a subtle divider and 44px-tall targets", () => {
+    const html = render();
+    const group = html.match(/<div [^>]*data-testid="mode-switch"[^>]*>/)?.[0] ?? "";
+    expect(group).not.toMatch(/\bbg-|\bborder\b|border-gray|border-neutral/);
+    expect(html).toMatch(/<span aria-hidden="true" class="mx-1 h-4 w-px bg-gray-200"><\/span>/);
+    for (const id of ["mode-switch-dashboard", "mode-switch-vinnie"]) expect(link(html, id)).toContain("min-h-11");
+  });
 });
 
 describe("ModeSwitch flag behaviour", () => {
@@ -33,36 +72,25 @@ describe("ModeSwitch flag behaviour", () => {
     expect(html).not.toContain("mode-switch-placeholder");
   });
 
-  it("renders no switch at all when the flag is false: an invisible, inert spacer of the same size holds the place", () => {
+  it("renders no selector when the flag is false: an invisible, inert spacer with the same text holds the place", () => {
     const html = render({ vinnieEnabled: false });
     expect(html).not.toContain("<a ");
-    expect(html).not.toContain(`href=`);
+    expect(html).not.toContain("href=");
     expect(html).not.toContain('data-testid="mode-switch"');
     const spacer = html.match(/<div [^>]*data-testid="mode-switch-placeholder"[^>]*>/)?.[0] ?? "";
     expect(spacer).toContain('aria-hidden="true"');
     expect(spacer).toContain("invisible");
     expect(spacer).not.toContain("role=");
-    // Two slots with exactly the option dimensions, so the visible switch drops in without a shift.
-    const slots = html.match(/<span class="[^"]*"><\/span>/g) ?? [];
-    expect(slots).toHaveLength(2);
-    for (const size of ["h-10", "w-10", "sm:h-8", "sm:w-24", "border"]) for (const slot of slots) expect(slot).toContain(size);
+    // The spacer carries the same labels at the heavier weight, so its width equals the widest real state.
+    expect(html).toContain(">Legacy Mode</span>");
+    expect(html).toContain(">AI Mode</span>");
+    expect(html.match(/font-semibold/g)?.length).toBe(2);
   });
 
   it("treats an unknown status (still loading) exactly like off", () => {
     const html = render({ vinnieEnabled: null });
     expect(html).not.toContain("<a ");
     expect(html).toContain("mode-switch-placeholder");
-  });
-
-  it("uses the same track box for the spacer and the real switch", () => {
-    const on = render({ vinnieEnabled: true }).match(/<div [^>]*data-testid="mode-switch"[^>]*>/)?.[0] ?? "";
-    const off = render({ vinnieEnabled: false }).match(/<div [^>]*data-testid="mode-switch-placeholder"[^>]*>/)?.[0] ?? "";
-    for (const cls of ["flex items-center gap-0.5 rounded-full border p-0.5"]) {
-      expect(on).toContain(cls);
-      expect(off).toContain(cls);
-    }
-    expect(on).toContain("border-gray-200");
-    expect(off).toContain("border-transparent");
   });
 });
 
@@ -75,13 +103,13 @@ describe("ModeSwitch destinations", () => {
     expect(GUEST_DASHBOARD_HREF).toBe("/login?redirect=/dashboard");
   });
 
-  it("always points Vinnie at /assistant, signed in or not", () => {
+  it("always points AI Mode at /assistant, signed in or not", () => {
     expect(link(render({ authenticated: false }), "mode-switch-vinnie")).toContain('href="/assistant"');
   });
 });
 
 describe("ModeSwitch active state comes only from the route", () => {
-  it("marks Vinnie active on /assistant and below, Dashboard everywhere else", () => {
+  it("marks AI Mode active on /assistant and below, Legacy Mode everywhere else", () => {
     expect(activeMode("/assistant")).toBe("vinnie");
     expect(activeMode("/assistant/anything")).toBe("vinnie");
     expect(activeMode("/assistant-not")).toBe("dashboard");
@@ -91,70 +119,69 @@ describe("ModeSwitch active state comes only from the route", () => {
     expect(activeMode(null)).toBe("dashboard");
   });
 
-  it("renders Dashboard active with aria-current and the Vinnie green on /dashboard", () => {
+  it("renders Legacy Mode active on /dashboard with aria-current, heavier weight, and the green underline", () => {
     nav.pathname = "/dashboard";
     const html = render();
-    expect(link(html, "mode-switch-dashboard")).toContain('aria-current="page"');
-    expect(link(html, "mode-switch-dashboard")).toContain("bg-vinnie-green");
-    expect(link(html, "mode-switch-vinnie")).not.toContain("aria-current");
-    expect(link(html, "mode-switch-vinnie")).not.toContain("bg-vinnie-green");
+    const active = link(html, "mode-switch-dashboard");
+    expect(active).toContain('aria-current="page"');
+    expect(active).toContain("font-semibold");
+    expect(active).toContain("border-vinnie-green");
+    const idle = link(html, "mode-switch-vinnie");
+    expect(idle).not.toContain("aria-current");
+    expect(idle).toContain("font-medium");
+    expect(idle).toContain("border-transparent");
   });
 
-  it("renders Vinnie active on /assistant", () => {
+  it("renders AI Mode active on /assistant with the same three signals", () => {
     nav.pathname = "/assistant";
     const html = render();
-    expect(link(html, "mode-switch-vinnie")).toContain('aria-current="page"');
-    expect(link(html, "mode-switch-vinnie")).toContain("bg-vinnie-green");
+    const active = link(html, "mode-switch-vinnie");
+    expect(active).toContain('aria-current="page"');
+    expect(active).toContain("font-semibold");
+    expect(active).toContain("border-vinnie-green");
     expect(link(html, "mode-switch-dashboard")).not.toContain("aria-current");
   });
 
-  it("defaults everyone to Dashboard on unrelated routes", () => {
+  it("defaults everyone to Legacy Mode on unrelated routes", () => {
     nav.pathname = "/coffee";
     expect(link(render(), "mode-switch-dashboard")).toContain('aria-current="page"');
   });
 
-  it("never persists a preference: no cookie, storage, or profile access in the component", () => {
+  it("never persists a preference: no cookie, storage, profile access, effects, or redirects in the component", () => {
     const src = readFileSync(new URL("./ModeSwitch.tsx", import.meta.url), "utf8");
     expect(src).not.toMatch(/localStorage|sessionStorage|document\.cookie|profile|useEffect|redirect\(/);
   });
 });
 
-describe("ModeSwitch mobile and accessibility", () => {
-  it("is a compact icon-only pair below sm and shows labels from sm up", () => {
-    const html = render();
-    expect(html.match(/<svg/g)?.length).toBe(2);
-    expect(html.match(/<span class="hidden sm:inline">Dashboard<\/span>/)).not.toBeNull();
-    expect(html.match(/<span class="hidden sm:inline">Vinnie AI<\/span>/)).not.toBeNull();
-    expect(link(html, "mode-switch-dashboard")).toMatch(/\bh-10 w-10\b.*\bsm:h-8 sm:w-24\b/);
-  });
-
-  it("is a labelled group of real links (not a second nav landmark) with accessible names and visible focus rings", () => {
+describe("ModeSwitch accessibility and themes", () => {
+  it("is a labelled group of real links (not a second nav landmark) with visible focus rings", () => {
     const html = render();
     expect(html).toMatch(/<div [^>]*role="group"[^>]*aria-label="Interface mode"/);
     expect(html).not.toContain("<nav");
-    expect(link(html, "mode-switch-dashboard")).toContain('aria-label="Dashboard"');
-    expect(link(html, "mode-switch-vinnie")).toContain('aria-label="Vinnie AI"');
     for (const id of ["mode-switch-dashboard", "mode-switch-vinnie"]) {
       expect(link(html, id)).toContain("focus-visible:ring-2");
       expect(link(html, id)).toContain("focus-visible:ring-vinnie-green");
+      expect(link(html, id)).toContain("focus-visible:ring-offset-2");
     }
   });
 
-  it("supports a dark tone for Vinnie's header: green outline active state, no green surface, no other hue", () => {
+  it("light tone: dark active text, muted inactive text; dark tone: white active text, muted gray inactive text", () => {
     nav.pathname = "/assistant";
-    const html = render({ tone: "dark" });
-    expect(html).toContain("border-neutral-800");
-    expect(link(html, "mode-switch-vinnie")).toContain("border-vinnie-green bg-black text-vinnie-green");
-    expect(html).not.toContain("bg-vinnie-green");
-    expect(link(html, "mode-switch-dashboard")).toContain("text-white");
-    expect(html).not.toMatch(/\b(?:bg|text|border)-(?:green|emerald)-/);
+    const light = render();
+    expect(link(light, "mode-switch-vinnie")).toContain("text-black-primary");
+    expect(link(light, "mode-switch-dashboard")).toContain("text-gray-500");
+    expect(light).toContain("focus-visible:ring-offset-white");
+    const dark = render({ tone: "dark" });
+    expect(link(dark, "mode-switch-vinnie")).toContain("text-white");
+    expect(link(dark, "mode-switch-dashboard")).toContain("text-neutral-400");
+    expect(dark).toContain("bg-neutral-700");
+    expect(dark).toContain("focus-visible:ring-offset-black");
+    expect(dark).not.toMatch(/\b(?:bg|text|border)-(?:green|emerald)-/);
   });
 
-  it("keeps every option the same size in both states (a border is always present)", () => {
+  it("keeps both complete labels in the markup at every width (no hidden or abbreviated label)", () => {
     const html = render();
-    expect(link(html, "mode-switch-dashboard")).toMatch(/\brounded-full border\b/);
-    expect(link(html, "mode-switch-vinnie")).toMatch(/\brounded-full border\b/);
-    expect(link(html, "mode-switch-vinnie")).toContain("border-transparent");
+    expect(html).not.toMatch(/hidden sm:inline|sm:hidden|Legacy<|AI</);
   });
 });
 

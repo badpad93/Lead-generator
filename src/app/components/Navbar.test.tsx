@@ -22,15 +22,17 @@ describe("Navbar mode switch", () => {
     expect(at).toBeLessThan(html.indexOf('aria-label="Open menu"'));
   });
 
-  it("shows no switch on first paint (flag unknown): no Dashboard pill, no /assistant link, only the invisible spacer", () => {
+  it("shows no selector on first paint (flag unknown): no AI Mode link, only the invisible spacer", () => {
     expect(html).not.toContain('data-testid="mode-switch"');
     expect(html).not.toContain('href="/login?redirect=/dashboard"');
     expect(html).not.toContain('href="/assistant"');
     expect(html).toContain('data-testid="mode-switch-placeholder"');
+    // AI Mode is not offered while the flag is unknown or off.
+    expect(html).not.toMatch(/<a [^>]*>AI Mode<\/a>/);
   });
 
   it("lets only the wordmark yield on very narrow screens so mark, switch, and menu button always fit", () => {
-    expect(html).toMatch(/<span class="hidden whitespace-nowrap text-lg font-bold text-gray-900 min-\[420px\]:inline">Vending Connector<\/span>/);
+    expect(html).toMatch(/<span class="hidden whitespace-nowrap text-lg font-bold text-gray-900 min-\[520px\]:inline">Vending Connector<\/span>/);
   });
 
   it("keeps every pre-existing top-level element", () => {

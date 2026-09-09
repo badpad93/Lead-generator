@@ -47,8 +47,8 @@ const MESSAGES: ChatMessage[] = [
 describe("full-screen Vinnie shell", () => {
   const html = render(createElement(AssistantClient, { maxMessageLength: 2000 }));
 
-  it("owns exactly one viewport: 100dvh root, overflow hidden, single scroll container, no nested <main>", () => {
-    expect(html).toContain('class="flex h-[100dvh] w-full overflow-hidden bg-black text-white" data-testid="assistant-app"');
+  it("owns exactly one viewport: viewport-anchored root, overflow hidden, single scroll container, no nested <main>", () => {
+    expect(html).toContain('class="fixed inset-0 z-[60] flex h-[100dvh] w-full overflow-hidden bg-black text-white" data-testid="assistant-app"');
     expect(html).toContain("html,body{background:#000;overflow:hidden}");
     expect(html.match(/overflow-y-auto/g)?.length).toBeGreaterThanOrEqual(1);
     expect(html).toContain('data-testid="conversation-scroll"');
@@ -56,16 +56,32 @@ describe("full-screen Vinnie shell", () => {
     expect(html).not.toContain("<nav");
   });
 
-  it("carries the Dashboard / Vinnie switch in its own header with Vinnie active, without adding a nav landmark", () => {
+  it("carries exactly one Legacy Mode / AI Mode selector, in its own header, with AI Mode active and no icons", () => {
+    expect(html.match(/data-testid="mode-switch"/g)?.length).toBe(1);
+    expect(html).not.toContain("mode-switch-placeholder");
     const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
-    expect(header).toContain('data-testid="mode-switch"');
-    expect(header).not.toContain("mode-switch-placeholder");
-    expect(header).toMatch(/<a [^>]*aria-current="page"[^>]*href="\/assistant"/);
-    // Vinnie's restraint rule holds: the active state is an outline, never a green surface.
-    expect(header).toContain("border-vinnie-green bg-black text-vinnie-green");
-    // Static render has no session yet, so the Dashboard side goes through login.
-    expect(header).toContain('href="/login?redirect=/dashboard"');
+    const selector = header.slice(header.indexOf('data-testid="mode-switch"'), header.indexOf('data-testid="quote-button"'));
+    expect(selector).toMatch(/<a [^>]*aria-current="page"[^>]*href="\/assistant"[^>]*>AI Mode<\/a>/);
+    expect(selector).toMatch(/>Legacy Mode<\/a>/);
+    expect(selector).not.toMatch(/<svg|<img|rounded-full|bg-vinnie-green/);
+    // Vinnie's restraint rule holds: the accent is a 2px underline, never a green surface.
+    expect(selector).toContain("border-b-2");
+    expect(selector).toContain("border-vinnie-green font-semibold text-white");
+    // Static render has no session yet, so the Legacy side goes through login.
+    expect(selector).toContain('href="/login?redirect=/dashboard"');
     expect(header).not.toContain("<nav");
+  });
+
+  it("lays the main column out as a bounded grid: header / status / minmax(0,1fr) conversation / composer, conversation is the only scroll region", () => {
+    // The single column is minmax(0,1fr) too: an implicit auto column would size to the widest content and push the composer off-screen on phones.
+    expect(html).toContain('class="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden" data-testid="assistant-main"');
+    expect(html).toContain('data-testid="assistant-status-row"');
+    expect(html).toContain('<section class="min-h-0 overflow-y-auto" aria-label="Conversation with Vinnie" data-testid="conversation-scroll">');
+    expect(html.match(/overflow-y-auto/g)?.length).toBe(1);
+    // The composer is the last grid row inside the shell, not positioned outside it.
+    const main = html.slice(html.indexOf('data-testid="assistant-main"'));
+    expect(main.indexOf('data-testid="conversation-scroll"')).toBeLessThan(main.indexOf('data-testid="assistant-composer"'));
+    expect(main).not.toMatch(/assistant-composer[^>]*fixed|fixed[^>]*assistant-composer/);
   });
 
   it("shows the locked identity: name, label, greeting, and the approved VC badge (not the old monogram)", () => {
