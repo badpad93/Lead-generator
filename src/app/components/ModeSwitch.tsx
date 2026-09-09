@@ -16,9 +16,10 @@ import { Bot, LayoutDashboard } from "lucide-react";
  *   remembered in a cookie, storage, or profile, so everyone lands on the
  *   Dashboard side until they click Vinnie.
  * - Guests reach the Dashboard through /login?redirect=/dashboard.
- * - The Vinnie option renders only when assistant.enabled is true. While
- *   the status is unknown or false the slot stays reserved and inert, so
- *   the bar never shifts when the answer arrives.
+ * - The whole switch renders only when assistant.enabled is true: a lone
+ *   Dashboard pill is not a switch. While the status is unknown or false an
+ *   invisible spacer of the same size holds the place, so the bar never
+ *   shifts when the answer arrives and nothing odd is shown meanwhile.
  * - Below the sm breakpoint it collapses to a compact icon-only pair; the
  *   accessible name stays on each link.
  */
@@ -89,20 +90,25 @@ export interface ModeSwitchProps {
   className?: string;
 }
 
+const TRACK = "flex items-center gap-0.5 rounded-full border p-0.5";
+
 export function ModeSwitch({ authenticated, vinnieEnabled, tone = "light", className = "" }: ModeSwitchProps) {
   const mode = activeMode(usePathname());
-  const showVinnie = vinnieEnabled === true;
-  const track = showVinnie ? `border ${TONE[tone].track}` : "border border-transparent";
+  if (vinnieEnabled !== true) {
+    // Same box, no links, no focus stops: holds the space until the flag says on.
+    return (
+      <div aria-hidden="true" data-testid="mode-switch-placeholder" className={`${TRACK} invisible border-transparent ${className}`}>
+        <span className={SLOT} />
+        <span className={SLOT} />
+      </div>
+    );
+  }
   return (
     // A labelled group rather than a second <nav> landmark: the global
     // Navbar already owns navigation, and Vinnie's shell has none by design.
-    <div role="group" aria-label="Interface mode" data-testid="mode-switch" data-vinnie={showVinnie ? "on" : "off"} className={`flex items-center gap-0.5 rounded-full p-0.5 ${track} ${className}`}>
+    <div role="group" aria-label="Interface mode" data-testid="mode-switch" className={`${TRACK} ${TONE[tone].track} ${className}`}>
       <Option href={dashboardHref(authenticated)} label={DASHBOARD_LABEL} icon={LayoutDashboard} active={mode === "dashboard"} tone={tone} testId="mode-switch-dashboard" />
-      {showVinnie ? (
-        <Option href={VINNIE_HREF} label={VINNIE_LABEL} icon={Bot} active={mode === "vinnie"} tone={tone} testId="mode-switch-vinnie" />
-      ) : (
-        <span className={`${SLOT} invisible`} aria-hidden="true" data-testid="mode-switch-vinnie-slot" />
-      )}
+      <Option href={VINNIE_HREF} label={VINNIE_LABEL} icon={Bot} active={mode === "vinnie"} tone={tone} testId="mode-switch-vinnie" />
     </div>
   );
 }

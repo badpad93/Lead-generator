@@ -59,7 +59,7 @@ describe("full-screen Vinnie shell", () => {
   it("carries the Dashboard / Vinnie switch in its own header with Vinnie active, without adding a nav landmark", () => {
     const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
     expect(header).toContain('data-testid="mode-switch"');
-    expect(header).toContain('data-vinnie="on"');
+    expect(header).not.toContain("mode-switch-placeholder");
     expect(header).toMatch(/<a [^>]*aria-current="page"[^>]*href="\/assistant"/);
     // Vinnie's restraint rule holds: the active state is an outline, never a green surface.
     expect(header).toContain("border-vinnie-green bg-black text-vinnie-green");
