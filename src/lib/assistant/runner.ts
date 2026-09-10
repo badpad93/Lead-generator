@@ -80,7 +80,21 @@ const BLOCK_BUILDERS: Record<string, (out: Out) => UiBlock | null> = {
   get_order_status: (out) => ({ type: "order_status", status: String(out.status), record: (out.record as Out | undefined) ?? null }),
   get_quote: (out) => quoteBlock(out),
   update_quote: (out) => quoteBlock(out),
+  calculate_vending_business_plan: (out) => ({ type: "business_plan", output: out }),
+  recommend_vending_package: (out) => ({ type: "package_recommendation", recommendation: (out.recommendation as Out) ?? {}, packages: (out.packages as Out[]) ?? [] }),
+  start_vending_business_plan: (out) => ({ type: "business_plan", output: out }),
+  update_vending_business_plan: (out) => ({ type: "business_plan", output: out }),
+  get_vending_business_plan: (out) => ({ type: "business_plan", output: out }),
+  create_quote_from_business_plan: (out) => planQuoteBlock(out),
+  get_business_plan_exports: (out) => ({ type: "plan_exports", plan_number: String(out.plan_number ?? ""), exports: (out.exports as Array<{ format: string; label: string; href: string }>) ?? [] }),
+  start_financing_application: (out) => ({ type: "financing_action", action: out }),
 };
+
+/** A confirmed plan quote renders as the ordinary quote block; a preview renders as the confirmation block. */
+function planQuoteBlock(out: Out): UiBlock {
+  if (out.status === "quote") return { type: "quote", status: "quote", message: typeof out.message === "string" ? out.message : null, quote: (out.quote as Out | undefined) ?? null };
+  return { type: "plan_quote_preview", preview: (out.preview as Out[]) ?? [], reconciliation: (out.reconciliation as Out) ?? {} };
+}
 
 function quoteBlock(out: Out): UiBlock {
   const status = out.status === "quote" || out.status === "guest" ? out.status : "empty";

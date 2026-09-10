@@ -31,7 +31,7 @@ beforeEach(() => {
 });
 
 describe("runner — Responses API request shape", () => {
-  it("sends store:false, stream:true, the six strict tools a read-only turn may use, parallel_tool_calls:false, and the configured model", async () => {
+  it("sends store:false, stream:true, the ten strict tools a read-only turn may use, parallel_tool_calls:false, and the configured model", async () => {
     const fake = createFakeOpenAI([textRound("Hello!")]);
     const { emit } = collect();
     await runAssistantTurn({ config, history, toolContext: guestCtx, emit, signal: new AbortController().signal, client: fake.client });
@@ -43,8 +43,8 @@ describe("runner — Responses API request shape", () => {
     expect(req.model).toBe("configured-model");
     expect(req.max_output_tokens).toBe(500);
     const tools = req.tools as Array<{ type: string; strict: boolean; name: string }>;
-    expect(tools).toHaveLength(6);
-    expect(tools.map((t) => t.name)).not.toContain("update_quote");
+    expect(tools).toHaveLength(10);
+    for (const w of ["update_quote", "start_vending_business_plan", "update_vending_business_plan", "create_quote_from_business_plan", "start_financing_application"]) expect(tools.map((t) => t.name)).not.toContain(w);
     expect(tools.every((t) => t.type === "function" && t.strict === true)).toBe(true);
     expect(req.previous_response_id).toBeUndefined();
     expect(typeof req.instructions).toBe("string");

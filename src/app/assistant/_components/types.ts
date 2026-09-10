@@ -16,7 +16,12 @@ export type UiBlock =
   | { type: "customer_context"; context: Record<string, unknown> }
   | { type: "order_status"; status: string; record: Record<string, unknown> | null }
   | { type: "notice"; text: string }
-  | { type: "quote"; status: "guest" | "empty" | "quote"; message: string | null; quote: Record<string, unknown> | null };
+  | { type: "quote"; status: "guest" | "empty" | "quote"; message: string | null; quote: Record<string, unknown> | null }
+  | { type: "business_plan"; output: Record<string, unknown> }
+  | { type: "package_recommendation"; recommendation: Record<string, unknown>; packages: Array<Record<string, unknown>> }
+  | { type: "plan_quote_preview"; preview: Array<Record<string, unknown>>; reconciliation: Record<string, unknown> }
+  | { type: "plan_exports"; plan_number: string; exports: Array<{ format: string; label: string; href: string }> }
+  | { type: "financing_action"; action: Record<string, unknown> };
 
 export interface ChatMessage {
   id: string;

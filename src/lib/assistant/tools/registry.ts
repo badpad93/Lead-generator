@@ -11,9 +11,11 @@ import { runGetCustomerContext } from "./getCustomerContext";
 import { runGetOrderStatus } from "./getOrderStatus";
 import { runGetQuote } from "./getQuote";
 import { runUpdateQuote } from "./updateQuote";
+import { runCalculateBusinessPlan, runCreateQuoteFromPlan, runGetBusinessPlan, runGetBusinessPlanExports, runRecommendVendingPackage, runStartBusinessPlan, runStartFinancingApplication, runUpdateBusinessPlan } from "./businessPlanTools";
 
 /**
- * Central registry: five read-only tools plus two quote tools.
+ * Central registry: five read-only tools, two quote tools, and eight
+ * vending business-plan tools.
  *
  * The dispatcher is the only path from a model tool call to code: it
  * re-validates arguments with Zod, enforces a wall-clock budget, checks
@@ -56,6 +58,14 @@ const AUTHORIZATION: Record<ToolName, ToolAuthorization> = {
   get_order_status: "authenticated",
   get_quote: "public", // returns a sign-in notice for guests
   update_quote: "authenticated",
+  calculate_vending_business_plan: "public", // unsaved educational estimate
+  recommend_vending_package: "public",
+  start_vending_business_plan: "authenticated",
+  update_vending_business_plan: "authenticated",
+  get_vending_business_plan: "authenticated",
+  create_quote_from_business_plan: "authenticated",
+  get_business_plan_exports: "authenticated",
+  start_financing_application: "authenticated",
 };
 
 type Handler = (input: unknown, ctx: ToolContext) => Promise<unknown>;
@@ -68,6 +78,14 @@ const HANDLERS: Record<ToolName, Handler> = {
   get_order_status: (i, c) => runGetOrderStatus(i as Parameters<typeof runGetOrderStatus>[0], c),
   get_quote: (_i, c) => runGetQuote(c),
   update_quote: (i, c) => runUpdateQuote(i as Parameters<typeof runUpdateQuote>[0], c),
+  calculate_vending_business_plan: (i) => runCalculateBusinessPlan(i as Parameters<typeof runCalculateBusinessPlan>[0]),
+  recommend_vending_package: async (i) => runRecommendVendingPackage(i as Parameters<typeof runRecommendVendingPackage>[0]),
+  start_vending_business_plan: (i, c) => runStartBusinessPlan(i as Parameters<typeof runStartBusinessPlan>[0], c),
+  update_vending_business_plan: (i, c) => runUpdateBusinessPlan(i as Parameters<typeof runUpdateBusinessPlan>[0], c),
+  get_vending_business_plan: (i, c) => runGetBusinessPlan(i as Parameters<typeof runGetBusinessPlan>[0], c),
+  create_quote_from_business_plan: (i, c) => runCreateQuoteFromPlan(i as Parameters<typeof runCreateQuoteFromPlan>[0], c),
+  get_business_plan_exports: (i, c) => runGetBusinessPlanExports(i as Parameters<typeof runGetBusinessPlanExports>[0], c),
+  start_financing_application: (i, c) => runStartFinancingApplication(i as Parameters<typeof runStartFinancingApplication>[0], c),
 };
 
 export const TOOL_DEFINITIONS: readonly ToolDefinition[] = TOOL_NAMES.map((name) => ({
@@ -156,8 +174,8 @@ const ERROR_MESSAGES: Record<ToolErrorCode, string> = {
   timeout: "The catalog took too long to respond. Tell the customer to try again in a moment.",
   output_rejected: "The result could not be shared. Apologise and offer to connect the customer with the team.",
   execution_failed: "The lookup could not be completed right now. Apologise and offer to connect the customer with the team.",
-  authentication_required: "The customer must be signed in for this. Ask them to sign in and try again.",
-  write_tools_disabled: "Saved quotes are not available yet. You may still explain products and prices; the customer cannot build a saved quote right now.",
+  authentication_required: "The customer must be signed in for this. Ask them to sign in (the AI Mode page keeps the conversation) and try again; guests can still get an unsaved estimate.",
+  write_tools_disabled: "Saved quotes and saved business plans are not available yet. You may still explain products and prices and give an unsaved estimate with calculate_vending_business_plan; the customer cannot save a quote or plan right now.",
   quote_rejected: "That change was not accepted.",
 };
 

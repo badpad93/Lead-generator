@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { sendFormConfirmationEmails } from "@/lib/confirmationEmail";
 import { linkQuoteToApplication } from "@/lib/commerce/financingLinkage";
+import { linkPlanToApplication } from "@/lib/businessPlan/financingRef";
 import {
   provisionAccountForGuestCheckout,
   generateGuestToken,
@@ -131,6 +132,8 @@ export async function POST(req: NextRequest) {
   // Vinnie quote linkage (metadata only, never a price change or an
   // approval). Ownership of the referenced quote is re-checked inside.
   await linkQuoteToApplication(body.quote_ref, application.id, userId);
+  // Same for the Vinnie business plan: a status stamp and an application id, nothing else.
+  await linkPlanToApplication(body.plan_ref, application.id, userId);
 
   // Auto-create CRM account + lead for the financing applicant (skip if lead already exists)
   let crmAccountId: string | null = null;

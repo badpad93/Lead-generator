@@ -5,6 +5,7 @@ import { ShoppingCart } from "lucide-react";
 import { useQuoteApi } from "./useQuote";
 import { CheckCircle2, Circle, Clock, Info, Package, User } from "lucide-react";
 import type { UiBlock } from "./types";
+import { BusinessPlanBlock, FinancingActionBlock, PackageRecommendationBlock, PlanExportsBlock, PlanQuotePreviewBlock } from "./BusinessPlanBlocks";
 import { shortDate, text, titleCase, usd } from "./format";
 
 type Item = Record<string, unknown>;
@@ -328,6 +329,24 @@ export function BlockView({ block }: { block: UiBlock }) {
       return <QuoteBlock status={block.status} message={block.message} quote={block.quote} />;
     case "notice":
       return <Notice text={block.text} />;
+    default:
+      return <PlanBlockView block={block} />;
+  }
+}
+
+/** The vending business-plan blocks (see BusinessPlanBlocks.tsx). */
+function PlanBlockView({ block }: { block: UiBlock }) {
+  switch (block.type) {
+    case "business_plan":
+      return <BusinessPlanBlock output={block.output} />;
+    case "package_recommendation":
+      return <PackageRecommendationBlock recommendation={block.recommendation} packages={block.packages} />;
+    case "plan_quote_preview":
+      return <PlanQuotePreviewBlock preview={block.preview} reconciliation={block.reconciliation} />;
+    case "plan_exports":
+      return <PlanExportsBlock planNumber={block.plan_number} exports={block.exports} />;
+    case "financing_action":
+      return <FinancingActionBlock action={block.action} />;
     default:
       return null;
   }

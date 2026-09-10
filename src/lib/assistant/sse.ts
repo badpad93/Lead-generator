@@ -18,6 +18,12 @@ export const uiBlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("order_status"), status: z.string(), record: z.record(z.string(), z.unknown()).nullable() }),
   z.object({ type: z.literal("notice"), text: z.string() }),
   z.object({ type: z.literal("quote"), status: z.enum(["guest", "empty", "quote"]), message: z.string().nullable(), quote: z.record(z.string(), z.unknown()).nullable() }),
+  // Vending business plan: the full tool output (plan view + save state) renders as one structured block.
+  z.object({ type: z.literal("business_plan"), output: z.record(z.string(), z.unknown()) }),
+  z.object({ type: z.literal("package_recommendation"), recommendation: z.record(z.string(), z.unknown()), packages: z.array(z.record(z.string(), z.unknown())) }),
+  z.object({ type: z.literal("plan_quote_preview"), preview: z.array(z.record(z.string(), z.unknown())), reconciliation: z.record(z.string(), z.unknown()) }),
+  z.object({ type: z.literal("plan_exports"), plan_number: z.string(), exports: z.array(z.object({ format: z.string(), label: z.string(), href: z.string() })) }),
+  z.object({ type: z.literal("financing_action"), action: z.record(z.string(), z.unknown()) }),
 ]);
 export type UiBlock = z.infer<typeof uiBlockSchema>;
 
@@ -50,6 +56,14 @@ export const TOOL_LABELS: Record<string, string> = {
   get_order_status: "Checking order status",
   get_quote: "Loading your quote",
   update_quote: "Updating your quote",
+  calculate_vending_business_plan: "Running the numbers",
+  recommend_vending_package: "Checking package fit",
+  start_vending_business_plan: "Saving your business plan",
+  update_vending_business_plan: "Recalculating your plan",
+  get_vending_business_plan: "Loading your business plan",
+  create_quote_from_business_plan: "Building your quote",
+  get_business_plan_exports: "Preparing exports",
+  start_financing_application: "Preparing the financing application",
 };
 
 export const SSE_HEADERS: Record<string, string> = {

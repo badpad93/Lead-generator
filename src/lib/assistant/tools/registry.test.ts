@@ -22,11 +22,13 @@ const guestCtx: ToolContext = { writeToolsEnabled: false, threadId: "t1", profil
 
 describe("tool registry — five strict read-only tools plus two quote tools", () => {
   it("preserves the five read-only tools and adds get_quote/update_quote; update_quote is offered only with write tools on", () => {
-    expect(TOOL_NAMES).toEqual(["search_catalog", "get_product_details", "compare_products", "get_customer_context", "get_order_status", "get_quote", "update_quote"]);
-    expect(TOOL_DEFINITIONS).toHaveLength(7);
-    expect(openAIToolDefinitions().map((t) => t.name)).toEqual(["search_catalog", "get_product_details", "compare_products", "get_customer_context", "get_order_status", "get_quote"]);
-    expect(openAIToolDefinitions({ includeWriteTools: true })).toHaveLength(7);
-    expect(Object.keys(ZOD_SCHEMAS)).toHaveLength(7);
+    expect(TOOL_NAMES.slice(0, 7)).toEqual(["search_catalog", "get_product_details", "compare_products", "get_customer_context", "get_order_status", "get_quote", "update_quote"]);
+    expect(TOOL_NAMES.slice(7)).toEqual(["calculate_vending_business_plan", "recommend_vending_package", "start_vending_business_plan", "update_vending_business_plan", "get_vending_business_plan", "create_quote_from_business_plan", "get_business_plan_exports", "start_financing_application"]);
+    expect(TOOL_DEFINITIONS).toHaveLength(15);
+    // Without write tools: every read-only tool, the two public planning tools, and the two read-only plan tools; no writes.
+    expect(openAIToolDefinitions().map((t) => t.name)).toEqual(["search_catalog", "get_product_details", "compare_products", "get_customer_context", "get_order_status", "get_quote", "calculate_vending_business_plan", "recommend_vending_package", "get_vending_business_plan", "get_business_plan_exports"]);
+    expect(openAIToolDefinitions({ includeWriteTools: true })).toHaveLength(15);
+    expect(Object.keys(ZOD_SCHEMAS)).toHaveLength(15);
   });
 
   it("every tool is a strict function tool", () => {

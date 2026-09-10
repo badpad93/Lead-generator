@@ -24,7 +24,8 @@ const BANK_CONTEXT_RE = /\b(routing|aba|account\s*(?:number|no\.?|#)|acct|iban|s
 const FINANCING_PATTERNS: RegExp[] = [
   /\b(my|our)\s+(credit\s*score|fico)\b[^.\n]{0,40}\d{3}\b/i,
   /\b(credit\s*score|fico)\s*(is|of|:)\s*\d{3}\b/i,
-  /\b(my|our)\s+(annual|yearly|monthly|household)?\s*(income|salary|net\s*worth)\b[^.\n]{0,40}\$?\s?\d/i,
+  // "my income is $X" is private; "my income goal/target is $X" is a planning target Vinnie asks for.
+  /\b(my|our)\s+(annual|yearly|monthly|household)?\s*(income|salary|net\s*worth)\b(?!\s*(goal|target))[^.\n]{0,40}\$?\s?\d/i,
   /\b(income|salary|net\s*worth)\s*(is|of|:)\s*\$?\s?\d/i,
   /\b(social\s*security|ssn)\b/i,
   /\b(date\s*of\s*birth|dob)\b[^.\n]{0,20}\d/i,
