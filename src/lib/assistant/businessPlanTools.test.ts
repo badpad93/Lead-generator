@@ -44,7 +44,7 @@ const CATALOG = () => [
 ];
 
 const SPEC = { package: null, operator: null, assumptions: null, rollout: null, website_included: null, financing_case: null, cash_contribution: null };
-const OPERATOR = { operator_type: "new", business_name: "Sunrise Vending", territory: "Tampa Bay", service_radius_miles: 25, vending_experience: "none", weekly_hours_available: 20, staffing: "owner_operated", has_vehicle: true, has_storage: true, desired_launch: "Q1", monthly_cash_flow_goal: 3000, cash_available: 8000, financing_interest: true, credit_range: "700–749", target_machine_count: 10, expected_location_fee_rate: 0, existing_machine_count: null, existing_monthly_sales: null };
+const OPERATOR = { operator_type: "new", business_name: "Sunrise Vending", territory: "Tampa Bay", service_radius_miles: 25, vending_experience: "none", weekly_hours_available: 20, staffing: "owner_operated", has_vehicle: true, has_storage: true, desired_launch: "Q1", monthly_cash_flow_goal: 3000, cash_available: 8000, financing_interest: true, credit_range: null, credit_score: 720, target_machine_count: 10, expected_location_fee_rate: 0, existing_machine_count: null, existing_monthly_sales: null };
 const run = (name: Parameters<typeof dispatchTool>[0], input: unknown, ctx: ToolContext) => dispatchTool(name, JSON.stringify(input), ctx);
 const planOf = (r: Awaited<ReturnType<typeof dispatchTool>>) => r.output as PlanToolOutput;
 
@@ -220,7 +220,7 @@ describe("exports and financing hand-off", () => {
     expect(out.financing_status).toBe("application_started");
     expect(out.financing_request).toBe(56_500);
     expect(out.notice).toMatch(/not an approval/);
-    expect(JSON.stringify(out)).not.toMatch(/approved|credit_score|income|date_of_birth|ssn/i);
+    expect(JSON.stringify(out)).not.toMatch(/approved|income|date_of_birth|ssn/i);
     expect(store.commerce_business_plans[0]).toMatchObject({ financing_status: "application_started" });
     expect(store.commerce_quotes[0]).toMatchObject({ qb_invoice_id: null, checkout_status: "none" });
   });
@@ -228,13 +228,17 @@ describe("exports and financing hand-off", () => {
 
 describe("schemas and privacy", () => {
   it("rejects sensitive or price-bearing fields at the schema", async () => {
-    for (const extra of [{ ssn: "1" }, { annual_income: 5 }, { date_of_birth: "1990-01-01" }, { credit_score: 720 }, { bank_account: "1" }, { price: 1 }, { total: 1 }]) {
+    for (const extra of [{ ssn: "1" }, { annual_income: 5 }, { date_of_birth: "1990-01-01" }, { bank_account: "1" }, { price: 1 }, { total: 1 }]) {
       const inOperator = await run("calculate_vending_business_plan", { ...SPEC, operator: { ...OPERATOR, ...extra } }, guest);
       expect(inOperator.errorCode, JSON.stringify(extra)).toBe("invalid_arguments");
       const top = await run("calculate_vending_business_plan", { ...SPEC, ...extra }, guest);
       expect(top.errorCode).toBe("invalid_arguments");
     }
     expect((await run("calculate_vending_business_plan", { ...SPEC, operator: { ...OPERATOR, credit_range: "720" } }, guest)).errorCode).toBe("invalid_arguments");
+    expect((await run("calculate_vending_business_plan", { ...SPEC, operator: { ...OPERATOR, credit_score: 200 } }, guest)).errorCode).toBe("invalid_arguments");
+    const scored = await run("calculate_vending_business_plan", { ...SPEC, operator: { ...OPERATOR, credit_score: 712 } }, guest);
+    expect(scored.ok).toBe(true);
+    expect(planOf(scored).plan.profile).toMatchObject({ credit_score: 712, credit_range: "700–749" });
     expect((await run("calculate_vending_business_plan", { ...SPEC, assumptions: { ...Object.fromEntries(Object.keys(OPERATOR).map((k) => [k, null])) } }, guest)).errorCode).toBe("invalid_arguments");
   });
   it("every output passes the prohibited-key scan and carries no internal or sensitive keys", async () => {

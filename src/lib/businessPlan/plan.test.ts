@@ -138,9 +138,16 @@ describe("sections", () => {
 });
 
 describe("discovery profile", () => {
-  it("accepts only the safe fields and the financing form's credit ranges", () => {
+  it("accepts the financing form's credit ranges and an approximate credit score, deriving the range from the score", () => {
     expect(operatorProfileSchema.safeParse({ ...EMPTY_PROFILE, credit_range: "700–749" }).success).toBe(true);
     expect(operatorProfileSchema.safeParse({ ...EMPTY_PROFILE, credit_range: "720" }).success).toBe(false);
+    expect(operatorProfileSchema.safeParse({ ...EMPTY_PROFILE, credit_score: 720 }).success).toBe(true);
+    expect(operatorProfileSchema.safeParse({ ...EMPTY_PROFILE, credit_score: 900 }).success).toBe(false);
+    expect(mergeProfile(EMPTY_PROFILE, { credit_score: 598 }).credit_range).toBe("Below 600");
+    expect(mergeProfile(EMPTY_PROFILE, { credit_score: 650 }).credit_range).toBe("650–699");
+    expect(mergeProfile(EMPTY_PROFILE, { credit_score: 749 }).credit_range).toBe("700–749");
+    expect(mergeProfile(EMPTY_PROFILE, { credit_score: 750 }).credit_range).toBe("750+");
+    expect(mergeProfile(EMPTY_PROFILE, { credit_score: 760, credit_range: "700–749" }).credit_range).toBe("700–749");
     for (const extra of [{ ssn: "1" }, { date_of_birth: "1990-01-01" }, { annual_income: 5 }, { bank_account: "1" }, { card_number: "4" }]) {
       expect(operatorProfileSchema.safeParse({ ...EMPTY_PROFILE, ...extra }).success).toBe(false);
     }

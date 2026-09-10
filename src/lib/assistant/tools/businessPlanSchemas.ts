@@ -6,7 +6,7 @@ import type { JsonSchemaObject } from "./schemas";
 /**
  * Business-plan tool contracts (strict JSON Schema for OpenAI, Zod for the
  * server). No input accepts a price, total, catalog id, QuickBooks id,
- * URL, credit score, income figure, date of birth, or bank/card detail:
+ * URL, income figure, date of birth, or bank/card detail (a credit score or range is accepted):
  * only the discovery answers, the approved assumption overrides, the
  * package choice, and plan references.
  */
@@ -98,7 +98,8 @@ const OPERATOR_PROPS: Record<string, Prop> = {
   monthly_cash_flow_goal: nullable("number", { minimum: 0, maximum: 1000000, description: "Monthly cash-flow GOAL from the machines in USD (a target, never actual income)." }),
   cash_available: nullable("number", { minimum: 0, maximum: 10000000, description: "Cash the customer says is available to put toward the launch, in USD." }),
   financing_interest: nullable("boolean", { description: "Whether the customer is interested in financing." }),
-  credit_range: nullable("string", { enum: [...CREDIT_RANGES], description: "Approximate credit RANGE only, using exactly these options from the financing form. Never a score." }),
+  credit_range: nullable("string", { enum: [...CREDIT_RANGES], description: "Approximate credit range using exactly these options from the financing form (derived automatically when credit_score is given)." }),
+  credit_score: nullable("integer", { minimum: 300, maximum: 850, description: "Approximate credit score as the customer states it, when they share one." }),
   target_machine_count: nullable("integer", { minimum: 1, maximum: 200, description: "How many machines the customer wants." }),
   expected_location_fee_rate: nullable("number", { minimum: 0, maximum: 0.5, description: "Expected location commission as a fraction of machine contribution (usually 0)." }),
   existing_machine_count: nullable("integer", { minimum: 0, maximum: 1000, description: "Existing operators: machines already in service." }),

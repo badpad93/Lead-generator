@@ -37,7 +37,7 @@ describe("redactUserMessage", () => {
   });
 
   it("rejects volunteered private financing data without storing it", () => {
-    for (const msg of ["My credit score is 720, can I get financing?", "our annual income is $250,000", "I filed for bankruptcy in 2019"]) {
+    for (const msg of ["My net worth is $400,000, can I get financing?", "our annual income is $250,000", "I filed for bankruptcy in 2019"]) {
       const r = redactUserMessage(msg, 2000);
       expect(r.rejected).toBe(true);
       expect(r.text).toBe("");
@@ -59,7 +59,9 @@ describe("business-plan discovery answers", () => {
     expect(redactUserMessage("our monthly income target: $3,000", 2000).rejected).toBe(false);
     expect(redactUserMessage("I'd like about $3,000 a month in cash flow", 2000).rejected).toBe(false);
     expect(redactUserMessage("my income is $85,000", 2000).rejected).toBe(true);
-    expect(redactUserMessage("my credit score is 720", 2000).rejected).toBe(true);
+    // A credit score is a planning input Vinnie may receive; actual income is not.
+    expect(redactUserMessage("my credit score is 720", 2000).rejected).toBe(false);
+    expect(redactUserMessage("FICO is 680", 2000).rejected).toBe(false);
     expect(redactUserMessage("I have 20 hours a week, a van, and about $8,000 in cash", 2000).rejected).toBe(false);
   });
 });

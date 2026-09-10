@@ -27,7 +27,7 @@ describe("Vinnie identity", () => {
   });
 
   it("the prompt version was bumped for the business-plan workflow and still matches the approved copy", () => {
-    expect(PROMPT_VERSION).toBe("2026-09-10.1");
+    expect(PROMPT_VERSION).toBe("2026-09-10.2");
     expect(PROMPT_VERSION).not.toBe("2026-09-08.1");
     expect(PROMPT_VERSION).not.toBe("2026-09-06.2");
     expect(APPROVED_COPY_VERSION).toBe(PROMPT_VERSION);

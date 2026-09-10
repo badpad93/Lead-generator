@@ -11,7 +11,7 @@
  *
  * Bump PROMPT_VERSION in ../config.ts when this file changes materially.
  */
-export const APPROVED_COPY_VERSION = "2026-09-10.1";
+export const APPROVED_COPY_VERSION = "2026-09-10.2";
 
 export const APPROVED_COPY = `
 ## About Vending Connector

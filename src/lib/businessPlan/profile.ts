@@ -2,9 +2,9 @@ import { z } from "zod";
 
 /**
  * What Vinnie may learn about the prospective operator during discovery.
- * Nothing here is sensitive financing data: no SSN, bank, card, income
- * figure, or date of birth. The credit range reuses the exact options the
- * existing financing form offers, and only a range is ever accepted.
+ * No SSN, bank, card, income figure, or date of birth is accepted here.
+ * A credit score (or the financing form's credit range) is a permitted
+ * planning input; when only the score is given the range is derived.
  */
 export const CREDIT_RANGES = ["Below 600", "600–649", "650–699", "700–749", "750+"] as const;
 export type CreditRange = (typeof CREDIT_RANGES)[number];
@@ -29,6 +29,8 @@ export const operatorProfileSchema = z
     cash_available: money(10_000_000).nullable(),
     financing_interest: z.boolean().nullable(),
     credit_range: z.enum(CREDIT_RANGES).nullable(),
+    /** Approximate credit score as the customer states it (300–850). */
+    credit_score: z.number().int().min(300).max(850).nullable(),
     target_machine_count: z.number().int().min(1).max(200).nullable(),
     /** Fraction of machine contribution the customer expects to pay locations (usually 0). */
     expected_location_fee_rate: z.number().min(0).max(0.5).nullable(),
@@ -54,6 +56,7 @@ export const EMPTY_PROFILE: Readonly<OperatorProfile> = Object.freeze({
   cash_available: null,
   financing_interest: null,
   credit_range: null,
+  credit_score: null,
   target_machine_count: null,
   expected_location_fee_rate: null,
   existing_machine_count: null,
@@ -61,6 +64,15 @@ export const EMPTY_PROFILE: Readonly<OperatorProfile> = Object.freeze({
 });
 
 export const PROFILE_KEYS = Object.keys(EMPTY_PROFILE) as Array<keyof OperatorProfile>;
+
+/** The financing form's range for a numeric score. */
+export function creditRangeFromScore(score: number): CreditRange {
+  if (score < 600) return "Below 600";
+  if (score < 650) return "600–649";
+  if (score < 700) return "650–699";
+  if (score < 750) return "700–749";
+  return "750+";
+}
 
 /** Merge non-null patch values over an existing profile; nulls leave fields untouched. */
 export function mergeProfile(base: OperatorProfile, patch: Partial<OperatorProfile> | null | undefined): OperatorProfile {
@@ -70,6 +82,7 @@ export function mergeProfile(base: OperatorProfile, patch: Partial<OperatorProfi
     const v = patch[key];
     if (v !== null && v !== undefined) (out as Record<string, unknown>)[key] = v;
   }
+  if (typeof patch.credit_score === "number" && (patch.credit_range === null || patch.credit_range === undefined)) out.credit_range = creditRangeFromScore(patch.credit_score);
   return out;
 }
 

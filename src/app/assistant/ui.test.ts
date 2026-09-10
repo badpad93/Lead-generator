@@ -124,7 +124,7 @@ describe("full-screen Vinnie shell", () => {
     expect(html).toContain("disabled=\"\"");
     expect(html).toContain("Connecting to Vinnie…");
     expect(html).not.toContain("Vinnie is unavailable right now");
-    expect(html).toContain("Do not share card, bank, Social Security, credit, or income details here.");
+    expect(html).toContain("Do not share card, bank, Social Security, or income details here.");
   });
 });
 

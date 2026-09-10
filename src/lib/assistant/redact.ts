@@ -21,9 +21,9 @@ const SSN_RE = /\b\d{3}[- ]\d{2}[- ]\d{4}\b/g;
 const CARD_CANDIDATE_RE = /\b(?:\d[ -]?){12,18}\d\b/g;
 const BANK_CONTEXT_RE = /\b(routing|aba|account\s*(?:number|no\.?|#)|acct|iban|swift)\b[^\d]{0,25}(\d[\d -]{6,20}\d)/gi;
 
+// A credit score is accepted as a planning input (product decision 2026-09-10);
+// income, net worth, SSN, date of birth, bankruptcy, and tax liens are not.
 const FINANCING_PATTERNS: RegExp[] = [
-  /\b(my|our)\s+(credit\s*score|fico)\b[^.\n]{0,40}\d{3}\b/i,
-  /\b(credit\s*score|fico)\s*(is|of|:)\s*\d{3}\b/i,
   // "my income is $X" is private; "my income goal/target is $X" is a planning target Vinnie asks for.
   /\b(my|our)\s+(annual|yearly|monthly|household)?\s*(income|salary|net\s*worth)\b(?!\s*(goal|target))[^.\n]{0,40}\$?\s?\d/i,
   /\b(income|salary|net\s*worth)\s*(is|of|:)\s*\$?\s?\d/i,
@@ -34,7 +34,7 @@ const FINANCING_PATTERNS: RegExp[] = [
 ];
 
 export const SENSITIVE_INPUT_NOTICE =
-  "For your security this assistant can't accept card, bank, Social Security, credit-history, or income details. " +
+  "For your security this assistant can't accept card, bank, Social Security, bankruptcy or lien history, or income details. " +
   "Those are handled only through the secure financing and checkout forms. Your other questions are welcome.";
 
 function luhnValid(digits: string): boolean {

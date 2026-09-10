@@ -122,7 +122,7 @@ export default function AssistantClient({ maxMessageLength, quoteFlags }: { maxM
         <footer className="shrink-0 border-t border-neutral-800 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
           <div className="mx-auto w-full max-w-3xl space-y-2">
             <Composer disabled={chat.disabled} loading={chat.state.kind === "loading"} streaming={chat.state.kind === "streaming"} maxLength={maxMessageLength} onSend={(t) => void chat.send(t)} onStop={chat.stop} />
-            <p className="text-center text-[11px] leading-snug text-neutral-400">Do not share card, bank, Social Security, credit, or income details here. Prices shown come from the live catalog for your account.</p>
+            <p className="text-center text-[11px] leading-snug text-neutral-400">Do not share card, bank, Social Security, or income details here. Prices shown come from the live catalog for your account.</p>
           </div>
         </footer>
       </div>

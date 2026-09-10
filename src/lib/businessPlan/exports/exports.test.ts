@@ -13,7 +13,7 @@ import { buildDocxDocumentXml } from "./docx";
 import { readZip } from "./zip";
 import { XLSX_SHEET_NAMES } from "./xlsx";
 
-const inputs = { ...defaultInputs(), confirmed: true, profile: mergeProfile(EMPTY_PROFILE, { business_name: "Sunrise Vending", territory: "Tampa Bay", weekly_hours_available: 20 }) };
+const inputs = { ...defaultInputs(), confirmed: true, profile: mergeProfile(EMPTY_PROFILE, { business_name: "Sunrise Vending", territory: "Tampa Bay", weekly_hours_available: 20, credit_score: 712 }) };
 const view = buildPlanView(inputs, CATALOG);
 const plan: PlanRow = { id: "0d7fe1a2-1c7d-4c1b-9d7f-0d2f0a4b4a11", user_id: "11111111-1111-4111-8111-000000000001", thread_id: null, plan_number: "VP-260910-0007", version: 3, engine_version: ENGINE_VERSION, status: "confirmed", package: "ten_ten_ten", website_included: true, website_decision: "default", inputs, catalog_snapshot: CATALOG, outputs: view, quote_id: null, financing_status: "none", financing_application_id: null, created_at: "2026-09-10T00:00:00Z", updated_at: "2026-09-10T00:00:00Z" };
 const ctx = { quote: null, financing_status: "none" as const };
@@ -43,7 +43,7 @@ describe("canonical export document", () => {
   });
   it("carries no internal, QuickBooks, or sensitive fields", () => {
     const json = JSON.stringify(doc);
-    expect(json).not.toMatch(/qb_|quickbooks|SECRET|unit_cost|supplier|user_id|credit_score|date_of_birth|ssn|bank/i);
+    expect(json).not.toMatch(/qb_|quickbooks|SECRET|unit_cost|supplier|user_id|date_of_birth|ssn|bank/i);
   });
 });
 
@@ -114,6 +114,9 @@ describe("Word export", () => {
     for (const t of doc.tables) expect(xml).toContain(t.title.replace(/&/g, "&amp;").replace(/—/g, "—"));
     expect(xml).toContain("$726.83");
     expect(xml).not.toMatch(/qb_|SECRET|user_id/);
+    // The customer's credit score is a planning input, never printed in a document.
+    expect(xml).not.toMatch(/credit/i);
+    expect(xml).not.toContain("712");
     const bytes = await FILE_PROVIDERS.docx.render(doc);
     const zip = readZip(Buffer.from(bytes));
     expect([...zip.keys()].sort()).toEqual(["[Content_Types].xml", "_rels/.rels", "word/_rels/document.xml.rels", "word/document.xml", "word/styles.xml"]);

@@ -13,7 +13,7 @@ import { TOOL_DESCRIPTIONS } from "./tools/schemas";
 describe("business-plan prompt behaviour", () => {
   const prompt = buildSystemPrompt({ authenticated: true, storefrontName: null });
   it("was versioned for the change and the approved copy matches", () => {
-    expect(PROMPT_VERSION).toBe("2026-09-10.1");
+    expect(PROMPT_VERSION).toBe("2026-09-10.2");
     expect(APPROVED_COPY_VERSION).toBe(PROMPT_VERSION);
   });
   it("never lets the model compute a financial figure", () => {
@@ -38,7 +38,8 @@ describe("business-plan prompt behaviour", () => {
   });
   it("closes with the financing application without implying approval, and never collects sensitive data", () => {
     expect(prompt).toContain("start_financing_application; it is an application the lender decides, never an approval, and it creates no invoice");
-    expect(prompt).toContain("credit range only using the financing form's ranges, never a score");
+    expect(prompt).toContain("ask for an approximate credit score or range when financing interests them");
+    expect(prompt).toContain("An approximate credit score or credit range is welcome as a planning input");
     expect(prompt).toContain("Never ask for, and never accept, card numbers, bank or routing numbers, Social Security numbers");
     expect(prompt).toContain("illustrative projection, never guaranteed income");
     expect(prompt).toContain("No pressure, no invented scarcity");
