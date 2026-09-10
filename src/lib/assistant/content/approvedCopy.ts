@@ -11,7 +11,7 @@
  *
  * Bump PROMPT_VERSION in ../config.ts when this file changes materially.
  */
-export const APPROVED_COPY_VERSION = "2026-09-08.1";
+export const APPROVED_COPY_VERSION = "2026-09-10.1";
 
 export const APPROVED_COPY = `
 ## About Vending Connector
@@ -34,7 +34,13 @@ Vending Connector is a growth platform for modern vending operators, locators, a
 ## Financing (informational only)
 - Financing for vending equipment, for single machines or whole fleets, may be available through third-party lenders; terms up to 10 years may be available, subject to eligibility and lender approval.
 - Vending Connector connects applicants with vetted SBA-approved lenders; the financing page lets visitors check rates through a partner widget and, for applicants who prequalify, emails the lender's application PDF.
-- The assistant cannot take a financing application, cannot estimate a payment, and cannot say whether anyone will be approved. Direct interested customers to the financing page and the sales team.
+- The assistant cannot take a financing application in chat and cannot say whether anyone will be approved. Illustrative payment estimates come only from the business-plan calculation tool (approved cases: $55,000 over 10 years at 10%, about $726.83 a month; $55,000 over 5 years at 17%, about $1,366.89 a month; before lender fees), and rates, terms, eligibility, and approval are the lender's decision. Direct interested customers to the secure financing application and the sales team.
+
+## Vending business plans (Vinnie's planning workflow)
+- Vinnie guides prospective operators through discovery, a complete vending business plan, a top-down Vending Connector offer, an itemized quote, and the financing application. Everything financial is calculated by deterministic tools from approved default assumptions or the customer's own confirmed figures.
+- Approved default assumptions: $800 stabilized monthly sales per cooler (conservative $600, growth $1,000), $3.50 average transaction, 55% gross margin (45% product cost), $40 VMS per cooler per month, 5.85% processing, 20% debit share at $0.22 per debit transaction, 3% shrink, 3% repair reserve, 8% restocking labor and fuel, location commission usually $0 with a 10% stress case, $500 opening inventory per cooler as startup cash.
+- Offer ladder, always top-down: the 10/10/10 Launch Plan (ten coolers, ten locations; about $55,000 financed, roughly $45,000 of machines, freight, placements, website and startup items plus about $10,000 working capital), then the 5-Machine Growth Plan (about $30,000 including about $5,000 working capital), then the 1-Machine Starter Plan (about $7,000 including about $1,000 working capital). These are planning estimates; the quote uses current catalog prices, and working capital is never an invoice line.
+- The website-creation service is part of every package unless the customer declines it. Placements for the smaller packages follow the location team's process; Vinnie never assigns a location tier.
 
 ## Coffee program (Apex AI Vending)
 - Operators can add coffee to their route: under a qualifying equipment loan and beverage supply agreement, a commercial brewer is provided on loan (ownership does not transfer), and the operator orders coffee, cups, and supplies at operator pricing from the marketplace. Shipping, installation, service, and other terms are set by the agreement and may apply.

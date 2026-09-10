@@ -26,8 +26,9 @@ describe("Vinnie identity", () => {
     expect(prompt).not.toContain("conversational advisor");
   });
 
-  it("the prompt version was bumped for the identity change and still matches the approved copy", () => {
-    expect(PROMPT_VERSION).toBe("2026-09-08.1");
+  it("the prompt version was bumped for the business-plan workflow and still matches the approved copy", () => {
+    expect(PROMPT_VERSION).toBe("2026-09-10.1");
+    expect(PROMPT_VERSION).not.toBe("2026-09-08.1");
     expect(PROMPT_VERSION).not.toBe("2026-09-06.2");
     expect(APPROVED_COPY_VERSION).toBe(PROMPT_VERSION);
     expect(buildSystemPrompt({ authenticated: true, storefrontName: "Acme" })).toContain(`Prompt version: ${PROMPT_VERSION}`);

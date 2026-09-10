@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BUSINESS_PLAN_JSON_SCHEMAS, BUSINESS_PLAN_TOOL_DESCRIPTIONS, BUSINESS_PLAN_TOOL_NAMES, BUSINESS_PLAN_ZOD_SCHEMAS } from "./businessPlanSchemas";
 
 /**
  * Tool input contracts.
@@ -25,10 +26,12 @@ export const READ_ONLY_TOOL_NAMES = [
 ] as const;
 /** Quote tools: get_quote is read-only; update_quote mutates the customer's own draft. */
 export const QUOTE_TOOL_NAMES = ["get_quote", "update_quote"] as const;
-export const TOOL_NAMES = [...READ_ONLY_TOOL_NAMES, ...QUOTE_TOOL_NAMES] as const;
+/** Vending business-plan tools (deterministic calculations, saved plans, plan → quote, exports, financing hand-off). */
+export { BUSINESS_PLAN_TOOL_NAMES };
+export const TOOL_NAMES = [...READ_ONLY_TOOL_NAMES, ...QUOTE_TOOL_NAMES, ...BUSINESS_PLAN_TOOL_NAMES] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 /** Tools that write; offered to the model only while assistant.write_tools_enabled is on. */
-export const WRITE_TOOL_NAMES: ReadonlySet<ToolName> = new Set<ToolName>(["update_quote"]);
+export const WRITE_TOOL_NAMES: ReadonlySet<ToolName> = new Set<ToolName>(["update_quote", "start_vending_business_plan", "update_vending_business_plan", "create_quote_from_business_plan", "start_financing_application"]);
 
 export const CATALOG_KINDS = ["coffee", "machine", "location_service", "commerce"] as const;
 export const SEARCH_LIMIT_MAX = 12;
@@ -107,6 +110,7 @@ export const ZOD_SCHEMAS = {
   get_order_status: getOrderStatusInput,
   get_quote: getQuoteInput,
   update_quote: updateQuoteInput,
+  ...BUSINESS_PLAN_ZOD_SCHEMAS,
 } as const;
 
 export type SearchCatalogInput = z.infer<typeof searchCatalogInput>;
@@ -205,6 +209,7 @@ export const JSON_SCHEMAS: Record<ToolName, JsonSchemaObject> = {
     required: ["operations"],
     additionalProperties: false,
   },
+  ...BUSINESS_PLAN_JSON_SCHEMAS,
 };
 
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
@@ -222,4 +227,5 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     "Show the signed-in customer's current Vinnie quote: lines, quantities, server-priced unit prices and totals (pre-tax), required freight, notices, expiry, financing interest, and whether checkout is currently available and why not. Guests get a sign-in notice.",
   update_quote:
     "Add, remove, or change the quantity of items on the signed-in customer's draft quote using catalog refs only. Prices, freight, and totals are computed by the server and returned; you cannot set them. Financing options cannot be added as lines — tell the customer to use the Start financing application button instead.",
+  ...BUSINESS_PLAN_TOOL_DESCRIPTIONS,
 };

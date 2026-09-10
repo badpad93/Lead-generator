@@ -122,6 +122,8 @@ export default function FinancingPage() {
   // untouched to the API, which verifies it and re-checks ownership.
   // Read once on the client; it is never rendered.
   const [quoteRef] = useState<string | null>(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("quote")));
+  // Same treatment for the signed Vinnie business-plan reference (/financing?plan=...).
+  const [planRef] = useState<string | null>(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("plan")));
   const [submitted, setSubmitted] = useState(false);
   const [qualified, setQualified] = useState(false);
   const [applicationId, setApplicationId] = useState<string | null>(null);
@@ -215,6 +217,7 @@ export default function FinancingPage() {
           agreed_provide_docs: agreedDocs,
           agreed_accurate_info: agreedAccurate,
           ...(quoteRef ? { quote_ref: quoteRef } : {}),
+          ...(planRef ? { plan_ref: planRef } : {}),
         }),
       });
 

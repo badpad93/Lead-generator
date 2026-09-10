@@ -52,3 +52,14 @@ describe("redactUserMessage", () => {
     expect(r.notice).toContain("200");
   });
 });
+
+describe("business-plan discovery answers", () => {
+  it("accepts an income or cash-flow goal (a target) while still rejecting actual income", () => {
+    expect(redactUserMessage("My income goal is $5,000 a month from the machines", 2000).rejected).toBe(false);
+    expect(redactUserMessage("our monthly income target: $3,000", 2000).rejected).toBe(false);
+    expect(redactUserMessage("I'd like about $3,000 a month in cash flow", 2000).rejected).toBe(false);
+    expect(redactUserMessage("my income is $85,000", 2000).rejected).toBe(true);
+    expect(redactUserMessage("my credit score is 720", 2000).rejected).toBe(true);
+    expect(redactUserMessage("I have 20 hours a week, a van, and about $8,000 in cash", 2000).rejected).toBe(false);
+  });
+});
