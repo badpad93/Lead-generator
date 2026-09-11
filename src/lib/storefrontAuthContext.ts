@@ -29,6 +29,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveTenantBySlug, isValidSlug } from "@/lib/storefront/tenants";
 import { previewInvitationByToken } from "@/lib/storefront/enrollment";
+import { applyLoginBranding } from "@/lib/storefront/loginBranding";
 
 /**
  * Client-stashed invite token cookie (mirrors INVITE_TOKEN_KEY in
@@ -111,13 +112,17 @@ export async function fetchAuthBrand(slug: string | null | undefined): Promise<A
     const tenant = await resolveTenantBySlug(slug);
     if (!tenant || tenant.status !== "approved") return null;
     const brand = tenant.brand ?? {};
-    return {
+    // Base brand = the storefront brand (unchanged default behavior).
+    const base: AuthBrand = {
       slug: tenant.slug,
       display_name: tenant.display_name,
       logo_url: (brand.logo_url as string) || null,
       primary_color: (brand.primary_color as string) || "#1a1a1a",
       accent_color: (brand.accent_color as string) || "#c4a877",
     };
+    // Additive: if this storefront opted into custom login branding, overlay
+    // it; otherwise `base` is returned untouched.
+    return applyLoginBranding(base, brand.login);
   } catch {
     return null;
   }

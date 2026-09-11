@@ -17,6 +17,7 @@
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { recordAuditEvent, diff } from "@/lib/storefront/audit";
+import type { LoginBranding } from "@/lib/storefront/loginBranding";
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -33,6 +34,9 @@ export interface TenantBrand {
   hero_headline?: string | null;
   hero_subheadline?: string | null;
   footer_note?: string | null;
+  /** Optional login-page branding override (additive; absent = inherit the
+   *  storefront brand on auth screens, the current behavior). */
+  login?: LoginBranding | null;
 }
 
 export interface TenantPublicPage {

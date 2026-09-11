@@ -18,6 +18,11 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  applyLoginBranding,
+  isCustomLoginBranding,
+  type LoginBranding,
+} from "@/lib/storefront/loginBranding";
 
 export interface Brand {
   logo_url?: string | null;
@@ -28,6 +33,8 @@ export interface Brand {
   hero_headline?: string | null;
   hero_subheadline?: string | null;
   footer_note?: string | null;
+  /** Optional login-page branding override (additive; absent = inherit). */
+  login?: LoginBranding | null;
 }
 export interface PublicPage {
   enrollment_cta_label?: string | null;
@@ -94,7 +101,9 @@ export default function BrandEditor({
   headline = "Brand & appearance",
   editingContextNote,
 }: BrandEditorProps) {
-  const [uploading, setUploading] = useState<"logo" | "favicon" | null>(null);
+  const [uploading, setUploading] = useState<
+    "logo" | "favicon" | "login_logo" | null
+  >(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   async function handleFilePick(
@@ -115,6 +124,24 @@ export default function BrandEditor({
       setBrand((b) =>
         assetType === "logo" ? { ...b, logo_url: url } : { ...b, favicon_url: url },
       );
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  // Login-branding logo — reuses the same asset bucket/endpoint (assetType
+  // "logo"); only the destination key differs (brand.login.logo_url).
+  async function handleLoginLogoPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading("login_logo");
+    setUploadError(null);
+    try {
+      const { url } = await uploadAsset(file, "logo");
+      setBrand((b) => ({ ...b, login: { ...b.login, logo_url: url } }));
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -201,6 +228,19 @@ export default function BrandEditor({
   // Preview reflects the in-progress name edits, falling back to the saved ones.
   const previewName = displayName.trim() || tenant.display_name;
   const previewLegal = legalName.trim() || previewName;
+
+  // Effective LOGIN-page brand for the login preview: the storefront brand,
+  // overlaid with the custom login branding when that mode is selected.
+  const loginCustom = isCustomLoginBranding(brand.login);
+  const effLogin = applyLoginBranding(
+    {
+      display_name: previewName,
+      logo_url: brand.logo_url ?? null,
+      primary_color: primary,
+      accent_color: accent,
+    },
+    brand.login,
+  );
 
   return (
     <div className="max-w-6xl mx-auto p-8">
@@ -312,6 +352,136 @@ export default function BrandEditor({
               Text-on-primary is the header text color; make sure it's readable
               against your primary.
             </p>
+          </Section>
+
+          <Section title="Login page">
+            <p className="text-xs text-gray-500">
+              By default the storefront login shows your storefront branding
+              (the logo, name, and colors above). You can instead give the
+              login page its own branding.
+            </p>
+            <div className="space-y-2">
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="login_branding_mode"
+                  className="mt-0.5"
+                  checked={!loginCustom}
+                  onChange={() =>
+                    setBrand({ ...brand, login: { ...brand.login, mode: "inherit" } })
+                  }
+                />
+                <span>
+                  <strong>Use storefront branding</strong> — the login matches
+                  your storefront (default).
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="login_branding_mode"
+                  className="mt-0.5"
+                  checked={loginCustom}
+                  onChange={() =>
+                    setBrand({ ...brand, login: { ...brand.login, mode: "custom" } })
+                  }
+                />
+                <span>
+                  <strong>Use custom login branding</strong> — set a separate
+                  logo, name, and colors just for the login page.
+                </span>
+              </label>
+            </div>
+
+            {loginCustom ? (
+              <div className="space-y-3 border-t border-gray-100 pt-3">
+                <TextField
+                  label="Login display name (blank = storefront name)"
+                  value={brand.login?.display_name ?? ""}
+                  onChange={(v) =>
+                    setBrand({
+                      ...brand,
+                      login: { ...brand.login, display_name: v || null },
+                    })
+                  }
+                  placeholder={previewName}
+                />
+                <AssetUploader
+                  label="Login logo"
+                  hint="Blank = your storefront logo. PNG, JPEG, WebP, or SVG. Up to 2 MB."
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  currentUrl={brand.login?.logo_url ?? null}
+                  busy={uploading === "login_logo"}
+                  onPick={handleLoginLogoPick}
+                  onClear={() =>
+                    setBrand({ ...brand, login: { ...brand.login, logo_url: null } })
+                  }
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <ColorField
+                    label="Login primary"
+                    value={brand.login?.primary_color || primary}
+                    onChange={(v) =>
+                      setBrand({
+                        ...brand,
+                        login: { ...brand.login, primary_color: v },
+                      })
+                    }
+                  />
+                  <ColorField
+                    label="Login accent (CTA)"
+                    value={brand.login?.accent_color || accent}
+                    onChange={(v) =>
+                      setBrand({
+                        ...brand,
+                        login: { ...brand.login, accent_color: v },
+                      })
+                    }
+                  />
+                </div>
+
+                {/* Login preview — mirrors the branded /login chrome. */}
+                <div>
+                  <div className="text-xs uppercase text-gray-500 mb-1">
+                    Login preview
+                  </div>
+                  <div className="rounded-lg border border-gray-300 overflow-hidden">
+                    <div
+                      className="px-6 py-8 flex flex-col items-center gap-3"
+                      style={{ background: effLogin.primary_color }}
+                    >
+                      {effLogin.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={effLogin.logo_url}
+                          alt=""
+                          className="h-10 object-contain"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                      ) : null}
+                      <div className="text-lg font-semibold text-white">
+                        {effLogin.display_name}
+                      </div>
+                    </div>
+                    <div className="bg-white px-6 py-5">
+                      <div className="text-sm text-gray-500 mb-3">
+                        Sign in to your account
+                      </div>
+                      <div className="h-8 rounded border border-gray-200 mb-2" />
+                      <div className="h-8 rounded border border-gray-200 mb-3" />
+                      <div
+                        className="h-9 rounded text-white text-sm flex items-center justify-center"
+                        style={{ background: effLogin.accent_color }}
+                      >
+                        Sign in
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </Section>
 
           <Section title="Hero copy">
