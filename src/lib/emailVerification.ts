@@ -124,7 +124,7 @@ export async function createAndSendVerificationEmail(params: {
     ? `Thanks for creating your ${brandName} account. Verify your email address to finish setting up and start ordering.`
     : `Thanks for creating your Vending Connector account. Please verify your email address by clicking the button below.`;
   const footerHtml = tenantBrand
-    ? `<p style="text-align:center;font-size:12px;color:#9ca3af;margin-top:24px;">${brandName} &bull; Powered by Vending Connector</p>`
+    ? `<p style="text-align:center;font-size:12px;color:#9ca3af;margin-top:24px;">${brandName}</p>`
     : `<p style="text-align:center;font-size:12px;color:#9ca3af;margin-top:24px;">Vending Connector &bull; vendingconnector.com</p>`;
 
   try {

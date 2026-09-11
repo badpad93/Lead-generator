@@ -138,7 +138,7 @@ export async function sendInvitationEmail(params: {
   const body = `
     <h1 style="margin:0 0 12px 0;font-size:22px;">You've been invited to order coffee</h1>
     <p style="margin:0 0 12px 0;color:#333;">${params.displayName ? escapeHtml(params.displayName) + "," : "Hello,"} ${escapeHtml(params.tenant.display_name)} would like to enroll your account so you can order coffee, cups, and vending supplies directly.</p>
-    <p style="margin:0 0 20px 0;color:#333;">Click below to accept — it takes about 30 seconds. Once you accept, your account is permanently linked to ${escapeHtml(params.tenant.display_name)} and can only be transferred by a Vending Connector administrator.</p>
+    <p style="margin:0 0 20px 0;color:#333;">Click below to accept — it takes about 30 seconds.</p>
     <p style="margin:0 0 24px 0;"><a href="${escapeHtml(params.inviteUrl)}" style="background:#111;color:white;padding:12px 20px;border-radius:6px;text-decoration:none;display:inline-block;">Accept invitation</a></p>
     <p style="margin:0;font-size:12px;color:#666;">Or paste this link into your browser:<br/>${escapeHtml(params.inviteUrl)}</p>
   `;
