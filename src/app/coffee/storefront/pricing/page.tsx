@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
+import MarginPriceControl from "@/app/components/MarginPriceControl";
+import { computeSellingPrice, type PricingMode } from "@/lib/storefront/marginPricing";
 
 /**
  * Owner pricing tiers + catalog visibility for one storefront.
@@ -53,6 +55,9 @@ export default function PricingPage() {
   const [notice, setNotice] = useState<string | null>(null);
   // Bulk markup: which tier the "+$5" button bumps.
   const [markupTier, setMarkupTier] = useState<Tier>(1);
+  // Percentage pricing tool (markup% / gross-margin% off the base cost).
+  const [pricingMode, setPricingMode] = useState<PricingMode>("markup");
+  const [pricingPct, setPricingPct] = useState<number>(25);
 
   const load = useCallback(async () => {
     const supabase = createBrowserClient();
@@ -131,6 +136,33 @@ export default function PricingPage() {
       return next;
     });
     setNotice(null);
+    setError(null);
+  }
+
+  /** Set every product's price in the chosen tier from its base COST using
+   *  the selected markup% / gross-margin%. Products with no base cost on file
+   *  are skipped (their price is left untouched — a zero/missing cost can't
+   *  yield a meaningful percentage price). Staged for review, saved via Save;
+   *  the server re-derives and stores absolute customer_price values (no
+   *  percentage is persisted, so nothing can drift). */
+  function applyPercentPricing() {
+    setDirtyPrices((d) => {
+      const next = { ...d };
+      let applied = 0;
+      for (const p of products) {
+        const price = computeSellingPrice(basePrices[p.id], pricingPct, pricingMode);
+        if (price !== null) {
+          next[`${markupTier}:${p.id}`] = price;
+          applied += 1;
+        }
+      }
+      setNotice(
+        applied > 0
+          ? `Staged ${pricingMode === "markup" ? "markup" : "gross margin"} ${pricingPct}% on ${applied} item${applied === 1 ? "" : "s"} in ${tierName(markupTier)}. Review, then Save.`
+          : "No items have a base cost on file to price from.",
+      );
+      return next;
+    });
     setError(null);
   }
 
@@ -267,6 +299,33 @@ export default function PricingPage() {
           className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-100 cursor-pointer"
         >
           + $5 to {tierName(markupTier)}
+        </button>
+      </div>
+
+      {/* Percentage pricing — set prices from each item's base cost using a
+          markup% or gross-margin%. Applies to the tier selected above. */}
+      <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <div className="text-sm font-medium">Price by percentage</div>
+        <div className="text-xs text-gray-500 mb-3">
+          Set every item&apos;s price in <strong>{tierName(markupTier)}</strong>{" "}
+          from its base cost using a markup or gross-margin percentage. Items
+          with no base cost are skipped. Review, then Save.
+        </div>
+        <div className="max-w-md">
+          <MarginPriceControl
+            mode={pricingMode}
+            pct={pricingPct}
+            onModeChange={setPricingMode}
+            onPctChange={setPricingPct}
+            idPrefix="bulk-pricing"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={applyPercentPricing}
+          className="mt-3 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 cursor-pointer"
+        >
+          Apply {pricingMode === "markup" ? "markup" : "gross margin"} {pricingPct}% to {tierName(markupTier)}
         </button>
       </div>
 
