@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
+import MarginPriceControl from "@/app/components/MarginPriceControl";
+import { computeSellingPrice, type PricingMode } from "@/lib/storefront/marginPricing";
 
 interface Product { id: string; name: string; sku: string; price: number }
 interface Customer { id: string; full_name: string | null; email: string | null }
@@ -33,6 +35,8 @@ export default function QuoteBuilder({ quoteId }: { quoteId: string | null }) {
   const [tier, setTier] = useState(1);
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [notes, setNotes] = useState("");
+  const [quoteMode, setQuoteMode] = useState<PricingMode>("markup");
+  const [quotePct, setQuotePct] = useState<number>(25);
 
   const [preview, setPreview] = useState<{ lines: PreviewLine[]; totals: PreviewTotals } | null>(null);
   const [savedId, setSavedId] = useState<string | null>(quoteId);
@@ -108,6 +112,23 @@ export default function QuoteBuilder({ quoteId }: { quoteId: string | null }) {
   }
   function removeLine(id: string) {
     setLines((ls) => ls.filter((l) => l.product_id !== id));
+  }
+
+  /** Quote-wide pricing: set every line's quoted price from its unit COST
+   *  (from the live preview) using the selected markup/margin %. Sets a
+   *  per-line override on each eligible line — the operator can still adjust
+   *  any single line afterward, and overridden lines show the "custom" tag.
+   *  Lines with no cost are left as-is. The server re-derives + validates. */
+  function applyQuoteWidePercent() {
+    const costByProduct = new Map<string, number>(
+      (preview?.lines ?? []).map((pl) => [pl.product_id, pl.unit_cost]),
+    );
+    setLines((ls) =>
+      ls.map((l) => {
+        const price = computeSellingPrice(costByProduct.get(l.product_id), quotePct, quoteMode);
+        return price === null ? l : { ...l, override_unit_price: price };
+      }),
+    );
   }
 
   function recipientPayload() {
@@ -211,6 +232,31 @@ export default function QuoteBuilder({ quoteId }: { quoteId: string | null }) {
             </button>
           </div>
         )}
+        {lines.length > 0 && !readOnly ? (
+          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <div className="text-sm font-medium mb-2">Price all lines by percentage</div>
+            <div className="max-w-md">
+              <MarginPriceControl
+                mode={quoteMode}
+                pct={quotePct}
+                onModeChange={setQuoteMode}
+                onPctChange={setQuotePct}
+                idPrefix="quote-pricing"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={applyQuoteWidePercent}
+              className="mt-2 rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 cursor-pointer"
+            >
+              Apply {quoteMode === "markup" ? "markup" : "gross margin"} {quotePct}% to all lines
+            </button>
+            <p className="mt-1 text-xs text-gray-500">
+              Sets each line&apos;s quoted price from its cost. You can still
+              adjust any line below; overridden lines are tagged “custom”.
+            </p>
+          </div>
+        ) : null}
         {lines.length === 0 ? (
           <div className="text-sm text-gray-500">No products yet.</div>
         ) : (
