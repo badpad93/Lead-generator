@@ -18,6 +18,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { resolveHeaderPresentation, headerStyle } from "@/lib/storefront/headerStyle";
 
 export interface Brand {
   logo_url?: string | null;
@@ -28,6 +29,9 @@ export interface Brand {
   hero_headline?: string | null;
   hero_subheadline?: string | null;
   footer_note?: string | null;
+  header_mode?: "color" | "image" | null;
+  header_image_url?: string | null;
+  header_image_alt?: string | null;
 }
 export interface PublicPage {
   enrollment_cta_label?: string | null;
@@ -77,7 +81,7 @@ export interface BrandEditorProps {
    */
   uploadAsset: (
     file: File,
-    assetType: "logo" | "favicon",
+    assetType: "logo" | "favicon" | "header",
   ) => Promise<{ url: string }>;
   backHref: string;
   backLabel?: string;
@@ -94,7 +98,9 @@ export default function BrandEditor({
   headline = "Brand & appearance",
   editingContextNote,
 }: BrandEditorProps) {
-  const [uploading, setUploading] = useState<"logo" | "favicon" | null>(null);
+  const [uploading, setUploading] = useState<
+    "logo" | "favicon" | "header" | null
+  >(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   async function handleFilePick(
@@ -115,6 +121,25 @@ export default function BrandEditor({
       setBrand((b) =>
         assetType === "logo" ? { ...b, logo_url: url } : { ...b, favicon_url: url },
       );
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  // Header/banner graphic — uploads to the same bucket via asset_type=header
+  // (raster only, larger cap; enforced server-side). Writes the returned URL
+  // into brand.header_image_url; save persists it.
+  async function handleHeaderPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading("header");
+    setUploadError(null);
+    try {
+      const { url } = await uploadAsset(file, "header");
+      setBrand((b) => ({ ...b, header_image_url: url, header_mode: "image" }));
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -314,6 +339,68 @@ export default function BrandEditor({
             </p>
           </Section>
 
+          <Section title="Header style">
+            <p className="text-xs text-gray-500">
+              Your storefront header can be a solid color (default) or an
+              uploaded graphic. The solid color is always kept as the fallback,
+              so a missing or slow image never breaks the header.
+            </p>
+            <div className="space-y-2">
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="header_mode"
+                  className="mt-0.5"
+                  checked={(brand.header_mode ?? "color") !== "image"}
+                  onChange={() => setBrand({ ...brand, header_mode: "color" })}
+                />
+                <span>
+                  <strong>Solid color</strong> — uses your Primary color above.
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="header_mode"
+                  className="mt-0.5"
+                  checked={brand.header_mode === "image"}
+                  onChange={() => setBrand({ ...brand, header_mode: "image" })}
+                />
+                <span>
+                  <strong>Header graphic</strong> — upload a banner image.
+                </span>
+              </label>
+            </div>
+
+            {brand.header_mode === "image" ? (
+              <div className="space-y-3 border-t border-gray-100 pt-3">
+                <AssetUploader
+                  label="Header graphic"
+                  hint="PNG, JPEG, or WebP. Up to 5 MB. Displayed full-width, cover-fit and centered. Solid color shows if it fails to load."
+                  accept="image/png,image/jpeg,image/webp"
+                  currentUrl={brand.header_image_url ?? null}
+                  busy={uploading === "header"}
+                  onPick={handleHeaderPick}
+                  onClear={() =>
+                    setBrand({ ...brand, header_image_url: null })
+                  }
+                />
+                <TextField
+                  label="Alt text (leave blank if the image is decorative)"
+                  value={brand.header_image_alt ?? ""}
+                  onChange={(v) =>
+                    setBrand({ ...brand, header_image_alt: v || null })
+                  }
+                  placeholder="e.g. Sunrise roastery storefront banner"
+                />
+                <p className="text-xs text-gray-500">
+                  Don&apos;t rely on the image for text or navigation — your
+                  store name and links render on top and must stay readable.
+                </p>
+              </div>
+            ) : null}
+          </Section>
+
           <Section title="Hero copy">
             <TextField
               label="Hero headline"
@@ -374,7 +461,7 @@ export default function BrandEditor({
           <div className="rounded-lg overflow-hidden border border-gray-300 shadow-sm">
             <div
               className="w-full px-6 py-8"
-              style={{ background: primary, color: text }}
+              style={headerStyle(resolveHeaderPresentation(brand))}
             >
               <div className="flex items-center gap-3">
                 {brand.logo_url ? (

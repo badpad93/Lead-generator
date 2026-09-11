@@ -5,6 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 import { resolveTenantBySlug } from "@/lib/storefront/tenants";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStorefrontFlagEnabled } from "@/lib/storefront/flags";
+import { resolveHeaderPresentation, headerStyle } from "@/lib/storefront/headerStyle";
 import CustomerShop from "./CustomerShop";
 import type { Metadata } from "next";
 
@@ -162,11 +163,17 @@ export default async function StorefrontPage({
   const accent = (brand.accent_color as string) || "#c4a877";
   const text = (brand.text_color as string) || "#f4f0e8";
 
+  // Header treatment: solid color (default) or an uploaded graphic layered
+  // over the solid color as a cover-fit background. The solid color is always
+  // the fallback base, so a missing/failed graphic never breaks the header.
+  const header = resolveHeaderPresentation(brand);
+
   return (
     <div className="min-h-screen" style={{ background: "#f6f4ef", color: "#111" }}>
       <header
         className="w-full py-12 px-6"
-        style={{ background: primary, color: text }}
+        style={headerStyle(header)}
+        {...(header.altText ? { role: "img", "aria-label": header.altText } : {})}
       >
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
