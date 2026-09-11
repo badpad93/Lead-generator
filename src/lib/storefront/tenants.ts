@@ -33,6 +33,13 @@ export interface TenantBrand {
   hero_headline?: string | null;
   hero_subheadline?: string | null;
   footer_note?: string | null;
+  /** Header treatment (additive; absent/"color" = solid-color header, the
+   *  existing behavior). "image" uses header_image_url with the solid color
+   *  as the fallback base. Stored in the free-form brand jsonb — no migration. */
+  header_mode?: "color" | "image" | null;
+  header_image_url?: string | null;
+  /** Alt text for a meaningful header graphic; blank = decorative. */
+  header_image_alt?: string | null;
 }
 
 export interface TenantPublicPage {

@@ -5,6 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 import { resolveTenantBySlug } from "@/lib/storefront/tenants";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isStorefrontFlagEnabled } from "@/lib/storefront/flags";
+import { resolveHeaderPresentation, headerStyle } from "@/lib/storefront/headerStyle";
 import CustomerShop from "./CustomerShop";
 import type { Metadata } from "next";
 
@@ -65,12 +66,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   if (!(await isStorefrontFlagEnabled("storefront.public_pages_enabled"))) {
-    return { title: "Storefront" };
+    return { title: { absolute: "Storefront" } };
   }
   const tenant = await resolveTenantBySlug(slug);
-  if (!tenant || tenant.status !== "approved") return { title: "Storefront" };
+  if (!tenant || tenant.status !== "approved") return { title: { absolute: "Storefront" } };
   return {
-    title: `${tenant.display_name} — Coffee`,
+    // `absolute` so the root layout's "%s | Vending Connector" template does
+    // not append platform branding to a customer-facing storefront tab title.
+    title: { absolute: `${tenant.display_name} — Coffee` },
     description: (tenant.brand?.hero_subheadline as string | null | undefined) ??
       `Order coffee, cups, and vending supplies from ${tenant.display_name}.`,
   };
@@ -160,11 +163,17 @@ export default async function StorefrontPage({
   const accent = (brand.accent_color as string) || "#c4a877";
   const text = (brand.text_color as string) || "#f4f0e8";
 
+  // Header treatment: solid color (default) or an uploaded graphic layered
+  // over the solid color as a cover-fit background. The solid color is always
+  // the fallback base, so a missing/failed graphic never breaks the header.
+  const header = resolveHeaderPresentation(brand);
+
   return (
     <div className="min-h-screen" style={{ background: "#f6f4ef", color: "#111" }}>
       <header
         className="w-full py-12 px-6"
-        style={{ background: primary, color: text }}
+        style={headerStyle(header)}
+        {...(header.altText ? { role: "img", "aria-label": header.altText } : {})}
       >
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -179,7 +188,6 @@ export default async function StorefrontPage({
             )}
             <div>
               <div className="text-xl font-semibold">{tenant.display_name}</div>
-              <div className="text-xs opacity-70">Powered by Vending Connector</div>
             </div>
           </div>
           <div className="flex items-center gap-3 text-sm">
