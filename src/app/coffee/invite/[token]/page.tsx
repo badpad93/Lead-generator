@@ -284,13 +284,13 @@ export default function InvitePage() {
             <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
               <div className="font-semibold">This account is already enrolled with a different storefront.</div>
               <div className="mt-1">
-                Your Vending Connector account is permanently linked to{" "}
+                Your account is already linked to{" "}
                 {otherTenantSlug ? (
                   <code>{otherTenantSlug}</code>
                 ) : (
-                  "another operator"
-                )}. Only a Vending Connector administrator can transfer
-                it. Contact support if you meant to switch storefronts —
+                  "another store"
+                )}. Only an administrator can transfer
+                it. Contact support if you meant to switch stores —
                 clicking Accept below will be refused with the same
                 message.
               </div>
@@ -298,8 +298,8 @@ export default function InvitePage() {
           ) : null}
           <p className="text-gray-800">
             Continue to enroll your account. Once you accept, this account is
-            permanently linked to <strong>{preview.tenant.display_name}</strong>
-            . Only a Vending Connector administrator can transfer it later.
+            linked to <strong>{preview.tenant.display_name}</strong>. Only an
+            administrator can transfer it later.
           </p>
           {preview.invitation.email ? (
             <div className="mt-4 text-sm text-gray-600">
@@ -327,7 +327,7 @@ export default function InvitePage() {
           </div>
         </div>
         <div className="mt-6 text-center text-xs text-gray-400">
-          Powered by Vending Connector
+          {preview.tenant.display_name}
         </div>
       </main>
     </div>

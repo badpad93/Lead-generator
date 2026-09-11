@@ -398,9 +398,6 @@ export default function BrandEditor({
                   <div className="text-lg font-semibold">
                     {previewName}
                   </div>
-                  <div className="text-[10px] opacity-70">
-                    Powered by Vending Connector
-                  </div>
                 </div>
               </div>
               <div className="mt-6">

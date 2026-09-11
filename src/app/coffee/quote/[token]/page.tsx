@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { resolveTenantById } from "@/lib/storefront/tenants";
 import { getPublicQuoteByToken } from "@/lib/storefront/quotes";
 import AuthBrandHeader from "@/app/components/AuthBrandHeader";
@@ -9,6 +10,11 @@ import QuoteAccept from "./QuoteAccept";
  * customer shell (no global VC nav/footer) via the middleware predicate.
  */
 const money = (n: unknown) => `$${Number(n ?? 0).toFixed(2)}`;
+
+// Neutral, `absolute` title so the root "%s | Vending Connector" template
+// never brands a customer-facing quote tab. (Token lookup is deferred to the
+// page body; a generic title avoids a second fetch and any VC leak.)
+export const metadata: Metadata = { title: { absolute: "Quote" } };
 
 export default async function PublicQuotePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -91,7 +97,9 @@ export default async function PublicQuotePage({ params }: { params: Promise<{ to
             alreadyAccepted={q.status === "accepted"}
           />
         </div>
-        <p className="mt-4 text-center text-[11px] text-gray-400">Powered by Vending Connector</p>
+        {tenant ? (
+          <p className="mt-4 text-center text-[11px] text-gray-400">{tenant.display_name}</p>
+        ) : null}
       </div>
     </div>
   );

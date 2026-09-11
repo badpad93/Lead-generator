@@ -370,11 +370,8 @@ function SignupContent({ initialBrand }: { initialBrand: AuthBrand | null }) {
             </h1>
             <p className="text-black-primary/60 mt-2">
               {storefront
-                ? `One account, permanently linked to ${storefront.display_name}'s coffee shop`
+                ? `Your account for ordering from ${storefront.display_name}`
                 : "Set up your account to start ordering"}
-            </p>
-            <p className="mt-1 text-xs text-black-primary/40">
-              Powered by Vending Connector
             </p>
           </div>
         ) : (

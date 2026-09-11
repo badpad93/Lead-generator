@@ -65,12 +65,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   if (!(await isStorefrontFlagEnabled("storefront.public_pages_enabled"))) {
-    return { title: "Storefront" };
+    return { title: { absolute: "Storefront" } };
   }
   const tenant = await resolveTenantBySlug(slug);
-  if (!tenant || tenant.status !== "approved") return { title: "Storefront" };
+  if (!tenant || tenant.status !== "approved") return { title: { absolute: "Storefront" } };
   return {
-    title: `${tenant.display_name} — Coffee`,
+    // `absolute` so the root layout's "%s | Vending Connector" template does
+    // not append platform branding to a customer-facing storefront tab title.
+    title: { absolute: `${tenant.display_name} — Coffee` },
     description: (tenant.brand?.hero_subheadline as string | null | undefined) ??
       `Order coffee, cups, and vending supplies from ${tenant.display_name}.`,
   };
@@ -179,7 +181,6 @@ export default async function StorefrontPage({
             )}
             <div>
               <div className="text-xl font-semibold">{tenant.display_name}</div>
-              <div className="text-xs opacity-70">Powered by Vending Connector</div>
             </div>
           </div>
           <div className="flex items-center gap-3 text-sm">
