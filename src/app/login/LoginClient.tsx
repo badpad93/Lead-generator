@@ -284,7 +284,6 @@ function LoginContent({ initialBrand }: { initialBrand: AuthBrand | null }) {
               />
             ) : null}
             <div className="text-lg font-semibold text-black-primary">{storefront.display_name}</div>
-            <div className="text-xs text-black-primary/40">Powered by Vending Connector</div>
           </div>
         ) : null}
         <Loader2 className="w-8 h-8 animate-spin text-green-primary" />
@@ -312,7 +311,6 @@ function LoginContent({ initialBrand }: { initialBrand: AuthBrand | null }) {
             <p className="text-black-primary/60 mt-2">
               Order coffee and supplies at your prices
             </p>
-            <p className="mt-1 text-xs text-black-primary/40">Powered by Vending Connector</p>
           </div>
         ) : (
           <div className="text-center mb-8">

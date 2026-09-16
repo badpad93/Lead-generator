@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, FileSignature, ArrowLeft, Filter, CheckCircle2, AlertCircle, XCircle, Undo2, Coffee } from "lucide-react";
+import { Loader2, FileSignature, ArrowLeft, Filter, CheckCircle2, AlertCircle, XCircle, Undo2, Coffee, Unlock } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface CoffeeMetadata {
@@ -50,6 +50,118 @@ const STATUS_STYLES: Record<string, string> = {
   legacy_approved: "bg-blue-50 text-blue-700 border-blue-100",
   not_started: "bg-gray-100 text-gray-500 border-gray-200",
 };
+
+function operatorLabel(r: AgreementRow): string {
+  const meta = r.metadata || {};
+  return meta.customer_name || r.user?.full_name || r.user?.email || r.user_id.slice(0, 8);
+}
+
+function DateCell({ iso, sub }: { iso: string | null; sub: string | null }) {
+  if (!iso) return <>—</>;
+  return (
+    <>
+      <p>{new Date(iso).toLocaleDateString()}</p>
+      {sub ? <p className="text-gray-400">{sub}</p> : null}
+    </>
+  );
+}
+
+function PartyCell({ r }: { r: AgreementRow }) {
+  const meta = r.metadata || {};
+  return (
+    <td className="py-2 px-2 text-xs">
+      <p className="font-medium text-gray-900">{operatorLabel(r)}</p>
+      {meta.customer_address ? <p className="text-gray-400">{meta.customer_address}</p> : null}
+      {meta.authorized_representative_name ? (
+        <p className="text-gray-400 mt-0.5">
+          Rep: {meta.authorized_representative_name}
+          {meta.authorized_representative_title ? `, ${meta.authorized_representative_title}` : ""}
+        </p>
+      ) : null}
+      <p className="text-gray-400 mt-0.5">{r.user?.email}</p>
+    </td>
+  );
+}
+
+interface RowActionHandlers {
+  saving: string | null;
+  onCountersign: (r: AgreementRow) => void;
+  onCorrect: (r: AgreementRow) => void;
+  onDecline: (r: AgreementRow) => void;
+  onOverride: (r: AgreementRow) => void;
+}
+
+function RowActions({ r, h }: { r: AgreementRow; h: RowActionHandlers }) {
+  const pending = r.status === "provider_signed_pending_company_countersign";
+  const cleared = r.status === "fully_executed" || r.status === "legacy_approved";
+  return (
+    <td className="py-2 px-2 text-right whitespace-nowrap">
+      {pending ? (
+        <div className="inline-flex gap-1">
+          <button
+            onClick={() => h.onCountersign(r)}
+            disabled={h.saving === `countersign-${r.id}`}
+            className="inline-flex items-center gap-1 rounded-md bg-emerald-600 hover:bg-emerald-700 px-2 py-0.5 text-[11px] font-semibold text-white cursor-pointer disabled:opacity-50"
+          >
+            {h.saving === `countersign-${r.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileSignature className="h-3 w-3" />} Countersign
+          </button>
+          <button
+            onClick={() => h.onCorrect(r)}
+            disabled={h.saving === `request_correction-${r.id}`}
+            className="inline-flex items-center gap-1 rounded-md border border-orange-200 hover:bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700 cursor-pointer disabled:opacity-50"
+          >
+            <Undo2 className="h-3 w-3" /> Correct
+          </button>
+          <button
+            onClick={() => h.onDecline(r)}
+            disabled={h.saving === `decline-${r.id}`}
+            className="inline-flex items-center gap-1 rounded-md border border-red-200 hover:bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 cursor-pointer disabled:opacity-50"
+          >
+            <XCircle className="h-3 w-3" /> Decline
+          </button>
+        </div>
+      ) : null}
+      {/* One-off order override — available whenever the operator is not
+          already cleared (i.e. currently blocked from ordering). */}
+      {!cleared ? (
+        <div className="mt-1">
+          <button
+            onClick={() => h.onOverride(r)}
+            disabled={h.saving === `override-${r.id}`}
+            title="Let this operator order without signing the current coffee agreement (audited)."
+            className="inline-flex items-center gap-1 rounded-md border border-blue-200 hover:bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 cursor-pointer disabled:opacity-50"
+          >
+            {h.saving === `override-${r.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unlock className="h-3 w-3" />} Allow ordering
+          </button>
+        </div>
+      ) : null}
+    </td>
+  );
+}
+
+function AgreementRow({ r, h }: { r: AgreementRow; h: RowActionHandlers }) {
+  const stStyle = STATUS_STYLES[r.status] || "bg-gray-100 text-gray-500 border-gray-200";
+  return (
+    <tr className="border-b border-gray-50 last:border-b-0 align-top">
+      <PartyCell r={r} />
+      <td className="py-2 px-2 text-xs">{r.metadata?.num_machines ?? "—"}</td>
+      <td className="py-2 px-2">
+        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${stStyle}`}>
+          {r.status.replace(/_/g, " ")}
+        </span>
+        {r.decline_reason ? <p className="text-[10px] text-red-500 mt-0.5 italic">{r.decline_reason}</p> : null}
+        {r.correction_request_reason ? <p className="text-[10px] text-orange-600 mt-0.5 italic">{r.correction_request_reason}</p> : null}
+      </td>
+      <td className="py-2 px-2 text-xs text-gray-500">
+        <DateCell iso={r.provider_signed_at} sub={r.provider_typed_name ?? null} />
+      </td>
+      <td className="py-2 px-2 text-xs text-gray-500">
+        <DateCell iso={r.countersigned_at} sub={r.countersigner_name_snapshot ?? null} />
+      </td>
+      <RowActions r={r} h={h} />
+    </tr>
+  );
+}
 
 export default function AdminCoffeeAgreementsPage() {
   const router = useRouter();
@@ -116,6 +228,30 @@ export default function AdminCoffeeAgreementsPage() {
     setSaving(null);
   }
 
+  /** One-off admin override: mark this operator's coffee_supply agreement
+   *  legacy_approved so they can order despite not signing the current
+   *  version. Reason required; audited server-side. */
+  async function grantOrderOverride(row: AgreementRow) {
+    const who = operatorLabel(row);
+    const reason = prompt(
+      `Allow ${who} to order without signing the current coffee agreement?\n\nEnter a reason (recorded in the audit log):`,
+      "",
+    )?.trim();
+    if (!reason) return;
+    setSaving(`override-${row.id}`);
+    setError(null); setMessage(null);
+    const res = await fetch(`/api/admin/coffee/agreements/${row.user_id}/override`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ reason: reason.trim() }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) setError(body.error || "Override failed");
+    else setMessage(`Override granted — ${who} can order now (agreement marked legacy-approved).`);
+    await load();
+    setSaving(null);
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <Link href="/admin" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-green-primary mb-4">
@@ -167,75 +303,19 @@ export default function AdminCoffeeAgreementsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
-                  const stStyle = STATUS_STYLES[r.status] || "bg-gray-100 text-gray-500 border-gray-200";
-                  const meta = r.metadata || {};
-                  return (
-                    <tr key={r.id} className="border-b border-gray-50 last:border-b-0 align-top">
-                      <td className="py-2 px-2 text-xs">
-                        <p className="font-medium text-gray-900">{meta.customer_name || r.user?.full_name || r.user?.email || r.user_id.slice(0, 8)}</p>
-                        {meta.customer_address && <p className="text-gray-400">{meta.customer_address}</p>}
-                        {meta.authorized_representative_name && (
-                          <p className="text-gray-400 mt-0.5">
-                            Rep: {meta.authorized_representative_name}{meta.authorized_representative_title ? `, ${meta.authorized_representative_title}` : ""}
-                          </p>
-                        )}
-                        <p className="text-gray-400 mt-0.5">{r.user?.email}</p>
-                      </td>
-                      <td className="py-2 px-2 text-xs">{meta.num_machines ?? "—"}</td>
-                      <td className="py-2 px-2">
-                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${stStyle}`}>
-                          {r.status.replace(/_/g, " ")}
-                        </span>
-                        {r.decline_reason && <p className="text-[10px] text-red-500 mt-0.5 italic">{r.decline_reason}</p>}
-                        {r.correction_request_reason && <p className="text-[10px] text-orange-600 mt-0.5 italic">{r.correction_request_reason}</p>}
-                      </td>
-                      <td className="py-2 px-2 text-xs text-gray-500">
-                        {r.provider_signed_at ? (
-                          <>
-                            <p>{new Date(r.provider_signed_at).toLocaleDateString()}</p>
-                            {r.provider_typed_name && <p className="text-gray-400">{r.provider_typed_name}</p>}
-                          </>
-                        ) : "—"}
-                      </td>
-                      <td className="py-2 px-2 text-xs text-gray-500">
-                        {r.countersigned_at ? (
-                          <>
-                            <p>{new Date(r.countersigned_at).toLocaleDateString()}</p>
-                            {r.countersigner_name_snapshot && <p className="text-gray-400">{r.countersigner_name_snapshot}</p>}
-                          </>
-                        ) : "—"}
-                      </td>
-                      <td className="py-2 px-2 text-right whitespace-nowrap">
-                        {r.status === "provider_signed_pending_company_countersign" && (
-                          <div className="inline-flex gap-1">
-                            <button
-                              onClick={() => countersign(r)}
-                              disabled={saving === `countersign-${r.id}`}
-                              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 hover:bg-emerald-700 px-2 py-0.5 text-[11px] font-semibold text-white cursor-pointer disabled:opacity-50"
-                            >
-                              {saving === `countersign-${r.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileSignature className="h-3 w-3" />} Countersign
-                            </button>
-                            <button
-                              onClick={() => declineOrCorrect(r, "request_correction")}
-                              disabled={saving === `request_correction-${r.id}`}
-                              className="inline-flex items-center gap-1 rounded-md border border-orange-200 hover:bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700 cursor-pointer disabled:opacity-50"
-                            >
-                              <Undo2 className="h-3 w-3" /> Correct
-                            </button>
-                            <button
-                              onClick={() => declineOrCorrect(r, "decline")}
-                              disabled={saving === `decline-${r.id}`}
-                              className="inline-flex items-center gap-1 rounded-md border border-red-200 hover:bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 cursor-pointer disabled:opacity-50"
-                            >
-                              <XCircle className="h-3 w-3" /> Decline
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {rows.map((r) => (
+                  <AgreementRow
+                    key={r.id}
+                    r={r}
+                    h={{
+                      saving,
+                      onCountersign: countersign,
+                      onCorrect: (row) => declineOrCorrect(row, "request_correction"),
+                      onDecline: (row) => declineOrCorrect(row, "decline"),
+                      onOverride: grantOrderOverride,
+                    }}
+                  />
+                ))}
               </tbody>
             </table>
           </div>

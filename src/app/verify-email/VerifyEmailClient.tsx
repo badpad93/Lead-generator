@@ -64,7 +64,6 @@ function VerifyEmailContent({ initialBrand }: { initialBrand: AuthBrand | null }
               />
             ) : null}
             <div className="text-lg font-semibold text-black-primary">{brand.display_name}</div>
-            <div className="text-xs text-black-primary/40">Powered by Vending Connector</div>
           </div>
         ) : null}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">

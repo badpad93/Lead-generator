@@ -57,9 +57,30 @@ const FAVICON_ALLOWED_MIME = new Set([
   "image/x-icon",
   "image/vnd.microsoft.icon",
 ]);
+// Header/banner graphic: raster only — SVG is deliberately EXCLUDED here
+// (unlike logo/favicon) because a full-bleed header is the most likely place
+// to paste an untrusted third-party asset, and we have no SVG sanitization
+// pipeline. Larger cap than a logo since a banner is a bigger image.
+const HEADER_ALLOWED_MIME = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+]);
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 const FAVICON_MAX_BYTES = 512 * 1024;
+const HEADER_MAX_BYTES = 5 * 1024 * 1024;
 const BUCKET = "storefront-brand";
+
+const ALLOWED_MIME_BY_TYPE: Record<"logo" | "favicon" | "header", Set<string>> = {
+  logo: LOGO_ALLOWED_MIME,
+  favicon: FAVICON_ALLOWED_MIME,
+  header: HEADER_ALLOWED_MIME,
+};
+const MAX_BYTES_BY_TYPE: Record<"logo" | "favicon" | "header", number> = {
+  logo: LOGO_MAX_BYTES,
+  favicon: FAVICON_MAX_BYTES,
+  header: HEADER_MAX_BYTES,
+};
 
 function extensionFromMime(mime: string): string {
   switch (mime) {
@@ -115,13 +136,13 @@ export async function POST(req: NextRequest) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "file is required" }, { status: 400 });
   }
-  if (assetTypeRaw !== "logo" && assetTypeRaw !== "favicon") {
+  if (assetTypeRaw !== "logo" && assetTypeRaw !== "favicon" && assetTypeRaw !== "header") {
     return NextResponse.json(
-      { error: "asset_type must be 'logo' or 'favicon'" },
+      { error: "asset_type must be 'logo', 'favicon' or 'header'" },
       { status: 400 },
     );
   }
-  const assetType = assetTypeRaw as "logo" | "favicon";
+  const assetType = assetTypeRaw as "logo" | "favicon" | "header";
 
   // Authorization: figure out which tenant this write targets.
   //
@@ -163,7 +184,7 @@ export async function POST(req: NextRequest) {
   }
 
   const mime = file.type || "application/octet-stream";
-  const allowed = assetType === "logo" ? LOGO_ALLOWED_MIME : FAVICON_ALLOWED_MIME;
+  const allowed = ALLOWED_MIME_BY_TYPE[assetType];
   if (!allowed.has(mime)) {
     const list = Array.from(allowed).join(", ");
     return NextResponse.json(
@@ -171,7 +192,7 @@ export async function POST(req: NextRequest) {
       { status: 415 },
     );
   }
-  const cap = assetType === "logo" ? LOGO_MAX_BYTES : FAVICON_MAX_BYTES;
+  const cap = MAX_BYTES_BY_TYPE[assetType];
   if (file.size > cap) {
     return NextResponse.json(
       { error: `File exceeds ${Math.round(cap / 1024)} KB limit for ${assetType}` },

@@ -37,6 +37,13 @@ export interface TenantBrand {
   /** Optional login-page branding override (additive; absent = inherit the
    *  storefront brand on auth screens, the current behavior). */
   login?: LoginBranding | null;
+  /** Header treatment (additive; absent/"color" = solid-color header, the
+   *  existing behavior). "image" uses header_image_url with the solid color
+   *  as the fallback base. Stored in the free-form brand jsonb — no migration. */
+  header_mode?: "color" | "image" | null;
+  header_image_url?: string | null;
+  /** Alt text for a meaningful header graphic; blank = decorative. */
+  header_image_alt?: string | null;
 }
 
 export interface TenantPublicPage {
