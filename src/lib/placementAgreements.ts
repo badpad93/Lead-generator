@@ -288,14 +288,20 @@ export interface AdminOverrideArgs {
   userId: string;
   adminUserId: string;
   reason: string;
+  /** Which agreement to override. Defaults to placement_provider to
+   *  preserve the original behavior; the coffee order-override passes
+   *  "coffee_supply" so it targets the active Equipment Loan & Beverage
+   *  Supply template (the one the ordering gate checks). */
+  agreementType?: string;
 }
 
 // Bypass — grants a legacy_approved status without a signed doc. Reason
 // required + audit-logged. Used for backfill of pre-workflow partners.
 export async function grantLegacyApproval(args: AdminOverrideArgs): Promise<UserAgreement> {
   if (!args.reason.trim()) throw new Error("Override reason is required");
-  const template = await getActiveTemplate();
-  if (!template) throw new Error("No active template");
+  const agreementType = args.agreementType ?? "placement_provider";
+  const template = await getActiveTemplate(agreementType);
+  if (!template) throw new Error(`No active ${agreementType} template`);
 
   const { data: existing } = await supabaseAdmin
     .from("user_agreements")

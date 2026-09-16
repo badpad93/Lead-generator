@@ -85,9 +85,6 @@
     }
   },
   "src/app/admin/coffee/agreements/page.tsx": {
-    "complexity": {
-      "count": 1
-    },
     "no-nested-ternary": {
       "count": 1
     },
