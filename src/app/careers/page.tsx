@@ -16,7 +16,6 @@ import {
   ArrowLeft,
   Upload,
 } from "lucide-react";
-import { createBrowserClient } from "@/lib/supabase";
 
 interface JobPosting {
   id: string;
@@ -102,18 +101,18 @@ export default function CareersPage() {
     setUploading(true);
     setError(null);
     try {
-      const supabase = createBrowserClient();
-      const ext = file.name.split(".").pop()?.toLowerCase() || "pdf";
-      const path = `career-resumes/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error: uploadErr } = await supabase.storage
-        .from("documents")
-        .upload(path, file, { upsert: false, contentType: file.type });
-      if (uploadErr) {
-        setError(`Upload failed: ${uploadErr.message}`);
+      // Upload via the server route (service role): the applicant is
+      // anonymous and the `documents` bucket denies anon INSERT, so a direct
+      // browser upload fails RLS. The route re-validates and stores the file.
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/careers/upload-resume", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Upload failed");
         return;
       }
-      const { data: urlData } = supabase.storage.from("documents").getPublicUrl(path);
-      setResumeUrl(urlData.publicUrl);
+      setResumeUrl(data.url);
     } catch {
       setError("Upload failed");
     } finally {
