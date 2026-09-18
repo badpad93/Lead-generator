@@ -11,9 +11,12 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
  * browser upload is rejected by RLS ("new row violates row-level security
  * policy"). This route accepts the file server-side and writes it with the
  * service role (which bypasses RLS), after re-validating type and size — so
- * we never open anonymous write access to the shared bucket. Mirrors the
- * brand-asset upload pattern. Returns the public URL, which the apply route
- * stores on the application.
+ * we never open anonymous write access to the shared bucket.
+ *
+ * Résumés are applicant PII, so they land in the PRIVATE `career-resumes`
+ * bucket (no public URL, no client access). This route returns the object
+ * key (`path`), which the apply route stores on the application; admins view
+ * résumés through short-lived signed URLs minted server-side.
  */
 
 const ALLOWED_MIME = new Set([
@@ -22,7 +25,7 @@ const ALLOWED_MIME = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB — matches the client cap
-const BUCKET = "documents";
+const BUCKET = "career-resumes";
 
 function extFor(mime: string, filename: string): string {
   if (mime === "application/pdf") return "pdf";
@@ -56,7 +59,7 @@ export async function POST(req: NextRequest) {
   }
 
   const mime = file.type; // validated non-empty + allowlisted above
-  const path = `career-resumes/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extFor(mime, file.name)}`;
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extFor(mime, file.name)}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
   const { error: uploadErr } = await supabaseAdmin.storage
@@ -66,10 +69,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Upload failed: ${uploadErr.message}` }, { status: 500 });
   }
 
-  const { data } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(path);
-  const url = data?.publicUrl ?? null;
-  if (!url) {
-    return NextResponse.json({ error: "Failed to resolve resume URL" }, { status: 500 });
-  }
-  return NextResponse.json({ url });
+  // Return the object key, not a URL — the bucket is private. Admins fetch a
+  // short-lived signed URL server-side when viewing the application.
+  return NextResponse.json({ path });
 }

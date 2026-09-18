@@ -112,7 +112,9 @@ export default function CareersPage() {
         setError(data.error || "Upload failed");
         return;
       }
-      setResumeUrl(data.url);
+      // `data.path` is the private object key; admins resolve it to a
+      // short-lived signed URL server-side when reviewing the application.
+      setResumeUrl(data.path);
     } catch {
       setError("Upload failed");
     } finally {
