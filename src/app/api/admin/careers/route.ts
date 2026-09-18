@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAdminUserId } from "@/lib/adminAuth";
+import { withSignedResumeUrls } from "@/lib/careersResumeStorage";
 
 export async function GET(req: NextRequest) {
   const adminId = await getAdminUserId(req);
@@ -27,7 +28,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: appsErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ jobs: jobs || [], applications: applications || [] });
+    // Résumés live in a private bucket; hand the admin UI signed URLs it can
+    // open directly (legacy public URLs pass through unchanged).
+    const signedApplications = await withSignedResumeUrls(applications || []);
+
+    return NextResponse.json({ jobs: jobs || [], applications: signedApplications });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });

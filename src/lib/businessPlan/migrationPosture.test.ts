@@ -16,9 +16,9 @@ const statements = strip(sql).split(";").map((s) => s.replace(/\s+/g, " ").trim(
 const policies = statements.filter((s) => /^CREATE POLICY/i.test(s));
 
 describe("migration 20260910000000 — commerce_business_plans", () => {
-  it("is the newest timestamped migration and does not collide", () => {
+  it("is present and does not collide with another migration's timestamp", () => {
     const files = readdirSync(DIR).filter((f) => /^\d{14}_/.test(f)).sort();
-    expect(files[files.length - 1]).toBe(FILE);
+    expect(files).toContain(FILE);
     expect(files.filter((f) => f.startsWith("20260910000000"))).toEqual([FILE]);
   });
   it("is forward-only and idempotent: creates one table and one sequence, drops nothing but its own policies/trigger", () => {

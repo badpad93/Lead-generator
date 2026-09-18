@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAdminUserId } from "@/lib/adminAuth";
+import { resolveResumeUrl } from "@/lib/careersResumeStorage";
 
 export async function PATCH(req: NextRequest) {
   const adminId = await getAdminUserId(req);
@@ -32,7 +33,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ application: data });
+    // Keep the résumé link openable after a status change (private bucket).
+    const application = data
+      ? { ...data, resume_url: await resolveResumeUrl(data.resume_url) }
+      : data;
+
+    return NextResponse.json({ application });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
