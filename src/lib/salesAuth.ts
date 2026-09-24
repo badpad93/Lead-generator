@@ -3,22 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "./supabaseAdmin";
+import { type SalesRole, isElevatedRole, canSeeTeamAssignedLeads } from "./salesRoles";
 
-export type SalesRole = "admin" | "director_of_sales" | "market_leader" | "sales_manager" | "sales";
-
-export function isElevatedRole(role: SalesRole): boolean {
-  return role === "admin" || role === "director_of_sales" || role === "market_leader";
-}
-
-/**
- * Can the role see assigned leads across the whole team?
- * - Elevated roles see everything (including unassigned).
- * - sales_manager sees all assigned leads but NOT unassigned.
- * - sales only sees their own.
- */
-export function canSeeTeamAssignedLeads(role: SalesRole): boolean {
-  return isElevatedRole(role) || role === "sales_manager";
-}
+// Re-export the pure role predicates so existing importers keep working.
+export { isElevatedRole, canSeeTeamAssignedLeads };
+export type { SalesRole };
 
 export interface SalesUser {
   id: string;
