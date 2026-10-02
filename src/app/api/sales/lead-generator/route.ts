@@ -30,6 +30,7 @@ const INDUSTRIES = [
   "cosmetology schools",
   "trucking schools",
   "nursing schools",
+  "jewelry stores",
 ];
 
 /**
