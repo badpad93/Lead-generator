@@ -6,6 +6,7 @@ import { createBrowserClient } from "@/lib/supabase";
 import { Plus, Loader2, Search, X, UserPlus, ArrowRight, Trash2, PhoneOff, Phone, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, AlertTriangle, CheckSquare, Pencil, Building2, Mail, Send, Clock, ShieldCheck, Paperclip, FileSignature, Globe } from "lucide-react";
 import { ENTITY_TYPES, IMMEDIATE_NEEDS, type SalesLead, type EntityType, type ImmediateNeed } from "@/lib/salesTypes";
 import { exportRowsToCsv } from "@/lib/spreadsheetExport";
+import LeadActivitySection from "./LeadActivitySection";
 
 const LEAD_FIELDS: { key: LeadFieldKey; label: string; required?: boolean }[] = [
   { key: "business_name", label: "Business Name", required: true },
@@ -1738,6 +1739,7 @@ export default function LeadsPage() {
                 Changes to business name, contact, phone, email, address, and entity type will also update the linked account.
               </p>
             )}
+            {token && <LeadActivitySection leadId={editingLead.id} token={token} />}
             <div className="mt-5 flex gap-2 justify-end">
               <button onClick={() => setEditingLead(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">
                 Cancel
