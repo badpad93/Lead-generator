@@ -11,7 +11,7 @@ const INDUSTRIES = [
   "motorcycle dealerships", "motorcycle repair shops",
   "electrical supply stores", "vocational schools", "universities",
   "cosmetology schools", "trucking schools", "nursing schools",
-  "barbershops", "car washes", "laundromats",
+  "barbershops", "car washes", "laundromats", "jewelry stores",
   "golf simulators", "golf simulator lounges", "indoor golf centers",
   "golf entertainment venues", "topgolf",
 ];
