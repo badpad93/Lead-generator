@@ -43,6 +43,7 @@ const PUBLIC_EXACT = new Set<string>([
   "/careers",
   "/request-location",
   "/financing",
+  "/smart-coolers",          // public machine-focused marketing landing page
   "/assistant",              // AI assistant — anonymous exploration allowed; the page 404s while assistant.enabled is off
   // Root static assets.
   "/favicon.ico",
