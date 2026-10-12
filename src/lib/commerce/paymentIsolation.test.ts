@@ -46,6 +46,14 @@ export const EXISTING_PAYMENT_FILES = [
 /** Files changed on purpose after the baseline: git blob id of the reviewed content. */
 export const HARDENED_AFTER_BASELINE: Record<string, string> = {
   "src/app/api/quickbooks/oauth/callback/route.ts": "4f95ca5ba7a475ac0038553bd8f4cf7607841604",
+  // Stripe removal — customer payment routes collapsed to QuickBooks-only
+  // (Stripe branches and the stripe dependency removed). Pinned to the
+  // reviewed post-removal content so any further drift still fails here.
+  "src/app/api/coffee/checkout/route.ts": "3a759a1d81901759ee13db70c70379aa79f21b39",
+  "src/app/api/coffee/guest-checkout/route.ts": "b36053061341225a189b9b74fa2211164f17508d",
+  "src/app/api/machine-listings/[id]/checkout/route.ts": "10da4ce5b7193240e4f0bd1f97a2e778dec10b95",
+  "src/app/api/agreements/token/[token]/checkout/route.ts": "985e31c346257c908f9110a7160949d08f56771b",
+  "src/app/api/checkout/route.ts": "b7e3c539257c804107e616d3dcedab837d340e61",
 };
 const ADAPTER_IMPORTERS_ALLOWED = new Set([
   "src/lib/commerce/checkout.ts",

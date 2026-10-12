@@ -156,7 +156,7 @@ export default function RefundsPage() {
           </div>
           <div>
             <label className={labelClass}>Provider refund ID (optional)</label>
-            <input type="text" value={form.provider_refund_id} onChange={(e) => setForm((f) => ({ ...f, provider_refund_id: e.target.value }))} className={inputClass + " font-mono"} placeholder="Stripe re_..., QB refund id, etc." />
+            <input type="text" value={form.provider_refund_id} onChange={(e) => setForm((f) => ({ ...f, provider_refund_id: e.target.value }))} className={inputClass + " font-mono"} placeholder="QB refund id, etc." />
           </div>
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
             <input type="checkbox" checked={form.is_chargeback} onChange={(e) => setForm((f) => ({ ...f, is_chargeback: e.target.checked }))} className="h-4 w-4 rounded border-gray-300" />

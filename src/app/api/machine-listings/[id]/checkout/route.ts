@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserIdFromRequest } from "@/lib/apiAuth";
 import { calculateFees, FEE_EXEMPT_ROLES } from "@/lib/checkoutFees";
@@ -275,85 +274,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) return NextResponse.json({ error: "Payment not configured" }, { status: 500 });
-
-  const stripe = new Stripe(stripeKey);
-
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    customer_email: body.email,
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          product_data: {
-            name: listing.title,
-            description: `Vending machine purchase — ${listing.title}`,
-          },
-          unit_amount: priceInCents,
-        },
-        quantity: 1,
-      },
-      ...(deliveryFeeCents > 0
-        ? [
-            {
-              price_data: {
-                currency: "usd" as const,
-                product_data: {
-                  name: "Delivery Fee",
-                  description: `Delivery for ${listing.title}`,
-                },
-                unit_amount: deliveryFeeCents,
-              },
-              quantity: 1,
-            },
-          ]
-        : []),
-      ...(fees.brokerFeeCents > 0
-        ? [
-            {
-              price_data: {
-                currency: "usd" as const,
-                product_data: {
-                  name: "Broker Fee (5%)",
-                  description: "Vending Connector marketplace broker fee",
-                },
-                unit_amount: fees.brokerFeeCents,
-              },
-              quantity: 1,
-            },
-          ]
-        : []),
-      ...(fees.processingFeeCents > 0
-        ? [
-            {
-              price_data: {
-                currency: "usd" as const,
-                product_data: {
-                  name: "Processing Fee (2.9%)",
-                  description: "Payment processing fee",
-                },
-                unit_amount: fees.processingFeeCents,
-              },
-              quantity: 1,
-            },
-          ]
-        : []),
-    ],
-    metadata: {
-      machine_listing_id: listing.id,
-      purchase_id: purchase.id,
-      type: "machine_purchase",
-    },
-    success_url: `${origin}/machines-for-sale/${listing.id}?purchased=true`,
-    cancel_url: `${origin}/machines-for-sale/${listing.id}`,
-  });
-
-  await supabaseAdmin
-    .from("machine_listing_purchases")
-    .update({ stripe_checkout_session_id: session.id })
-    .eq("id", purchase.id);
-
-  return NextResponse.json({ url: session.url });
+  return NextResponse.json({ error: "Payment provider not configured" }, { status: 500 });
 }

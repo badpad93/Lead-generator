@@ -98,7 +98,7 @@ export interface EsignDocument {
 // PIPELINE PAYMENTS
 // ============================================================
 
-export type PaymentProvider = "paypal" | "stripe";
+export type PaymentProvider = "paypal" | "quickbooks" | "stripe";
 
 export type PaymentStatus =
   | "pending"

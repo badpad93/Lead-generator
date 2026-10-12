@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -7,7 +6,7 @@ import { calculateFees, FEE_EXEMPT_ROLES } from "@/lib/checkoutFees";
 import { isQuickBooks } from "@/lib/paymentProvider";
 import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 
-/** POST /api/checkout — create a Stripe Checkout Session for a lead purchase */
+/** POST /api/checkout — create a QuickBooks invoice for a lead purchase */
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
 
@@ -183,74 +182,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    payment_method_types: ["card"],
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          unit_amount: amountCents,
-          product_data: {
-            name: `Lead: ${lead.title}`,
-            description: `Vending lead in ${lead.city}, ${lead.state}`,
-          },
-        },
-        quantity: 1,
-      },
-      ...(fees.brokerFeeCents > 0
-        ? [
-            {
-              price_data: {
-                currency: "usd" as const,
-                product_data: {
-                  name: "Broker Fee (5%)",
-                  description: "Vending Connector marketplace broker fee",
-                },
-                unit_amount: fees.brokerFeeCents,
-              },
-              quantity: 1,
-            },
-          ]
-        : []),
-      ...(fees.processingFeeCents > 0
-        ? [
-            {
-              price_data: {
-                currency: "usd" as const,
-                product_data: {
-                  name: "Processing Fee (2.9%)",
-                  description: "Payment processing fee",
-                },
-                unit_amount: fees.processingFeeCents,
-              },
-              quantity: 1,
-            },
-          ]
-        : []),
-    ],
-    metadata: {
-      user_id: userId,
-      request_id: requestId,
-      agreement_id: agreementId,
-    },
-    success_url: `${siteUrl}/requests/${requestId}?purchased=true`,
-    cancel_url: `${siteUrl}/requests/${requestId}?canceled=true`,
-  });
-
-  // Create a pending purchase record
-  await supabaseAdmin.from("lead_purchases").upsert(
-    {
-      user_id: userId,
-      request_id: requestId,
-      stripe_checkout_session_id: session.id,
-      amount_cents: totalAmountCents,
-      status: "pending",
-    },
-    { onConflict: "user_id,request_id" }
-  );
-
-  return NextResponse.json({ url: session.url });
+  return NextResponse.json({ error: "Payment provider not configured" }, { status: 500 });
 }

@@ -212,7 +212,7 @@ export async function POST(
       await supabaseAdmin.from("pipeline_payments").insert({
         pipeline_item_id: itemId,
         step_id: item.current_step_id,
-        provider: "stripe",
+        provider: "quickbooks",
         amount: pricing.price,
         currency: "USD",
         description: step.payment_description || `Location placement — ${item.name}`,

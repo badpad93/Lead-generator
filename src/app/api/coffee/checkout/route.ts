@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { generateTrackingNumber } from "@/lib/orderTracking";
 import { getCoffeeUser, hasCoffeePurchaseAccess, forbiddenResponse } from "@/lib/coffeeAuth";
@@ -221,7 +220,7 @@ export async function POST(req: NextRequest) {
     const total = subtotal + shippingTotal;
 
     // Enforce the org-wide minimum-order gate BEFORE we insert the
-    // order row or fire the QB/Stripe request. Shipping is excluded
+    // order row or fire the QB request. Shipping is excluded
     // from the check — the minimum is about the operator committing
     // to actual product volume, not an inflated shipping line.
     // Storefront customers are exempt from the operator minimum —
@@ -629,56 +628,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
-    const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = orderItems.map((item) => ({
-      price_data: {
-        currency: "usd",
-        unit_amount: Math.round(item.unit_price * 100),
-        product_data: {
-          name: item.product_name,
-          description: `SKU: ${item.product_sku}`,
-        },
-      },
-      quantity: item.quantity,
-    }));
-
-    if (shippingTotal > 0) {
-      stripeLineItems.push({
-        price_data: {
-          currency: "usd",
-          unit_amount: Math.round(shippingTotal * 100),
-          product_data: {
-            name: "Shipping",
-          },
-        },
-        quantity: 1,
-      });
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      payment_method_types: ["card"],
-      line_items: stripeLineItems,
-      metadata: {
-        type: "coffee_order",
-        order_id: orderRow.id,
-        order_number: effectiveOrderNumber,
-        user_id: user.id,
-      },
-      customer_email: user.email || undefined,
-      success_url: `${siteUrl}/coffee/orders/${orderRow.id}?paid=true`,
-      cancel_url: `${siteUrl}/coffee/checkout?canceled=true`,
-    });
-
-    await supabaseAdmin
-      .from("coffee_orders")
-      .update({ stripe_checkout_session_id: session.id })
-      .eq("id", orderRow.id);
-
-    await finalizeSideEffects();
-
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ error: "Payment provider not configured" }, { status: 500 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });

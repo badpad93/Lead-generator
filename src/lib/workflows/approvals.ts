@@ -291,7 +291,7 @@ export async function recordCustomerDecision(args: RecordDecisionArgs): Promise<
     // Parity with the /operator/marketplace/submissions/[id]/decide path:
     // queue the partner payout + operator invoice so the PP has a
     // marketplace_payouts row that the balance-paid webhook can later
-    // release via Stripe Connect. Idempotent — each helper unique-keys
+    // release via the payment processor. Idempotent — each helper unique-keys
     // on submission_id. Non-blocking.
     if (approval.placement_submission_id) {
       try {

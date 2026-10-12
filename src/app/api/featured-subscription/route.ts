@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getStripeClient } from "@/lib/stripeClient";
 
-const FEATURED_PRICE = 2999; // $29.99 in cents
 const MAX_FEATURED_PER_STATE = 3;
 
-function getSiteUrl(): string {
-  return process.env.NEXT_PUBLIC_SITE_URL || "https://vendingconnector.com";
-}
+/**
+ * Featured-operator placement.
+ *
+ * Self-serve paid subscriptions ran through a third-party checkout that has
+ * been removed. GET still reports featured status and slot availability;
+ * purchasing/cancelling is no longer self-serve — featured placement is
+ * managed by an administrator.
+ */
 
 /** GET /api/featured-subscription — check featured status and available slots */
 export async function GET(req: NextRequest) {
@@ -26,18 +29,16 @@ export async function GET(req: NextRequest) {
 
   let currentUserFeatured = false;
   let currentUserState: string | null = null;
-  let stripeSubscriptionId: string | null = null;
 
   if (user) {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("featured, state, stripe_subscription_id")
+      .select("featured, state")
       .eq("id", user.id)
       .single();
 
     currentUserFeatured = profile?.featured === true;
     currentUserState = profile?.state || null;
-    stripeSubscriptionId = profile?.stripe_subscription_id || null;
   }
 
   const checkState = stateParam || currentUserState;
@@ -59,136 +60,21 @@ export async function GET(req: NextRequest) {
     state: checkState,
     slots_available: slotsAvailable,
     max_per_state: MAX_FEATURED_PER_STATE,
-    price_cents: FEATURED_PRICE,
-    has_subscription: !!stripeSubscriptionId,
+    has_subscription: currentUserFeatured,
+    self_serve: false,
   });
 }
 
-/** POST /api/featured-subscription — create Stripe Checkout for featured subscription */
-export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
-  );
+const UNAVAILABLE = {
+  error: "Featured placement is managed by an administrator — please contact support.",
+};
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("role, state, featured, stripe_customer_id")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile || profile.role !== "operator") {
-    return NextResponse.json({ error: "Only operators can subscribe" }, { status: 403 });
-  }
-
-  if (profile.featured) {
-    return NextResponse.json({ error: "Already a featured operator" }, { status: 409 });
-  }
-
-  if (!profile.state) {
-    return NextResponse.json({ error: "Set your state in your profile before subscribing" }, { status: 422 });
-  }
-
-  // Check slots
-  const { count } = await supabaseAdmin
-    .from("profiles")
-    .select("*", { count: "exact", head: true })
-    .eq("role", "operator")
-    .eq("featured", true)
-    .eq("state", profile.state);
-
-  if ((count || 0) >= MAX_FEATURED_PER_STATE) {
-    return NextResponse.json(
-      { error: `All ${MAX_FEATURED_PER_STATE} featured spots are taken in ${profile.state}` },
-      { status: 409 }
-    );
-  }
-
-  // Get or create Stripe customer
-  let customerId = profile.stripe_customer_id;
-  if (!customerId) {
-    const customer = await getStripeClient().customers.create({
-      email: user.email,
-      metadata: { supabase_user_id: user.id },
-    });
-    customerId = customer.id;
-    await supabaseAdmin
-      .from("profiles")
-      .update({ stripe_customer_id: customerId })
-      .eq("id", user.id);
-  }
-
-  // Create a Stripe Checkout Session in subscription mode
-  const session = await getStripeClient().checkout.sessions.create({
-    customer: customerId,
-    mode: "subscription",
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          recurring: { interval: "month" },
-          product_data: {
-            name: "Featured Operator Subscription",
-            description: `Featured operator listing in ${profile.state} — full profile visibility, priority placement`,
-          },
-          unit_amount: FEATURED_PRICE,
-        },
-        quantity: 1,
-      },
-    ],
-    metadata: {
-      type: "featured_operator",
-      user_id: user.id,
-      state: profile.state,
-    },
-    subscription_data: {
-      metadata: {
-        type: "featured_operator",
-        user_id: user.id,
-        state: profile.state,
-      },
-    },
-    success_url: `${getSiteUrl()}/dashboard?featured=success`,
-    cancel_url: `${getSiteUrl()}/dashboard?featured=cancelled`,
-  });
-
-  return NextResponse.json({ url: session.url });
+/** POST — self-serve purchase is no longer available. */
+export async function POST() {
+  return NextResponse.json(UNAVAILABLE, { status: 503 });
 }
 
-/** DELETE /api/featured-subscription — cancel featured subscription */
-export async function DELETE(req: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
-  );
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("stripe_subscription_id")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile?.stripe_subscription_id) {
-    return NextResponse.json({ error: "No active subscription" }, { status: 404 });
-  }
-
-  await getStripeClient().subscriptions.update(profile.stripe_subscription_id, {
-    cancel_at_period_end: true,
-  });
-
-  return NextResponse.json({ ok: true, message: "Subscription will cancel at end of billing period" });
+/** DELETE — self-serve cancellation is no longer available. */
+export async function DELETE() {
+  return NextResponse.json(UNAVAILABLE, { status: 503 });
 }

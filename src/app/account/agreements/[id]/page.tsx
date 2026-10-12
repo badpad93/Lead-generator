@@ -285,7 +285,7 @@ export default function AgreementDetailPage() {
                   </div>
                   {purchase.stripe_checkout_session_id && (
                     <div className="flex justify-between">
-                      <span className="text-xs text-gray-400">Stripe Ref</span>
+                      <span className="text-xs text-gray-400">Payment Ref</span>
                       <span className="text-xs font-mono text-gray-600 truncate max-w-[120px]">
                         {purchase.stripe_checkout_session_id.slice(-12)}
                       </span>

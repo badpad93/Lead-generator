@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { generateTrackingNumber } from "@/lib/orderTracking";
 import { isQuickBooks } from "@/lib/paymentProvider";
@@ -396,56 +395,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Stripe path
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-    const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = orderItems.map((item) => ({
-      price_data: {
-        currency: "usd",
-        unit_amount: Math.round(item.unit_price * 100),
-        product_data: {
-          name: item.product_name,
-          description: `SKU: ${item.product_sku}`,
-        },
-      },
-      quantity: item.quantity,
-    }));
-    if (shippingTotal > 0) {
-      stripeLineItems.push({
-        price_data: {
-          currency: "usd",
-          unit_amount: Math.round(shippingTotal * 100),
-          product_data: { name: "Shipping" },
-        },
-        quantity: 1,
-      });
-    }
-
-    const stripeSession = await stripe.checkout.sessions.create({
-      mode: "payment",
-      payment_method_types: ["card"],
-      line_items: stripeLineItems,
-      metadata: {
-        type: "coffee_order",
-        order_id: order.id,
-        order_number: orderNumber,
-        user_id: account.userId,
-        guest: "true",
-      },
-      customer_email: billingEmail,
-      success_url: `${siteUrl}/coffee/track/${trackingToken}?paid=true`,
-      cancel_url: `${siteUrl}/coffee/guest-checkout?canceled=true`,
-    });
-
-    await supabaseAdmin
-      .from("coffee_orders")
-      .update({ stripe_checkout_session_id: stripeSession.id })
-      .eq("id", order.id);
-
-    return NextResponse.json({
-      url: stripeSession.url,
-      tracking_url: `${siteUrl}/coffee/track/${trackingToken}`,
-      order_id: order.id,
-    });
+    return NextResponse.json({ error: "Payment provider not configured" }, { status: 500 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     console.error("[guest-checkout] error:", msg);
