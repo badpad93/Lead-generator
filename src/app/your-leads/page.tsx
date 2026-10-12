@@ -186,7 +186,7 @@ function LeadCard({ purchase }: { purchase: PurchasedLead }) {
         ["Purchase Date", formatDateTime(purchase.created_at)],
         ["Order ID", purchase.id],
         [
-          "Stripe Reference",
+          "Payment Reference",
           purchase.stripe_checkout_session_id || "N/A",
         ],
       ];

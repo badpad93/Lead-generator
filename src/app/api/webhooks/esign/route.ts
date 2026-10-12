@@ -160,9 +160,8 @@ export async function POST(req: NextRequest) {
         // Don't block webhook processing
       }
 
-      // Phase 2: If this is a preliminary proposal with PandaDoc+Stripe payment,
+      // Phase 2: If this is a preliminary proposal with a payment step,
       // handle location reveal and full document generation.
-      // Skip for inhouse agreements — payment happens via Stripe checkout separately.
       const metadata = esignDoc.metadata as Record<string, unknown> | null;
       if (
         metadata?.type === "preliminary_proposal" &&

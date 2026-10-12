@@ -303,7 +303,7 @@ export default function PipelineEditPage() {
                     className="rounded-lg border border-gray-200 px-2 py-1 text-xs focus:border-green-500 focus:outline-none"
                   >
                     <option value="none">None</option>
-                    <option value="pandadoc_stripe">PandaDoc + Stripe</option>
+                    <option value="pandadoc_quickbooks">PandaDoc + Invoice</option>
                     <option value="paypal">PayPal</option>
                   </select>
                 </div>

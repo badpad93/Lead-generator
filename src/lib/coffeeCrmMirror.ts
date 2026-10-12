@@ -192,8 +192,8 @@ export async function mirrorCoffeeOrderToCrm(coffeeOrderId: string): Promise<Mir
 
   // Reconcile the header to the persisted lines through the canonical
   // resync so total_value == sum(non-deferred order_items.total_price)
-  // (order_total_integrity = match). This order is paid in full via
-  // Stripe, so restore remaining_balance to 0 afterward — resyncOrderTotals
+  // (order_total_integrity = match). This order is paid in full, so
+  // restore remaining_balance to 0 afterward — resyncOrderTotals
   // assumes a deposit flow and would otherwise stamp the full total as an
   // outstanding balance on an already-paid order.
   await resyncOrderTotals(salesOrder.id);

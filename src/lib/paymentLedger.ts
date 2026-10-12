@@ -1,6 +1,6 @@
 /**
- * Payment ledger writer — provider-agnostic entry point that both the Stripe
- * and QuickBooks webhooks call. Every call is idempotent on (provider,
+ * Payment ledger writer — provider-agnostic entry point that the QuickBooks
+ * webhook calls. Every call is idempotent on (provider,
  * event_id) — a duplicate webhook delivery lands in payment_events but does
  * NOT double-write to payments or invoices.
  *

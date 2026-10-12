@@ -3745,7 +3745,7 @@ function MachineListingsManager({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-black-primary">Buy Now Button</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Enable Stripe checkout for this listing</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Enable instant checkout for this listing</p>
                   </div>
                   <button
                     type="button"
@@ -4907,7 +4907,7 @@ function SettingsManager({ token }: { token: string }) {
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-1">Payment Settings</h3>
         <p className="text-sm text-gray-500 mb-4">
-          Current payment provider: <span className="font-medium text-gray-700">{qbStatus?.provider === "quickbooks" ? "QuickBooks Payments" : "Stripe"}</span>
+          Current payment provider: <span className="font-medium text-gray-700">{"QuickBooks Payments"}</span>
         </p>
         <p className="text-xs text-gray-400 mb-6">
           Set the <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">PAYMENT_PROVIDER</code> environment variable to <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">quickbooks</code> to route payments through QuickBooks.

@@ -12,7 +12,7 @@ import { supabaseAdmin } from "./supabaseAdmin";
  *   4. 0 (last-resort — flagged as fallback_used=true)
  *
  * Money is Postgres NUMERIC → JS number here. That matches the rest of
- * the coffee stack; Stripe/QB integrations convert to cents at the
+ * the coffee stack; payment integrations convert to cents at the
  * boundary (Math.round(x * 100)).
  */
 

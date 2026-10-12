@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isQuickBooks } from "@/lib/paymentProvider";
 import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
@@ -103,44 +102,5 @@ export async function POST(
     }
   }
 
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) {
-    return NextResponse.json({ error: "Stripe not configured" }, { status: 500 });
-  }
-
-  const stripe = new Stripe(stripeKey);
-
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    payment_method_types: ["card"],
-    customer_email: agreement.recipient_email,
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          unit_amount: amountCents,
-          product_data: {
-            name: "Location Placement Fee",
-            description: `Vending location placement — ${businessName}`,
-          },
-        },
-        quantity: 1,
-      },
-    ],
-    metadata: {
-      agreement_token_id: agreement.id,
-      pipeline_item_id: agreement.pipeline_item_id,
-      step_id: agreement.step_id,
-      type: "agreement_payment",
-    },
-    success_url: `${siteUrl}/agreements/${token}?paid=true`,
-    cancel_url: `${siteUrl}/agreements/${token}?canceled=true`,
-  });
-
-  await supabaseAdmin
-    .from("agreement_tokens")
-    .update({ stripe_session_id: session.id, updated_at: new Date().toISOString() })
-    .eq("id", agreement.id);
-
-  return NextResponse.json({ url: session.url });
+  return NextResponse.json({ error: "Payment provider not configured" }, { status: 500 });
 }

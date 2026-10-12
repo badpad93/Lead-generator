@@ -59,7 +59,7 @@ export default function FinancialOverviewPage() {
           <PieChart className="h-6 w-6 text-green-primary" /> Financial Center
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Every payment across QuickBooks, Stripe, and manual entries flows through this ledger.
+          Every payment across QuickBooks and manual entries flows through this ledger.
           Phase 1 wires in the payments spine and backfill. Refunds, commissions, and reconciliation ship in the following phases.
         </p>
       </div>

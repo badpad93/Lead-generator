@@ -9,7 +9,7 @@ import { recordEvent, recomputeWorkflowRollup } from "@/lib/workflows/service";
  *
  * Manual payment-status override. Automatic sync from
  * webhooks/stage-completion continues to run; this is a fallback for
- * when a payment was received off-platform (cash, wire, external Stripe
+ * when a payment was received off-platform (cash, wire, external processor
  * account, etc.) and staff need to flip the workflow without a matching
  * source event.
  *

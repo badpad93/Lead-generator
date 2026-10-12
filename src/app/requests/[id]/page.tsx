@@ -336,26 +336,14 @@ export default function RequestDetailPage() {
     }
   }, [id]);
 
-  // When returning from Stripe, verify the purchase first then check status
+  // When returning from checkout, re-check purchase status. Payment is
+  // confirmed server-side via the QuickBooks webhook.
   useEffect(() => {
     if (!id) return;
-
-    async function verifyAndCheck() {
-      if (justPurchased) {
-        try {
-          await fetch("/api/verify-purchase", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ requestId: id }),
-          });
-        } catch {
-          // Continue to normal check even if verify fails
-        }
-      }
+    async function recheck() {
       await checkPurchase();
     }
-
-    verifyAndCheck();
+    recheck();
   }, [id, justPurchased, checkPurchase]);
 
   // Live-update when lead data or purchase status changes
@@ -421,7 +409,7 @@ export default function RequestDetailPage() {
         setPurchaseError(data.error || "Failed to create checkout session");
         return;
       }
-      // Redirect to Stripe Checkout
+      // Redirect to the hosted invoice / checkout page
       window.location.href = data.url;
     } catch {
       setPurchaseError("Something went wrong. Please try again.");
@@ -500,7 +488,7 @@ export default function RequestDetailPage() {
         ["Buyer Email", receiptData.buyerEmail || "N/A"],
         ["Purchase Date", formatDate(receiptData.purchaseDate)],
         ["Order ID", receiptData.orderId],
-        ["Stripe Reference", receiptData.stripeSessionId || "N/A"],
+        ["Payment Reference", receiptData.stripeSessionId || "N/A"],
       ];
 
       doc.setFontSize(10);

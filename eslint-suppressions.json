@@ -911,7 +911,7 @@
       "count": 2
     },
     "max-depth": {
-      "count": 4
+      "count": 2
     }
   },
   "src/app/api/admin/users/route.ts": {
@@ -1085,11 +1085,6 @@
       "count": 1
     }
   },
-  "src/app/api/coffee/orders/[id]/confirm/route.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/app/api/coffee/orders/[id]/invoice/route.ts": {
     "complexity": {
       "count": 2
@@ -1131,16 +1126,6 @@
       "count": 1
     }
   },
-  "src/app/api/connect/onboard/route.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
-  "src/app/api/connect/status/route.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/app/api/cron/coffee-invoice-sweep/route.ts": {
     "no-console": {
       "count": 1
@@ -1167,14 +1152,6 @@
   "src/app/api/digest/send/route.ts": {
     "complexity": {
       "count": 1
-    }
-  },
-  "src/app/api/featured-subscription/route.ts": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 2
-    },
-    "complexity": {
-      "count": 2
     }
   },
   "src/app/api/financing/[applicationId]/upload-completed/route.ts": {
@@ -2021,11 +1998,6 @@
       "count": 2
     }
   },
-  "src/app/api/verify-purchase/route.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/app/api/webhooks/dwolla/route.ts": {
     "complexity": {
       "count": 1
@@ -2059,17 +2031,6 @@
     },
     "no-console": {
       "count": 15
-    }
-  },
-  "src/app/api/webhooks/stripe/route.ts": {
-    "complexity": {
-      "count": 2
-    },
-    "max-depth": {
-      "count": 1
-    },
-    "no-console": {
-      "count": 3
     }
   },
   "src/app/api/website-requests/[id]/media/route.ts": {
@@ -4061,9 +4022,6 @@
   },
   "src/lib/paymentIngest.ts": {
     "complexity": {
-      "count": 2
-    },
-    "no-nested-ternary": {
       "count": 1
     }
   },

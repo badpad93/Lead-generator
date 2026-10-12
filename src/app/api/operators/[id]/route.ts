@@ -21,7 +21,7 @@ export async function GET(
 
   const isFeatured = profile.featured === true;
 
-  // Never expose Stripe IDs
+  // Never expose payment-provider IDs
   const { stripe_subscription_id: _sid, stripe_customer_id: _cid, ...cleanProfile } = profile;
 
   // Non-featured operators: strip all identifying info

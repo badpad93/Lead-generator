@@ -233,7 +233,7 @@ function seedOrder(overrides: Partial<Order> = {}): Order {
     invoice_last_attempt_at: overrides.invoice_last_attempt_at ?? null,
     invoice_retry_failed_reason: overrides.invoice_retry_failed_reason ?? null,
     created_at: overrides.created_at ?? eleven_min_ago,
-    payment_provider: overrides.payment_provider ?? "stripe",
+    payment_provider: overrides.payment_provider ?? "quickbooks",
     subtotal: overrides.subtotal ?? 10,
     shipping_estimate: overrides.shipping_estimate ?? 0,
     total: overrides.total ?? 10,

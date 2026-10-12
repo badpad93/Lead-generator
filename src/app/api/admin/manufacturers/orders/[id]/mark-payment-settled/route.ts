@@ -13,7 +13,7 @@ const ADMIN_ROLES = new Set(["admin", "director_of_sales", "market_leader"]);
  * if the manufacturer has already marked the order shipped, this
  * triggers the Dwolla transfer immediately (two-gate release).
  *
- * Intended for manual reconciliation until Stripe / QB webhooks are
+ * Intended for manual reconciliation until QB webhooks are
  * wired to auto-flip this flag.
  */
 export async function POST(

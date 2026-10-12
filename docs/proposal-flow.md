@@ -23,7 +23,7 @@ Two-phase PandaDoc document flow for location placement proposals:
 ### `pipeline_steps` additions
 - `pandadoc_preliminary_template_id` — PandaDoc template for Phase 1
 - `pandadoc_full_template_id` — PandaDoc template for Phase 2
-- `payment_provider` — `pandadoc_stripe`, `paypal`, or `none`
+- `payment_provider` — `pandadoc_quickbooks`, `paypal`, or `none`
 
 ### `pipeline_items` additions
 - `location_id` — references `locations.id`
@@ -40,7 +40,7 @@ Two-phase PandaDoc document flow for location placement proposals:
 2. Creates PandaDoc document from preliminary template with merge fields (industry, zip, employee/traffic counts, customer info, payment amount)
 3. Sends document immediately
 4. Creates `esign_documents` record with `metadata.type = "preliminary_proposal"`
-5. Creates `pipeline_payments` record (pending) if step uses `pandadoc_stripe`
+5. Creates `pipeline_payments` record (pending) if step uses `pandadoc_quickbooks`
 6. Updates `pipeline_items.proposal_status = "proposal_sent"`
 
 ## Phase 2: Payment + Auto-Release
@@ -58,12 +58,6 @@ Two-phase PandaDoc document flow for location placement proposals:
 6. Updates `pipeline_items.proposal_status = "paid"`
 7. If step requirements met and no admin approval required, auto-advances to next step (or marks won if last step)
 
-## Phase 3: Stripe Backup Reconciliation
-
-**Handler:** `POST /api/webhooks/stripe`
-
-Handles `payment_intent.succeeded` events with `pipeline_item_id` and `step_id` metadata — marks matching `pipeline_payments` as completed as an audit backup.
-
 ## Access Control
 
 `src/lib/locations/access.ts` provides:
@@ -79,4 +73,4 @@ When "E-Sign" is checked on a step:
 
 When "Payment" is checked on a step:
 - Amount and description inputs
-- Payment Provider dropdown: PandaDoc + Stripe, PayPal, None
+- Payment Provider dropdown: PandaDoc + Invoice, PayPal, None

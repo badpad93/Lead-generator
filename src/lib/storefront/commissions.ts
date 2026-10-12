@@ -245,7 +245,7 @@ export interface RefundedLine {
 
 export interface ReverseCommissionsInput {
   orderId: string;
-  refundId: string;                // stripe/qb refund id — used in idempotency key
+  refundId: string;                // payment-provider refund id — used in idempotency key
   reason: string;
   lines: RefundedLine[];           // partial-refund shape; pass full lines for full refund
   actorId?: string | null;

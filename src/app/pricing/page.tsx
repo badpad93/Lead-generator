@@ -108,7 +108,7 @@ export default function PricingPage() {
 
             <p className="mt-4 text-center text-xs text-gray-400 flex items-center justify-center gap-1">
               <Shield className="h-3 w-3" />
-              Secure payments powered by Stripe
+              Secure payments
             </p>
           </div>
         </div>
@@ -134,7 +134,7 @@ export default function PricingPage() {
               </div>
               <h3 className="font-semibold text-black-primary">2. Purchase Leads</h3>
               <p className="mt-1 text-sm text-gray-500">
-                Click the purchase button on any lead to pay securely via Stripe and unlock full details.
+                Click the purchase button on any lead to pay securely and unlock full details.
               </p>
             </div>
             <div className="text-center">

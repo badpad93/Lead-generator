@@ -31,7 +31,6 @@ const STATUS_FILTERS = [
 
 const PROVIDER_FILTERS = [
   { key: "all", label: "All Providers" },
-  { key: "stripe", label: "Stripe" },
   { key: "quickbooks", label: "QuickBooks" },
   { key: "manual", label: "Manual" },
 ];

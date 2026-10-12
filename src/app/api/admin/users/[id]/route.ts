@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAdminUserId } from "@/lib/adminAuth";
 import { sendLocatorApprovedEmail, sendLocatorRejectedEmail } from "@/lib/welcomeEmail";
@@ -56,26 +55,9 @@ export async function PATCH(
       }
     }
 
-    // When admin removes featured status, cancel the Stripe subscription and clear the ID
+    // When admin removes featured status, clear any legacy subscription ID.
     if (updates.featured === false) {
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("stripe_subscription_id")
-        .eq("id", id)
-        .single();
-
-      if (profile?.stripe_subscription_id) {
-        const stripeKey = process.env.STRIPE_CONNECT_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
-        if (stripeKey) {
-          try {
-            const stripe = new Stripe(stripeKey);
-            await stripe.subscriptions.cancel(profile.stripe_subscription_id);
-          } catch {
-            // Subscription may already be cancelled — proceed anyway
-          }
-        }
-        updates.stripe_subscription_id = null;
-      }
+      updates.stripe_subscription_id = null;
     }
 
     const { data, error } = await supabaseAdmin
