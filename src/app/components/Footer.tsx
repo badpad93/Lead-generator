@@ -49,8 +49,8 @@ export default function Footer() {
               <Image
                 src="/logo-vc.png"
                 alt="Vending Connector"
-                width={649}
-                height={1020}
+                width={653}
+                height={1029}
                 className="h-8 w-auto"
               />
               <span className="text-lg font-bold text-white">Vending Connector</span>

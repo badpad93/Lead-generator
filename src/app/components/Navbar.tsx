@@ -380,16 +380,16 @@ export default function Navbar() {
               <Image
                 src="/logo-vc.png"
                 alt="Vending Connector"
-                width={649}
-                height={1020}
+                width={653}
+                height={1029}
                 priority
                 className="h-8 w-auto min-[520px]:hidden"
               />
               <Image
                 src="/logo-vc-wordmark.png"
                 alt="Vending Connector"
-                width={1923}
-                height={270}
+                width={1797}
+                height={218}
                 priority
                 className="hidden h-7 w-auto min-[520px]:block"
               />
@@ -671,8 +671,8 @@ export default function Navbar() {
               <Image
                 src="/logo-vc.png"
                 alt="Vending Connector"
-                width={649}
-                height={1020}
+                width={653}
+                height={1029}
                 className="h-6 w-auto"
               />
             </span>
