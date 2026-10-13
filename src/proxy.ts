@@ -53,7 +53,8 @@ const PUBLIC_EXACT = new Set<string>([
   "/apple-icon.png",
   "/icon.png",
   "/logo.png",
-  "/logo-vc.svg",
+  "/logo-vc.png",
+  "/logo-vc-wordmark.png",
   "/og-image.png",
   "/assistant/vinnie-vc-badge.png", // Vinnie badge — fetched by the image optimizer, must never bounce to /login
 ]);

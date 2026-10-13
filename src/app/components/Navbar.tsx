@@ -372,22 +372,27 @@ export default function Navbar() {
         }`}
       >
         <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          {/* Logo — circular VC mark. Replace /public/logo-vc.png (or
-              .svg) to swap. */}
+          {/* Brand — full wordmark on wider screens; the compact VC mark
+              alone below 520px, where the wordmark, mode selector, and menu
+              button no longer fit side by side. */}
           <div className="flex shrink-0 items-center gap-3">
-            <Link href="/" className="flex shrink-0 items-center gap-2">
+            <Link href="/" className="flex shrink-0 items-center" aria-label="Vending Connector home">
               <Image
-                src="/logo-vc.svg"
+                src="/logo-vc.png"
                 alt="Vending Connector"
-                width={40}
-                height={40}
+                width={653}
+                height={1029}
                 priority
-                className="h-9 w-9"
+                className="h-8 w-auto min-[520px]:hidden"
               />
-              {/* Below 520px the mark, the mode selector, and the menu button
-                  no longer fit beside the wordmark, so the wordmark alone
-                  yields; the mark stays as the brand and home link. */}
-              <span className="hidden whitespace-nowrap text-lg font-bold text-gray-900 min-[520px]:inline">Vending Connector</span>
+              <Image
+                src="/logo-vc-wordmark.png"
+                alt="Vending Connector"
+                width={1797}
+                height={218}
+                priority
+                className="hidden h-7 w-auto min-[520px]:block"
+              />
             </Link>
             <ModeSwitch authenticated={isLoggedIn} vinnieEnabled={vinnieEnabled} />
           </div>
@@ -661,15 +666,14 @@ export default function Navbar() {
         {/* Drawer Header */}
         <div className="flex items-center justify-between border-b border-white/20 px-4 py-4">
           <div className="flex items-center gap-2">
-            {/* White background disc so the green ring + navy VC of
-                the logo stay legible on the green drawer header. */}
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white p-0.5">
+            {/* White disc so the bolt mark stays legible on the drawer header. */}
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white p-1">
               <Image
-                src="/logo-vc.svg"
+                src="/logo-vc.png"
                 alt="Vending Connector"
-                width={32}
-                height={32}
-                className="h-7 w-7"
+                width={653}
+                height={1029}
+                className="h-6 w-auto"
               />
             </span>
             <span className="text-base font-bold text-white">Vending Connector</span>
