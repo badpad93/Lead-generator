@@ -45,18 +45,14 @@ export default function Footer() {
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
           {/* Brand Column */}
           <div className="lg:col-span-1">
-            <Link href="/" className="inline-flex items-center gap-2">
-              {/* White disc so the logo's green ring + navy VC stay
-                  legible against the black footer background. */}
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white p-0.5">
-                <Image
-                  src="/logo-vc.svg"
-                  alt="Vending Connector"
-                  width={36}
-                  height={36}
-                  className="h-8 w-8"
-                />
-              </span>
+            <Link href="/" className="inline-flex items-center gap-2.5" aria-label="Vending Connector home">
+              <Image
+                src="/logo-vc.png"
+                alt="Vending Connector"
+                width={649}
+                height={1020}
+                className="h-8 w-auto"
+              />
               <span className="text-lg font-bold text-white">Vending Connector</span>
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-gray-400">
