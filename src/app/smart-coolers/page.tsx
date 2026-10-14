@@ -117,10 +117,8 @@ function MachineCard({ machine, delay }: { machine: MachinePlaceholder; delay: n
   return (
     <Reveal delay={delay} className="h-full">
       <div className="flex h-full flex-col">
-        {/* Image placeholder — set machine.image to a real path to replace. */}
-        <div className="mb-4 flex h-56 items-center justify-center rounded-xl bg-gray-100">
-          <ImageOff className="h-8 w-8 text-gray-300" />
-        </div>
+        {/* Flat grey image placeholder — set machine.image to a real path to replace. */}
+        <div className="mb-4 h-56 rounded-xl bg-gray-200" />
         <h3 className="mb-3 font-semibold text-black-primary">{machine.name}</h3>
         <div className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2">
           <SpecRow icon={Boxes} text={machine.bottles} />
