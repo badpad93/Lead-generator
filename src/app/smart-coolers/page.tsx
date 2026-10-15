@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import Reveal from "@/app/components/Reveal";
+import { getSmartCoolerMachines, type SmartCoolerMachine } from "@/lib/smartCoolerMachines";
 import {
   ArrowRight,
   Sparkles,
@@ -50,28 +52,6 @@ const STEPS: { icon: typeof CreditCard; title: string; body: string }[] = [
   },
 ];
 
-interface MachinePlaceholder {
-  name: string;
-  bottles: string;
-  shelves: string;
-  cameras: string;
-  warranty: string;
-  startingAt: string;
-  /** Drop a real image path here (e.g. "/images/machines/xyz.png"); null renders a placeholder. */
-  image: string | null;
-}
-
-const MACHINES: MachinePlaceholder[] = [
-  { name: "Micromart Fridge Smart Store", bottles: "378 bottles", shelves: "5 shelves", cameras: "4x cameras", warranty: "3/5 year warranty", startingAt: "$6,295", image: null },
-  { name: "Summit Pro 542 AI Smart Cooler", bottles: "378 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$4,699", image: null },
-  { name: "Summit Plus 440 AI Smart Cooler", bottles: "324 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$3,850", image: null },
-  { name: "Vantage Elite Smart Cooler", bottles: "450 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$5,999", image: null },
-  { name: "Vantage Prime Smart Cooler", bottles: "360 bottles", shelves: "5 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$4,999", image: null },
-  { name: "Corner Core AI Smart Cooler", bottles: "300+ bottles", shelves: "6 shelves", cameras: "3x cameras", warranty: "2/5 year warranty", startingAt: "$3,995", image: null },
-  { name: "Summit Ultra 1200 AI Smart Cooler", bottles: "756 bottles", shelves: "12 shelves", cameras: "4x cameras", warranty: "1 year warranty", startingAt: "$7,199", image: null },
-  { name: "Summit Mini 360 AI Smart Cooler", bottles: "252 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$3,449", image: null },
-];
-
 function HeroStat({ value, label }: { value: string; label: string }) {
   return (
     <div>
@@ -113,12 +93,18 @@ function SpecRow({ icon: Icon, text }: { icon: typeof Boxes; text: string }) {
   );
 }
 
-function MachineCard({ machine, delay }: { machine: MachinePlaceholder; delay: number }) {
+function MachineCard({ machine, delay }: { machine: SmartCoolerMachine; delay: number }) {
   return (
     <Reveal delay={delay} className="h-full">
       <div className="flex h-full flex-col">
-        {/* Flat grey image placeholder — set machine.image to a real path to replace. */}
-        <div className="mb-4 h-56 rounded-xl bg-gray-200" />
+        {machine.imageUrl ? (
+          <div className="relative mb-4 h-56 overflow-hidden rounded-xl bg-gray-100">
+            <Image src={machine.imageUrl} alt={machine.name} fill unoptimized className="object-contain" />
+          </div>
+        ) : (
+          /* Flat grey placeholder until a photo is uploaded in the admin panel. */
+          <div className="mb-4 h-56 rounded-xl bg-gray-200" />
+        )}
         <h3 className="mb-3 font-semibold text-black-primary">{machine.name}</h3>
         <div className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2">
           <SpecRow icon={Boxes} text={machine.bottles} />
@@ -135,7 +121,8 @@ function MachineCard({ machine, delay }: { machine: MachinePlaceholder; delay: n
   );
 }
 
-export default function SmartCoolersPage() {
+export default async function SmartCoolersPage() {
+  const machines = await getSmartCoolerMachines();
   return (
     <main className="bg-light">
       {/* ===== Hero — live background video + dark overlay ===== */}
@@ -244,8 +231,8 @@ export default function SmartCoolersPage() {
           </p>
         </Reveal>
         <div className="mt-12 grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
-          {MACHINES.map((m, i) => (
-            <MachineCard key={m.name} machine={m} delay={(i % 4) * 80} />
+          {machines.map((m, i) => (
+            <MachineCard key={m.id} machine={m} delay={(i % 4) * 80} />
           ))}
         </div>
       </section>
