@@ -17,9 +17,9 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "AI-Powered Smart Coolers | Vending Connector",
+  title: "Smart Coolers & AI Vending Machines | Vending Connector",
   description:
-    "Revolutionary AI-powered vending machines and smart coolers. Tap, grab, and go — autonomous retail that turns any space into a 24/7 store.",
+    "AI-powered smart coolers and vending machines. Customers tap, grab, and go — autonomous retail that runs any space around the clock.",
 };
 
 /* ------------------------------------------------------------------ *
@@ -29,26 +29,26 @@ export const metadata: Metadata = {
  * ------------------------------------------------------------------ */
 
 const STATS: { value: string; label: string }[] = [
-  { value: "1,500+", label: "Deployed Units" },
-  { value: "99%", label: "Product Recognition" },
-  { value: "24/7", label: "Customer Support" },
+  { value: "1,500+", label: "Units in the Field" },
+  { value: "99%", label: "Recognition Accuracy" },
+  { value: "24/7", label: "Support, Always On" },
 ];
 
 const STEPS: { icon: typeof CreditCard; title: string; body: string }[] = [
   {
     icon: CreditCard,
-    title: "Tap card or phone",
-    body: "Tap any credit, debit card, or phone on the reader. The door unlocks instantly.",
+    title: "Tap to unlock",
+    body: "Tap a card or phone on the reader and the door unlocks right away.",
   },
   {
     icon: Hand,
-    title: "Grab your items",
-    body: "Take whatever you want. AI cameras track every item in real time.",
+    title: "Grab what you want",
+    body: "Pull out any items you like — the cameras track every pick in real time.",
   },
   {
     icon: DoorClosed,
-    title: "Close door & go",
-    body: "Close the door & walk away. Your card is automatically charged for only what you took.",
+    title: "Shut the door & go",
+    body: "Close the door and walk off — you're charged automatically for exactly what you took.",
   },
 ];
 
@@ -150,17 +150,17 @@ export default async function SmartCoolersPage() {
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80 backdrop-blur-sm">
               <Sparkles className="h-3.5 w-3.5 text-green-400" />
-              AI-Powered Innovation
+              Autonomous Retail
             </span>
             <h1 className="mt-5 text-4xl font-bold leading-tight text-white sm:text-6xl">
               <span className="bg-gradient-to-r from-green-400 to-emerald-300 bg-clip-text text-transparent">
-                AI-Powered
+                Autonomous
               </span>{" "}
               Smart Coolers
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-white/70 sm:text-lg">
-              Revolutionary AI-powered vending machines with customizable wraps. Transform your space
-              with cutting-edge technology and stunning designs.
+              Smart, camera-powered coolers with fully customizable wraps. Turn any space into a modern
+              self-service store that sells around the clock.
             </p>
             <Link
               href="/machines-for-sale"
@@ -184,14 +184,14 @@ export default async function SmartCoolersPage() {
       {/* ===== Collection intro ===== */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-wider text-green-primary">Shop by collection</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-green-primary">Browse the lineup</p>
           <div className="mt-2 grid gap-6 md:grid-cols-2 md:items-end">
             <h2 className="text-3xl font-bold text-black-primary sm:text-4xl">
-              A machine for <span className="text-green-primary">everyone</span>
+              A cooler for <span className="text-green-primary">every space</span>
             </h2>
             <p className="text-sm leading-relaxed text-gray-500">
-              Carefully selected machines, each with a clear role. Start with the collection that best
-              matches your location, budget, and operating goals.
+              Every model is hand-picked for a specific job. Start with the one that fits your location,
+              budget, and the way you operate.
             </p>
           </div>
         </Reveal>
@@ -201,14 +201,14 @@ export default async function SmartCoolersPage() {
       <section className="bg-black-primary py-16 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <Reveal>
-            <p className="text-xs font-semibold uppercase tracking-wider text-green-400">How AI vending works</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-green-400">How it works</p>
             <div className="mt-3 grid gap-6 md:grid-cols-2 md:items-start">
               <h2 className="text-3xl font-bold leading-tight text-white sm:text-4xl">
-                No spiral racks.<br />No checkout line.
+                No coils.<br />No register.
               </h2>
               <p className="text-sm leading-relaxed text-white/60">
-                AI-powered coolers turn a familiar refrigerator into an autonomous store. Customers shop
-                naturally while cameras and software handle the transaction behind the scenes.
+                These coolers look like an ordinary fridge but run like a self-checkout store. Shoppers
+                grab what they want while cameras and software ring it up automatically.
               </p>
             </div>
           </Reveal>
@@ -223,10 +223,10 @@ export default async function SmartCoolersPage() {
       {/* ===== Popular machines ===== */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:py-24">
         <Reveal>
-          <h2 className="text-3xl font-bold text-black-primary sm:text-4xl">Some of our most popular machines</h2>
+          <h2 className="text-3xl font-bold text-black-primary sm:text-4xl">Machines our operators love</h2>
           <p className="mt-3 max-w-3xl text-sm leading-relaxed text-gray-500">
-            Every brand &amp; machine we sell is thoroughly vetted by our team. We only sell a machine if
-            it&apos;s something we&apos;d buy &amp; operate ourselves.
+            We vet every machine we carry. If we wouldn&apos;t buy and run it ourselves, we don&apos;t
+            list it.
           </p>
         </Reveal>
         <div className="mt-12 grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
@@ -240,10 +240,10 @@ export default async function SmartCoolersPage() {
       <section className="bg-black-primary py-16 sm:py-24">
         <div className="mx-auto max-w-4xl px-4 text-center">
           <Reveal>
-            <h2 className="text-3xl font-bold text-white sm:text-4xl">Ready to put a smart cooler to work?</h2>
+            <h2 className="text-3xl font-bold text-white sm:text-4xl">Ready to drop a smart cooler in your space?</h2>
             <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-white/60">
-              Join the operators growing with AI-powered vending. Get started in minutes — no spiral racks,
-              no checkout line, no guesswork.
+              Join the operators scaling with autonomous vending. Set up in minutes — no coils, no
+              register, no guesswork.
             </p>
             <Link
               href="/signup"
