@@ -127,9 +127,8 @@ export default async function SmartCoolersPage() {
     <main className="bg-light">
       {/* ===== Hero — live background video + dark overlay ===== */}
       <section className="relative overflow-hidden bg-black-primary">
-        {/* Background video. Drop the real asset at /public/videos/smart-coolers-hero.mp4
-            (and a poster frame at /public/videos/smart-coolers-hero-poster.jpg).
-            Until then the gradient below shows through. */}
+        {/* Background video (muted, looping). The gradient shows through while
+            the video loads or if it can't play. */}
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-black-primary to-gray-950" />
           <video
