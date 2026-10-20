@@ -388,10 +388,10 @@ export default function Navbar() {
               <Image
                 src="/logo-vc-wordmark.png"
                 alt="Vending Connector"
-                width={1797}
-                height={218}
+                width={1055}
+                height={466}
                 priority
-                className="hidden h-7 w-auto min-[520px]:block"
+                className="hidden h-10 w-auto min-[520px]:block"
               />
             </Link>
             <ModeSwitch authenticated={isLoggedIn} vinnieEnabled={vinnieEnabled} />
