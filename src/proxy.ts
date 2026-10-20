@@ -75,6 +75,7 @@ const PUBLIC_PREFIXES = [
   "/api/storefront/enrollment/", // token-verify + consume from the invite page
   "/financing/",             // /financing/complete-application + any future step
   "/images/",
+  "/videos/",                // public marketing media (e.g. the smart-coolers hero)
   "/fonts/",
 ];
 
