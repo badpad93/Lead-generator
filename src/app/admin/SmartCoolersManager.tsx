@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { Loader2, Plus, Trash2, Upload, X } from "lucide-react";
+import { Loader2, Plus, Trash2, Upload, X, FileText, ExternalLink } from "lucide-react";
 
 export interface AdminMachine {
   id: string;
@@ -16,6 +16,8 @@ export interface AdminMachine {
   sort_order: number;
   image_path: string | null;
   image_url: string | null;
+  spec_path: string | null;
+  spec_url: string | null;
 }
 
 const TEXT_FIELDS: { key: keyof AdminMachine; label: string; placeholder: string }[] = [
@@ -160,7 +162,10 @@ function MachineEditor({ machine, token, onChanged }: { machine: AdminMachine; t
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
       <div className="flex flex-col gap-4 sm:flex-row">
-        <PhotoControl machine={machine} token={token} />
+        <div className="w-full space-y-3 sm:w-44">
+          <PhotoControl machine={machine} token={token} />
+          <SpecControl machine={machine} token={token} />
+        </div>
         <div className="flex-1">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {TEXT_FIELDS.map((f) => (
@@ -272,6 +277,77 @@ function PhotoControl({ machine, token }: { machine: AdminMachine; token: string
         </label>
         {url && (
           <button onClick={clear} className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:bg-gray-50" title="Remove photo">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+      {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
+    </div>
+  );
+}
+
+function SpecControl({ machine, token }: { machine: AdminMachine; token: string }) {
+  const [url, setUrl] = useState<string | null>(machine.spec_url);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function upload(file: File) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const data = await api(`/api/admin/smart-coolers/machines/${machine.id}/spec`, token, { method: "PUT", body: fd });
+      setUrl(data.spec_url || null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clear() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/api/admin/smart-coolers/machines/${machine.id}/spec`, token, { method: "DELETE" });
+      setUrl(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Remove failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-dashed border-gray-200 p-2">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-medium text-gray-500">Spec sheet (PDF/image)</span>
+        {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+      </div>
+      {url ? (
+        <a href={url} target="_blank" rel="noopener noreferrer" className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:underline">
+          <FileText className="h-3.5 w-3.5" /> View spec <ExternalLink className="h-3 w-3" />
+        </a>
+      ) : (
+        <p className="mb-2 text-xs text-gray-400">None uploaded</p>
+      )}
+      <div className="flex items-center gap-2">
+        <label className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+          <Upload className="h-3.5 w-3.5" /> {url ? "Replace" : "Upload"}
+          <input
+            type="file"
+            accept="application/pdf,image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) upload(file);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        {url && (
+          <button onClick={clear} className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:bg-gray-50" title="Remove spec">
             <X className="h-3.5 w-3.5" />
           </button>
         )}

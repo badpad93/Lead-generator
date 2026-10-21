@@ -6,7 +6,11 @@ import { SMART_COOLER_BUCKET, machineImageUrl } from "@/lib/smartCoolerMachines"
 const FIELDS = ["name", "bottles", "shelves", "cameras", "warranty", "starting_at", "active", "sort_order"];
 
 function serialize(row: Record<string, unknown>) {
-  return { ...row, image_url: machineImageUrl((row.image_path as string) ?? null, row.updated_at as string | null) };
+  return {
+    ...row,
+    image_url: machineImageUrl((row.image_path as string) ?? null, row.updated_at as string | null),
+    spec_url: machineImageUrl((row.spec_path as string) ?? null, row.updated_at as string | null),
+  };
 }
 
 /** PATCH /api/admin/smart-coolers/machines/[id] — update editable fields. */
@@ -38,15 +42,16 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const { data: row } = await supabaseAdmin
     .from("smart_cooler_machines")
-    .select("image_path")
+    .select("image_path, spec_path")
     .eq("id", id)
     .maybeSingle();
 
   const { error } = await supabaseAdmin.from("smart_cooler_machines").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  if (row?.image_path) {
-    await supabaseAdmin.storage.from(SMART_COOLER_BUCKET).remove([row.image_path]);
+  const orphans = [row?.image_path, row?.spec_path].filter(Boolean) as string[];
+  if (orphans.length > 0) {
+    await supabaseAdmin.storage.from(SMART_COOLER_BUCKET).remove(orphans);
   }
 
   return NextResponse.json({ ok: true });

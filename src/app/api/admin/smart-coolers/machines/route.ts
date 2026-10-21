@@ -6,7 +6,11 @@ import { machineImageUrl } from "@/lib/smartCoolerMachines";
 const FIELDS = ["name", "bottles", "shelves", "cameras", "warranty", "starting_at", "active", "sort_order"];
 
 function serialize(row: Record<string, unknown>) {
-  return { ...row, image_url: machineImageUrl((row.image_path as string) ?? null, row.updated_at as string | null) };
+  return {
+    ...row,
+    image_url: machineImageUrl((row.image_path as string) ?? null, row.updated_at as string | null),
+    spec_url: machineImageUrl((row.spec_path as string) ?? null, row.updated_at as string | null),
+  };
 }
 
 function pickFields(body: Record<string, unknown>): Record<string, unknown> {

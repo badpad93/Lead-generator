@@ -14,6 +14,7 @@ import {
   Camera,
   ShieldCheck,
   ImageOff,
+  FileText,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -112,9 +113,21 @@ function MachineCard({ machine, delay }: { machine: SmartCoolerMachine; delay: n
           <SpecRow icon={Camera} text={machine.cameras} />
           <SpecRow icon={ShieldCheck} text={machine.warranty} />
         </div>
-        <div className="mt-auto border-t border-gray-100 pt-3">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Starting at</div>
-          <div className="text-xl font-bold text-green-primary">{machine.startingAt}</div>
+        <div className="mt-auto flex items-end justify-between gap-3 border-t border-gray-100 pt-3">
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Starting at</div>
+            <div className="text-xl font-bold text-green-primary">{machine.startingAt}</div>
+          </div>
+          {machine.specUrl && (
+            <a
+              href={machine.specUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-green-primary hover:text-green-primary"
+            >
+              <FileText className="h-4 w-4" /> See specs
+            </a>
+          )}
         </div>
       </div>
     </Reveal>
