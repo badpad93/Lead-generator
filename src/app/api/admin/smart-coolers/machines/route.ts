@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAdminUserId } from "@/lib/adminAuth";
 import { machineImageUrl } from "@/lib/smartCoolerMachines";
 
-const FIELDS = ["name", "bottles", "shelves", "cameras", "warranty", "starting_at", "active", "sort_order", "listing_id"];
+const FIELDS = ["name", "bottles", "shelves", "cameras", "warranty", "starting_at", "active", "sort_order", "listing_id", "price_cents"];
 
 function serialize(row: Record<string, unknown>) {
   return {
