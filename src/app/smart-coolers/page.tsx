@@ -14,7 +14,6 @@ import {
   Layers,
   Camera,
   ShieldCheck,
-  ImageOff,
   FileText,
 } from "lucide-react";
 
@@ -68,9 +67,15 @@ function StepCard({ step, delay }: { step: (typeof STEPS)[number]; delay: number
   return (
     <Reveal delay={delay} className="h-full">
       <div className="h-full overflow-hidden rounded-2xl bg-white shadow-xl shadow-black/20">
-        {/* Image placeholder — replace with a real photo of the step. */}
-        <div className="flex h-48 items-center justify-center bg-gradient-to-br from-gray-800 to-gray-950">
-          <ImageOff className="h-8 w-8 text-white/25" />
+        {/* Generic branded graphic — a glowing icon tile on a dark gradient. */}
+        <div className="relative flex h-48 items-center justify-center overflow-hidden bg-gradient-to-br from-gray-900 via-black-primary to-gray-950">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-green-primary/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-12 -left-8 h-32 w-32 rounded-full bg-green-500/10 blur-3xl" />
+          <div className="pointer-events-none absolute left-6 top-6 h-16 w-16 rounded-full border border-white/5" />
+          <div className="pointer-events-none absolute bottom-6 right-8 h-10 w-10 rounded-full border border-white/5" />
+          <span className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-white/5 ring-1 ring-white/10 backdrop-blur">
+            <Icon className="h-9 w-9 text-green-400" />
+          </span>
         </div>
         <div className="p-5">
           <div className="mb-2 flex items-center gap-2">
