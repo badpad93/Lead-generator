@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Zap,
+  Tag,
   Shield,
   Building2,
   MapPin,
@@ -34,6 +35,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import SmartCoolersManager from "./SmartCoolersManager";
+import VendingBrandsManager from "./VendingBrandsManager";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
 import {
@@ -60,6 +62,7 @@ type Tab =
   | "machine_listings"
   | "time_tracking"
   | "smart_coolers"
+  | "vending_brands"
   | "settings";
 
 const inputClass =
@@ -4678,6 +4681,7 @@ export default function AdminPage() {
     { key: "machine_listings", label: "Machines For Sale", icon: Package },
     { key: "time_tracking", label: "Time Tracking", icon: Timer },
     { key: "smart_coolers", label: "Smart Coolers", icon: Zap },
+    { key: "vending_brands", label: "AI Brands", icon: Tag },
     { key: "settings", label: "Settings", icon: Shield },
   ];
 
@@ -4833,6 +4837,9 @@ export default function AdminPage() {
           )}
           {activeTab === "smart_coolers" && (
             <SmartCoolersManager token={token} />
+          )}
+          {activeTab === "vending_brands" && (
+            <VendingBrandsManager token={token} />
           )}
           {activeTab === "settings" && (
             <SettingsManager token={token} />
