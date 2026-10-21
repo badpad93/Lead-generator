@@ -17,9 +17,9 @@ interface Brand {
 
 interface AssignMachine {
   id: string;
-  title: string;
-  status: string | null;
-  buy_now_enabled: boolean | null;
+  name: string;
+  active: boolean | null;
+  price_cents: number | null;
   brand_id: string | null;
 }
 
@@ -300,10 +300,10 @@ function MachineAssignment({ token, brands }: { token: string; brands: Brand[] }
   return (
     <div className="space-y-3">
       <div>
-        <h3 className="text-base font-bold text-gray-900">Assign machines to brands</h3>
+        <h3 className="text-base font-bold text-gray-900">Assign AI coolers to brands</h3>
         <p className="text-sm text-gray-500">
-          Machines are listings from the marketplace. A machine needs Buy&nbsp;Now enabled (set in Machines For Sale)
-          to be purchasable on a brand page.
+          Coolers come from the Smart Coolers inventory. Each brand page shows the coolers assigned to it;
+          give a cooler a Sale price (in the Smart Coolers tab) so it can be purchased.
         </p>
       </div>
       {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{err}</p>}
@@ -324,28 +324,28 @@ function AssignmentBody({
     return <div className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>;
   }
   if (machines.length === 0) {
-    return <p className="text-sm text-gray-400">No machine listings yet.</p>;
+    return <p className="text-sm text-gray-400">No smart coolers yet. Add them in the Smart Coolers tab.</p>;
   }
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
           <tr>
-            <th className="px-3 py-2">Machine</th>
-            <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">Buy now</th>
+            <th className="px-3 py-2">Cooler</th>
+            <th className="px-3 py-2">Active</th>
+            <th className="px-3 py-2">Buyable</th>
             <th className="px-3 py-2">Brand</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
           {machines.map((m) => (
             <tr key={m.id}>
-              <td className="px-3 py-2 font-medium text-gray-800">{m.title}</td>
-              <td className="px-3 py-2 text-gray-500">{m.status}</td>
+              <td className="px-3 py-2 font-medium text-gray-800">{m.name}</td>
+              <td className="px-3 py-2 text-gray-500">{m.active ? "Yes" : "No"}</td>
               <td className="px-3 py-2">
-                {m.buy_now_enabled
-                  ? <span className="text-green-600">Enabled</span>
-                  : <span className="text-gray-400">Off</span>}
+                {m.price_cents
+                  ? <span className="text-green-600">${Math.round(m.price_cents / 100).toLocaleString()}</span>
+                  : <span className="text-gray-400">No price</span>}
               </td>
               <td className="px-3 py-2">
                 <select
