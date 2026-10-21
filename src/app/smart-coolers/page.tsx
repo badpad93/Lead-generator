@@ -194,6 +194,22 @@ export default async function SmartCoolersPage() {
         </div>
       </section>
 
+      {/* ===== Popular machines ===== */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:py-24">
+        <Reveal>
+          <h2 className="text-3xl font-bold text-black-primary sm:text-4xl">Machines our operators love</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-gray-500">
+            We vet every machine we carry. If we wouldn&apos;t buy and run it ourselves, we don&apos;t
+            list it.
+          </p>
+        </Reveal>
+        <div className="mt-12 grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
+          {machines.map((m, i) => (
+            <MachineCard key={m.id} machine={m} delay={(i % 4) * 80} />
+          ))}
+        </div>
+      </section>
+
       {/* ===== Collection intro ===== */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
         <Reveal>
@@ -230,22 +246,6 @@ export default async function SmartCoolersPage() {
               <StepCard key={step.title} step={step} delay={i * 100} />
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* ===== Popular machines ===== */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:py-24">
-        <Reveal>
-          <h2 className="text-3xl font-bold text-black-primary sm:text-4xl">Machines our operators love</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-gray-500">
-            We vet every machine we carry. If we wouldn&apos;t buy and run it ourselves, we don&apos;t
-            list it.
-          </p>
-        </Reveal>
-        <div className="mt-12 grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
-          {machines.map((m, i) => (
-            <MachineCard key={m.id} machine={m} delay={(i % 4) * 80} />
-          ))}
         </div>
       </section>
 
