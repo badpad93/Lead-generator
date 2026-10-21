@@ -51,6 +51,29 @@ describe("admin brand routes are admin-gated", () => {
   });
 });
 
+describe("public brand pages (phase 2)", () => {
+  it("the lib exposes a brand-lineup reader", () => {
+    const src = read("src/lib/vendingBrands.ts");
+    expect(src).toContain("export async function getBrandBySlug");
+    expect(src).toContain('.eq("brand_id", brand.id)');
+    expect(src).toContain('.eq("status", "active")');
+  });
+  it("the brand lineup page reads by slug and 404s when missing", () => {
+    const src = read("src/app/brands/[slug]/page.tsx");
+    expect(src).toContain("getBrandBySlug");
+    expect(src).toContain("notFound()");
+  });
+  it("/smart-coolers renders the brands section", () => {
+    const src = read("src/app/smart-coolers/page.tsx");
+    expect(src).toContain("getPublicBrands");
+    expect(src).toContain("BrandCard");
+  });
+  it("/brands is public in middleware", () => {
+    const src = read("src/proxy.ts");
+    expect(src).toContain('"/brands/"');
+  });
+});
+
 describe("admin panel exposes an AI Brands tab", () => {
   const src = read("src/app/admin/page.tsx");
   it("imports the manager and wires the tab", () => {

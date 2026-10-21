@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import Reveal from "@/app/components/Reveal";
 import { getSmartCoolerMachines, type SmartCoolerMachine } from "@/lib/smartCoolerMachines";
+import { getPublicBrands, type VendingBrand } from "@/lib/vendingBrands";
 import {
   ArrowRight,
   Sparkles,
@@ -134,8 +135,31 @@ function MachineCard({ machine, delay }: { machine: SmartCoolerMachine; delay: n
   );
 }
 
+function BrandCard({ brand, delay }: { brand: VendingBrand; delay: number }) {
+  return (
+    <Reveal delay={delay} className="h-full">
+      <Link
+        href={`/brands/${brand.slug}`}
+        className="group flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm transition-all hover:border-green-primary/40 hover:shadow-md"
+      >
+        {brand.logoUrl ? (
+          <div className="relative h-14 w-full">
+            <Image src={brand.logoUrl} alt={brand.name} fill unoptimized className="object-contain" />
+          </div>
+        ) : (
+          <span className="text-lg font-bold text-black-primary">{brand.name}</span>
+        )}
+        <span className="text-xs font-medium text-gray-400">
+          {brand.machineCount} {brand.machineCount === 1 ? "machine" : "machines"}
+        </span>
+      </Link>
+    </Reveal>
+  );
+}
+
 export default async function SmartCoolersPage() {
   const machines = await getSmartCoolerMachines();
+  const brands = await getPublicBrands();
   return (
     <main className="bg-light">
       {/* ===== Hero — live background video + dark overlay ===== */}
@@ -209,6 +233,26 @@ export default async function SmartCoolersPage() {
           ))}
         </div>
       </section>
+
+      {/* ===== AI Vending Brands ===== */}
+      {brands.length > 0 && (
+        <section className="bg-light-warm py-16 sm:py-24">
+          <div className="mx-auto max-w-6xl px-4">
+            <Reveal>
+              <p className="text-xs font-semibold uppercase tracking-wider text-green-primary">Shop by brand</p>
+              <h2 className="mt-2 text-3xl font-bold text-black-primary sm:text-4xl">AI vending brands</h2>
+              <p className="mt-3 max-w-3xl text-sm leading-relaxed text-gray-500">
+                Explore the brands we carry. Pick a brand to see its full machine lineup.
+              </p>
+            </Reveal>
+            <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {brands.map((b, i) => (
+                <BrandCard key={b.id} brand={b} delay={(i % 4) * 80} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ===== Collection intro ===== */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
