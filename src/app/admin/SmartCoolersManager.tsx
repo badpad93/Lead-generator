@@ -18,6 +18,13 @@ export interface AdminMachine {
   image_url: string | null;
   spec_path: string | null;
   spec_url: string | null;
+  listing_id: string | null;
+}
+
+export interface SellableListing {
+  id: string;
+  title: string;
+  buy_now_enabled: boolean | null;
 }
 
 const TEXT_FIELDS: { key: keyof AdminMachine; label: string; placeholder: string }[] = [
@@ -38,6 +45,7 @@ async function api(path: string, token: string, init?: RequestInit) {
 
 export default function SmartCoolersManager({ token }: { token: string }) {
   const [machines, setMachines] = useState<AdminMachine[]>([]);
+  const [listings, setListings] = useState<SellableListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -45,8 +53,12 @@ export default function SmartCoolersManager({ token }: { token: string }) {
   const refresh = useCallback(async () => {
     if (!token) return;
     try {
-      const data = await api("/api/admin/smart-coolers/machines", token);
-      setMachines(data.machines || []);
+      const [cards, sellable] = await Promise.all([
+        api("/api/admin/smart-coolers/machines", token),
+        api("/api/admin/vending-brands/machines", token),
+      ]);
+      setMachines(cards.machines || []);
+      setListings(sellable.machines || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -107,7 +119,7 @@ export default function SmartCoolersManager({ token }: { token: string }) {
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
       <div className="space-y-4">
         {machines.map((m) => (
-          <MachineEditor key={m.id} machine={m} token={token} onChanged={refresh} />
+          <MachineEditor key={m.id} machine={m} token={token} listings={listings} onChanged={refresh} />
         ))}
         {machines.length === 0 && <p className="text-sm text-gray-400">No machines yet. Add one to get started.</p>}
       </div>
@@ -115,12 +127,12 @@ export default function SmartCoolersManager({ token }: { token: string }) {
   );
 }
 
-function MachineEditor({ machine, token, onChanged }: { machine: AdminMachine; token: string; onChanged: () => void }) {
+function MachineEditor({ machine, token, listings, onChanged }: { machine: AdminMachine; token: string; listings: SellableListing[]; onChanged: () => void }) {
   const [form, setForm] = useState(machine);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const set = (key: keyof AdminMachine, value: string | number | boolean) =>
+  const set = (key: keyof AdminMachine, value: string | number | boolean | null) =>
     setForm((f) => ({ ...f, [key]: value }));
 
   async function save() {
@@ -139,6 +151,7 @@ function MachineEditor({ machine, token, onChanged }: { machine: AdminMachine; t
           starting_at: form.starting_at,
           active: form.active,
           sort_order: Number(form.sort_order) || 0,
+          listing_id: form.listing_id || null,
         }),
       });
       setMsg("Saved");
@@ -193,6 +206,21 @@ function MachineEditor({ machine, token, onChanged }: { machine: AdminMachine; t
                 onChange={(e) => set("sort_order", e.target.value)}
                 className="w-20 rounded-lg border border-gray-200 px-2 py-1 text-sm focus:border-green-500 focus:outline-none"
               />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700" title="Links the card's Buy button to a sellable listing">
+              Buy button
+              <select
+                value={form.listing_id || ""}
+                onChange={(e) => set("listing_id", e.target.value || null)}
+                className="max-w-[16rem] rounded-lg border border-gray-200 px-2 py-1 text-sm focus:border-green-500 focus:outline-none"
+              >
+                <option value="">— Not for sale —</option>
+                {listings.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.title}{l.buy_now_enabled ? "" : " (Buy Now off)"}
+                  </option>
+                ))}
+              </select>
             </label>
             <div className="ml-auto flex items-center gap-2">
               {msg && <span className="text-xs text-gray-500">{msg}</span>}

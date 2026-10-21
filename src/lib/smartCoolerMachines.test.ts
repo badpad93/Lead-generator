@@ -83,6 +83,31 @@ describe("spec sheets (PDF/image)", () => {
   });
 });
 
+describe("buy button on smart-cooler cards", () => {
+  it("migration adds the listing_id link column", () => {
+    const sql = read("supabase/migrations/20261023000000_smart_cooler_listing_link.sql");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS listing_id uuid REFERENCES public.machine_listings(id)");
+  });
+  it("the lib resolves the linked listing's buy-now status", () => {
+    const src = read("src/lib/smartCoolerMachines.ts");
+    expect(src).toContain("buyNowEnabled");
+    expect(src).toContain('.from("machine_listings")');
+    expect(src).toContain("buy_now_enabled");
+  });
+  it("the public card shows Buy now linking to the checkout", () => {
+    const src = read("src/app/smart-coolers/page.tsx");
+    expect(src).toContain("machine.buyNowEnabled && machine.listingId");
+    expect(src).toContain("/machines-for-sale/${machine.listingId}/checkout");
+  });
+  it("admin can link a listing to a card", () => {
+    const route = read("src/app/api/admin/smart-coolers/machines/route.ts");
+    expect(route).toContain('"listing_id"');
+    const ui = read("src/app/admin/SmartCoolersManager.tsx");
+    expect(ui).toContain("listing_id");
+    expect(ui).toContain("/api/admin/vending-brands/machines");
+  });
+});
+
 describe("admin panel exposes a Smart Coolers tab", () => {
   const src = read("src/app/admin/page.tsx");
   it("imports the manager and wires the tab", () => {

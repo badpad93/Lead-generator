@@ -15,6 +15,7 @@ import {
   Camera,
   ShieldCheck,
   FileText,
+  ShoppingCart,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -135,6 +136,14 @@ function MachineCard({ machine, delay }: { machine: SmartCoolerMachine; delay: n
             </a>
           )}
         </div>
+        {machine.buyNowEnabled && machine.listingId && (
+          <Link
+            href={`/machines-for-sale/${machine.listingId}/checkout`}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-hover"
+          >
+            <ShoppingCart className="h-4 w-4" /> Buy now
+          </Link>
+        )}
       </div>
     </Reveal>
   );
