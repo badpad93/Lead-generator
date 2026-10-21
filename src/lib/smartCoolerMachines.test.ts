@@ -119,11 +119,13 @@ describe("direct buy (own price + checkout)", () => {
     expect(src).toContain("priceCents");
     expect(src).toContain("export async function getSellableMachine");
   });
-  it("the checkout API reuses the QuickBooks invoice + guest provisioning", () => {
+  it("the checkout API is guest-friendly (no account required) and uses QuickBooks", () => {
     const src = read("src/app/api/smart-coolers/machines/[id]/checkout/route.ts");
     expect(src).toContain("createInvoice");
-    expect(src).toContain("provisionAccountForGuestCheckout");
     expect(src).toContain("smart_cooler_purchases");
+    // No forced account: no provisioning, no "please sign in" block.
+    expect(src).not.toContain("provisionAccountForGuestCheckout");
+    expect(src).not.toContain("requires_sign_in");
   });
   it("the public card buys directly when a price is set", () => {
     const src = read("src/app/smart-coolers/page.tsx");
