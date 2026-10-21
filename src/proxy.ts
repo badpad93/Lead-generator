@@ -240,7 +240,8 @@ export async function proxy(req: NextRequest) {
   if (isCustomerShellRequest(req)) requestHeaders.set(CUSTOMER_SHELL_HEADER, "1");
   else requestHeaders.delete(CUSTOMER_SHELL_HEADER); // ignore any client-supplied value
 
-  if (!isProtected && !isAuthPage) {
+  // "/" is handled below with the session (signed-in → dashboard, else landing).
+  if (!isProtected && !isAuthPage && pathname !== "/") {
     const res = NextResponse.next({ request: { headers: requestHeaders } });
     if (ctxSlug && ctxSlug !== storedCtxSlug(req)) {
       res.cookies.set(SF_CTX_COOKIE, ctxSlug, {
@@ -354,7 +355,7 @@ export async function proxy(req: NextRequest) {
     return res;
   };
 
-  if (isAuthPage && user) {
+  if ((isAuthPage || pathname === "/") && user) {
     const dashboardUrl = req.nextUrl.clone();
     // Locked customers land on their storefront, never the platform
     // dashboard.
@@ -364,6 +365,9 @@ export async function proxy(req: NextRequest) {
     dashboardUrl.search = "";
     return stampLock(NextResponse.redirect(dashboardUrl));
   }
+
+  // Signed-out root: serve /smart-coolers at "/".
+  if (pathname === "/" && !user) return stampLock(NextResponse.rewrite(new URL("/smart-coolers", req.url)));
 
   // LOCK: enrolled customers only get the customer allowlist. Their
   // storefront itself (/coffee/o/…) is a public path and never reaches
