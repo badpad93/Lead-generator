@@ -200,7 +200,7 @@ export default async function SmartCoolersPage() {
               self-service store that sells around the clock.
             </p>
             <Link
-              href="/machines-for-sale"
+              href="#brands"
               className="mt-8 inline-flex items-center justify-center gap-2 rounded-lg bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-green-primary/20 transition-all hover:bg-green-hover hover:shadow-green-primary/30"
             >
               Shop All Machines
@@ -236,7 +236,7 @@ export default async function SmartCoolersPage() {
 
       {/* ===== AI Vending Brands ===== */}
       {brands.length > 0 && (
-        <section className="bg-light-warm py-16 sm:py-24">
+        <section id="brands" className="scroll-mt-20 bg-light-warm py-16 sm:py-24">
           <div className="mx-auto max-w-6xl px-4">
             <Reveal>
               <p className="text-xs font-semibold uppercase tracking-wider text-green-primary">Shop by brand</p>

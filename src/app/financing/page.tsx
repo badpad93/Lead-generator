@@ -124,6 +124,8 @@ export default function FinancingPage() {
   const [quoteRef] = useState<string | null>(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("quote")));
   // Same treatment for the signed Vinnie business-plan reference (/financing?plan=...).
   const [planRef] = useState<string | null>(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("plan")));
+  // Machine this application is for, when started from a machine card (/financing?machine=<id>).
+  const [machineRef] = useState<string | null>(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("machine")));
   const [submitted, setSubmitted] = useState(false);
   const [qualified, setQualified] = useState(false);
   const [applicationId, setApplicationId] = useState<string | null>(null);
@@ -218,6 +220,7 @@ export default function FinancingPage() {
           agreed_accurate_info: agreedAccurate,
           ...(quoteRef ? { quote_ref: quoteRef } : {}),
           ...(planRef ? { plan_ref: planRef } : {}),
+          ...(machineRef ? { machine_listing_id: machineRef } : {}),
         }),
       });
 

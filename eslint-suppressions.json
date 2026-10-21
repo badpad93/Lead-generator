@@ -2663,20 +2663,6 @@
       "count": 1
     }
   },
-  "src/app/machines-for-sale/page.tsx": {
-    "@next/next/no-location-assign-relative-destination": {
-      "count": 1
-    },
-    "complexity": {
-      "count": 3
-    },
-    "no-nested-ternary": {
-      "count": 1
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 2
-    }
-  },
   "src/app/manufacturer/apply/page.tsx": {
     "complexity": {
       "count": 12
