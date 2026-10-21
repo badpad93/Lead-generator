@@ -47,6 +47,7 @@ function evaluateSbaQualification(body: Record<string, unknown>): {
   return { qualified: reasons.length === 0, reasons };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FROM_EMAIL = process.env.FROM_EMAIL || "onboarding@bytebitevending.com";
 const NOTIFY_EMAIL = process.env.FINANCING_NOTIFY_EMAIL || "james@apexaivending.com";
 
@@ -120,6 +121,9 @@ export async function POST(req: NextRequest) {
       has_federal_debt: !!body.has_federal_debt,
       agreed_provide_docs: !!body.agreed_provide_docs,
       agreed_accurate_info: !!body.agreed_accurate_info,
+      // Machine this application is for, when financing was started from a
+      // machine card (/financing?machine=<uuid>). Only a valid UUID is stored.
+      machine_listing_id: UUID_RE.test(String(body.machine_listing_id ?? "")) ? body.machine_listing_id : null,
     })
     .select("id")
     .single();

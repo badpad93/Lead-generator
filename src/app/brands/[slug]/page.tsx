@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ImageOff } from "lucide-react";
+import { ArrowLeft, ImageOff, ShoppingCart, Banknote } from "lucide-react";
 import { getBrandBySlug, type BrandMachine } from "@/lib/vendingBrands";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -86,6 +86,29 @@ function BrandMachineCard({ machine }: { machine: BrandMachine }) {
       <div className="mt-auto border-t border-gray-100 pt-3">
         <div className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Starting at</div>
         <div className="text-xl font-bold text-green-primary">{machine.priceLabel}</div>
+        <div className="mt-3 flex flex-col gap-2">
+          {machine.buyNowEnabled ? (
+            <Link
+              href={`/machines-for-sale/${machine.id}/checkout`}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-hover"
+            >
+              <ShoppingCart className="h-4 w-4" /> Purchase
+            </Link>
+          ) : (
+            <Link
+              href={`/machines-for-sale/${machine.id}`}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-black"
+            >
+              View details
+            </Link>
+          )}
+          <Link
+            href={`/financing?machine=${machine.id}`}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-green-primary/40 px-4 py-2 text-sm font-semibold text-green-primary transition-colors hover:border-green-primary hover:bg-green-50"
+          >
+            <Banknote className="h-4 w-4" /> Finance this machine
+          </Link>
+        </div>
       </div>
     </div>
   );

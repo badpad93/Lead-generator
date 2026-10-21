@@ -42,7 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Available Locations", href: "/browse-requests", description: "Open location requests waiting for operators" },
       { label: "Sell a Location", href: "/marketplace", description: "List a location or route for sale" },
-      { label: "Machines for Sale", href: "/machines-for-sale", description: "Vending equipment and AI-powered solutions" },
+      { label: "Machines for Sale", href: "/smart-coolers", description: "Vending equipment and AI-powered solutions" },
     ],
   },
   {

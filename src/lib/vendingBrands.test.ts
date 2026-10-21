@@ -74,6 +74,27 @@ describe("public brand pages (phase 2)", () => {
   });
 });
 
+describe("purchase + financing + machines-for-sale replacement (phase 3)", () => {
+  it("brand cards offer Purchase (reusing checkout) and Financing", () => {
+    const src = read("src/app/brands/[slug]/page.tsx");
+    expect(src).toContain("/machines-for-sale/${machine.id}/checkout");
+    expect(src).toContain("/financing?machine=${machine.id}");
+    expect(src).toContain("machine.buyNowEnabled");
+  });
+  it("financing stores the machine_listing_id (validated UUID)", () => {
+    const src = read("src/app/api/financing/route.ts");
+    expect(src).toContain("machine_listing_id");
+    expect(src).toContain("UUID_RE");
+    const page = read("src/app/financing/page.tsx");
+    expect(page).toContain('get("machine")');
+    expect(page).toContain("machine_listing_id");
+  });
+  it("the machines-for-sale index redirects to the new storefront", () => {
+    const src = read("src/app/machines-for-sale/page.tsx");
+    expect(src).toContain('redirect("/smart-coolers")');
+  });
+});
+
 describe("admin panel exposes an AI Brands tab", () => {
   const src = read("src/app/admin/page.tsx");
   it("imports the manager and wires the tab", () => {
