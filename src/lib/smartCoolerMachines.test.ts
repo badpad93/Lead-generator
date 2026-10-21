@@ -58,6 +58,31 @@ describe("public page is DB-driven with a safe fallback", () => {
   });
 });
 
+describe("spec sheets (PDF/image)", () => {
+  it("migration adds the spec_path column", () => {
+    const sql = read("supabase/migrations/20261021000000_smart_cooler_spec.sql");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS spec_path text");
+  });
+  it("the spec route is admin-gated and accepts PDFs", () => {
+    const src = read("src/app/api/admin/smart-coolers/machines/[id]/spec/route.ts");
+    expect(src).toContain("getAdminUserId");
+    expect(src).toContain("{ status: 403 }");
+    expect(src).toContain("SPEC_ALLOWED_MIME");
+    const lib = read("src/lib/smartCoolerMachines.ts");
+    expect(lib).toContain('"application/pdf"');
+  });
+  it("the public card shows a See specs link when a spec exists", () => {
+    const src = read("src/app/smart-coolers/page.tsx");
+    expect(src).toContain("See specs");
+    expect(src).toContain("machine.specUrl");
+  });
+  it("the admin manager exposes a spec upload control", () => {
+    const src = read("src/app/admin/SmartCoolersManager.tsx");
+    expect(src).toContain("SpecControl");
+    expect(src).toContain("/spec`");
+  });
+});
+
 describe("admin panel exposes a Smart Coolers tab", () => {
   const src = read("src/app/admin/page.tsx");
   it("imports the manager and wires the tab", () => {
