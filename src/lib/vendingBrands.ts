@@ -1,8 +1,9 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getMachinesForBrand, type SmartCoolerMachine } from "@/lib/smartCoolerMachines";
 
 /**
- * AI Vending Brands — public brand pages whose lineups are the existing
- * sellable `machine_listings` (assigned via machine_listings.brand_id).
+ * AI Vending Brands — public brand pages whose lineups are the Smart Coolers
+ * (AI cooler) inventory, assigned via smart_cooler_machines.brand_id.
  * Public-read; writes go through the service role. Logos in a public bucket.
  */
 
@@ -71,33 +72,16 @@ export async function getPublicBrands(): Promise<VendingBrand[]> {
   }
 }
 
-/** A machine shown in a brand's lineup (subset of machine_listings). */
-export interface BrandMachine {
-  id: string;
-  title: string;
-  imageUrl: string | null;
-  priceLabel: string;
-  buyNowEnabled: boolean;
-  condition: string | null;
-  machineType: string | null;
-}
-
 export interface BrandDetail {
   id: string;
   name: string;
   slug: string;
   blurb: string;
   logoUrl: string | null;
-  machines: BrandMachine[];
+  machines: SmartCoolerMachine[];
 }
 
-function priceLabel(buyNowCents: number | null, askingDollars: number | null): string {
-  const cents = buyNowCents ?? (askingDollars != null ? Math.round(askingDollars * 100) : null);
-  if (cents == null) return "Contact for pricing";
-  return `$${Math.round(cents / 100).toLocaleString()}`;
-}
-
-/** An active brand and its active machine lineup, by slug. Null if not found/inactive. */
+/** An active brand and its Smart Coolers lineup, by slug. Null if not found/inactive. */
 export async function getBrandBySlug(slug: string): Promise<BrandDetail | null> {
   const { data: brand } = await supabaseAdmin
     .from("vending_brands")
@@ -107,22 +91,7 @@ export async function getBrandBySlug(slug: string): Promise<BrandDetail | null> 
     .maybeSingle();
   if (!brand) return null;
 
-  const { data: listings } = await supabaseAdmin
-    .from("machine_listings")
-    .select("id, title, condition, machine_type, asking_price, buy_now_enabled, buy_now_price, image_medium_url, image_main_url")
-    .eq("brand_id", brand.id)
-    .eq("status", "active")
-    .order("created_at", { ascending: false });
-
-  const machines: BrandMachine[] = (listings || []).map((m) => ({
-    id: String(m.id),
-    title: (m.title as string) ?? "",
-    imageUrl: (m.image_medium_url as string) ?? (m.image_main_url as string) ?? null,
-    priceLabel: priceLabel((m.buy_now_price as number) ?? null, (m.asking_price as number) ?? null),
-    buyNowEnabled: Boolean(m.buy_now_enabled),
-    condition: (m.condition as string) ?? null,
-    machineType: (m.machine_type as string) ?? null,
-  }));
+  const machines = await getMachinesForBrand(String(brand.id));
 
   return {
     id: String(brand.id),
@@ -136,9 +105,9 @@ export async function getBrandBySlug(slug: string): Promise<BrandDetail | null> 
 
 async function machineCountsByBrand(): Promise<Record<string, number>> {
   const { data } = await supabaseAdmin
-    .from("machine_listings")
+    .from("smart_cooler_machines")
     .select("brand_id")
-    .eq("status", "active")
+    .eq("active", true)
     .not("brand_id", "is", null);
   const counts: Record<string, number> = {};
   for (const row of data || []) {

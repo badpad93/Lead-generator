@@ -54,6 +54,13 @@ export const FALLBACK_MACHINES: Omit<SmartCoolerMachine, "id">[] = [
   { name: "Summit Mini 360 AI Smart Cooler", bottles: "252 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$3,449", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false, priceCents: null },
 ];
 
+/** Where a card's Buy button goes: direct smart-cooler checkout, else a linked listing. */
+export function buyHref(machine: Pick<SmartCoolerMachine, "id" | "priceCents" | "buyNowEnabled" | "listingId">): string | null {
+  if (machine.priceCents != null) return `/smart-coolers/${machine.id}/checkout`;
+  if (machine.buyNowEnabled && machine.listingId) return `/machines-for-sale/${machine.listingId}/checkout`;
+  return null;
+}
+
 /** Resolve a stored object key to a public URL with a cache-buster. */
 export function machineImageUrl(imagePath: string | null, updatedAt?: string | null): string | null {
   if (!imagePath) return null;
@@ -128,6 +135,26 @@ export async function getSellableMachine(id: string): Promise<SellableMachine | 
     priceCents: data.price_cents as number,
     imageUrl: machineImageUrl((data.image_path as string) ?? null, data.updated_at as string | null),
   };
+}
+
+/** Active smart coolers assigned to a brand, ordered — the brand's lineup. */
+export async function getMachinesForBrand(brandId: string): Promise<SmartCoolerMachine[]> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("smart_cooler_machines")
+      .select("*")
+      .eq("active", true)
+      .eq("brand_id", brandId)
+      .order("sort_order", { ascending: true });
+    if (!data || data.length === 0) return [];
+    const buyNow = await buyNowByListing(data);
+    return data.map((row) => {
+      const m = toPublic(row);
+      return { ...m, buyNowEnabled: m.listingId ? (buyNow[m.listingId] ?? false) : false };
+    });
+  } catch {
+    return [];
+  }
 }
 
 /** Map of listing id → whether it's active and Buy-Now enabled, for linked cards. */

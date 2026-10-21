@@ -44,19 +44,26 @@ describe("admin brand routes are admin-gated", () => {
     expect(src).toContain("status: 415");
     expect(src).toContain("status: 413");
   });
-  it("machine assignment sets machine_listings.brand_id", () => {
+  it("cooler→brand assignment sets smart_cooler_machines.brand_id", () => {
     const src = read("src/app/api/admin/vending-brands/machines/route.ts");
-    expect(src).toContain('.from("machine_listings")');
+    expect(src).toContain('.from("smart_cooler_machines")');
     expect(src).toContain("brand_id");
+  });
+  it("migration adds brand_id to smart_cooler_machines", () => {
+    const sql = read("supabase/migrations/20261025000000_smart_cooler_brand.sql");
+    expect(sql).toContain("ALTER TABLE public.smart_cooler_machines");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS brand_id uuid REFERENCES public.vending_brands(id)");
   });
 });
 
 describe("public brand pages (phase 2)", () => {
-  it("the lib exposes a brand-lineup reader", () => {
+  it("the brand lineup is the smart coolers assigned to a brand", () => {
     const src = read("src/lib/vendingBrands.ts");
     expect(src).toContain("export async function getBrandBySlug");
-    expect(src).toContain('.eq("brand_id", brand.id)');
-    expect(src).toContain('.eq("status", "active")');
+    expect(src).toContain("getMachinesForBrand");
+    const cooler = read("src/lib/smartCoolerMachines.ts");
+    expect(cooler).toContain("export async function getMachinesForBrand");
+    expect(cooler).toContain('.eq("brand_id", brandId)');
   });
   it("the brand lineup page reads by slug and 404s when missing", () => {
     const src = read("src/app/brands/[slug]/page.tsx");
@@ -75,11 +82,10 @@ describe("public brand pages (phase 2)", () => {
 });
 
 describe("purchase + financing + machines-for-sale replacement (phase 3)", () => {
-  it("brand cards offer Purchase (reusing checkout) and Financing", () => {
+  it("brand lineup cards offer a Buy button via the shared buyHref", () => {
     const src = read("src/app/brands/[slug]/page.tsx");
-    expect(src).toContain("/machines-for-sale/${machine.id}/checkout");
-    expect(src).toContain("/financing?machine=${machine.id}");
-    expect(src).toContain("machine.buyNowEnabled");
+    expect(src).toContain("buyHref(machine)");
+    expect(src).toContain("Buy now");
   });
   it("financing stores the machine_listing_id (validated UUID)", () => {
     const src = read("src/app/api/financing/route.ts");
