@@ -38,18 +38,20 @@ export interface SmartCoolerMachine {
   listingId: string | null;
   /** True when the linked listing is active and Buy Now is enabled. */
   buyNowEnabled: boolean;
+  /** Direct sale price in cents, when the card is sold on its own (NULL = not). */
+  priceCents: number | null;
 }
 
 /** Shipped fallback used when the DB is unavailable or empty (mirrors the seed). */
 export const FALLBACK_MACHINES: Omit<SmartCoolerMachine, "id">[] = [
-  { name: "Micromart Fridge Smart Store", bottles: "378 bottles", shelves: "5 shelves", cameras: "4x cameras", warranty: "3/5 year warranty", startingAt: "$6,295", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false },
-  { name: "Summit Pro 542 AI Smart Cooler", bottles: "378 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$4,699", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false },
-  { name: "Summit Plus 440 AI Smart Cooler", bottles: "324 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$3,850", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false },
-  { name: "Vantage Elite Smart Cooler", bottles: "450 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$5,999", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false },
-  { name: "Vantage Prime Smart Cooler", bottles: "360 bottles", shelves: "5 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$4,999", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false },
-  { name: "Corner Core AI Smart Cooler", bottles: "300+ bottles", shelves: "6 shelves", cameras: "3x cameras", warranty: "2/5 year warranty", startingAt: "$3,995", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false },
-  { name: "Summit Ultra 1200 AI Smart Cooler", bottles: "756 bottles", shelves: "12 shelves", cameras: "4x cameras", warranty: "1 year warranty", startingAt: "$7,199", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false },
-  { name: "Summit Mini 360 AI Smart Cooler", bottles: "252 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$3,449", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false },
+  { name: "Micromart Fridge Smart Store", bottles: "378 bottles", shelves: "5 shelves", cameras: "4x cameras", warranty: "3/5 year warranty", startingAt: "$6,295", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false, priceCents: null },
+  { name: "Summit Pro 542 AI Smart Cooler", bottles: "378 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$4,699", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false, priceCents: null },
+  { name: "Summit Plus 440 AI Smart Cooler", bottles: "324 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$3,850", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false, priceCents: null },
+  { name: "Vantage Elite Smart Cooler", bottles: "450 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$5,999", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false, priceCents: null },
+  { name: "Vantage Prime Smart Cooler", bottles: "360 bottles", shelves: "5 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$4,999", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false, priceCents: null },
+  { name: "Corner Core AI Smart Cooler", bottles: "300+ bottles", shelves: "6 shelves", cameras: "3x cameras", warranty: "2/5 year warranty", startingAt: "$3,995", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false, priceCents: null },
+  { name: "Summit Ultra 1200 AI Smart Cooler", bottles: "756 bottles", shelves: "12 shelves", cameras: "4x cameras", warranty: "1 year warranty", startingAt: "$7,199", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false, priceCents: null },
+  { name: "Summit Mini 360 AI Smart Cooler", bottles: "252 bottles", shelves: "6 shelves", cameras: "2x cameras", warranty: "1 year warranty", startingAt: "$3,449", imageUrl: null, specUrl: null, listingId: null, buyNowEnabled: false, priceCents: null },
 ];
 
 /** Resolve a stored object key to a public URL with a cache-buster. */
@@ -77,6 +79,7 @@ function toPublic(row: Record<string, unknown>): SmartCoolerMachine {
     specUrl: machineImageUrl((row.spec_path as string) ?? null, updatedAt),
     listingId: (row.listing_id as string) ?? null,
     buyNowEnabled: false,
+    priceCents: (row.price_cents as number) ?? null,
   };
 }
 
@@ -102,6 +105,29 @@ export async function getSmartCoolerMachines(): Promise<SmartCoolerMachine[]> {
   } catch {
     return FALLBACK_MACHINES.map((m, i) => ({ ...m, id: `fallback-${i}` }));
   }
+}
+
+export interface SellableMachine {
+  id: string;
+  name: string;
+  priceCents: number;
+  imageUrl: string | null;
+}
+
+/** A single directly-buyable machine (active with a price), for the checkout page. */
+export async function getSellableMachine(id: string): Promise<SellableMachine | null> {
+  const { data } = await supabaseAdmin
+    .from("smart_cooler_machines")
+    .select("id, name, price_cents, active, image_path, updated_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (!data || !data.active || !data.price_cents || (data.price_cents as number) <= 0) return null;
+  return {
+    id: String(data.id),
+    name: (data.name as string) ?? "",
+    priceCents: data.price_cents as number,
+    imageUrl: machineImageUrl((data.image_path as string) ?? null, data.updated_at as string | null),
+  };
 }
 
 /** Map of listing id → whether it's active and Buy-Now enabled, for linked cards. */

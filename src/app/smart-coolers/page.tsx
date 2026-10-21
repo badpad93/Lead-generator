@@ -101,7 +101,15 @@ function SpecRow({ icon: Icon, text }: { icon: typeof Boxes; text: string }) {
   );
 }
 
+/** Where a card's Buy button goes: direct smart-cooler checkout, else a linked listing. */
+function buyHref(machine: SmartCoolerMachine): string | null {
+  if (machine.priceCents != null) return `/smart-coolers/${machine.id}/checkout`;
+  if (machine.buyNowEnabled && machine.listingId) return `/machines-for-sale/${machine.listingId}/checkout`;
+  return null;
+}
+
 function MachineCard({ machine, delay }: { machine: SmartCoolerMachine; delay: number }) {
+  const href = buyHref(machine);
   return (
     <Reveal delay={delay} className="h-full">
       <div className="flex h-full flex-col">
@@ -136,9 +144,9 @@ function MachineCard({ machine, delay }: { machine: SmartCoolerMachine; delay: n
             </a>
           )}
         </div>
-        {machine.buyNowEnabled && machine.listingId && (
+        {href && (
           <Link
-            href={`/machines-for-sale/${machine.listingId}/checkout`}
+            href={href}
             className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-hover"
           >
             <ShoppingCart className="h-4 w-4" /> Buy now

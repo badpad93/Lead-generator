@@ -108,6 +108,39 @@ describe("buy button on smart-cooler cards", () => {
   });
 });
 
+describe("direct buy (own price + checkout)", () => {
+  it("migration adds price_cents and a purchases table", () => {
+    const sql = read("supabase/migrations/20261024000000_smart_cooler_direct_buy.sql");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS price_cents integer");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS public.smart_cooler_purchases");
+  });
+  it("the lib exposes priceCents and a sellable-machine reader", () => {
+    const src = read("src/lib/smartCoolerMachines.ts");
+    expect(src).toContain("priceCents");
+    expect(src).toContain("export async function getSellableMachine");
+  });
+  it("the checkout API reuses the QuickBooks invoice + guest provisioning", () => {
+    const src = read("src/app/api/smart-coolers/machines/[id]/checkout/route.ts");
+    expect(src).toContain("createInvoice");
+    expect(src).toContain("provisionAccountForGuestCheckout");
+    expect(src).toContain("smart_cooler_purchases");
+  });
+  it("the public card buys directly when a price is set", () => {
+    const src = read("src/app/smart-coolers/page.tsx");
+    expect(src).toContain("/smart-coolers/${machine.id}/checkout");
+    expect(src).toContain("machine.priceCents != null");
+  });
+  it("the checkout page + form exist and the route is public", () => {
+    expect(read("src/app/smart-coolers/[id]/checkout/page.tsx")).toContain("getSellableMachine");
+    expect(read("src/app/smart-coolers/[id]/checkout/CheckoutForm.tsx")).toContain("/checkout");
+    expect(read("src/proxy.ts")).toContain('"/smart-coolers/"');
+  });
+  it("admin can set a sale price", () => {
+    expect(read("src/app/api/admin/smart-coolers/machines/route.ts")).toContain('"price_cents"');
+    expect(read("src/app/admin/SmartCoolersManager.tsx")).toContain("priceDollars");
+  });
+});
+
 describe("admin panel exposes a Smart Coolers tab", () => {
   const src = read("src/app/admin/page.tsx");
   it("imports the manager and wires the tab", () => {

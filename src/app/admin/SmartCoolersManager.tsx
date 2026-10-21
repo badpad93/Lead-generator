@@ -19,6 +19,7 @@ export interface AdminMachine {
   spec_path: string | null;
   spec_url: string | null;
   listing_id: string | null;
+  price_cents: number | null;
 }
 
 export interface SellableListing {
@@ -132,12 +133,15 @@ function MachineEditor({ machine, token, listings, onChanged }: { machine: Admin
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const [priceDollars, setPriceDollars] = useState(machine.price_cents != null ? String(machine.price_cents / 100) : "");
+
   const set = (key: keyof AdminMachine, value: string | number | boolean | null) =>
     setForm((f) => ({ ...f, [key]: value }));
 
   async function save() {
     setSaving(true);
     setMsg(null);
+    const priceCents = priceDollars.trim() === "" ? null : Math.round(Number(priceDollars) * 100) || null;
     try {
       await api(`/api/admin/smart-coolers/machines/${machine.id}`, token, {
         method: "PATCH",
@@ -152,6 +156,7 @@ function MachineEditor({ machine, token, listings, onChanged }: { machine: Admin
           active: form.active,
           sort_order: Number(form.sort_order) || 0,
           listing_id: form.listing_id || null,
+          price_cents: priceCents,
         }),
       });
       setMsg("Saved");
@@ -207,14 +212,24 @@ function MachineEditor({ machine, token, listings, onChanged }: { machine: Admin
                 className="w-20 rounded-lg border border-gray-200 px-2 py-1 text-sm focus:border-green-500 focus:outline-none"
               />
             </label>
-            <label className="flex items-center gap-2 text-sm text-gray-700" title="Links the card's Buy button to a sellable listing">
-              Buy button
+            <label className="flex items-center gap-2 text-sm text-gray-700" title="Set a price to sell this machine directly with its own Buy button">
+              Sale price $
+              <input
+                type="number"
+                value={priceDollars}
+                onChange={(e) => setPriceDollars(e.target.value)}
+                placeholder="6295"
+                className="w-28 rounded-lg border border-gray-200 px-2 py-1 text-sm focus:border-green-500 focus:outline-none"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700" title="Alternative: point the Buy button at an existing listing (ignored when a Sale price is set)">
+              Or link listing
               <select
                 value={form.listing_id || ""}
                 onChange={(e) => set("listing_id", e.target.value || null)}
-                className="max-w-[16rem] rounded-lg border border-gray-200 px-2 py-1 text-sm focus:border-green-500 focus:outline-none"
+                className="max-w-[14rem] rounded-lg border border-gray-200 px-2 py-1 text-sm focus:border-green-500 focus:outline-none"
               >
-                <option value="">— Not for sale —</option>
+                <option value="">— None —</option>
                 {listings.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.title}{l.buy_now_enabled ? "" : " (Buy Now off)"}
