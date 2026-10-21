@@ -71,6 +71,69 @@ export async function getPublicBrands(): Promise<VendingBrand[]> {
   }
 }
 
+/** A machine shown in a brand's lineup (subset of machine_listings). */
+export interface BrandMachine {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  priceLabel: string;
+  buyNowEnabled: boolean;
+  condition: string | null;
+  machineType: string | null;
+}
+
+export interface BrandDetail {
+  id: string;
+  name: string;
+  slug: string;
+  blurb: string;
+  logoUrl: string | null;
+  machines: BrandMachine[];
+}
+
+function priceLabel(buyNowCents: number | null, askingDollars: number | null): string {
+  const cents = buyNowCents ?? (askingDollars != null ? Math.round(askingDollars * 100) : null);
+  if (cents == null) return "Contact for pricing";
+  return `$${Math.round(cents / 100).toLocaleString()}`;
+}
+
+/** An active brand and its active machine lineup, by slug. Null if not found/inactive. */
+export async function getBrandBySlug(slug: string): Promise<BrandDetail | null> {
+  const { data: brand } = await supabaseAdmin
+    .from("vending_brands")
+    .select("*")
+    .eq("slug", slug)
+    .eq("active", true)
+    .maybeSingle();
+  if (!brand) return null;
+
+  const { data: listings } = await supabaseAdmin
+    .from("machine_listings")
+    .select("id, title, condition, machine_type, asking_price, buy_now_enabled, buy_now_price, image_medium_url, image_main_url")
+    .eq("brand_id", brand.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+
+  const machines: BrandMachine[] = (listings || []).map((m) => ({
+    id: String(m.id),
+    title: (m.title as string) ?? "",
+    imageUrl: (m.image_medium_url as string) ?? (m.image_main_url as string) ?? null,
+    priceLabel: priceLabel((m.buy_now_price as number) ?? null, (m.asking_price as number) ?? null),
+    buyNowEnabled: Boolean(m.buy_now_enabled),
+    condition: (m.condition as string) ?? null,
+    machineType: (m.machine_type as string) ?? null,
+  }));
+
+  return {
+    id: String(brand.id),
+    name: (brand.name as string) ?? "",
+    slug: (brand.slug as string) ?? "",
+    blurb: (brand.blurb as string) ?? "",
+    logoUrl: brandLogoUrl((brand.logo_path as string) ?? null, brand.updated_at as string | null),
+    machines,
+  };
+}
+
 async function machineCountsByBrand(): Promise<Record<string, number>> {
   const { data } = await supabaseAdmin
     .from("machine_listings")

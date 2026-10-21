@@ -74,6 +74,7 @@ const PUBLIC_PREFIXES = [
   "/api/storefront/public/",  // anonymous storefront reads (product list, tenant hero)
   "/api/storefront/enrollment/", // token-verify + consume from the invite page
   "/financing/",             // /financing/complete-application + any future step
+  "/brands/",                // public AI Vending Brands lineup pages
   "/images/",
   "/videos/",                // public marketing media (e.g. the smart-coolers hero)
   "/fonts/",
