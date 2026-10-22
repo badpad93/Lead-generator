@@ -28,6 +28,24 @@ export function slugify(input: string): string {
     .slice(0, 60);
 }
 
+/**
+ * A brand slug guaranteed not to collide, suffixing -2, -3, … when the base
+ * is taken. Used on create (where the slug is auto-generated) so adding a
+ * brand never fails just because the name repeats.
+ */
+export async function uniqueBrandSlug(base: string): Promise<string> {
+  const safe = slugify(base) || `brand-${Date.now()}`;
+  const { data } = await supabaseAdmin
+    .from("vending_brands")
+    .select("slug")
+    .like("slug", `${safe}%`);
+  const taken = new Set((data || []).map((r) => (r as { slug: string }).slug));
+  if (!taken.has(safe)) return safe;
+  let n = 2;
+  while (taken.has(`${safe}-${n}`)) n++;
+  return `${safe}-${n}`;
+}
+
 export interface VendingBrand {
   id: string;
   name: string;

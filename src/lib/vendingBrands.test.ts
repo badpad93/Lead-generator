@@ -44,6 +44,12 @@ describe("admin brand routes are admin-gated", () => {
     expect(src).toContain("status: 415");
     expect(src).toContain("status: 413");
   });
+  it("create auto-dedupes the slug so adding never 409s on a repeat name", () => {
+    const lib = read("src/lib/vendingBrands.ts");
+    expect(lib).toContain("export async function uniqueBrandSlug");
+    const route = read("src/app/api/admin/vending-brands/route.ts");
+    expect(route).toContain("await uniqueBrandSlug(");
+  });
   it("cooler→brand assignment sets smart_cooler_machines.brand_id", () => {
     const src = read("src/app/api/admin/vending-brands/machines/route.ts");
     expect(src).toContain('.from("smart_cooler_machines")');
