@@ -41,13 +41,7 @@ export default async function SmartCoolerCheckoutPage({ params }: { params: Prom
           </div>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-6">
-          <h2 className="mb-1 text-base font-bold text-black-primary">Your details</h2>
-          <p className="mb-5 text-sm text-gray-500">
-            We&apos;ll email you a secure invoice to complete payment.
-          </p>
-          <CheckoutForm machineId={machine.id} />
-        </div>
+        <CheckoutForm machineId={machine.id} machineName={machine.name} priceCents={machine.priceCents} />
       </div>
     </main>
   );
