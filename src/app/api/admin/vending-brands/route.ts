@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAdminUserId } from "@/lib/adminAuth";
-import { brandLogoUrl, slugify } from "@/lib/vendingBrands";
+import { brandLogoUrl, uniqueBrandSlug } from "@/lib/vendingBrands";
 
 const FIELDS = ["blurb", "active", "sort_order"];
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   const insert = pickFields(body);
   insert.name = name;
-  insert.slug = slugify((body.slug as string) || name) || `brand-${Date.now()}`;
+  insert.slug = await uniqueBrandSlug((body.slug as string) || name);
 
   const { data, error } = await supabaseAdmin
     .from("vending_brands")
