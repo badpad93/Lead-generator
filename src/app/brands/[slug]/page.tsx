@@ -6,6 +6,10 @@ import { ArrowLeft, ShoppingCart, FileText, Boxes, Layers, Camera, ShieldCheck }
 import { getBrandBySlug } from "@/lib/vendingBrands";
 import { buyHref, type SmartCoolerMachine } from "@/lib/smartCoolerMachines";
 
+// Render per request so brand/lineup/price edits in the admin panel appear
+// immediately rather than being frozen into the build-time HTML.
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const brand = await getBrandBySlug(slug);

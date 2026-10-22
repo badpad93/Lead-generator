@@ -18,6 +18,10 @@ import {
   ShoppingCart,
 } from "lucide-react";
 
+// Render per request so admin edits (new brands, prices, active toggles)
+// show up immediately instead of being frozen into the build-time HTML.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Smart Coolers & AI Vending Machines | Vending Connector",
   description:
