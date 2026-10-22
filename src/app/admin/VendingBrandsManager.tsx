@@ -57,10 +57,13 @@ export default function VendingBrandsManager({ token }: { token: string }) {
     setAdding(true);
     setError(null);
     try {
+      // Distinct default name so repeated adds are distinguishable in the list
+      // and the assignment dropdown (rename each to the real brand after).
+      const defaultName = brands.length === 0 ? "New brand" : `New brand ${brands.length + 1}`;
       await api("/api/admin/vending-brands", token, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "New brand", active: false }),
+        body: JSON.stringify({ name: defaultName, active: false }),
       });
       await refresh();
     } catch (e) {
@@ -355,7 +358,7 @@ function AssignmentBody({
                 >
                   <option value="">— None —</option>
                   {brands.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
+                    <option key={b.id} value={b.id}>{b.name?.trim() || b.slug || "Unnamed brand"}</option>
                   ))}
                 </select>
               </td>
