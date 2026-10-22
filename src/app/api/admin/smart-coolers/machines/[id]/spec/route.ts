@@ -9,32 +9,55 @@ import {
   machineImageUrl,
 } from "@/lib/smartCoolerMachines";
 
-/** Validate the uploaded spec file (PDF or image). */
-function validateSpec(file: unknown): { error: NextResponse } | { file: File } {
-  if (!(file instanceof File)) {
-    return { error: NextResponse.json({ error: "file is required" }, { status: 400 }) };
+/*
+ * Spec sheets can be large PDFs. Routing the bytes through this serverless
+ * handler trips the platform's ~4.5MB request-body limit (the browser just
+ * sees a generic "Request failed"), so the file is uploaded straight to
+ * Supabase Storage from the browser via a short-lived signed upload URL:
+ *   POST  → mint a signed upload URL for a fresh object key
+ *   PATCH → commit the uploaded key onto the machine row
+ *   DELETE → clear the spec sheet
+ */
+
+/** Validate the spec metadata sent when minting a signed upload URL. */
+function validateSpecMeta(contentType: unknown, size: unknown): NextResponse | null {
+  if (typeof contentType !== "string" || !SPEC_ALLOWED_MIME.has(contentType)) {
+    return NextResponse.json({ error: "Please upload a PDF or image (PNG/JPEG/WebP)" }, { status: 415 });
   }
-  if (!SPEC_ALLOWED_MIME.has(file.type)) {
-    return { error: NextResponse.json({ error: "Please upload a PDF or image (PNG/JPEG/WebP)" }, { status: 415 }) };
+  if (typeof size === "number" && size > SPEC_MAX_BYTES) {
+    return NextResponse.json({ error: "Spec file must be under 20MB" }, { status: 413 });
   }
-  if (file.size > SPEC_MAX_BYTES) {
-    return { error: NextResponse.json({ error: "Spec file must be under 20MB" }, { status: 413 }) };
-  }
-  return { file };
+  return null;
 }
 
-/** PUT /api/admin/smart-coolers/machines/[id]/spec — upload/replace the spec sheet. */
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+/** POST /api/admin/smart-coolers/machines/[id]/spec — mint a signed upload URL. */
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const adminId = await getAdminUserId(req);
   if (!adminId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
 
-  const form = await req.formData().catch(() => null);
-  const validated = validateSpec(form?.get("file"));
-  if ("error" in validated) return validated.error;
-  const file = validated.file;
-  const mime = file.type;
+  const body = await req.json().catch(() => ({}));
+  const bad = validateSpecMeta(body.content_type, body.size);
+  if (bad) return bad;
 
+  const { data: row } = await supabaseAdmin
+    .from("smart_cooler_machines")
+    .select("id")
+    .eq("id", id)
+    .maybeSingle();
+  if (!row) return NextResponse.json({ error: "Machine not found" }, { status: 404 });
+
+  const key = `${id}/spec-${Date.now()}${extensionFromMime(body.content_type as string)}`;
+  const { data, error } = await supabaseAdmin.storage.from(SMART_COOLER_BUCKET).createSignedUploadUrl(key);
+  if (error || !data) {
+    return NextResponse.json({ error: error?.message || "Could not start upload" }, { status: 500 });
+  }
+
+  return NextResponse.json({ bucket: SMART_COOLER_BUCKET, key, token: data.token });
+}
+
+/** Point the row at the uploaded spec object, cleaning up any prior one. */
+async function commitSpecKey(id: string, key: string): Promise<NextResponse> {
   const { data: row } = await supabaseAdmin
     .from("smart_cooler_machines")
     .select("spec_path")
@@ -42,20 +65,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     .maybeSingle();
   if (!row) return NextResponse.json({ error: "Machine not found" }, { status: 404 });
 
-  const key = `${id}/spec-${Date.now()}${extensionFromMime(mime)}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const { error: uploadErr } = await supabaseAdmin.storage
-    .from(SMART_COOLER_BUCKET)
-    .upload(key, buffer, { contentType: mime, upsert: false, cacheControl: "3600" });
-  if (uploadErr) {
-    return NextResponse.json({ error: `Upload failed: ${uploadErr.message}` }, { status: 500 });
-  }
-
-  return commitSpec(id, key, (row as { spec_path?: string | null }).spec_path ?? null);
-}
-
-/** Point the row at the new spec object, rolling back / cleaning up on the way. */
-async function commitSpec(id: string, key: string, priorPath: string | null): Promise<NextResponse> {
   const updatedAt = new Date().toISOString();
   const { error } = await supabaseAdmin
     .from("smart_cooler_machines")
@@ -65,10 +74,27 @@ async function commitSpec(id: string, key: string, priorPath: string | null): Pr
     await supabaseAdmin.storage.from(SMART_COOLER_BUCKET).remove([key]);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  const priorPath = (row as { spec_path?: string | null }).spec_path ?? null;
   if (priorPath && priorPath !== key) {
     await supabaseAdmin.storage.from(SMART_COOLER_BUCKET).remove([priorPath]);
   }
   return NextResponse.json({ ok: true, spec_url: machineImageUrl(key, updatedAt) });
+}
+
+/** PATCH /api/admin/smart-coolers/machines/[id]/spec — commit an uploaded spec object. */
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const adminId = await getAdminUserId(req);
+  if (!adminId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { id } = await params;
+
+  const body = await req.json().catch(() => ({}));
+  const key = body.key as string | undefined;
+  if (!key || !key.startsWith(`${id}/`)) {
+    return NextResponse.json({ error: "Invalid upload key" }, { status: 400 });
+  }
+
+  return commitSpecKey(id, key);
 }
 
 /** DELETE /api/admin/smart-coolers/machines/[id]/spec — clear the spec sheet. */

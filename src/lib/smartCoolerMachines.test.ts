@@ -71,6 +71,19 @@ describe("spec sheets (PDF/image)", () => {
     const lib = read("src/lib/smartCoolerMachines.ts");
     expect(lib).toContain('"application/pdf"');
   });
+  it("the spec route uploads via a signed URL (bypasses the body limit)", () => {
+    const src = read("src/app/api/admin/smart-coolers/machines/[id]/spec/route.ts");
+    // Sign + commit instead of streaming bytes through the handler.
+    expect(src).toContain("createSignedUploadUrl");
+    expect(src).toContain("export async function POST");
+    expect(src).toContain("export async function PATCH");
+    expect(src).not.toContain("req.formData");
+  });
+  it("the admin manager uploads specs straight to storage", () => {
+    const src = read("src/app/admin/SmartCoolersManager.tsx");
+    expect(src).toContain("uploadToSignedUrl");
+    expect(src).toContain("createBrowserClient");
+  });
   it("the public card shows a See specs link when a spec exists", () => {
     const src = read("src/app/smart-coolers/page.tsx");
     expect(src).toContain("See specs");
