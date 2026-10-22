@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { Loader2, Plus, Trash2, Upload, X, FileText, ExternalLink } from "lucide-react";
+import { createBrowserClient } from "@/lib/supabase";
+
+// Mirrors SPEC_MAX_BYTES in smartCoolerMachines.ts (kept inline to avoid
+// pulling the server-only supabaseAdmin module into the client bundle).
+const SPEC_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
 
 export interface AdminMachine {
   id: string;
@@ -335,12 +340,32 @@ function SpecControl({ machine, token }: { machine: AdminMachine; token: string 
   const [err, setErr] = useState<string | null>(null);
 
   async function upload(file: File) {
+    if (file.size > SPEC_MAX_BYTES) {
+      setErr("Spec file must be under 20MB");
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const data = await api(`/api/admin/smart-coolers/machines/${machine.id}/spec`, token, { method: "PUT", body: fd });
+      // Upload straight to Storage with a signed URL so large specs don't hit
+      // the serverless request-body limit: sign → upload → commit.
+      const base = `/api/admin/smart-coolers/machines/${machine.id}/spec`;
+      const json = { "Content-Type": "application/json" };
+      const sign = await api(base, token, {
+        method: "POST",
+        headers: json,
+        body: JSON.stringify({ content_type: file.type, size: file.size }),
+      });
+      const supabase = createBrowserClient();
+      const { error: upErr } = await supabase.storage
+        .from(sign.bucket)
+        .uploadToSignedUrl(sign.key, sign.token, file, { contentType: file.type });
+      if (upErr) throw new Error(upErr.message);
+      const data = await api(base, token, {
+        method: "PATCH",
+        headers: json,
+        body: JSON.stringify({ key: sign.key }),
+      });
       setUrl(data.spec_url || null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Upload failed");
