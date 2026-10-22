@@ -96,6 +96,47 @@ describe("spec sheets (PDF/image)", () => {
   });
 });
 
+describe("machine checkout: delivery + haul-away + coffee (one invoice)", () => {
+  it("migration adds delivery/coffee columns and a coffee-leads table", () => {
+    const sql = read("supabase/migrations/20261026000000_smart_cooler_delivery_coffee.sql");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS delivery_address");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS white_glove");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS haul_away");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS coffee_requested");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS public.smart_cooler_coffee_leads");
+  });
+  it("fee constants are $375 standard / $500 white-glove / $250 haul-away", () => {
+    const lib = read("src/lib/smartCoolerCheckout.ts");
+    expect(lib).toContain("DELIVERY_STANDARD_CENTS = 37500");
+    expect(lib).toContain("DELIVERY_WHITE_GLOVE_CENTS = 50000");
+    expect(lib).toContain("HAUL_AWAY_CENTS = 25000");
+  });
+  it("coffee prices are re-resolved server-side (Tier 1), never client-set", () => {
+    const lib = read("src/lib/smartCoolerCheckout.ts");
+    expect(lib).toContain("resolveCoffeeProductsPricing({ productIds: ids, userId: null })");
+    const route = read("src/app/api/smart-coolers/machines/[id]/checkout/route.ts");
+    expect(route).toContain("buildCoffeeLines");
+  });
+  it("the route requires a delivery address and bills delivery + haul-away", () => {
+    const route = read("src/app/api/smart-coolers/machines/[id]/checkout/route.ts");
+    expect(route).toContain("delivery_address");
+    expect(route).toContain("deliveryFeeCents");
+    expect(route).toContain("HAUL_AWAY_CENTS");
+    expect(route).toContain("total_cents");
+  });
+  it("checkout stays true guest (no account provisioning)", () => {
+    const route = read("src/app/api/smart-coolers/machines/[id]/checkout/route.ts");
+    expect(route).not.toContain("provisionAccountForGuestCheckout");
+  });
+  it("the form has delivery, coffee info, coffee address, and a product picker", () => {
+    const form = read("src/app/smart-coolers/[id]/checkout/CheckoutForm.tsx");
+    expect(form).toContain("White-glove delivery");
+    expect(form).toContain("coffee marketplace");
+    expect(form).toContain("same_as_delivery");
+    expect(form).toContain("/api/coffee/products");
+  });
+});
+
 describe("buy button on smart-cooler cards", () => {
   it("migration adds the listing_id link column", () => {
     const sql = read("supabase/migrations/20261023000000_smart_cooler_listing_link.sql");
