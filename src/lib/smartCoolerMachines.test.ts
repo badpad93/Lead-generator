@@ -137,6 +137,26 @@ describe("machine checkout: delivery + haul-away + coffee (one invoice)", () => 
   });
 });
 
+describe("admin Machine Orders tab", () => {
+  it("the orders route is admin-gated and joins coffee leads", () => {
+    const src = read("src/app/api/admin/smart-coolers/orders/route.ts");
+    expect(src).toContain("getAdminUserId");
+    expect(src).toContain("{ status: 403 }");
+    expect(src).toContain("smart_cooler_coffee_leads");
+    expect(src).toContain('.from("smart_cooler_purchases")');
+  });
+  it("the admin page wires the Machine Orders tab", () => {
+    const src = read("src/app/admin/page.tsx");
+    expect(src).toContain('import MachineOrdersManager from "./MachineOrdersManager"');
+    expect(src).toContain('activeTab === "machine_orders"');
+    expect(src).toContain('label: "Machine Orders"');
+  });
+  it("the manager reads the orders endpoint", () => {
+    const src = read("src/app/admin/MachineOrdersManager.tsx");
+    expect(src).toContain("/api/admin/smart-coolers/orders");
+  });
+});
+
 describe("buy button on smart-cooler cards", () => {
   it("migration adds the listing_id link column", () => {
     const sql = read("supabase/migrations/20261023000000_smart_cooler_listing_link.sql");

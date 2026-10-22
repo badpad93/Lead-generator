@@ -32,10 +32,12 @@ import {
   DollarSign,
   UserPlus,
   Coffee,
+  Truck,
   Image as ImageIcon,
 } from "lucide-react";
 import SmartCoolersManager from "./SmartCoolersManager";
 import VendingBrandsManager from "./VendingBrandsManager";
+import MachineOrdersManager from "./MachineOrdersManager";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
 import {
@@ -63,6 +65,7 @@ type Tab =
   | "time_tracking"
   | "smart_coolers"
   | "vending_brands"
+  | "machine_orders"
   | "settings";
 
 const inputClass =
@@ -4682,6 +4685,7 @@ export default function AdminPage() {
     { key: "time_tracking", label: "Time Tracking", icon: Timer },
     { key: "smart_coolers", label: "Smart Coolers", icon: Zap },
     { key: "vending_brands", label: "AI Brands", icon: Tag },
+    { key: "machine_orders", label: "Machine Orders", icon: Truck },
     { key: "settings", label: "Settings", icon: Shield },
   ];
 
@@ -4840,6 +4844,9 @@ export default function AdminPage() {
           )}
           {activeTab === "vending_brands" && (
             <VendingBrandsManager token={token} />
+          )}
+          {activeTab === "machine_orders" && (
+            <MachineOrdersManager token={token} />
           )}
           {activeTab === "settings" && (
             <SettingsManager token={token} />
