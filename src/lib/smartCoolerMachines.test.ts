@@ -128,10 +128,11 @@ describe("machine checkout: delivery + haul-away + coffee (one invoice)", () => 
     const route = read("src/app/api/smart-coolers/machines/[id]/checkout/route.ts");
     expect(route).not.toContain("provisionAccountForGuestCheckout");
   });
-  it("the form has delivery, coffee info, coffee address, and a product picker", () => {
+  it("the form has delivery, the free-brewer coffee pitch, coffee address, and a product picker", () => {
     const form = read("src/app/smart-coolers/[id]/checkout/CheckoutForm.tsx");
     expect(form).toContain("White-glove delivery");
-    expect(form).toContain("coffee marketplace");
+    expect(form).toContain("Flavia C600");
+    expect(form).toContain("free on loan");
     expect(form).toContain("same_as_delivery");
     expect(form).toContain("/api/coffee/products");
   });

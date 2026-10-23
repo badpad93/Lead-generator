@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, ArrowRight, Coffee, Truck, Sparkles } from "lucide-react";
+import { Loader2, ArrowRight, Coffee, Truck, Gift } from "lucide-react";
 
 // Mirrors the server fee constants in smartCoolerCheckout.ts. Kept inline so
 // this client bundle doesn't import the server-only pricing module.
@@ -219,13 +219,22 @@ function CoffeeSection({ wantsCoffee, setWantsCoffee, coffee, setCoffeeField, pr
       <h2 className="mb-2 flex items-center gap-2 text-base font-bold text-black-primary">
         <Coffee className="h-4 w-4 text-green-primary" /> Coffee service <span className="text-xs font-normal text-gray-400">(optional)</span>
       </h2>
-      <div className="mb-4 flex items-start gap-2 rounded-lg bg-light-warm p-3 text-xs leading-relaxed text-gray-600">
-        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-green-primary" />
-        <span>
-          Our coffee marketplace supplies wholesale beans, pods, and supplies delivered to your locations — so your
-          new cooler is stocked and earning from day one. Add coffee here and it ships with no separate account or
-          minimums; we&apos;ll follow up to tailor pricing to your volume.
-        </span>
+      <div className="mb-4 overflow-hidden rounded-xl border border-green-primary/30 bg-gradient-to-br from-green-50 to-light-warm p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-primary px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-white">
+            <Gift className="h-3.5 w-3.5" /> Free
+          </span>
+          <span className="text-sm font-bold text-black-primary">
+            Flavia C600 brewer — a <span className="text-green-primary">$2,000 value</span>, yours <span className="underline decoration-green-primary decoration-2 underline-offset-2">free</span>
+          </span>
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-gray-600">
+          Say yes and we&apos;ll put a commercial <strong className="font-semibold text-black-primary">Flavia C600</strong> single-serve brewer
+          in your space at <strong className="font-semibold text-green-primary">zero cost — $0 to buy, $0 to lease</strong>.
+          It&apos;s <strong className="font-semibold text-green-primary">free on loan</strong> for as long as you get your pods, beans, and
+          supplies through our marketplace — no separate account, no minimums, no equipment bill. Just wholesale coffee delivered to
+          your locations so your new cooler is stocked and earning from day one. We&apos;ll follow up to tailor pricing to your volume.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
