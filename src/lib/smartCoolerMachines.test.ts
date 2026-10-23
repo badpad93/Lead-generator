@@ -138,6 +138,38 @@ describe("machine checkout: delivery + haul-away + coffee (one invoice)", () => 
   });
 });
 
+describe("coffee requires signing the Free-On-Loan agreement + $99 brewer shipping", () => {
+  it("migration records the signed FOL agreement + brewer shipping", () => {
+    const sql = read("supabase/migrations/20261027000000_smart_cooler_fol.sql");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS fol_signed");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS fol_signature");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS brewer_shipping_cents");
+  });
+  it("the lib adds a $99 brewer shipping constant", () => {
+    const lib = read("src/lib/smartCoolerCheckout.ts");
+    expect(lib).toContain("BREWER_SHIPPING_CENTS = 9900");
+  });
+  it("the route gates coffee on a signed agreement and bills brewer shipping", () => {
+    const route = read("src/app/api/smart-coolers/machines/[id]/checkout/route.ts");
+    expect(route).toContain("validateCoffeeAgreement");
+    expect(route).toContain("allCoffeeAcksChecked");
+    expect(route).toContain("fol_signature");
+    expect(route).toContain("BREWER_SHIPPING_CENTS");
+  });
+  it("a public endpoint serves the FOL contract to the guest form", () => {
+    const src = read("src/app/api/smart-coolers/coffee-agreement/route.ts");
+    expect(src).toContain('getActiveTemplate("coffee_supply")');
+    expect(src).toContain("COFFEE_ACK_LABELS");
+  });
+  it("the form requires acks + a signature before coffee can be submitted", () => {
+    const form = read("src/app/smart-coolers/[id]/checkout/CheckoutForm.tsx");
+    expect(form).toContain("FolAgreement");
+    expect(form).toContain("folSigned");
+    expect(form).toContain("fol_signature");
+    expect(form).toContain("/api/smart-coolers/coffee-agreement");
+  });
+});
+
 describe("admin Machine Orders tab", () => {
   it("the orders route is admin-gated and joins coffee leads", () => {
     const src = read("src/app/api/admin/smart-coolers/orders/route.ts");

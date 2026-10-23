@@ -48,7 +48,7 @@ export const EXISTING_PAYMENT_FILES = [
 export const HARDENED_AFTER_BASELINE: Record<string, string> = {
   "src/app/api/quickbooks/oauth/callback/route.ts": "4f95ca5ba7a475ac0038553bd8f4cf7607841604",
   // New post-baseline payment route: direct smart-cooler checkout (QuickBooks invoice).
-  "src/app/api/smart-coolers/machines/[id]/checkout/route.ts": "d4724b86c8bdf541ee5cdd79f83735e9bfc3142e",
+  "src/app/api/smart-coolers/machines/[id]/checkout/route.ts": "ab486c81c0b76d3464ae229ca99864c4a48a85c1",
   // Stripe removal — customer payment routes collapsed to QuickBooks-only
   // (Stripe branches and the stripe dependency removed). Pinned to the
   // reviewed post-removal content so any further drift still fails here.

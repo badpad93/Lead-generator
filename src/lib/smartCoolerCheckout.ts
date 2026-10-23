@@ -12,6 +12,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const DELIVERY_STANDARD_CENTS = 37500; // $375 standard delivery
 export const DELIVERY_WHITE_GLOVE_CENTS = 50000; // $500 white-glove delivery
 export const HAUL_AWAY_CENTS = 25000; // $250 haul away / relocate (within 30 miles)
+export const BREWER_SHIPPING_CENTS = 9900; // $99 shipping for the free-on-loan Flavia C600 brewer
 
 export interface InvoiceLine {
   description: string;

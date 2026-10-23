@@ -5,11 +5,13 @@ import { createInvoice, sendInvoiceEmail, getInvoice } from "@/lib/quickbooks";
 import {
   deliveryFeeCents,
   HAUL_AWAY_CENTS,
+  BREWER_SHIPPING_CENTS,
   parseCoffeeItems,
   buildCoffeeLines,
   type InvoiceLine,
   type ResolvedCoffee,
 } from "@/lib/smartCoolerCheckout";
+import { allCoffeeAcksChecked, type CoffeeAcknowledgments } from "@/lib/agreements/coffeeSupplyPackage";
 
 /**
  * POST /api/smart-coolers/machines/[id]/checkout
@@ -57,30 +59,48 @@ function validate(machine: Machine | null, body: Record<string, unknown>): NextR
   return validateContact(body);
 }
 
+/** Coffee service requires signing the Free-On-Loan agreement (signature + all acks). */
+function validateCoffeeAgreement(body: Record<string, unknown>): NextResponse | null {
+  if (body.coffee_requested !== true) return null;
+  const c = (body.coffee as Record<string, unknown>) || {};
+  if (!trimStr(c.fol_signature)) {
+    return NextResponse.json({ error: "Type your name to sign the Equipment Loan & Beverage Supply agreement" }, { status: 400 });
+  }
+  if (!allCoffeeAcksChecked(c.acks as CoffeeAcknowledgments)) {
+    return NextResponse.json({ error: "Accept all required agreement terms to add coffee service" }, { status: 400 });
+  }
+  return null;
+}
+
 interface Totals {
   whiteGlove: boolean;
   haulAway: boolean;
   deliveryCents: number;
   haulCents: number;
+  brewerCents: number;
   coffeeCents: number;
   totalCents: number;
 }
 
-/** Assemble invoice lines (machine + delivery + haul-away + coffee) and totals. */
+/** Assemble invoice lines (machine + delivery + haul-away + brewer shipping + coffee) and totals. */
 function assembleLines(machine: Machine, body: Record<string, unknown>, coffee: ResolvedCoffee): { lines: InvoiceLine[]; totals: Totals } {
   const machineCents = machine.price_cents as number;
   const whiteGlove = body.white_glove === true;
   const haulAway = body.haul_away === true;
+  const coffeeRequested = body.coffee_requested === true;
   const deliveryCents = deliveryFeeCents(whiteGlove);
   const haulCents = haulAway ? HAUL_AWAY_CENTS : 0;
+  const brewerCents = coffeeRequested ? BREWER_SHIPPING_CENTS : 0;
 
   const lines: InvoiceLine[] = [{ description: machine.name, amount: machineCents / 100 }];
   lines.push({ description: whiteGlove ? "White-glove delivery & install" : "Standard delivery", amount: deliveryCents / 100 });
   if (haulAway) lines.push({ description: "Old machine haul-away / relocation (within 30 mi)", amount: haulCents / 100 });
+  if (coffeeRequested) lines.push({ description: "Flavia C600 brewer shipping (brewer free on loan)", amount: brewerCents / 100 });
   lines.push(...coffee.lines);
 
-  const totalCents = machineCents + deliveryCents + haulCents + coffee.totalCents;
-  return { lines, totals: { whiteGlove, haulAway, deliveryCents, haulCents, coffeeCents: coffee.totalCents, totalCents } };
+  const coffeeCents = coffee.totalCents + brewerCents;
+  const totalCents = machineCents + deliveryCents + haulCents + coffeeCents;
+  return { lines, totals: { whiteGlove, haulAway, deliveryCents, haulCents, brewerCents, coffeeCents, totalCents } };
 }
 
 async function recordPurchase(machine: Machine, userId: string | null, body: Record<string, unknown>, totals: Totals): Promise<string | null> {
@@ -128,7 +148,20 @@ function coffeeAddress(c: Record<string, unknown>) {
   };
 }
 
-/** Persist the coffee-service lead (application details + coffee address + items). */
+/** The signed Free-On-Loan agreement fields for the lead record. */
+function coffeeFol(c: Record<string, unknown>) {
+  const version = typeof c.fol_template_version === "number" ? c.fol_template_version : null;
+  return {
+    fol_signed: true,
+    fol_signature: trimStr(c.fol_signature),
+    fol_signed_at: new Date().toISOString(),
+    fol_template_version: version,
+    fol_acks: (c.acks as Record<string, unknown>) || {},
+    brewer_shipping_cents: BREWER_SHIPPING_CENTS,
+  };
+}
+
+/** Persist the coffee-service lead (application + address + items + signed FOL agreement). */
 async function recordCoffeeLead(purchaseId: string | null, body: Record<string, unknown>, coffee: ResolvedCoffee): Promise<void> {
   const c = (body.coffee as Record<string, unknown>) || {};
   await supabaseAdmin.from("smart_cooler_coffee_leads").insert({
@@ -139,6 +172,7 @@ async function recordCoffeeLead(purchaseId: string | null, body: Record<string, 
     estimated_volume: trimStr(c.estimated_volume) || null,
     notes: trimStr(c.notes) || null,
     ...coffeeAddress(c),
+    ...coffeeFol(c),
     items: coffee.items,
     total_cents: coffee.totalCents,
   });
@@ -174,7 +208,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq("id", id)
     .maybeSingle();
 
-  const invalid = validate(machine as Machine | null, body);
+  const invalid = validate(machine as Machine | null, body) || validateCoffeeAgreement(body);
   if (invalid) return invalid;
   const m = machine as Machine;
 
