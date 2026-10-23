@@ -15,6 +15,10 @@ interface CoffeeLead {
   delivery_zip: string | null;
   items: CoffeeItem[] | null;
   total_cents: number | null;
+  fol_signed: boolean | null;
+  fol_signature: string | null;
+  fol_signed_at: string | null;
+  brewer_shipping_cents: number | null;
 }
 interface Order {
   id: string;
@@ -202,6 +206,12 @@ function CoffeeDetail({ lead }: { lead: CoffeeLead | null }) {
       )}
       <CoffeeItems items={items} />
       <MetaLine label="Notes" value={lead.notes} />
+      {lead.fol_signed && (
+        <p className="mt-1 rounded-md bg-green-50 px-2 py-1 text-xs text-green-700">
+          FOL agreement signed{lead.fol_signature ? ` by ${lead.fol_signature}` : ""}
+          {lead.fol_signed_at ? ` · ${new Date(lead.fol_signed_at).toLocaleDateString()}` : ""}
+        </p>
+      )}
     </div>
   );
 }
