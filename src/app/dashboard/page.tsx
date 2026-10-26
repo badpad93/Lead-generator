@@ -47,6 +47,7 @@ import OperatorOnboarding from "./OperatorOnboarding";
 import LocatorOnboarding from "@/app/components/LocatorOnboarding";
 import ListingPipeline from "@/app/components/ListingPipeline";
 import MarketingGondola from "@/app/components/marketing/MarketingGondola";
+import AnimatedHeroBanner from "@/app/components/AnimatedHeroBanner";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -543,45 +544,48 @@ export default function DashboardPage() {
           unchanged. */}
       <MarketingGondola />
 
-      {/* ------- WELCOME HEADER ------- */}
-      <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      {/* ------- WELCOME HEADER (animated hero, matches /smart-coolers) ------- */}
+      <AnimatedHeroBanner>
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-black-primary sm:text-4xl">
-                Welcome, {firstName}
+              <h1 className="text-2xl font-bold text-white sm:text-4xl">
+                Welcome,{" "}
+                <span className="bg-gradient-to-r from-green-400 to-emerald-300 bg-clip-text text-transparent">
+                  {firstName}
+                </span>
               </h1>
-              <p className="mt-2 text-lg text-black-primary/50">
+              <p className="mt-2 text-lg text-white/60">
                 Explore available listings and open requests on the platform.
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-light-warm px-3 py-1.5 text-xs font-medium text-black-primary">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
                 {isOperator ? (
                   <>
-                    <Building2 className="h-3.5 w-3.5 text-green-primary" />{" "}
+                    <Building2 className="h-3.5 w-3.5 text-green-400" />{" "}
                     Operator
                   </>
                 ) : profile.role === "locator" ? (
                   <>
-                    <MapPin className="h-3.5 w-3.5 text-green-primary" />{" "}
+                    <MapPin className="h-3.5 w-3.5 text-green-400" />{" "}
                     Locator
                   </>
                 ) : profile.role === "location_manager" ? (
                   <>
-                    <Building2 className="h-3.5 w-3.5 text-green-primary" />{" "}
+                    <Building2 className="h-3.5 w-3.5 text-green-400" />{" "}
                     Location Manager
                   </>
                 ) : (
                   <>
-                    <User className="h-3.5 w-3.5 text-green-primary" />{" "}
+                    <User className="h-3.5 w-3.5 text-green-400" />{" "}
                     Location Requests
                   </>
                 )}
               </span>
               <Link
                 href="/dashboard/profile"
-                className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-black-primary/60 transition-colors hover:border-green-200 hover:bg-green-50 hover:text-green-primary"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 backdrop-blur-sm transition-colors hover:border-green-400/50 hover:bg-white/10 hover:text-white"
               >
                 <Settings className="h-3.5 w-3.5" />
                 Edit Profile
@@ -589,7 +593,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-black-primary/60 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 backdrop-blur-sm transition-colors hover:border-red-400/50 hover:bg-red-500/10 hover:text-white cursor-pointer"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 Sign Out
@@ -597,7 +601,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      </div>
+      </AnimatedHeroBanner>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
         {/* ------- FEATURED OPERATOR ------- */}
