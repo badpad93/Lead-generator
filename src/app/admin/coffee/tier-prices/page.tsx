@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, DollarSign, CheckCircle2, AlertCircle, Save } from "lucide-react";
+import { Loader2, ArrowLeft, DollarSign, CheckCircle2, AlertCircle, Save, Download } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase";
 
 interface Tier {
@@ -176,6 +176,8 @@ export default function AdminCoffeeTierPricesPage() {
         </div>
       )}
 
+      <ExportBar tiers={tiers} token={token} onError={setError} />
+
       <div className="mb-4 flex items-center gap-3">
         <input
           type="text"
@@ -275,6 +277,62 @@ export default function AdminCoffeeTierPricesPage() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function ExportBar({ tiers, token, onError }: { tiers: Tier[]; token: string; onError: (m: string | null) => void }) {
+  const [tierId, setTierId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const selected = tierId || tiers[0]?.id || "";
+
+  async function run() {
+    if (!selected) return;
+    setBusy(true);
+    onError(null);
+    try {
+      const res = await fetch(`/api/admin/coffee/tier-prices/pdf?tier=${encodeURIComponent(selected)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { onError("Could not export the pricing sheet."); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const name = (tiers.find((t) => t.id === selected)?.name || "tier").replace(/[^a-z0-9]+/gi, "-");
+      a.download = `Coffee-Pricing-${name}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      onError("Could not export the pricing sheet.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
+      <span className="text-sm font-medium text-gray-700">Export pricing sheet (PDF)</span>
+      <select
+        value={selected}
+        onChange={(e) => setTierId(e.target.value)}
+        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+      >
+        {tiers.map((t) => (
+          <option key={t.id} value={t.id}>{t.name}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={run}
+        disabled={busy || tiers.length === 0}
+        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+        Export PDF
+      </button>
     </div>
   );
 }
