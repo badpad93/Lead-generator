@@ -184,28 +184,48 @@ function BrandCard({ brand, delay }: { brand: VendingBrand; delay: number }) {
 }
 
 function ShowcaseCard({ item, delay }: { item: BrandShowcaseItem; delay: number }) {
-  const { machine, brandSlug, brandName, machineCount } = item;
+  const { machine, brandSlug, brandName, brandBlurb, brandLogoUrl, machineCount } = item;
+  const blurb = brandBlurb || "Refined AI-powered machines, hand-picked for standout placements.";
   return (
     <Reveal delay={delay} className="h-full">
-      <Link href={`/brands/${brandSlug}`} className="group flex h-full flex-col">
-        <div className="relative mb-4 h-60 overflow-hidden rounded-xl bg-gray-100">
+      <Link
+        href={`/brands/${brandSlug}`}
+        className="group flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:ring-green-primary/25"
+      >
+        {/* Image with overlaid brand logo + green corner button */}
+        <div className="relative h-52 overflow-hidden bg-gray-100">
           {machine.imageUrl ? (
-            <Image src={machine.imageUrl} alt={machine.name} fill unoptimized className="object-contain transition-transform duration-300 group-hover:scale-105" />
+            <Image src={machine.imageUrl} alt={machine.name} fill unoptimized className="object-cover transition-transform duration-500 group-hover:scale-105" />
           ) : (
             <div className="h-full w-full bg-gray-200" />
           )}
-          <span className="absolute left-3 top-3 rounded-full bg-black-primary/80 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">
-            {brandName}
+          <div className="absolute inset-0 bg-gradient-to-t from-black-primary/70 via-black-primary/10 to-black-primary/5" />
+          <span className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-green-primary text-white shadow-lg shadow-green-primary/30 transition-transform duration-200 group-hover:scale-110">
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </span>
+          <div className="absolute bottom-4 left-5 right-5">
+            {brandLogoUrl ? (
+              <div className="relative h-8 w-36">
+                <Image src={brandLogoUrl} alt={brandName} fill unoptimized className="object-contain object-left drop-shadow" />
+              </div>
+            ) : (
+              <span className="text-xl font-bold text-white drop-shadow">{brandName}</span>
+            )}
+          </div>
         </div>
-        <h3 className="font-semibold text-black-primary">{machine.name}</h3>
-        <p className="mt-1 text-sm text-gray-500">
-          {machineCount} {machineCount === 1 ? "model" : "models"} in the {brandName} lineup
-        </p>
-        <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-green-primary">
-          View the {brandName} lineup
-          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-        </span>
+
+        {/* Body */}
+        <div className="flex flex-1 flex-col p-5">
+          <p className="text-xs font-bold uppercase tracking-wider text-green-primary">{brandName}</p>
+          <p className="mt-2 text-sm leading-relaxed text-gray-500">{blurb}</p>
+          <div className="mt-5 border-t border-gray-100 pt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">In the lineup</p>
+            <p className="mt-0.5 text-sm font-bold text-black-primary">
+              {machineCount} {machineCount === 1 ? "model" : "models"} — {machine.name}
+              {machineCount > 1 ? " & more" : ""}
+            </p>
+          </div>
+        </div>
       </Link>
     </Reveal>
   );

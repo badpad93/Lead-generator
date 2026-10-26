@@ -124,6 +124,8 @@ export async function getBrandBySlug(slug: string): Promise<BrandDetail | null> 
 export interface BrandShowcaseItem {
   brandSlug: string;
   brandName: string;
+  brandBlurb: string;
+  brandLogoUrl: string | null;
   machineCount: number;
   machine: SmartCoolerMachine;
 }
@@ -136,7 +138,7 @@ export interface BrandShowcaseItem {
 export async function getBrandShowcase(): Promise<BrandShowcaseItem[]> {
   const { data: brands } = await supabaseAdmin
     .from("vending_brands")
-    .select("id, name, slug")
+    .select("id, name, slug, blurb, logo_path, updated_at")
     .eq("active", true)
     .order("sort_order", { ascending: true });
   if (!brands || brands.length === 0) return [];
@@ -148,6 +150,8 @@ export async function getBrandShowcase(): Promise<BrandShowcaseItem[]> {
       items.push({
         brandSlug: String(b.slug),
         brandName: String(b.name),
+        brandBlurb: (b.blurb as string) ?? "",
+        brandLogoUrl: brandLogoUrl((b.logo_path as string) ?? null, b.updated_at as string | null),
         machineCount: machines.length,
         machine: machines[0],
       });
