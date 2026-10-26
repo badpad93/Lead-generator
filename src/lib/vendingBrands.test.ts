@@ -81,6 +81,14 @@ describe("public brand pages (phase 2)", () => {
     expect(src).toContain("getPublicBrands");
     expect(src).toContain("BrandCard");
   });
+  it("the landing page features one machine per brand, linking to the lineup", () => {
+    const lib = read("src/lib/vendingBrands.ts");
+    expect(lib).toContain("export async function getBrandShowcase");
+    const src = read("src/app/smart-coolers/page.tsx");
+    expect(src).toContain("getBrandShowcase");
+    expect(src).toContain("ShowcaseCard");
+    expect(src).toContain("href={`/brands/${brandSlug}`}");
+  });
   it("/brands is public in middleware", () => {
     const src = read("src/proxy.ts");
     expect(src).toContain('"/brands/"');

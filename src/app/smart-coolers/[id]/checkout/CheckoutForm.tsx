@@ -1,13 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, ArrowRight, Coffee, Truck, Gift } from "lucide-react";
+import { Loader2, ArrowRight, Coffee, Truck, Gift, FileText } from "lucide-react";
 
 // Mirrors the server fee constants in smartCoolerCheckout.ts. Kept inline so
 // this client bundle doesn't import the server-only pricing module.
 const DELIVERY_STANDARD = 375;
 const DELIVERY_WHITE_GLOVE = 500;
 const HAUL_AWAY = 250;
+const BREWER_SHIPPING = 99; // Flavia C600 ships for $99; the brewer itself is free on loan.
+
+// The three Free-On-Loan acknowledgments (mirrors COFFEE_ACK_LABELS server-side).
+const ACK_LABELS: { key: string; label: string }[] = [
+  { key: "coffee_ack_exclusive_supply", label: "I agree to source coffee, pods, and supplies exclusively through the marketplace while the brewer is on loan." },
+  { key: "coffee_ack_minimum_purchase", label: "I understand the $1,000 per machine, per month minimum purchase requirement." },
+  { key: "coffee_ack_shipping_service_return", label: "I understand I'm responsible for shipping, installation, maintenance, and return of the loaned brewer." },
+];
+
+interface AgreementTemplate { version: number; title: string; content_html: string }
 
 interface CoffeeProduct {
   id: string;
@@ -37,6 +47,16 @@ const label = "mb-1 block text-xs font-medium text-gray-500";
 const input = "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none";
 const money = (n: number) => `$${n.toLocaleString()}`;
 
+/** Pure order-total math (dollars) for the live summary. */
+function priceTotals(a: { machinePrice: number; whiteGlove: boolean; haulAway: boolean; wantsCoffee: boolean; products: CoffeeProduct[]; qty: Record<string, number> }) {
+  const deliveryFee = a.whiteGlove ? DELIVERY_WHITE_GLOVE : DELIVERY_STANDARD;
+  const haulFee = a.haulAway ? HAUL_AWAY : 0;
+  const coffeeProductsTotal = a.wantsCoffee ? a.products.reduce((sum, p) => sum + (a.qty[p.id] || 0) * p.price, 0) : 0;
+  const brewerShip = a.wantsCoffee ? BREWER_SHIPPING : 0;
+  const total = a.machinePrice + deliveryFee + haulFee + coffeeProductsTotal + brewerShip;
+  return { deliveryFee, haulFee, coffeeProductsTotal, brewerShip, total };
+}
+
 export default function CheckoutForm({ machineId, machineName, priceCents }: { machineId: string; machineName: string; priceCents: number }) {
   const machinePrice = Math.round(priceCents / 100);
   const [contact, setContact] = useState({ full_name: "", email: "", phone: "" });
@@ -47,32 +67,36 @@ export default function CheckoutForm({ machineId, machineName, priceCents }: { m
   const [coffee, setCoffee] = useState<CoffeeFields>(EMPTY_COFFEE);
   const [products, setProducts] = useState<CoffeeProduct[]>([]);
   const [qty, setQty] = useState<Record<string, number>>({});
+  const [agreement, setAgreement] = useState<AgreementTemplate | null>(null);
+  const [acks, setAcks] = useState<Record<string, boolean>>({});
+  const [signature, setSignature] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadProducts = useCallback(async () => {
-    if (products.length > 0) return;
+  const loadCoffee = useCallback(async () => {
     try {
-      const res = await fetch("/api/coffee/products");
-      const data = await res.json().catch(() => ({}));
-      setProducts(Array.isArray(data.products) ? data.products : []);
+      const [prodRes, agrRes] = await Promise.all([
+        fetch("/api/coffee/products"),
+        fetch("/api/smart-coolers/coffee-agreement"),
+      ]);
+      const prod = await prodRes.json().catch(() => ({}));
+      const agr = await agrRes.json().catch(() => ({}));
+      setProducts(Array.isArray(prod.products) ? prod.products : []);
+      setAgreement(agr.template || null);
     } catch {
       setProducts([]);
     }
-  }, [products.length]);
+  }, []);
 
   useEffect(() => {
-    if (!wantsCoffee) return;
-    const run = async () => { await loadProducts(); };
+    if (!wantsCoffee || (products.length > 0 && agreement)) return;
+    const run = async () => { await loadCoffee(); };
     run();
-  }, [wantsCoffee, loadProducts]);
+  }, [wantsCoffee, products.length, agreement, loadCoffee]);
 
-  const deliveryFee = whiteGlove ? DELIVERY_WHITE_GLOVE : DELIVERY_STANDARD;
-  const haulFee = haulAway ? HAUL_AWAY : 0;
-  const coffeeTotal = wantsCoffee
-    ? products.reduce((sum, p) => sum + (qty[p.id] || 0) * p.price, 0)
-    : 0;
-  const total = machinePrice + deliveryFee + haulFee + coffeeTotal;
+  const { deliveryFee, haulFee, coffeeProductsTotal, brewerShip, total } = priceTotals({ machinePrice, whiteGlove, haulAway, wantsCoffee, products, qty });
+  const folSigned = ACK_LABELS.every((a) => acks[a.key]) && signature.trim().length > 0;
+  const canSubmit = !submitting && (!wantsCoffee || folSigned);
 
   function buildCoffeePart() {
     if (!wantsCoffee) return undefined;
@@ -85,6 +109,7 @@ export default function CheckoutForm({ machineId, machineName, priceCents }: { m
       business_name: coffee.business_name, contact_name: contact.full_name, email: contact.email, phone: contact.phone,
       num_locations: coffee.num_locations, estimated_volume: coffee.estimated_volume, notes: coffee.notes,
       ...addr, items,
+      fol_signature: signature, acks, fol_template_version: agreement?.version ?? null,
     };
   }
 
@@ -154,22 +179,35 @@ export default function CheckoutForm({ machineId, machineName, priceCents }: { m
         wantsCoffee={wantsCoffee} setWantsCoffee={setWantsCoffee}
         coffee={coffee} setCoffeeField={setCoffeeField}
         products={products} qty={qty} setQty={setQty}
+        agreement={agreement} acks={acks} setAcks={setAcks}
+        signature={signature} setSignature={setSignature}
       />
 
       <OrderSummary
         machineName={machineName} machinePrice={machinePrice}
         whiteGlove={whiteGlove} deliveryFee={deliveryFee}
         haulAway={haulAway} haulFee={haulFee}
-        wantsCoffee={wantsCoffee} coffeeTotal={coffeeTotal} total={total}
+        wantsCoffee={wantsCoffee} coffeeProductsTotal={coffeeProductsTotal} brewerShip={brewerShip} total={total}
       />
 
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-      <button type="submit" disabled={submitting}
+      <SubmitBar canSubmit={canSubmit} submitting={submitting} total={total} showFolWarning={wantsCoffee && !folSigned} />
+    </form>
+  );
+}
+
+function SubmitBar({ canSubmit, submitting, total, showFolWarning }: { canSubmit: boolean; submitting: boolean; total: number; showFolWarning: boolean }) {
+  return (
+    <>
+      {showFolWarning && (
+        <p className="text-center text-xs text-amber-600">Accept the agreement terms and sign below to continue with coffee service.</p>
+      )}
+      <button type="submit" disabled={!canSubmit}
         className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-primary px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-hover disabled:opacity-50">
         {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Continue to payment — {money(total)} <ArrowRight className="h-4 w-4" /></>}
       </button>
       <p className="text-center text-xs text-gray-400">We&apos;ll email a secure invoice to complete payment. No account required.</p>
-    </form>
+    </>
   );
 }
 
@@ -209,10 +247,12 @@ function Choice({ name, value, onChange, options }: {
   );
 }
 
-function CoffeeSection({ wantsCoffee, setWantsCoffee, coffee, setCoffeeField, products, qty, setQty }: {
+function CoffeeSection({ wantsCoffee, setWantsCoffee, coffee, setCoffeeField, products, qty, setQty, agreement, acks, setAcks, signature, setSignature }: {
   wantsCoffee: boolean; setWantsCoffee: (v: boolean) => void;
   coffee: CoffeeFields; setCoffeeField: (k: keyof CoffeeFields, v: string | boolean) => void;
   products: CoffeeProduct[]; qty: Record<string, number>; setQty: (updater: (q: Record<string, number>) => Record<string, number>) => void;
+  agreement: AgreementTemplate | null; acks: Record<string, boolean>; setAcks: (updater: (a: Record<string, boolean>) => Record<string, boolean>) => void;
+  signature: string; setSignature: (v: string) => void;
 }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5">
@@ -230,10 +270,11 @@ function CoffeeSection({ wantsCoffee, setWantsCoffee, coffee, setCoffeeField, pr
         </div>
         <p className="mt-2 text-xs leading-relaxed text-gray-600">
           Say yes and we&apos;ll put a commercial <strong className="font-semibold text-black-primary">Flavia C600</strong> single-serve brewer
-          in your space at <strong className="font-semibold text-green-primary">zero cost — $0 to buy, $0 to lease</strong>.
-          It&apos;s <strong className="font-semibold text-green-primary">free on loan</strong> for as long as you get your pods, beans, and
-          supplies through our marketplace — no separate account, no minimums, no equipment bill. Just wholesale coffee delivered to
-          your locations so your new cooler is stocked and earning from day one. We&apos;ll follow up to tailor pricing to your volume.
+          in your space — the brewer itself is <strong className="font-semibold text-green-primary">$0 to buy and $0 to lease, yours free on loan</strong>.
+          You cover a one-time <strong className="font-semibold text-black-primary">$99 brewer shipping</strong>, plus installation and
+          maintenance, and keep the brewer free as long as you order supplies through our marketplace
+          (<strong className="font-semibold text-black-primary">$1,000 per machine, per month minimum</strong>). Sign the quick agreement
+          below and it ships with your cooler — stocked and earning from day one.
         </p>
       </div>
 
@@ -268,6 +309,8 @@ function CoffeeSection({ wantsCoffee, setWantsCoffee, coffee, setCoffeeField, pr
             </div>
           </div>
           <Field label="Anything else we should know?"><textarea rows={2} value={coffee.notes} onChange={(e) => setCoffeeField("notes", e.target.value)} className={input} /></Field>
+
+          <FolAgreement agreement={agreement} acks={acks} setAcks={setAcks} signature={signature} setSignature={setSignature} />
         </div>
       )}
     </div>
@@ -295,6 +338,46 @@ function CoffeeAddress({ coffee, setCoffeeField }: { coffee: CoffeeFields; setCo
   );
 }
 
+function FolAgreement({ agreement, acks, setAcks, signature, setSignature }: {
+  agreement: AgreementTemplate | null; acks: Record<string, boolean>;
+  setAcks: (updater: (a: Record<string, boolean>) => Record<string, boolean>) => void;
+  signature: string; setSignature: (v: string) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-green-primary/30 bg-green-50/40 p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <FileText className="h-4 w-4 text-green-primary" />
+        <h3 className="text-sm font-bold text-black-primary">{agreement?.title || "Equipment Loan & Beverage Supply Agreement"}</h3>
+        {agreement?.version != null && <span className="text-[11px] text-gray-400">v{agreement.version}</span>}
+      </div>
+      <p className="mb-3 text-xs text-gray-500">
+        The Flavia C600 is loaned free; this Free-On-Loan agreement covers the supply minimum and the shipping,
+        installation, and maintenance you&apos;re responsible for. Please review and sign to add coffee service.
+      </p>
+      {agreement ? (
+        <div className="mb-3 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700 prose prose-sm max-w-none"
+          dangerouslySetInnerHTML={{ __html: agreement.content_html }} />
+      ) : (
+        <p className="mb-3 text-xs text-gray-400">Loading agreement…</p>
+      )}
+      <div className="space-y-2">
+        {ACK_LABELS.map((a) => (
+          <label key={a.key} className="flex items-start gap-2 text-xs text-gray-700">
+            <input type="checkbox" checked={!!acks[a.key]} onChange={(e) => setAcks((s) => ({ ...s, [a.key]: e.target.checked }))} className="mt-0.5" />
+            <span>{a.label}</span>
+          </label>
+        ))}
+      </div>
+      <div className="mt-3">
+        <span className={label}>Signature — type your full legal name</span>
+        <input value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Your full name"
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 font-serif text-base italic focus:border-green-500 focus:outline-none" />
+        <p className="mt-1 text-[11px] text-gray-400">Typing your name constitutes a legally binding electronic signature dated today.</p>
+      </div>
+    </div>
+  );
+}
+
 function ProductRow({ product, quantity, onChange }: { product: CoffeeProduct; quantity: number; onChange: (n: number) => void }) {
   return (
     <div className="flex items-center gap-3 p-3">
@@ -313,9 +396,9 @@ function ProductRow({ product, quantity, onChange }: { product: CoffeeProduct; q
   );
 }
 
-function OrderSummary({ machineName, machinePrice, whiteGlove, deliveryFee, haulAway, haulFee, wantsCoffee, coffeeTotal, total }: {
+function OrderSummary({ machineName, machinePrice, whiteGlove, deliveryFee, haulAway, haulFee, wantsCoffee, coffeeProductsTotal, brewerShip, total }: {
   machineName: string; machinePrice: number; whiteGlove: boolean; deliveryFee: number;
-  haulAway: boolean; haulFee: number; wantsCoffee: boolean; coffeeTotal: number; total: number;
+  haulAway: boolean; haulFee: number; wantsCoffee: boolean; coffeeProductsTotal: number; brewerShip: number; total: number;
 }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5">
@@ -324,7 +407,8 @@ function OrderSummary({ machineName, machinePrice, whiteGlove, deliveryFee, haul
         <Row label={machineName} value={money(machinePrice)} />
         <Row label={whiteGlove ? "White-glove delivery & install" : "Standard delivery"} value={money(deliveryFee)} />
         {haulAway && <Row label="Haul-away / relocation" value={money(haulFee)} />}
-        {wantsCoffee && coffeeTotal > 0 && <Row label="Coffee products" value={money(coffeeTotal)} />}
+        {wantsCoffee && <Row label="Flavia C600 brewer shipping" value={money(brewerShip)} />}
+        {wantsCoffee && coffeeProductsTotal > 0 && <Row label="Coffee products" value={money(coffeeProductsTotal)} />}
       </dl>
       <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
         <span className="text-sm font-semibold text-gray-900">Total</span>
