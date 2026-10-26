@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import Reveal from "@/app/components/Reveal";
 import { getSmartCoolerMachines, type SmartCoolerMachine } from "@/lib/smartCoolerMachines";
-import { getPublicBrands, type VendingBrand } from "@/lib/vendingBrands";
+import { getPublicBrands, getBrandShowcase, type VendingBrand, type BrandShowcaseItem } from "@/lib/vendingBrands";
 import {
   ArrowRight,
   Sparkles,
@@ -183,9 +183,38 @@ function BrandCard({ brand, delay }: { brand: VendingBrand; delay: number }) {
   );
 }
 
+function ShowcaseCard({ item, delay }: { item: BrandShowcaseItem; delay: number }) {
+  const { machine, brandSlug, brandName, machineCount } = item;
+  return (
+    <Reveal delay={delay} className="h-full">
+      <Link href={`/brands/${brandSlug}`} className="group flex h-full flex-col">
+        <div className="relative mb-4 h-60 overflow-hidden rounded-xl bg-gray-100">
+          {machine.imageUrl ? (
+            <Image src={machine.imageUrl} alt={machine.name} fill unoptimized className="object-contain transition-transform duration-300 group-hover:scale-105" />
+          ) : (
+            <div className="h-full w-full bg-gray-200" />
+          )}
+          <span className="absolute left-3 top-3 rounded-full bg-black-primary/80 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">
+            {brandName}
+          </span>
+        </div>
+        <h3 className="font-semibold text-black-primary">{machine.name}</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          {machineCount} {machineCount === 1 ? "model" : "models"} in the {brandName} lineup
+        </p>
+        <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-green-primary">
+          View the {brandName} lineup
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+        </span>
+      </Link>
+    </Reveal>
+  );
+}
+
 export default async function SmartCoolersPage() {
   const machines = await getSmartCoolerMachines();
   const brands = await getPublicBrands();
+  const showcase = await getBrandShowcase();
   return (
     <main className="bg-light">
       {/* ===== Hero — live background video + dark overlay ===== */}
@@ -244,20 +273,28 @@ export default async function SmartCoolersPage() {
         </div>
       </section>
 
-      {/* ===== Popular machines ===== */}
+      {/* ===== Featured machines — one per brand, links to the brand lineup ===== */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:py-24">
         <Reveal>
           <h2 className="text-3xl font-bold text-black-primary sm:text-4xl">Machines our operators love</h2>
           <p className="mt-3 max-w-3xl text-sm leading-relaxed text-gray-500">
-            We vet every machine we carry. If we wouldn&apos;t buy and run it ourselves, we don&apos;t
-            list it.
+            A favorite from each brand we carry. Tap any machine to explore that brand&apos;s full lineup.
           </p>
         </Reveal>
-        <div className="mt-12 grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
-          {machines.map((m, i) => (
-            <MachineCard key={m.id} machine={m} delay={(i % 4) * 80} />
-          ))}
-        </div>
+        {showcase.length > 0 ? (
+          <div className="mt-12 grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
+            {showcase.map((item, i) => (
+              <ShowcaseCard key={item.brandSlug} item={item} delay={(i % 3) * 80} />
+            ))}
+          </div>
+        ) : (
+          /* No brands set up yet — fall back to the full machine grid. */
+          <div className="mt-12 grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
+            {machines.map((m, i) => (
+              <MachineCard key={m.id} machine={m} delay={(i % 4) * 80} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* ===== AI Vending Brands ===== */}

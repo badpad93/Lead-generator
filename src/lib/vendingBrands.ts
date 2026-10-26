@@ -121,6 +121,41 @@ export async function getBrandBySlug(slug: string): Promise<BrandDetail | null> 
   };
 }
 
+export interface BrandShowcaseItem {
+  brandSlug: string;
+  brandName: string;
+  machineCount: number;
+  machine: SmartCoolerMachine;
+}
+
+/**
+ * One representative machine per active brand (the brand's first by sort
+ * order), for the landing page's brand showcase. Each links to the brand's
+ * full lineup rather than overwhelming the page with every machine.
+ */
+export async function getBrandShowcase(): Promise<BrandShowcaseItem[]> {
+  const { data: brands } = await supabaseAdmin
+    .from("vending_brands")
+    .select("id, name, slug")
+    .eq("active", true)
+    .order("sort_order", { ascending: true });
+  if (!brands || brands.length === 0) return [];
+
+  const items: BrandShowcaseItem[] = [];
+  for (const b of brands) {
+    const machines = await getMachinesForBrand(String(b.id));
+    if (machines.length > 0) {
+      items.push({
+        brandSlug: String(b.slug),
+        brandName: String(b.name),
+        machineCount: machines.length,
+        machine: machines[0],
+      });
+    }
+  }
+  return items;
+}
+
 async function machineCountsByBrand(): Promise<Record<string, number>> {
   const { data } = await supabaseAdmin
     .from("smart_cooler_machines")
