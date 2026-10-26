@@ -166,18 +166,29 @@ function BrandCard({ brand, delay }: { brand: VendingBrand; delay: number }) {
     <Reveal delay={delay} className="h-full">
       <Link
         href={`/brands/${brand.slug}`}
-        className="group flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm transition-all hover:border-green-primary/40 hover:shadow-md"
+        className="group flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:ring-green-primary/25"
       >
-        {brand.logoUrl ? (
-          <div className="relative h-14 w-full">
-            <Image src={brand.logoUrl} alt={brand.name} fill unoptimized className="object-contain" />
-          </div>
-        ) : (
-          <span className="text-lg font-bold text-black-primary">{brand.name}</span>
-        )}
-        <span className="text-xs font-medium text-gray-400">
-          {brand.machineCount} {brand.machineCount === 1 ? "machine" : "machines"}
-        </span>
+        {/* Logo on a soft green header + green corner button */}
+        <div className="relative flex h-32 items-center justify-center overflow-hidden bg-gradient-to-br from-green-50 via-white to-emerald-50 p-6">
+          {brand.logoUrl ? (
+            <div className="relative h-12 w-full">
+              <Image src={brand.logoUrl} alt={brand.name} fill unoptimized className="object-contain" />
+            </div>
+          ) : (
+            <span className="text-xl font-bold text-black-primary">{brand.name}</span>
+          )}
+          <span className="absolute right-3.5 top-3.5 flex h-9 w-9 items-center justify-center rounded-full bg-green-primary text-white shadow-md shadow-green-primary/30 transition-transform duration-200 group-hover:scale-110">
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </div>
+        {/* Body */}
+        <div className="flex flex-1 flex-col border-t border-gray-100 p-5">
+          <p className="text-xs font-bold uppercase tracking-wider text-green-primary">{brand.name}</p>
+          {brand.blurb && <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-gray-500">{brand.blurb}</p>}
+          <p className="mt-auto pt-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            {brand.machineCount} {brand.machineCount === 1 ? "machine" : "machines"}
+          </p>
+        </div>
       </Link>
     </Reveal>
   );
@@ -193,13 +204,13 @@ function ShowcaseCard({ item, delay }: { item: BrandShowcaseItem; delay: number 
         className="group flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:ring-green-primary/25"
       >
         {/* Image with overlaid brand logo + green corner button */}
-        <div className="relative h-52 overflow-hidden bg-gray-100">
+        <div className="relative h-52 overflow-hidden bg-gray-50">
           {machine.imageUrl ? (
-            <Image src={machine.imageUrl} alt={machine.name} fill unoptimized className="object-cover transition-transform duration-500 group-hover:scale-105" />
+            <Image src={machine.imageUrl} alt={machine.name} fill unoptimized className="object-contain p-4 transition-transform duration-500 group-hover:scale-105" />
           ) : (
             <div className="h-full w-full bg-gray-200" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black-primary/70 via-black-primary/10 to-black-primary/5" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black-primary/55 via-transparent to-transparent" />
           <span className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-green-primary text-white shadow-lg shadow-green-primary/30 transition-transform duration-200 group-hover:scale-110">
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </span>
@@ -328,9 +339,9 @@ export default async function SmartCoolersPage() {
                 Explore the brands we carry. Pick a brand to see its full machine lineup.
               </p>
             </Reveal>
-            <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {brands.map((b, i) => (
-                <BrandCard key={b.id} brand={b} delay={(i % 4) * 80} />
+                <BrandCard key={b.id} brand={b} delay={(i % 3) * 80} />
               ))}
             </div>
           </div>
