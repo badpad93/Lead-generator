@@ -560,29 +560,26 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
-                {isOperator ? (
-                  <>
-                    <Building2 className="h-3.5 w-3.5 text-green-400" />{" "}
-                    Operator
-                  </>
-                ) : profile.role === "locator" ? (
-                  <>
-                    <MapPin className="h-3.5 w-3.5 text-green-400" />{" "}
-                    Locator
-                  </>
-                ) : profile.role === "location_manager" ? (
-                  <>
-                    <Building2 className="h-3.5 w-3.5 text-green-400" />{" "}
-                    Location Manager
-                  </>
-                ) : (
-                  <>
-                    <User className="h-3.5 w-3.5 text-green-400" />{" "}
-                    Location Requests
-                  </>
-                )}
-              </span>
+              {isOperator ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+                  <Building2 className="h-3.5 w-3.5 text-green-400" /> Operator
+                </span>
+              ) : profile.role === "locator" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+                  <MapPin className="h-3.5 w-3.5 text-green-400" /> Locator
+                </span>
+              ) : profile.role === "location_manager" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+                  <Building2 className="h-3.5 w-3.5 text-green-400" /> Location Manager
+                </span>
+              ) : (
+                <Link
+                  href="/request-location"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 backdrop-blur-sm transition-colors hover:border-green-400/50 hover:bg-white/10 hover:text-white"
+                >
+                  <User className="h-3.5 w-3.5 text-green-400" /> Location Requests
+                </Link>
+              )}
               <Link
                 href="/dashboard/profile"
                 className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 backdrop-blur-sm transition-colors hover:border-green-400/50 hover:bg-white/10 hover:text-white"
