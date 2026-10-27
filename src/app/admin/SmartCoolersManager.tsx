@@ -49,6 +49,78 @@ async function api(path: string, token: string, init?: RequestInit) {
   return data;
 }
 
+function BannerSettings({ token }: { token: string }) {
+  const [enabled, setEnabled] = useState(false);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const s = await api("/api/admin/smart-coolers/settings", token);
+      setEnabled(!!s.bannerEnabled);
+      setMessage(s.bannerMessage || "");
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    const run = async () => { await load(); };
+    run();
+  }, [load]);
+
+  async function save() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      await api("/api/admin/smart-coolers/settings", token, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bannerEnabled: enabled, bannerMessage: message }),
+      });
+      setMsg("Saved");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return null;
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4">
+      <h3 className="text-base font-bold text-gray-900">Lead time &amp; delivery banner</h3>
+      <p className="mb-3 text-sm text-gray-500">
+        Shown on the machine purchase pages (<span className="font-mono">/smart-coolers</span>, brand pages, checkout).
+      </p>
+      <label className="mb-3 flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Show the banner
+      </label>
+      <textarea
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        rows={2}
+        placeholder="e.g. Current lead time is 4–6 weeks; estimated delivery within 8 weeks of order confirmation."
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        {msg && <span className="text-xs text-gray-500">{msg}</span>}
+        <button
+          onClick={save}
+          disabled={saving}
+          className="ml-auto inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+        >
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save banner
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function SmartCoolersManager({ token }: { token: string }) {
   const [machines, setMachines] = useState<AdminMachine[]>([]);
   const [listings, setListings] = useState<SellableListing[]>([]);
@@ -105,7 +177,8 @@ export default function SmartCoolersManager({ token }: { token: string }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <BannerSettings token={token} />
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-gray-900">Smart Coolers — machine grid</h2>

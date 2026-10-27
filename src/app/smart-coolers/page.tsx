@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import Reveal from "@/app/components/Reveal";
+import MachinePurchaseBanner from "@/app/components/MachinePurchaseBanner";
 import { getSmartCoolerMachines, type SmartCoolerMachine } from "@/lib/smartCoolerMachines";
 import { getPublicBrands, getBrandShowcase, type VendingBrand, type BrandShowcaseItem } from "@/lib/vendingBrands";
 import {
@@ -306,6 +307,7 @@ export default async function SmartCoolersPage() {
 
       {/* ===== Featured machines — one per brand, links to the brand lineup ===== */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:py-24">
+        <MachinePurchaseBanner className="mb-8" />
         <Reveal>
           <h2 className="text-3xl font-bold text-black-primary sm:text-4xl">Machines our operators love</h2>
           <p className="mt-3 max-w-3xl text-sm leading-relaxed text-gray-500">
