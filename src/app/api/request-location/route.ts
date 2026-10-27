@@ -139,6 +139,25 @@ async function insertLead(row: Record<string, unknown>, machine_type: MachineTyp
   return data?.id ?? null;
 }
 
+/** A valid profiles.id for the workflow's customer_id: match by email, else the owning rep. */
+async function resolveWorkflowCustomer(email: string, repId: string | null): Promise<string | null> {
+  const { data } = await supabaseAdmin.from("profiles").select("id").ilike("email", email.trim()).maybeSingle();
+  if (data) return data.id as string;
+  return repId;
+}
+
+/** Spawn the location-services workflow for the locations team (best-effort). */
+async function spawnWorkflow(leadId: string, p: Parsed, owner: Owner): Promise<void> {
+  try {
+    const customerId = await resolveWorkflowCustomer(p.email, owner.rep);
+    if (!customerId) return;
+    const { spawnFromLocationRequest } = await import("@/lib/workflows/hooks");
+    await spawnFromLocationRequest(leadId, { customerId, quantity: p.machine_count });
+  } catch (e) {
+    console.error("[request-location] workflow spawn failed:", e);
+  }
+}
+
 async function createAccount(p: Parsed, owner: Owner): Promise<void> {
   try {
     const { findOrCreateSalesAccount } = await import("@/lib/salesAccountResolver");
@@ -165,6 +184,7 @@ export async function POST(req: Request) {
   if (!leadId) return NextResponse.json({ error: "Failed to save request" }, { status: 500 });
 
   await createAccount(p, owner);
+  await spawnWorkflow(leadId, p, owner);
   sendAdminNotification(p).catch((e) => console.error("[request-location] email error", e));
   sendLocationRequestConfirmation({ to: p.email, name: p.contact_name }).catch((e) => console.error("[request-location] confirmation email error", e));
 
