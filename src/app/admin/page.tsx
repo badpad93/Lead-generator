@@ -38,6 +38,7 @@ import {
 import SmartCoolersManager from "./SmartCoolersManager";
 import VendingBrandsManager from "./VendingBrandsManager";
 import MachineOrdersManager from "./MachineOrdersManager";
+import LocationServicesManager from "./LocationServicesManager";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
 import {
@@ -66,6 +67,7 @@ type Tab =
   | "smart_coolers"
   | "vending_brands"
   | "machine_orders"
+  | "location_services"
   | "settings";
 
 const inputClass =
@@ -4686,6 +4688,7 @@ export default function AdminPage() {
     { key: "smart_coolers", label: "Smart Coolers", icon: Zap },
     { key: "vending_brands", label: "AI Brands", icon: Tag },
     { key: "machine_orders", label: "Machine Orders", icon: Truck },
+    { key: "location_services", label: "Locators", icon: Users },
     { key: "settings", label: "Settings", icon: Shield },
   ];
 
@@ -4847,6 +4850,9 @@ export default function AdminPage() {
           )}
           {activeTab === "machine_orders" && (
             <MachineOrdersManager token={token} />
+          )}
+          {activeTab === "location_services" && (
+            <LocationServicesManager token={token} />
           )}
           {activeTab === "settings" && (
             <SettingsManager token={token} />
