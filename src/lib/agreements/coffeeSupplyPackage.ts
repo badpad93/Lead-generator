@@ -83,7 +83,7 @@ export const COFFEE_ACK_LABELS: ReadonlyArray<{ key: CoffeeAckField; label: stri
   { key: "coffee_ack_exclusive_supply", label: "Exclusive supply requirement acknowledged" },
   {
     key: "coffee_ack_minimum_purchase",
-    label: "$1,000 per machine per month minimum purchase acknowledged",
+    label: "$360 per brewer per month minimum purchase acknowledged",
   },
   {
     key: "coffee_ack_shipping_service_return",

@@ -3,7 +3,7 @@
 --
 -- When a guest machine buyer opts into coffee service they get a Flavia C600
 -- brewer free on loan, but they must accept the FOL contract (exclusive
--- supply, $1,000/machine/month minimum, and they pay shipping/installation/
+-- supply, $360/brewer/month minimum, and they pay shipping/installation/
 -- maintenance). We record the typed signature, the three acknowledgments, the
 -- template version signed, and the brewer shipping charged.
 

@@ -21,11 +21,9 @@ import { canonicalRedirectTarget } from "@/lib/canonicalHost";
  * lead-capture surfaces (/request-location and /financing) the
  * funnel depends on.
  *
- * Anything not on either list is treated as "protected" and
- * unauth visitors are bounced to /login?redirect=<original>.
- * (Signed-in visitors then continue through the existing
- * placement-partner isolation / contact-on-file / email-verification
- * gates below.)
+ * Anything not on either list is treated as "protected" and unauth
+ * visitors are bounced to /login?redirect=<original>; signed-in ones
+ * continue through the isolation / contact / verification gates below.
  */
 const PUBLIC_EXACT = new Set<string>([
   "/",
@@ -44,6 +42,7 @@ const PUBLIC_EXACT = new Set<string>([
   "/request-location",
   "/financing",
   "/smart-coolers",          // public machine-focused marketing landing page
+  "/locators",               // public "hire a locator" location-services page
   "/assistant",              // AI assistant — anonymous exploration allowed; the page 404s while assistant.enabled is off
   // Root static assets.
   "/favicon.ico",
@@ -76,6 +75,7 @@ const PUBLIC_PREFIXES = [
   "/financing/",             // /financing/complete-application + any future step
   "/brands/",                // public AI Vending Brands lineup pages
   "/smart-coolers/",         // smart-cooler direct checkout + any sub-pages
+  "/locators/",              // locator checkout + any sub-pages
   "/images/",
   "/videos/",                // public marketing media (e.g. the smart-coolers hero)
   "/fonts/",

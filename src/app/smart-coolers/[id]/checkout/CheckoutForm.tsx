@@ -13,7 +13,7 @@ const BREWER_SHIPPING = 99; // Flavia C600 ships for $99; the brewer itself is f
 // The three Free-On-Loan acknowledgments (mirrors COFFEE_ACK_LABELS server-side).
 const ACK_LABELS: { key: string; label: string }[] = [
   { key: "coffee_ack_exclusive_supply", label: "I agree to source coffee, pods, and supplies exclusively through the marketplace while the brewer is on loan." },
-  { key: "coffee_ack_minimum_purchase", label: "I understand the $1,000 per machine, per month minimum purchase requirement." },
+  { key: "coffee_ack_minimum_purchase", label: "I understand the $360 per brewer, per month minimum purchase requirement." },
   { key: "coffee_ack_shipping_service_return", label: "I understand I'm responsible for shipping, installation, maintenance, and return of the loaned brewer." },
 ];
 
@@ -273,7 +273,7 @@ function CoffeeSection({ wantsCoffee, setWantsCoffee, coffee, setCoffeeField, pr
           in your space — the brewer itself is <strong className="font-semibold text-green-primary">$0 to buy and $0 to lease, yours free on loan</strong>.
           You cover a one-time <strong className="font-semibold text-black-primary">$99 brewer shipping</strong>, plus installation and
           maintenance, and keep the brewer free as long as you order supplies through our marketplace
-          (<strong className="font-semibold text-black-primary">$1,000 per machine, per month minimum</strong>). Sign the quick agreement
+          (<strong className="font-semibold text-black-primary">$360 per brewer, per month minimum</strong>). Sign the quick agreement
           below and it ships with your cooler — stocked and earning from day one.
         </p>
       </div>
