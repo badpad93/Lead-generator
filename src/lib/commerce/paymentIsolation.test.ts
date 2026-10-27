@@ -38,7 +38,6 @@ export const EXISTING_PAYMENT_FILES = [
   "src/app/api/agreements/token/[token]/checkout/route.ts",
   "src/app/api/account/workflows/[id]/pay-balance/route.ts",
   "src/app/api/checkout/route.ts",
-  "src/app/api/request-location/route.ts",
   "src/app/api/admin/storefronts/payouts/release/route.ts",
   "src/app/api/sales/orders/[id]/send/route.ts",
   "src/lib/storefront/quickbooksStorefront.ts",

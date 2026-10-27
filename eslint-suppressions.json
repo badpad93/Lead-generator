@@ -1571,23 +1571,11 @@
     }
   },
   "src/app/api/request-location/route.ts": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    },
     "complexity": {
       "count": 1
     },
-    "max-depth": {
-      "count": 1
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "no-console": {
-      "count": 1
-    },
     "no-nested-ternary": {
-      "count": 2
+      "count": 1
     }
   },
   "src/app/api/requests/[id]/route.ts": {
@@ -2982,9 +2970,6 @@
   },
   "src/app/request-location/page.tsx": {
     "complexity": {
-      "count": 2
-    },
-    "no-nested-ternary": {
       "count": 1
     },
     "react-hooks/set-state-in-effect": {
