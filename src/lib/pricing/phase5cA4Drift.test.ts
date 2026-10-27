@@ -241,8 +241,9 @@ describe("Phase 5C-a4 — affected routes wire in the canonical calculator", () 
     expect(src).toContain("resyncOrderTotals");
   });
 
-  it("request-location uses computeLineTotal for the deposit line", () => {
-    expect(read(REQUEST_LOCATION)).toContain("computeLineTotal");
+  it("request-location no longer has a deposit line (deposit removed)", () => {
+    // The deposit was removed from intake, so there is no deposit order line.
+    expect(read(REQUEST_LOCATION)).not.toContain("computeLineTotal");
   });
 
   it("deals finalize + PATCH call computeLineTotal and resyncOrderTotals", () => {

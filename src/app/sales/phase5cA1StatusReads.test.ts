@@ -73,8 +73,12 @@ describe("Phase 5C-a1 — request-location anomaly fixed", () => {
   it("no longer writes order_status = 'sent'", () => {
     expect(read(REQUEST_LOCATION)).not.toContain('order_status: "sent"');
   });
-  it("writes the canonical order_status = 'invoice_sent'", () => {
-    expect(read(REQUEST_LOCATION)).toContain('order_status: "invoice_sent"');
+  it("no longer creates a sales_order at intake (deposit removed)", () => {
+    // With the deposit gone, intake creates a lead only — no sales_orders row,
+    // so there is no order_status to write here at all.
+    const src = read(REQUEST_LOCATION);
+    expect(src).not.toContain("order_status");
+    expect(src).not.toContain('from("sales_orders")');
   });
   it("no source writes order_status = 'sent' anywhere", () => {
     for (const rel of [REQUEST_LOCATION, CREATE_ORDER, ...REPORTS]) {
@@ -86,10 +90,8 @@ describe("Phase 5C-a1 — request-location anomaly fixed", () => {
 describe("Phase 5C-a1 — legacy compatibility preserved", () => {
   it("legacy status compat writes are retained (not removed this phase)", () => {
     expect(read(CREATE_ORDER)).toContain('status: "draft"');
-    expect(read(REQUEST_LOCATION)).toContain('status: "sent"');
   });
   it("next_required_action is still written (untouched this phase)", () => {
-    expect(read(REQUEST_LOCATION)).toContain("next_required_action");
     expect(read(CREATE_ORDER)).toContain("next_required_action");
   });
 });

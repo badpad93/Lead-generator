@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { MapPin, Plus, X, CheckCircle2, Phone as PhoneIcon, Loader2 } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { MapPin, Plus, X, CheckCircle2, Loader2 } from "lucide-react";
 
 interface FormState {
   business_name: string;
@@ -46,19 +47,6 @@ const US_STATES = [
   "VA","WA","WV","WI","WY","DC",
 ];
 
-// $100 per location — the deposit scales linearly with the number of
-// machines the operator requests. Kept in sync with
-// DEPOSIT_CENTS_PER_LOCATION in src/app/api/request-location/route.ts.
-const DEPOSIT_PER_LOCATION = 100;
-
-function parseMachineCount(v: string): number {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-}
-function fmtDollars(n: number): string {
-  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 export default function RequestLocationPage() {
   return (
     <Suspense fallback={<div className="min-h-screen" />}>
@@ -69,27 +57,16 @@ export default function RequestLocationPage() {
 
 function RequestLocationInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [ref, setRef] = useState<string>("");
   const [form, setForm] = useState<FormState>(initial);
   const [submitting, setSubmitting] = useState(false);
-  const [deposited, setDeposited] = useState(false);
-  const [receiptData, setReceiptData] = useState<FormState | null>(null);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const r = searchParams.get("ref");
     if (r) setRef(r);
-
-    if (searchParams.get("deposited") === "true") {
-      try {
-        const saved = localStorage.getItem("location_request_form");
-        if (saved) {
-          setReceiptData(JSON.parse(saved));
-          localStorage.removeItem("location_request_form");
-        }
-      } catch { /* ignore */ }
-      setDeposited(true);
-    }
   }, [searchParams]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -132,8 +109,6 @@ function RequestLocationInner() {
 
     setSubmitting(true);
     try {
-      localStorage.setItem("location_request_form", JSON.stringify(form));
-
       const res = await fetch("/api/request-location", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -160,108 +135,42 @@ function RequestLocationInner() {
         return;
       }
 
-      if (data.url) {
-        window.location.href = data.url;
-        return;
-      }
-
-      setError("Unable to process payment. Please try again or call (888) 851-1462.");
+      // No deposit — show the thank-you, then route to available locations.
+      setSubmitted(true);
+      setTimeout(() => router.push("/browse-requests"), 5000);
     } catch {
       setError("Network error. Please try again.");
-    } finally {
       setSubmitting(false);
     }
   }
 
-  if (deposited) {
-    const receiptCount = receiptData ? parseMachineCount(receiptData.machine_count) : 0;
-    const receiptTotal = receiptCount * DEPOSIT_PER_LOCATION;
+  if (submitted) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-light to-light-warm py-16">
         <div className="mx-auto max-w-2xl px-4 sm:px-6">
-          <div className="rounded-2xl border border-green-100 bg-white p-6 shadow-lg sm:p-8">
-            <div className="text-center mb-6">
-              <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-green-50">
-                <CheckCircle2 className="h-8 w-8 text-green-600" />
-              </div>
-              <h1 className="text-2xl font-bold text-black-primary">
-                Request Submitted Successfully
-              </h1>
-              <p className="mt-2 text-sm text-black-primary/60">
-                {receiptCount > 0
-                  ? `Your ${fmtDollars(receiptTotal)} location services deposit has been received.`
-                  : "Your location services deposit has been received."}
-              </p>
+          <div className="rounded-2xl border border-green-100 bg-white p-6 text-center shadow-lg sm:p-10">
+            <div className="mx-auto mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
+              <CheckCircle2 className="h-9 w-9 text-green-600" />
             </div>
-
-            {receiptData && (
-              <div className="rounded-xl bg-gray-50 border border-gray-200 p-5 mb-6">
-                <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Receipt</h2>
-                <table className="w-full text-sm">
-                  <tbody>
-                    <tr><td className="py-1.5 pr-4 text-gray-500">Business Name</td><td className="py-1.5 font-medium text-gray-900">{receiptData.business_name}</td></tr>
-                    <tr><td className="py-1.5 pr-4 text-gray-500">Contact Name</td><td className="py-1.5 text-gray-900">{receiptData.contact_name}</td></tr>
-                    <tr><td className="py-1.5 pr-4 text-gray-500">Email</td><td className="py-1.5 text-gray-900">{receiptData.email}</td></tr>
-                    <tr><td className="py-1.5 pr-4 text-gray-500">Phone</td><td className="py-1.5 text-gray-900">{receiptData.phone}</td></tr>
-                    <tr><td className="py-1.5 pr-4 text-gray-500">Address</td><td className="py-1.5 text-gray-900">{receiptData.address}</td></tr>
-                    <tr><td className="py-1.5 pr-4 text-gray-500">State</td><td className="py-1.5 text-gray-900">{receiptData.state}</td></tr>
-                    <tr><td className="py-1.5 pr-4 text-gray-500">ZIP Code(s)</td><td className="py-1.5 text-gray-900">{receiptData.zip_codes.filter(Boolean).join(", ")}</td></tr>
-                    <tr><td className="py-1.5 pr-4 text-gray-500">Machines Requested</td><td className="py-1.5 font-medium text-gray-900">{receiptData.machine_count}</td></tr>
-                    {receiptData.machine_type && (
-                      <tr><td className="py-1.5 pr-4 text-gray-500">Machine Type</td><td className="py-1.5 text-gray-900">{receiptData.machine_type}</td></tr>
-                    )}
-                    {receiptData.travel_radius_miles && (
-                      <tr><td className="py-1.5 pr-4 text-gray-500">Travel Radius</td><td className="py-1.5 text-gray-900">{receiptData.travel_radius_miles} mi</td></tr>
-                    )}
-                    {receiptData.excluded_industries && (
-                      <tr><td className="py-1.5 pr-4 text-gray-500">Industries to Avoid</td><td className="py-1.5 text-gray-900">{receiptData.excluded_industries}</td></tr>
-                    )}
-                    {receiptData.meeting_availability && (
-                      <tr><td className="py-1.5 pr-4 text-gray-500">Availability</td><td className="py-1.5 text-gray-900">{receiptData.meeting_availability}</td></tr>
-                    )}
-                    <tr className="border-t border-gray-200">
-                      <td className="pt-3 pr-4 text-gray-500 font-medium">Deposit Paid</td>
-                      <td className="pt-3 font-bold text-green-700 text-lg">
-                        {fmtDollars(receiptTotal)}
-                        {receiptCount > 1 && (
-                          <span className="ml-2 text-xs font-normal text-gray-500">
-                            ({receiptCount} × ${DEPOSIT_PER_LOCATION})
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="rounded-xl bg-blue-50 border border-blue-200 p-5 mb-6 text-center">
-              <p className="text-blue-900 font-semibold text-sm mb-2">
-                A locator will reach out to you within the next 24 hours.
-              </p>
-              <p className="text-blue-700 text-sm">
-                If you have any questions in the meantime, give us a call:
-              </p>
-              <a
-                href="tel:8888511462"
-                className="mt-3 inline-flex items-center gap-2 text-lg font-bold text-blue-900 hover:text-blue-700 transition-colors"
-              >
-                <PhoneIcon className="h-5 w-5" />
-                (888) 851-1462
-              </a>
-            </div>
-
-            <p className="text-xs text-gray-400 text-center">
-              Apex AI Vending — vendingconnector.com
+            <h1 className="text-2xl font-bold text-black-primary sm:text-3xl">Thank you for the info!</h1>
+            <p className="mx-auto mt-3 max-w-md text-base leading-relaxed text-black-primary/60">
+              A location specialist will be with you within 24 hours. Until then, please view our available
+              locations. Thank you!
+            </p>
+            <Link
+              href="/browse-requests"
+              className="mt-7 inline-flex items-center justify-center gap-2 rounded-xl bg-green-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-hover"
+            >
+              View available locations
+            </Link>
+            <p className="mt-4 flex items-center justify-center gap-2 text-xs text-gray-400">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Taking you there…
             </p>
           </div>
         </div>
       </div>
     );
   }
-
-  const machineCountNum = parseMachineCount(form.machine_count);
-  const totalDeposit = machineCountNum * DEPOSIT_PER_LOCATION;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-light to-light-warm py-16">
@@ -279,19 +188,9 @@ function RequestLocationInner() {
         </div>
 
         <div className="rounded-2xl border border-green-100 bg-white p-6 shadow-lg sm:p-8">
-          <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
-            <p className="text-sm text-amber-800">
-              <strong>${DEPOSIT_PER_LOCATION}.00 per location non-refundable deposit</strong> — a deposit is collected up front to begin your location search.
-              {machineCountNum > 0 ? (
-                <>
-                  {" "}Total for {machineCountNum} location{machineCountNum === 1 ? "" : "s"}: <strong>{fmtDollars(totalDeposit)}</strong>.
-                </>
-              ) : (
-                <>
-                  {" "}Enter how many machines you need below to see your total.
-                </>
-              )}{" "}
-              You will be redirected to complete payment after submitting.
+          <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+            <p className="text-sm text-green-800">
+              Tell us what you need and a location specialist will reach out within 24 hours. No payment required to get started.
             </p>
           </div>
 
@@ -427,18 +326,12 @@ function RequestLocationInner() {
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Processing...
+                  Submitting...
                 </>
               ) : (
-                machineCountNum > 0
-                  ? `Pay ${fmtDollars(totalDeposit)} Deposit & Submit`
-                  : `Pay Deposit & Submit`
+                "Submit Request"
               )}
             </button>
-
-            <p className="text-xs text-center text-gray-400">
-              You will be redirected for secure payment processing.
-            </p>
           </form>
         </div>
       </div>

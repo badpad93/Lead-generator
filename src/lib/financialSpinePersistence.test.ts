@@ -25,11 +25,12 @@ describe("no phantom sales_orders.qb_invoice_id remains in active code", () => {
     expect(src).toContain("financial_spine_invoice_id: inv.id");
   });
 
-  it("request-location deposit invoice links the financial spine", () => {
+  it("request-location no longer creates a deposit invoice (deposit removed)", () => {
     const src = read("src/app/api/request-location/route.ts");
-    expect(src).toContain("upsertInvoice");
-    expect(src).toContain("financial_spine_invoice_id: inv.id");
-    // the legitimate sales_leads.qb_invoice_id write is preserved
+    // The deposit was removed — intake creates a lead only, no QB invoice and
+    // no phantom qb_invoice_id, so there is nothing to persist to the spine.
+    expect(src).not.toContain("createInvoice");
+    expect(src).not.toContain("qb_invoice_id");
     expect(src).toContain('from("sales_leads")');
   });
 
