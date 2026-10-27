@@ -250,6 +250,15 @@ export async function spawnFromLocationRequest(
     companyId?: string;
   },
 ): Promise<WorkflowRow | null> {
+  // The intake is captured as a sales_leads row — snapshot it so the
+  // locations team sees the full request (ZIPs, state, machine type,
+  // travel radius, excluded industries, availability) on the workflow.
+  const { data: lead } = await supabaseAdmin
+    .from("sales_leads")
+    .select("*")
+    .eq("id", requestId)
+    .maybeSingle();
+
   return safeCreate({
     customerId: args.customerId,
     companyId: args.companyId ?? null,
@@ -267,6 +276,7 @@ export async function spawnFromLocationRequest(
       : undefined,
     primaryTeam: "locations",
     assignedUserId: teamEmailAssignee("locations"),
+    metadata: lead ? { source_intake: snapshotSourceIntake(lead) } : undefined,
     actorType: "system",
   });
 }
