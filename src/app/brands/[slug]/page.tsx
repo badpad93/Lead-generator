@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ShoppingCart, FileText, Boxes, Layers, Camera, ShieldCheck } from "lucide-react";
 import { getBrandBySlug } from "@/lib/vendingBrands";
 import { buyHref, type SmartCoolerMachine } from "@/lib/smartCoolerMachines";
+import MachinePurchaseBanner from "@/app/components/MachinePurchaseBanner";
 
 // Render per request so brand/lineup/price edits in the admin panel appear
 // immediately rather than being frozen into the build-time HTML.
@@ -49,6 +50,7 @@ export default async function BrandLineupPage({ params }: { params: Promise<{ sl
 
       {/* Lineup */}
       <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
+        <MachinePurchaseBanner className="mb-8" />
         <h2 className="mb-8 text-2xl font-bold text-black-primary">The {brand.name} lineup</h2>
         {brand.machines.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-16 text-center">

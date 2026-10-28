@@ -4,6 +4,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getSellableMachine } from "@/lib/smartCoolerMachines";
+import MachinePurchaseBanner from "@/app/components/MachinePurchaseBanner";
 import CheckoutForm from "./CheckoutForm";
 
 export const metadata: Metadata = {
@@ -25,6 +26,8 @@ export default async function SmartCoolerCheckoutPage({ params }: { params: Prom
         <Link href="/smart-coolers" className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-green-primary">
           <ArrowLeft className="h-4 w-4" /> Back to machines
         </Link>
+
+        <MachinePurchaseBanner className="mb-6" />
 
         <div className="mb-6 flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-5">
           {machine.imageUrl ? (
