@@ -85,3 +85,35 @@ describe("admin + public surfaces", () => {
     expect(read("src/proxy.ts")).toContain('"/locators"');
   });
 });
+
+describe("location services: pick-a-locator request flow", () => {
+  it("migration stores the questionnaire + any-locator flag on the subscription", () => {
+    const sql = read("supabase/migrations/20261031000000_location_service_needs.sql");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS location_needs jsonb");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS any_locator");
+  });
+  it("checkout supports 'any' locator (lowest active rate) + captures location needs", () => {
+    const route = read("src/app/api/location-services/[id]/checkout/route.ts");
+    expect(route).toContain('id === "any"');
+    expect(route).toContain("getLowestLocatorRateCents");
+    expect(route).toContain("validateNeeds");
+    expect(route).toContain("location_needs");
+  });
+  it("the /locators page shows how-it-works + an Any-locator option (hidden when none)", () => {
+    const page = read("src/app/locators/page.tsx");
+    expect(page).toContain("How location services work");
+    expect(page).toContain("getLowestLocatorRateCents");
+    expect(page).toContain("anyRate != null && <AnyLocatorCard");
+    expect(page).toContain("/locators/any/checkout");
+  });
+  it("the checkout form has the questionnaire and the 24-hour reach-out message", () => {
+    const form = read("src/app/locators/[id]/checkout/CheckoutForm.tsx");
+    expect(form).toContain("Your location needs");
+    expect(form).toContain("location_needs");
+    expect(form).toContain("reach out within 24 hours");
+  });
+  it("the Request Location Services CTAs point at /locators", () => {
+    expect(read("src/app/components/Navbar.tsx")).not.toContain('"/request-location"');
+    expect(read("src/app/dashboard/page.tsx")).not.toContain('"/request-location"');
+  });
+});

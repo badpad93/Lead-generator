@@ -574,7 +574,7 @@ export default function DashboardPage() {
                 </span>
               ) : (
                 <Link
-                  href="/request-location"
+                  href="/locators"
                   className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 backdrop-blur-sm transition-colors hover:border-green-400/50 hover:bg-white/10 hover:text-white"
                 >
                   <User className="h-3.5 w-3.5 text-green-400" /> Location Requests
@@ -986,7 +986,7 @@ export default function DashboardPage() {
               Icon: Monitor,
             },
             {
-              href: "/request-location",
+              href: "/locators",
               title: "Request Location Services",
               copy: "Let our team source placement locations for you",
               Icon: MapPin,
