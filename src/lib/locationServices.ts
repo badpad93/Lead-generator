@@ -64,6 +64,21 @@ export async function getPublicLocators(): Promise<PublicLocator[]> {
   }
 }
 
+/** Lowest hourly rate (cents) among active, priced locators — used to price the
+ *  "Any available locator" option. Null when no active priced locator exists. */
+export async function getLowestLocatorRateCents(): Promise<number | null> {
+  const { data } = await supabaseAdmin
+    .from("location_service_locators")
+    .select("hourly_rate_cents")
+    .eq("active", true)
+    .gt("hourly_rate_cents", 0)
+    .order("hourly_rate_cents", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const cents = (data?.hourly_rate_cents as number) ?? 0;
+  return cents > 0 ? cents : null;
+}
+
 export interface SellableLocator extends PublicLocator {
   active: boolean;
 }

@@ -51,7 +51,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Financing", href: "/financing", description: "Up to 10-year equipment financing options" },
       { label: "Coffee Program", href: "/coffee", description: "Commercial coffee with qualifying free brewer" },
       { label: "Website Services", href: "/website-services", description: "Professional site for your vending business" },
-      { label: "Location Services", href: "/request-location", description: "Get help placing your machines" },
+      { label: "Location Services", href: "/locators", description: "Get help placing your machines" },
     ],
   },
   {
@@ -463,7 +463,7 @@ export default function Navbar() {
               <>
               <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
                 <Link
-                  href="/request-location"
+                  href="/locators"
                   className="whitespace-nowrap rounded-lg bg-green-primary px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
                   aria-label={TOOLTIP_COPY["Request Location Services"]}
                   title={TOOLTIP_COPY["Request Location Services"]}
@@ -624,7 +624,7 @@ export default function Navbar() {
                 </Tooltip>
                 <Tooltip content={TOOLTIP_COPY["Request Location Services"]}>
                   <Link
-                    href="/request-location"
+                    href="/locators"
                     className="whitespace-nowrap rounded-lg bg-green-primary px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-hover hover:shadow-md btn-press btn-shimmer"
                     aria-label={TOOLTIP_COPY["Request Location Services"]}
                     title={TOOLTIP_COPY["Request Location Services"]}
