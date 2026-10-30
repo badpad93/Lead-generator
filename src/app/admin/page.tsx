@@ -4658,6 +4658,16 @@ export default function AdminPage() {
     }
 
     checkAdmin();
+
+    // Keep the access token fresh. Supabase auto-refreshes the session in the
+    // background, but the token captured above would otherwise stay frozen in
+    // state and expire after ~1h — making every admin API call (uploads,
+    // saves) 403 once the page has been open a while. Mirror each refreshed
+    // token into state so every manager always sends a valid bearer.
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) setToken(session.access_token);
+    });
+    return () => sub.subscription.unsubscribe();
   }, [router]);
 
   function handleSuccess(msg: string) {
